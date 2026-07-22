@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "syntheticOnly": true,
+  "students": [
+    {
+      "studentKey": "SYNTHETIC-001",
+      "displayName": "가상학생-가",
+      "classKey": "SYNTHETIC-CLASS-A",
+      "credentialSource": "runtime-only-not-in-fixture"
+    },
+    {
+      "studentKey": "SYNTHETIC-002",
+      "displayName": "가상학생-나",
+      "classKey": "SYNTHETIC-CLASS-A",
+      "credentialSource": "runtime-only-not-in-fixture"
+    }
+  ]
+}

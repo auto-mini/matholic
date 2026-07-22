@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">매쓰홀릭 접근성 조사기</string>
+    <string name="accessibility_service_label">매쓰홀릭 조사 서비스</string>
+    <string name="accessibility_service_description">확인된 매쓰홀릭 패키지의 접근성 노드를 민감정보 없이 조사합니다.</string>
+    <string name="probe_title">매쓰홀릭 Gate 1 접근성 조사기</string>
+    <string name="open_accessibility_settings">1. 접근성 설정 열기</string>
+    <string name="open_matholic">2. 매쓰홀릭 열기</string>
+    <string name="export_latest_report">마지막 redacted 보고서 내보내기</string>
+    <string name="delete_all_reports">앱 내부 조사 보고서 모두 삭제</string>
+    <string name="probe_warning">원문 화면 덤프는 저장하지 않습니다. 매쓰홀릭 화면에서 조사기 버튼을 눌러 현재 접근성 트리의 redacted 보고서만 생성합니다. 실제 학생계정은 사용하지 마세요.</string>
+    <string name="enable_service_first">먼저 조사 접근성 서비스를 활성화하세요.</string>
+    <string name="target_not_found">확인된 매쓰홀릭 패키지를 찾지 못했습니다.</string>
+    <string name="report_exported">redacted 보고서를 내보냈습니다.</string>
+    <string name="export_failed">내보내기 실패: %1$s</string>
+    <string name="no_report_to_export">내보낼 보고서가 없습니다.</string>
+    <string name="delete_reports_title">redacted 보고서 삭제</string>
+    <string name="delete_reports_message">앱 내부에 저장된 redacted 보고서를 모두 삭제합니다. 내보낸 파일은 삭제되지 않습니다.</string>
+    <string name="cancel">취소</string>
+    <string name="delete">삭제</string>
+    <string name="reports_deleted">%1$d개를 삭제했습니다.</string>
+    <string name="yes">예</string>
+    <string name="no">아니오</string>
+    <string name="enabled">활성</string>
+    <string name="disabled">비활성</string>
+    <string name="connected">연결됨</string>
+    <string name="waiting_connection">연결 대기</string>
+    <string name="not_installed">미설치</string>
+    <string name="none">없음</string>
+    <string name="status_summary">대상: %1$s\n버전: %2$s (%3$d)\n승인 버전 일치: %4$s\n접근성 설정: %5$s\n서비스 연결: %6$s</string>
+    <string name="report_status">redacted 보고서: %1$d개\n최근 파일: %2$s</string>
+    <string name="overlay_gate">Gate 1</string>
+    <string name="capture_nodes">노드 캡처</string>
+    <string name="service_interrupted">서비스 일시중단</string>
+    <string name="not_target_screen">대상 화면 아님</string>
+    <string name="capture_saved">저장 %1$d</string>
+    <string name="capture_saved_truncated">저장 %1$d (잘림)</string>
+    <string name="capture_failed">실패 %1$s</string>
+</resources>

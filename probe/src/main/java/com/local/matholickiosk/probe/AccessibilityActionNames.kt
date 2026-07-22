@@ -1,0 +1,45 @@
+package com.local.matholickiosk.probe
+
+import android.view.accessibility.AccessibilityNodeInfo
+
+object AccessibilityActionNames {
+    fun nameOf(id: Int): String = when (id) {
+        AccessibilityNodeInfo.ACTION_FOCUS -> "FOCUS"
+        AccessibilityNodeInfo.ACTION_CLEAR_FOCUS -> "CLEAR_FOCUS"
+        AccessibilityNodeInfo.ACTION_SELECT -> "SELECT"
+        AccessibilityNodeInfo.ACTION_CLEAR_SELECTION -> "CLEAR_SELECTION"
+        AccessibilityNodeInfo.ACTION_CLICK -> "CLICK"
+        AccessibilityNodeInfo.ACTION_LONG_CLICK -> "LONG_CLICK"
+        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS -> "ACCESSIBILITY_FOCUS"
+        AccessibilityNodeInfo.ACTION_CLEAR_ACCESSIBILITY_FOCUS -> "CLEAR_ACCESSIBILITY_FOCUS"
+        AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY -> "NEXT_AT_MOVEMENT_GRANULARITY"
+        AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY -> "PREVIOUS_AT_MOVEMENT_GRANULARITY"
+        AccessibilityNodeInfo.ACTION_NEXT_HTML_ELEMENT -> "NEXT_HTML_ELEMENT"
+        AccessibilityNodeInfo.ACTION_PREVIOUS_HTML_ELEMENT -> "PREVIOUS_HTML_ELEMENT"
+        AccessibilityNodeInfo.ACTION_SCROLL_FORWARD -> "SCROLL_FORWARD"
+        AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD -> "SCROLL_BACKWARD"
+        AccessibilityNodeInfo.ACTION_COPY -> "COPY"
+        AccessibilityNodeInfo.ACTION_PASTE -> "PASTE"
+        AccessibilityNodeInfo.ACTION_CUT -> "CUT"
+        AccessibilityNodeInfo.ACTION_SET_SELECTION -> "SET_SELECTION"
+        AccessibilityNodeInfo.ACTION_EXPAND -> "EXPAND"
+        AccessibilityNodeInfo.ACTION_COLLAPSE -> "COLLAPSE"
+        AccessibilityNodeInfo.ACTION_DISMISS -> "DISMISS"
+        AccessibilityNodeInfo.ACTION_SET_TEXT -> "SET_TEXT"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.id -> "SHOW_ON_SCREEN"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id -> "SCROLL_UP"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id -> "SCROLL_DOWN"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id -> "SCROLL_LEFT"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id -> "SCROLL_RIGHT"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id -> "PAGE_UP"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id -> "PAGE_DOWN"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id -> "PAGE_LEFT"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id -> "PAGE_RIGHT"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_CONTEXT_CLICK.id -> "CONTEXT_CLICK"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.id -> "SET_PROGRESS"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_MOVE_WINDOW.id -> "MOVE_WINDOW"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_TOOLTIP.id -> "SHOW_TOOLTIP"
+        AccessibilityNodeInfo.AccessibilityAction.ACTION_HIDE_TOOLTIP.id -> "HIDE_TOOLTIP"
+        else -> "ACTION_$id"
+    }
+}
