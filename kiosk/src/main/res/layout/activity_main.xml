@@ -350,6 +350,14 @@
                         android:textStyle="bold" />
 
                     <Button
+                        android:id="@+id/switch_camera_button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="12dp"
+                        android:contentDescription="카메라 전환"
+                        android:text="후면으로" />
+
+                    <Button
                         android:id="@+id/session_admin_button"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"

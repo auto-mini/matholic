@@ -143,3 +143,63 @@ Gate 0은 완료됐다. Android 앱 접근성 Gate 1은 복수의 필수 의미 
 ### 판정
 
 Gate 4의 agent-only 구현·자동 검증·설치는 완료했다. 실제 QR 카메라 인식과 시험계정 1회 Web 왕복은 사람 손이 필요한 수동 검증이 남아 있으므로 Gate 4 전체 판정은 아직 **미완료**다. Device Owner/Lock Task는 Gate 5 승인 전이므로 수행하지 않았다.
+
+---
+
+## Gate 4 alpha03 실제 수동 검증 — 2026-07-23
+
+### 카메라 사용성 변경
+
+- `kiosk` `0.4.0-alpha03`/code 3
+- 전면 카메라를 기본 선택
+- QR 대기 화면에서 `후면으로`/`전면으로` 전환
+- 선호 렌즈가 없으면 사용 가능한 렌즈로 fallback
+- 오래된 비동기 CameraX bind 요청 무효화
+- 카메라 정책 JVM 테스트 4개 추가
+
+### 코드 검증
+
+- clean 전체 빌드: `BUILD SUCCESSFUL`, 204 tasks
+- 전체 단위 테스트: Probe 8, 잠긴 POC 1, Web POC 19, Kiosk 13; 총 41개, 실패 0
+- 네 모듈 lint 오류: 0
+- `kiosk` 단위 테스트: 13/13, 실패 0
+- `kiosk` lint: 오류 0
+- `kiosk` debug assemble: 성공
+- A에 데이터 유지 덮어설치: 성공
+- 설치 확인: `versionName=0.4.0-alpha03`, `versionCode=3`
+
+기존 `kiosk` 계측 6/6과 `webpoc` 계측 27/27은 alpha02/0.3.4에서 통과했다. alpha03 설치 뒤에는 시험계정 DB를 보존하기 위해 `clearAllTables()`를 수행하는 기존 기기 계측 suite를 다시 실행하지 않았다.
+
+### A 실제 QR·Web 왕복
+
+- 후면 실제 QR → 시험계정 확인 완료 → 문제 화면 → 채점 끝내기 → `QR_READY`: PASS
+- 전면 실제 QR → 시험계정 확인 완료 → 채점 끝내기 → `QR_READY`: PASS
+- 후면 전환 → 전면 복귀 CameraX bind: PASS
+- 재발급 전 QR 거부 → 자동 `QR_READY`: PASS
+- 재발급 신 QR 로그인·로그아웃: PASS
+- 구 QR+신 QR 동시 노출 → 복수 QR 거부, Web 미실행: PASS
+- 현재 반 외 QR → 거부, Web 미실행: PASS
+- 존재하지 않는 합성 Web 계정 → `WEB_SESSION_NOT_CLEAN` + `LOCKED`: PASS
+- 앱 종료 실패주입 → 실패폐쇄, 관리자 안전 종료·재시작: PASS
+
+### 시험 후 정리와 최종 기기 상태
+
+- 반외·WEBFAIL 촬영 QR은 재발급해 사진 속 token을 폐기
+- 시험계정 신 QR은 유지
+- 활성 수업: `GATE4-TEST`
+- 상태: `QR_READY`
+- 활성 렌즈: 전면 (`후면으로` 버튼 표시)
+- `stay_on_while_plugged_in`: 시험 전 값 `0`으로 복구
+
+### alpha03 APK
+
+- 파일: `artifacts/matholic-kiosk-gate4-0.4.0-alpha03-debug.apk`
+- 크기: 42,284,782 bytes
+- SHA-256: `D1625CD8F8D5FA7DF635C4F440384FAEE277B0925E3451E87C58349CD539E363`
+- A 설치본 SHA-256과 아티팩트 SHA-256 일치
+- Kiosk/Web POC 모두 APK Signature Scheme v2, signer 1
+- 두 APK signer SHA-256 일치: `0b6bef1c18a3beb397b655e895d30412aa749b712fd801c26a9b9e386e8579f8`
+
+### 판정
+
+정의된 시험계정 기반 **Gate 4 alpha 범위는 PASS**다. QR 인쇄, 실제 학생 파일럿, 장시간 성능 통계, 단일 release 패키징과 Device Owner/Lock Task는 이 판정에 포함하지 않는다.

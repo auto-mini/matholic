@@ -36,6 +36,8 @@ import com.local.matholickiosk.kiosk.data.AdminAuthResult
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
+import com.local.matholickiosk.kiosk.domain.CameraFacing
+import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
@@ -72,6 +74,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var scannerPanel: FrameLayout
     private lateinit var cameraPreview: PreviewView
     private lateinit var scannerMessage: TextView
+    private lateinit var switchCameraButton: Button
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -87,6 +90,9 @@ class MainActivity : ComponentActivity() {
     private var cameraProvider: ProcessCameraProvider? = null
     private var qrAnalyzer: QrImageAnalyzer? = null
     private var scannerVisible = false
+    private var preferredCameraFacing = CameraFacing.FRONT
+    private var activeCameraFacing = CameraFacing.FRONT
+    private var cameraBindGeneration = 0
     private var destroyed = false
     private var pendingCredentialBridgeId: String? = null
     private var relockAdminOnStart = false
@@ -193,6 +199,7 @@ class MainActivity : ComponentActivity() {
         scannerPanel = findViewById(R.id.scanner_panel)
         cameraPreview = findViewById(R.id.camera_preview)
         scannerMessage = findViewById(R.id.scanner_message)
+        switchCameraButton = findViewById(R.id.switch_camera_button)
     }
 
     private fun configureSensitiveViews() {
@@ -209,6 +216,7 @@ class MainActivity : ComponentActivity() {
             addTemporaryButton,
             startSessionButton,
             resumeSessionButton,
+            switchCameraButton,
             findViewById<Button>(R.id.session_admin_button),
         ).forEach { it.filterTouchesWhenObscured = true }
         pinConfirmInput.setOnEditorActionListener { _, actionId, _ ->
@@ -229,6 +237,7 @@ class MainActivity : ComponentActivity() {
         addTemporaryButton.setOnClickListener { addTemporaryStudent() }
         startSessionButton.setOnClickListener { startOrEndSession() }
         resumeSessionButton.setOnClickListener { showScanner() }
+        switchCameraButton.setOnClickListener { switchCamera() }
         findViewById<Button>(R.id.session_admin_button).setOnClickListener {
             requestSessionAdminAuthentication()
         }
@@ -559,11 +568,27 @@ class MainActivity : ComponentActivity() {
 
     private fun bindCamera() {
         if (!scannerVisible || destroyed) return
+        val generation = ++cameraBindGeneration
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
-            if (!scannerVisible || destroyed) return@addListener
+            if (!scannerVisible || destroyed || generation != cameraBindGeneration) {
+                return@addListener
+            }
             val provider = future.get()
             cameraProvider = provider
+            val facing = CameraFacingPolicy.choose(
+                preferred = preferredCameraFacing,
+                frontAvailable = provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA),
+                backAvailable = provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA),
+            )
+            if (facing == null) {
+                scannerMessage.text = "사용 가능한 카메라가 없습니다\n선생님 확인이 필요합니다"
+                statusText.text = "CAMERA_UNAVAILABLE"
+                return@addListener
+            }
+            activeCameraFacing = facing
+            preferredCameraFacing = facing
+            updateCameraSwitchLabel()
             val preview = Preview.Builder().build().also {
                 it.surfaceProvider = cameraPreview.surfaceProvider
             }
@@ -577,11 +602,28 @@ class MainActivity : ComponentActivity() {
             provider.unbindAll()
             provider.bindToLifecycle(
                 this,
-                CameraSelector.DEFAULT_BACK_CAMERA,
+                if (facing == CameraFacing.FRONT) {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                },
                 preview,
                 analysis,
             )
         }, mainExecutor)
+    }
+
+    private fun switchCamera() {
+        preferredCameraFacing = CameraFacingPolicy.opposite(activeCameraFacing)
+        bindCamera()
+    }
+
+    private fun updateCameraSwitchLabel() {
+        switchCameraButton.text = if (activeCameraFacing == CameraFacing.FRONT) {
+            "후면으로"
+        } else {
+            "전면으로"
+        }
     }
 
     private fun handleQrDecision(decision: QrFrameDecision) {
@@ -762,6 +804,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopCamera() {
+        cameraBindGeneration += 1
         qrAnalyzer?.setEnabled(false)
         cameraProvider?.unbindAll()
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

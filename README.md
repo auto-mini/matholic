@@ -1,6 +1,6 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Gate 0은 완료됐고 Android 앱 Gate 1 실기 조사는 최종 FAIL이다. 공식 웹 경로의 Web Gate 1과 Web POC 구현 승인은 완료됐다. Web Gate 2와 Gate 3의 실제 시험·실패주입은 PASS다. Gate 4 alpha에는 QR·반·보강·관리자 PIN·Keystore 암호화 저장·로컬 감사기록과 검증된 Web 엔진 연결이 구현됐다. 자동 검증은 통과했지만 실제 QR 카메라 및 실계정 1회 왕복은 아직 수동 확인 전이므로 Gate 4 전체 PASS는 아니다. Device Owner와 생산 배포는 Gate 5 이후 범위다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Gate 0은 완료됐고 Android 앱 Gate 1 실기 조사는 최종 FAIL이다. 공식 웹 경로의 Web Gate 1과 Web POC 구현 승인은 완료됐다. Web Gate 2와 Gate 3의 실제 시험·실패주입은 PASS다. Gate 4 alpha에는 QR·반·보강·관리자 PIN·Keystore 암호화 저장·로컬 감사기록과 검증된 Web 엔진 연결이 구현됐다. A 기기에서 실제 QR 정상 왕복과 문제 화면, 폐기·복수·현재반 외 QR 거부, Web 실패 잠금 및 전면 카메라를 확인해 정의된 Gate 4 alpha 범위는 PASS다. QR 인쇄, 장시간 성능 통계, Device Owner와 생산 배포는 후속 범위다.
 
 ## 현재 Gate
 
@@ -73,7 +73,7 @@ Gate 4 alpha의 동일 서명 `kiosk` + `webpoc` 설치와 실행:
 .\scripts\install-gate4.ps1
 ```
 
-관리자 PIN과 학생 자격정보는 태블릿 화면에서만 입력한다. 상세 구현 범위와 남은 수동 시험은 [docs/GATE4_IMPLEMENTATION.md](docs/GATE4_IMPLEMENTATION.md)에 기록했다.
+관리자 PIN과 학생 자격정보는 태블릿 화면에서만 입력한다. 상세 구현 범위와 실제 수동 시험 결과는 [docs/GATE4_IMPLEMENTATION.md](docs/GATE4_IMPLEMENTATION.md)에 기록했다.
 
 기기 A(`SM-P610`)를 연결한 뒤 전체 빌드→비민감 기준정보→25개 계측시험→재설치→`IDLE` 확인을 한 번에 수행하려면:
 
