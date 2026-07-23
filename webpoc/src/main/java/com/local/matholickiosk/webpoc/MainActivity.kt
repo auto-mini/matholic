@@ -603,8 +603,7 @@ class MainActivity : Activity() {
                         )
                     }, LOGIN_DOM_PROBE_DELAY_MS)
                 } else {
-                    wipeRuntimeSecrets()
-                    showMaintenance(loginFingerprintReason(result))
+                    rejectInvalidLoginFingerprint(loginFingerprintReason(result))
                 }
                 return@evaluate
             }
@@ -625,8 +624,7 @@ class MainActivity : Activity() {
                 WebPocState.LOGIN_SUBMIT,
                 WebPocState.LOGIN_VERIFY,
                 -> {
-                    wipeRuntimeSecrets()
-                    showLocked("LOGIN_NOT_VERIFIED")
+                    rejectUnverifiedLogin()
                 }
                 WebPocState.LOGOUT_NAVIGATE,
                 WebPocState.LOGOUT_SUBMIT,
@@ -926,6 +924,14 @@ class MainActivity : Activity() {
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = getString(R.string.status_locked_with_code, reason)
         recoveryButton.visibility = View.VISIBLE
+    }
+
+    internal fun rejectUnverifiedLogin() {
+        showLocked("LOGIN_NOT_VERIFIED")
+    }
+
+    internal fun rejectInvalidLoginFingerprint(reason: String) {
+        showMaintenance(reason)
     }
 
     private fun showMaintenance(reason: String) {

@@ -6,13 +6,15 @@
 
 - Gate 3 runner 구현: **PASS**
 - 전체 저장소 clean build·unit·lint: **PASS**
-- A 기기 비자격정보 계측시험: **25/25 PASS**
-- A 설치 version `0.3.2` / code `14`, 최종 `IDLE`: **PASS**
+- A 기기 비자격정보 계측시험: **27/27 PASS**
+- A 설치 version `0.3.3` / code `15`, 최종 `IDLE`: **PASS**
 - 실제 시험계정 A↔B 시도 1: **82/100 뒤 `LOGIN_TIMEOUT`, G301 FAIL**
 - 실제 시험계정 A↔B 시도 2: **74/100 뒤 `LOGIN_TIMEOUT`, G301 FAIL**
 - 실제 시험계정 A↔B 시도 3: **100/100, A 50회·B 50회, G301 PASS**
 - 최종 0.3.2 실제 시험계정 A↔B 시도 4: **100/100, A 50회·B 50회, 정상 회귀 PASS**
 - G302 실제 표시명 교차 매핑: **`STUDENT_MISMATCH`, 완료 0, B 로그인 0, PASS**
+- G303 과거 비밀번호: **0.3.3 수정 뒤 `LOGIN_NOT_VERIFIED`, 완료 0, B 로그인 0, PASS**
+- G304·G305 실제 session 종료: **세 상태 모두 완료 회수 불변, `ABORTED / IDLE`, PASS**
 - timeout 실패 폐쇄·자동 재시도 0·다음 계정 차단: **PASS**
 - Web Gate 3 최종 판정: **아직 PASS 아님**
 
@@ -63,7 +65,7 @@ A `SM-P610`, Android 13 계측시험 18개, 실패 0:
 ## 보안검사
 
 - applicationId: `com.local.matholickiosk.webpoc`
-- 최신 versionName/versionCode: `0.3.2` / `14`
+- 최신 versionName/versionCode: `0.3.3` / `15`
 - 권한: `android.permission.INTERNET` 1개
 - APK Signature Scheme v2: true, signer 1
 - WebView debugging, ADB input, uiautomator, 접근성 gesture, JavaScript interface와 앱 로그 호출 없음
@@ -72,9 +74,9 @@ A `SM-P610`, Android 13 계측시험 18개, 실패 0:
 
 ## APK
 
-- 파일: `artifacts/matholic-webpoc-gate3-0.3.2-debug.apk`
-- 크기: 3,646,698 bytes
-- SHA-256: `7EE595294C94AF69EC00C422819CE821852007AC12EF72A5A6F520081547D127`
+- 파일: `artifacts/matholic-webpoc-gate3-0.3.3-debug.apk`
+- 크기: 3,646,986 bytes
+- SHA-256: `26038D7F8205889E54342F3B01FE77E70D1E9013CC06B9AD33B9A09DF941896F`
 - build 출력과 전달본 SHA-256 일치: PASS
 
 ## 실제 시험 전 조건
@@ -133,7 +135,7 @@ A `SM-P610`, Android 13 계측시험 18개, 실패 0:
 - G301 정상 A↔B 교차: **PASS**
 - G308 완료 직후 앱·기기 재시작: **PASS**
 
-시도 3의 성공으로 정상 교차 기준은 충족했다. 다만 성공 1회만으로 앞선 timeout의 단일 원인을 확정하지 않는다. G303과 실계정 session 기반 G304·G305가 끝나기 전 Web Gate 3 최종 판정은 **아직 PASS가 아니다**.
+시도 3의 성공으로 정상 교차 기준은 충족했다. 다만 성공 1회만으로 앞선 timeout의 단일 원인을 확정하지 않는다. 0.3.3 자체의 정상 100회 회귀가 끝나기 전 Web Gate 3 최종 판정은 **아직 PASS가 아니다**.
 
 완료 뒤 앱 프로세스 강제종료·재실행과 A 전체 재부팅·unlock·앱 재실행을 수행했다. 두 경우 모두 `PASSED / 100/100 / IDLE / 사유 없음`, 동일 소요시간과 자격정보 없는 저장 키 5개만 유지돼 G308을 통과했다.
 
@@ -167,14 +169,31 @@ A `SM-P610`, Android 13 계측시험 18개, 실패 0:
 
 | ID | 검증 | 결과 | 범위 |
 |---|---|---|---|
-| G304 | `ACTIVE`+Gate 3 `RUNNING` 상태 재시작 | 자동 계약 PASS | 실제 인증 cookie를 의도적으로 잔류시킨 실계정 시험은 미수행 |
+| G304 | `ACTIVE`+Gate 3 `RUNNING` 상태 재시작 | 자동 계약 PASS | 실계정 보완 시험은 아래 0.3.3 절에서 PASS |
 | G305 | `LOGIN_SUBMIT`·`ACTIVE`·`LOGOUT_SUBMIT` 상태 재시작 | 자동 계약 PASS | 세 상태 모두 `ABORTED`, 완료 17 유지, 자동 재개 0 |
 | G306 | A Wi-Fi 실제 단절 공개 preflight | PASS | `LOCKED / NETWORK_ERROR`, Gate 3 실행·완료값 없음 |
 | G306 | A Wi-Fi 실제 단절 + Gate 3 로그인 제출 중 상태 | PASS | 비자격정보 계측, `ABORTED`, 완료 17 유지, 자동 재개 0 |
 
 G306 뒤 A Wi-Fi 연결·공식 로그인 host 도달을 확인하고 앱 데이터만 초기화해 version `0.2.3`, `IDLE`, reason 없음으로 복구했다. 실제 자격정보·가짜 로그인 제출·ADB 입력은 사용하지 않았다.
 
-G304·G305의 상태 복구 계약은 자동 검증됐지만, 실제 인증 session을 의도적으로 남기거나 실계정 로그인·로그아웃 도중 프로세스를 죽이는 시험은 사용자가 계정을 다시 입력해야 하므로 별도 미수행으로 남긴다. 네트워크 경로가 변경된 최종 0.3.2의 정상 회귀 100회는 2026-07-23 실제 시험계정으로 통과했다.
+G304·G305의 상태 복구 계약에 이어 실제 인증 session에서 로그인·ACTIVE·로그아웃 중 프로세스를 죽이는 보완 시험도 0.3.3에서 통과했다. 네트워크 경로가 변경된 0.3.2의 정상 회귀 100회는 2026-07-23 실제 시험계정으로 통과했다.
+
+## 0.3.3 G303 실패 결과 영속화 수정과 실계정 재검증
+
+- 최초 0.3.2 G303: `LOCKED / LOGIN_NOT_VERIFIED`, 완료 0이었으나 Gate 3 status가 `RUNNING`으로 남아 결함 판정
+- 원인: 로그인 거부 처리에서 `showLocked()`가 Gate 3 `FAILED`를 저장하기 전에 `wipeRuntimeSecrets()`가 세션을 삭제
+- 수정: 로그인 거부·fingerprint 거부 모두 terminal 결과를 먼저 저장하고 이후 세션·자격정보 삭제
+- 회귀시험: 두 terminal 경로 합성 Gate 3 세션 계측 2개 추가
+- 전체 clean build·unit·lint·assemble: 150/150 PASS
+- A 계측시험: 27/27 PASS
+- G303 재시험: 6,137 ms 뒤 `FAILED / LOCKED / LOGIN_NOT_VERIFIED`, 완료 0/100, B 로그인 0, 3초 안정 유지
+- G305 `LOGIN_SUBMIT` 종료: 완료 0 유지, `ABORTED / IDLE`, 자동 재개 0
+- G304 `ACTIVE` 종료: 완료 4 유지, 실제 session 복구 뒤 `ABORTED / IDLE`, 자동 재개 0
+- G305 `LOGOUT_SUBMIT` 종료: 완료 0 유지, `ABORTED / IDLE`, 자동 재개 0
+- 전달 APK: 0.3.3 / code 15, SHA-256 `26038D7F8205889E54342F3B01FE77E70D1E9013CC06B9AD33B9A09DF941896F`
+- APK 검사: v2 서명 true, signer 1, INTERNET 권한 1개
+
+따라서 G303과 실계정 session 기반 G304·G305는 PASS다. 최종 0.3.3 정상 100회 회귀만 남는다.
 
 ## 추가 A 연결 검증
 
@@ -198,11 +217,11 @@ G304·G305의 상태 복구 계약은 자동 검증됐지만, 실제 인증 sess
 
 ## 최종 무인 점검 상태
 
-- A: `SM-P610`, Web POC `0.3.2` / code `14`
-- 앱 상태: `PASSED / 100/100 / IDLE`, reason 없음, preferences 키는 Gate 3 결과를 포함한 비민감 5개
+- A: `SM-P610`, Web POC `0.3.3` / code `15`
+- 앱 상태: `IDLE`, reason 없음, preferences 키는 `state` 하나
 - Wi-Fi: enabled, 공식 로그인 host 도달 PASS
 - 설치 APK SHA-256과 전달본 SHA-256 일치: PASS
 - 계측시험 패키지 제거: PASS
 - 남은 실계정 절차와 무자격정보 감시·프로세스 종료 도구: `WEB_GATE3_REMAINING_MANUAL.md`
 
-최종 0.3.2 실제 정상 100회와 G302는 통과했다. G303과 실계정 session 기반 G304·G305가 끝나기 전 Gate 3 PASS 또는 실제 학생 적용으로 보고하지 않는다.
+G301~G308의 정의된 실계정·기기 실패주입은 통과했다. 최종 0.3.3 자체의 정상 100회 회귀가 끝나기 전 Gate 3 PASS 또는 실제 학생 적용으로 보고하지 않는다.

@@ -215,6 +215,42 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun gate3LoginRejectionPersistsFailedBeforeWipingSession() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+            scenario.onUiInitialized { activity ->
+                startSyntheticGate3(activity)
+                activity.rejectUnverifiedLogin()
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("LOGIN_NOT_VERIFIED", preferences().getString(KEY_REASON, null))
+            assertEquals("FAILED", preferences().getString(KEY_GATE3_STATUS, null))
+            assertEquals(0, preferences().getInt(KEY_GATE3_COMPLETED, -1))
+        }
+    }
+
+    @Test
+    fun gate3FingerprintRejectionPersistsFailedBeforeWipingSession() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+            scenario.onUiInitialized { activity ->
+                startSyntheticGate3(activity)
+                activity.rejectInvalidLoginFingerprint("LOGIN_FINGERPRINT_TEST")
+            }
+
+            assertEquals(WebPocState.MAINTENANCE_REQUIRED, readState())
+            assertEquals("LOGIN_FINGERPRINT_TEST", preferences().getString(KEY_REASON, null))
+            assertEquals("FAILED", preferences().getString(KEY_GATE3_STATUS, null))
+            assertEquals(0, preferences().getInt(KEY_GATE3_COMPLETED, -1))
+        }
+    }
+
+    @Test
     fun allGate3InputsDisableStateSavingAndAutofill() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -296,6 +332,18 @@ class RecoveryInstrumentedTest {
 
     private fun writeState(state: WebPocState) {
         preferences().edit().putString(KEY_STATE, state.name).commit()
+    }
+
+    private fun startSyntheticGate3(activity: MainActivity) {
+        activity.findViewById<View>(R.id.gate3_mode_button).performClick()
+        activity.findViewById<EditText>(R.id.expected_name).setText("가상 학생 A")
+        activity.findViewById<EditText>(R.id.username).setText("virtual-a")
+        activity.findViewById<EditText>(R.id.password).setText("virtual-pass-a")
+        activity.findViewById<EditText>(R.id.gate3_expected_name_b).setText("가상 학생 B")
+        activity.findViewById<EditText>(R.id.gate3_username_b).setText("virtual-b")
+        activity.findViewById<EditText>(R.id.gate3_password_b).setText("virtual-pass-b")
+        activity.findViewById<View>(R.id.gate3_start_button).performClick()
+        assertEquals("RUNNING", preferences().getString(KEY_GATE3_STATUS, null))
     }
 
     private fun readState(): WebPocState {
