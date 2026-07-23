@@ -61,14 +61,16 @@ class StudentRepository(
         username: CharArray,
         password: CharArray,
     ): RegisteredStudent {
-        require(database.classDao().findActiveById(classId) != null) { "Active class not found" }
-        val exact = displayNameExact.trim()
-        val masked = displayNameMasked.trim()
-        require(exact.isNotEmpty()) { "Exact display name is required" }
-        require(masked.isNotEmpty()) { "Masked display name is required" }
-        require(username.isNotEmpty() && password.isNotEmpty()) { "Credentials are required" }
-
         try {
+            require(database.classDao().findActiveById(classId) != null) {
+                "Active class not found"
+            }
+            val exact = displayNameExact.trim()
+            val masked = displayNameMasked.trim()
+            require(exact.isNotEmpty()) { "Exact display name is required" }
+            require(masked.isNotEmpty()) { "Masked display name is required" }
+            require(username.isNotEmpty() && password.isNotEmpty()) { "Credentials are required" }
+
             val studentId = UUID.randomUUID().toString()
             val issued = qrCodec.issue()
             val usernameEncrypted = cipher.encrypt(studentId, CredentialField.USERNAME, username)
@@ -116,14 +118,84 @@ class StudentRepository(
         return issued
     }
 
-    fun deactivateStudent(studentId: String) {
+    fun updateStudentProfile(
+        studentId: String,
+        displayNameExact: String,
+        displayNameMasked: String,
+    ) {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
+        require(student.isActive) { "Student is inactive" }
+        val exact = displayNameExact.trim()
+        val masked = displayNameMasked.trim()
+        require(exact.isNotEmpty()) { "Exact display name is required" }
+        require(masked.isNotEmpty()) { "Masked display name is required" }
         database.runInTransaction {
             database.studentDao().update(
-                student.copy(isActive = false, updatedAtEpochMs = nowEpochMs()),
+                student.copy(
+                    displayNameExact = exact,
+                    displayNameMasked = masked,
+                    updatedAtEpochMs = nowEpochMs(),
+                ),
             )
+            audit("STUDENT_PROFILE_UPDATED", null, studentId, null)
+        }
+    }
+
+    fun updateStudentCredentials(
+        studentId: String,
+        username: CharArray,
+        password: CharArray,
+    ) {
+        try {
+            val student = requireNotNull(database.studentDao().findById(studentId)) {
+                "Student not found"
+            }
+            require(student.isActive) { "Student is inactive" }
+            require(username.isNotEmpty() && password.isNotEmpty()) { "Credentials are required" }
+
+            val usernameEncrypted = cipher.encrypt(studentId, CredentialField.USERNAME, username)
+            val passwordEncrypted = cipher.encrypt(studentId, CredentialField.PASSWORD, password)
+            database.runInTransaction {
+                database.studentDao().update(
+                    student.copy(
+                        usernameCiphertext = usernameEncrypted.ciphertext,
+                        usernameIv = usernameEncrypted.iv,
+                        usernameEncryptionVersion = usernameEncrypted.version,
+                        passwordCiphertext = passwordEncrypted.ciphertext,
+                        passwordIv = passwordEncrypted.iv,
+                        passwordEncryptionVersion = passwordEncrypted.version,
+                        updatedAtEpochMs = nowEpochMs(),
+                    ),
+                )
+                audit("STUDENT_CREDENTIALS_UPDATED", null, studentId, null)
+            }
+        } finally {
+            username.fill('\u0000')
+            password.fill('\u0000')
+        }
+    }
+
+    fun deactivateStudent(studentId: String) {
+        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
+        require(student.isActive) { "Student is inactive" }
+        val revokedReplacementHash = qrCodec.issueHashOnly()
+        database.runInTransaction {
+            database.studentDao().update(
+                student.copy(
+                    qrTokenHash = revokedReplacementHash,
+                    isActive = false,
+                    updatedAtEpochMs = nowEpochMs(),
+                ),
+            )
+            audit("QR_REVOKED", null, studentId, null)
             audit("STUDENT_DEACTIVATED", null, studentId, null)
         }
+    }
+
+    fun recordQrPrintRequested(studentId: String) {
+        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
+        require(student.isActive) { "Student is inactive" }
+        audit("QR_PRINT_REQUESTED", null, studentId, null)
     }
 
     fun startSession(classId: String): ActiveSessionEntity {

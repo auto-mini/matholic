@@ -28,6 +28,16 @@ class QrTokenCodecTest {
     }
 
     @Test
+    fun hashOnlyIssuanceCreatesAnUnlinkableRevocationReplacement() {
+        val issued = codec.issue()
+        val replacement = codec.issueHashOnly()
+
+        assertEquals(32, replacement.size)
+        assertFalse(issued.hash.contentEquals(replacement))
+        assertFalse(replacement.contentEquals(codec.issueHashOnly()))
+    }
+
+    @Test
     fun nonMqrContentIsIgnoredAndMalformedMqrIsRejected() {
         assertEquals(QrParseResult.Ignore, codec.parse("https://example.test"))
         assertTrue(codec.parse("MQR1:short") is QrParseResult.Invalid)

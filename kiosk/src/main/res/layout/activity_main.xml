@@ -249,6 +249,32 @@
                                 android:visibility="gone" />
                         </LinearLayout>
 
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/update_profile_button"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="선택 학생 표시명 수정" />
+
+                            <Button
+                                android:id="@+id/update_credentials_button"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="선택 학생 계정 갱신" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/deactivate_student_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="선택 학생 비활성화·QR 폐기" />
+
                         <Button
                             android:id="@+id/start_session_button"
                             android:layout_width="match_parent"
@@ -306,9 +332,17 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:gravity="center"
-                        android:text="화면 캡처·클립보드·외부 파일 저장은 차단됩니다. 재출력은 새 QR 재발급을 사용하세요."
+                        android:text="화면 캡처·클립보드·외부 파일 저장은 차단됩니다. 현재 표시 QR만 신뢰하는 Android 인쇄 서비스로 보낼 수 있습니다."
                         android:textColor="#627D98"
                         android:textSize="14sp" />
+
+                    <Button
+                        android:id="@+id/print_qr_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:enabled="false"
+                        android:text="현재 표시 QR 인쇄" />
                 </LinearLayout>
             </LinearLayout>
 

@@ -39,6 +39,15 @@ class QrTokenCodec(
         }
     }
 
+    fun issueHashOnly(): ByteArray {
+        val token = ByteArray(TOKEN_BYTES).also(secureRandom::nextBytes)
+        return try {
+            sha256(token)
+        } finally {
+            token.fill(0)
+        }
+    }
+
     fun parse(payload: String?): QrParseResult {
         if (payload == null || !payload.startsWith(PREFIX)) return QrParseResult.Ignore
         val encoded = payload.removePrefix(PREFIX)

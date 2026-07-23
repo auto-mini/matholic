@@ -1,13 +1,13 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Gate 0은 완료됐고 Android 앱 Gate 1 실기 조사는 최종 FAIL이다. 공식 웹 경로의 Web Gate 1과 Web POC 구현 승인은 완료됐다. Web Gate 2와 Gate 3의 실제 시험·실패주입은 PASS다. Gate 4 alpha에는 QR·반·보강·관리자 PIN·Keystore 암호화 저장·로컬 감사기록과 검증된 Web 엔진 연결이 구현됐다. A 기기에서 실제 QR 정상 왕복과 문제 화면, 폐기·복수·현재반 외 QR 거부, Web 실패 잠금 및 전면 카메라를 확인해 정의된 Gate 4 alpha 범위는 PASS다. QR 인쇄, 장시간 성능 통계, Device Owner와 생산 배포는 후속 범위다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Gate 0은 완료됐고 Android 앱 Gate 1 실기 조사는 최종 FAIL이다. 공식 웹 경로의 Web Gate 1과 Web POC 구현 승인은 완료됐다. Web Gate 2와 Gate 3의 실제 시험·실패주입은 PASS다. Gate 4 alpha에는 QR·반·보강·학생정보 관리·관리자 PIN·Keystore 암호화 저장·로컬 감사기록·QR 카드 인쇄와 검증된 Web 엔진 연결이 구현됐다. A 기기에서 실제 QR 정상 왕복과 문제 화면, 폐기·복수·현재반 외 QR 거부, Web 실패 잠금 및 전면 카메라를 확인해 정의된 Gate 4 alpha 범위는 PASS다. 실제 프린터 출력, 실제 학생 파일럿, 장시간 성능 통계, Device Owner와 생산 배포는 후속 범위다.
 
 ## 현재 Gate
 
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- `kiosk`: Gate 4의 QR·반·보강·관리자 인증·암호화 저장과 `webpoc` 연동 alpha다.
+- `kiosk`: Gate 4의 QR·반·보강·학생정보 관리·관리자 인증·암호화 저장·QR 카드 인쇄와 `webpoc` 연동 alpha다.
 - 외부 알림은 현재 요구사항에서 제외했다. Device Owner와 생산 배포는 구현하지 않는다.
 
 ## 확인된 대상
