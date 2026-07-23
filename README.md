@@ -1,13 +1,14 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Gate 0은 완료됐고 Android 앱 Gate 1 실기 조사는 최종 FAIL이다. 공식 웹 경로의 Web Gate 1과 Web POC 구현 승인은 완료됐다. Web POC의 비자격정보 검증, A의 실제 시험계정 정상 cycle 20/20과 필수 실패주입이 통과해 정의된 POC 범위의 Web Gate 2는 PASS다. Gate 3의 메모리 전용 2계정 A↔B 100회 runner가 구현돼 있으며 0.2.2·0.3.2·최종 0.3.3 실제 시험은 각각 100/100(A·B 각 50회)으로 G301을 통과했다. 실제 표시명 교차 G302, 과거 비밀번호 G303, 실제 session 기반 G304·G305, Wi-Fi 단절 G306, 화면 off/on·background/foreground G307과 완료 뒤 앱·기기 재시작 G308도 통과했다. 최신 0.3.3은 로그인 거부 시 Gate 3 실패 결과보다 세션을 먼저 지우던 결함을 수정했고 전체 빌드 150/150·A 계측 27/27·G303~G305 실기 재검증과 최종 실제 A↔B 100/100 정상 회귀를 통과했다. 따라서 정의된 Web Gate 3 범위는 PASS다. 실제 학생 DB, QR, Device Owner와 생산 자동화는 아직 범위가 아니다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Gate 0은 완료됐고 Android 앱 Gate 1 실기 조사는 최종 FAIL이다. 공식 웹 경로의 Web Gate 1과 Web POC 구현 승인은 완료됐다. Web Gate 2와 Gate 3의 실제 시험·실패주입은 PASS다. Gate 4 alpha에는 QR·반·보강·관리자 PIN·Keystore 암호화 저장·로컬 감사기록과 검증된 Web 엔진 연결이 구현됐다. 자동 검증은 통과했지만 실제 QR 카메라 및 실계정 1회 왕복은 아직 수동 확인 전이므로 Gate 4 전체 PASS는 아니다. Device Owner와 생산 배포는 Gate 5 이후 범위다.
 
 ## 현재 Gate
 
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- 실제 학생 DB, QR, 외부 알림, Device Owner, 생산 자동화는 구현하지 않는다.
+- `kiosk`: Gate 4의 QR·반·보강·관리자 인증·암호화 저장과 `webpoc` 연동 alpha다.
+- 외부 알림은 현재 요구사항에서 제외했다. Device Owner와 생산 배포는 구현하지 않는다.
 
 ## 확인된 대상
 
@@ -36,7 +37,7 @@ PowerShell에서 JDK와 SDK 경로를 설정한 뒤 실행한다.
 ```powershell
 $env:JAVA_HOME='C:\Users\user\AppData\Local\Android\jdks\jdk-17.0.19+10'
 $env:ANDROID_HOME='C:\Users\user\AppData\Local\Android\Sdk'
-.\gradlew.bat clean :probe:testDebugUnitTest :probe:assembleDebug :poc:testDebugUnitTest :poc:assembleDebug :webpoc:testDebugUnitTest :webpoc:assembleDebug
+.\gradlew.bat clean :probe:testDebugUnitTest :probe:assembleDebug :poc:testDebugUnitTest :poc:assembleDebug :webpoc:testDebugUnitTest :webpoc:assembleDebug :kiosk:testDebugUnitTest :kiosk:assembleDebug
 ```
 
 생성물은 OneDrive reparse point 잠금과 한글 classpath 문제를 피하기 위해 기본적으로
@@ -65,6 +66,14 @@ Web POC 설치와 실행:
 ```
 
 Web POC에는 시험계정만 태블릿 화면에서 입력한다. 입력값은 파일·설정·로그에 저장하지 않는다.
+
+Gate 4 alpha의 동일 서명 `kiosk` + `webpoc` 설치와 실행:
+
+```powershell
+.\scripts\install-gate4.ps1
+```
+
+관리자 PIN과 학생 자격정보는 태블릿 화면에서만 입력한다. 상세 구현 범위와 남은 수동 시험은 [docs/GATE4_IMPLEMENTATION.md](docs/GATE4_IMPLEMENTATION.md)에 기록했다.
 
 기기 A(`SM-P610`)를 연결한 뒤 전체 빌드→비민감 기준정보→25개 계측시험→재설치→`IDLE` 확인을 한 번에 수행하려면:
 

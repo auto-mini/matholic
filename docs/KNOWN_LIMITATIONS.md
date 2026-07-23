@@ -15,4 +15,7 @@
 - 대화 노출: 시험계정 비밀번호가 대화에 입력되었으므로 POC 완료 후 변경하는 것이 안전하다. 저장소에는 포함하지 않는다.
 - Web POC 식별자 잔류: 공식 웹은 저장 checkbox가 해제되어도 로그아웃 뒤 이전 아이디를 다시 채운다. `webpoc`은 모든 로그인 페이지 로드에서 두 입력값을 비우고 checkbox를 해제한 뒤 재검증하지만, 이 동작이 실패하면 다음 학생 입력을 허용하지 않는다.
 - WebView 임시 저장: 인증 중 access/refresh token이 공식 학습 웹의 WebView 저장소에 존재할 수 있다. 정상 로그아웃 뒤 Cookie/WebStorage/form data를 삭제하며, 민감 상태에서 재시작하면 안전 로그아웃·정리를 우선한다.
-- Web POC 범위: 현재는 시험계정 수동 입력 POC다. QR, 실제 학생 DB, 외부 알림, 관리자 인증, Device Owner와 생산 배포는 구현하지 않았다.
+- Gate 4 alpha: QR·반·보강·관리자 인증·필드 암호화 DB와 1회용 `webpoc` 자격정보 브리지는 구현했지만 실제 카메라 QR 및 실계정 왕복은 아직 수동 검증 전이다.
+- Gate 4 패키징: 현재 `kiosk`와 검증된 `webpoc` 두 APK가 같은 서명으로 설치되는 alpha 구조다. 단일 생산 APK 통합과 release signing은 아직 완료하지 않았다.
+- 관리자 PIN 지연은 앱 private DB의 wall clock 기준이다. Device Owner가 없는 Gate 4에서는 시스템 시각 변경과 앱 데이터 삭제를 관리자 통제로 막을 수 없다.
+- QR 인쇄: alpha는 `FLAG_SECURE` 화면에 QR을 한 번 표시하며 Android print spooler로 내보내지 않는다. 운영 카드 인쇄 경로는 token 노출 범위를 별도로 검증해야 한다.

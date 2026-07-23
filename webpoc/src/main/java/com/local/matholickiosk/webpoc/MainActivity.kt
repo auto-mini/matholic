@@ -2,6 +2,7 @@ package com.local.matholickiosk.webpoc
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -78,6 +79,8 @@ class MainActivity : Activity() {
     private var gate3StartedAtElapsedMs = 0L
     private var uiInitialized = false
     private var destroyed = false
+    private var secureKioskSession = false
+    private var secureResultDelivered = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,7 +95,13 @@ class MainActivity : Activity() {
                 if (!destroyed) {
                     initializeUi()
                     when (result) {
-                        ProxyBootstrapResult.READY -> resumeFromPersistedState()
+                        ProxyBootstrapResult.READY -> {
+                            if (isSecureKioskLaunch(intent)) {
+                                beginSecureKioskSession(intent)
+                            } else {
+                                resumeFromPersistedState()
+                            }
+                        }
                         ProxyBootstrapResult.UNSUPPORTED -> showLocked("WEB_PROXY_UNSUPPORTED")
                         ProxyBootstrapResult.FAILED -> showLocked("WEB_PROXY_SETUP")
                     }
@@ -103,6 +112,14 @@ class MainActivity : Activity() {
             } else {
                 finishInitialization.run()
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (uiInitialized && isSecureKioskLaunch(intent)) {
+            beginSecureKioskSession(intent)
         }
     }
 
@@ -132,6 +149,49 @@ class MainActivity : Activity() {
             savedState.requiresRecoveryAfterRestart() -> beginRecovery()
             else -> prepareLoginPage()
         }
+    }
+
+    private fun isSecureKioskLaunch(candidate: Intent?): Boolean =
+        candidate?.action == ACTION_START_SECURE_SESSION &&
+            candidate.data?.authority == CREDENTIAL_BRIDGE_AUTHORITY
+
+    private fun beginSecureKioskSession(launchIntent: Intent) {
+        if (secureKioskSession || secureResultDelivered) return
+        secureKioskSession = true
+        val savedState = preferences.getString(KEY_STATE, WebPocState.IDLE.name)
+            ?.let { runCatching { WebPocState.valueOf(it) }.getOrNull() }
+            ?: WebPocState.RECOVERY_REQUIRED
+        if (savedState != WebPocState.IDLE) {
+            showLocked("WEB_SESSION_NOT_CLEAN")
+            return
+        }
+        val uri = launchIntent.data ?: run {
+            showLocked("CREDENTIAL_BRIDGE_URI")
+            return
+        }
+        val payload = runCatching {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst() || cursor.count != 1) return@use null
+                val expected = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EXPECTED_NAME))
+                val username = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_USERNAME))
+                val password = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PASSWORD))
+                if (expected.isNullOrBlank() || username.isNullOrEmpty() || password.isNullOrEmpty()) {
+                    null
+                } else {
+                    SecureBridgePayload(expected, username, password)
+                }
+            }
+        }.getOrNull()
+        if (payload == null) {
+            showLocked("CREDENTIAL_BRIDGE_EMPTY")
+            return
+        }
+        expectedDisplayName = payload.expectedDisplayName
+        ephemeralCredentials = EphemeralCredentials(payload.username, payload.password)
+        showBlocking(getString(R.string.status_login))
+        transition(WebPocState.LOGIN_FILL)
+        webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+        scheduleTimeout(LOGIN_TIMEOUT_MS, "LOGIN_PREP_TIMEOUT")
     }
 
     private fun bindViews() {
@@ -795,9 +855,31 @@ class MainActivity : Activity() {
         pendingLockReason = null
         when {
             lockReason != null -> showLocked(lockReason)
+            secureKioskSession -> finishSecureKioskSession()
             gate3Session != null -> recordGate3CycleAndContinue()
             else -> showSetup()
         }
+    }
+
+    private fun finishSecureKioskSession() {
+        if (!secureKioskSession || secureResultDelivered) return
+        wipeRuntimeSecrets()
+        transition(WebPocState.IDLE)
+        secureResultDelivered = true
+        secureKioskSession = false
+        setResult(Activity.RESULT_OK)
+        finish()
+    }
+
+    private fun finishSecureKioskSessionWithFailure(reason: String) {
+        if (!secureKioskSession || secureResultDelivered) return
+        secureResultDelivered = true
+        secureKioskSession = false
+        setResult(
+            Activity.RESULT_CANCELED,
+            Intent().putExtra(EXTRA_FAILURE_REASON, reason.take(MAX_BRIDGE_REASON_LENGTH)),
+        )
+        finish()
     }
 
     private fun recordGate3CycleAndContinue() {
@@ -924,6 +1006,7 @@ class MainActivity : Activity() {
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = getString(R.string.status_locked_with_code, reason)
         recoveryButton.visibility = View.VISIBLE
+        finishSecureKioskSessionWithFailure(reason)
     }
 
     internal fun rejectUnverifiedLogin() {
@@ -948,6 +1031,7 @@ class MainActivity : Activity() {
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = getString(R.string.status_maintenance_with_code, reason)
         recoveryButton.visibility = View.VISIBLE
+        finishSecureKioskSessionWithFailure(reason)
     }
 
     private fun failGate3RunIfActive() {
@@ -1060,6 +1144,9 @@ class MainActivity : Activity() {
         if (!destroyed && uiInitialized) {
             val activeGate3 = gate3Session
             when {
+                secureKioskSession && !isFinishing -> {
+                    showLocked("SECURE_SESSION_BACKGROUND")
+                }
                 activeGate3 != null -> {
                     persistGate3Outcome(GATE3_STATUS_ABORTED, activeGate3.completedCycles)
                     beginRecovery()
@@ -1092,7 +1179,22 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    private data class SecureBridgePayload(
+        val expectedDisplayName: String,
+        val username: String,
+        val password: String,
+    )
+
     private companion object {
+        const val ACTION_START_SECURE_SESSION =
+            "com.local.matholickiosk.action.START_SECURE_WEB_SESSION"
+        const val CREDENTIAL_BRIDGE_AUTHORITY =
+            "com.local.matholickiosk.kiosk.credentials"
+        const val COLUMN_EXPECTED_NAME = "expected_name"
+        const val COLUMN_USERNAME = "username"
+        const val COLUMN_PASSWORD = "password"
+        const val EXTRA_FAILURE_REASON = "failure_reason"
+        const val MAX_BRIDGE_REASON_LENGTH = 80
         const val PREFERENCES_NAME = "web_poc_state"
         const val KEY_STATE = "state"
         const val KEY_REASON = "reason"

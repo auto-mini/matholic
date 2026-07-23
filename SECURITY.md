@@ -28,6 +28,17 @@
 - 정상 로그아웃 뒤 WebView Cookie, WebStorage, form data와 cache를 삭제하고 빈 로그인 화면을 다시 검증한다.
 - DOM fingerprint, 실제 표시명 정확 일치와 로그아웃 검증 중 하나라도 실패하면 다음 로그인을 허용하지 않는다.
 
+## Gate 4 데이터 처리
+
+- `kiosk`의 관리자 PIN은 기기별 salt와 PBKDF2-HMAC-SHA256 verifier로만 저장한다.
+- 학생 매쓰홀릭 아이디·비밀번호는 Android Keystore AES-256-GCM으로 필드별 암호화한다.
+- AAD에는 학생 내부 UUID와 필드 종류를 넣고 레코드·필드마다 새 IV를 사용한다.
+- QR은 `MQR1:` 256비트 난수이며 DB에는 SHA-256 hash만 저장한다.
+- `kiosk`에서 `webpoc`으로 자격정보를 넘길 때 Intent extra, 파일, clipboard와 로그를 사용하지 않는다.
+- 앱 간 브리지는 signature 권한·호출 package allowlist·30초 TTL·1회 조회를 모두 적용한 메모리 전용 provider다.
+- 외부 알림은 현재 요구사항에서 제외한다. 감사기록에는 자격정보, QR 원문, 답안, 점수와 학습지 내용을 저장하지 않는다.
+- `FLAG_SECURE`, backup/device transfer 전면 제외와 cleartext 차단을 적용한다.
+
 ## 신고 및 대응
 
 비밀정보가 커밋되거나 보고서에 노출된 경우:

@@ -18,3 +18,4 @@ rootProject.name = "MatholicKiosk"
 include(":probe")
 include(":poc")
 include(":webpoc")
+include(":kiosk")

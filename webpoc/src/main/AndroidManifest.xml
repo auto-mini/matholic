@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.local.matholickiosk.permission.CREDENTIAL_BRIDGE" />
 
     <application
         android:allowBackup="false"
@@ -19,7 +20,7 @@
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:screenOrientation="landscape"
             android:stateNotNeeded="true"
             tools:ignore="DiscouragedApi">
