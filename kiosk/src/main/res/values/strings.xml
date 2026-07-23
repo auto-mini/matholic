@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">매쓰홀릭 QR 키오스크</string>
+    <string name="device_admin_description">수업 중 홈·최근 앱·알림창과 허용되지 않은 앱 진입을 차단합니다.</string>
 </resources>

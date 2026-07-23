@@ -85,7 +85,10 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_SECURE or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+        )
         if (preferences.getString(KEY_GATE3_STATUS, null) == GATE3_STATUS_RUNNING) {
             preferences.edit().putString(KEY_GATE3_STATUS, GATE3_STATUS_ABORTED).commit()
         }

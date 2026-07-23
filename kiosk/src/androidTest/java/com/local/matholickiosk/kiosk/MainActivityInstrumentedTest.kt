@@ -29,12 +29,22 @@ class MainActivityInstrumentedTest {
                 assertTrue(
                     activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
                 )
+                assertTrue(
+                    activity.window.attributes.flags and
+                        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0,
+                )
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("654321")
                 activity.findViewById<View>(R.id.auth_submit).performClick()
             }
             waitUntil(scenario) { activity ->
                 activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+            }
+            scenario.onActivity {
+                it.onBackPressedDispatcher.onBackPressed()
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
             }
         }
         database.clearAllTables()

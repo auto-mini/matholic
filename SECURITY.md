@@ -42,6 +42,15 @@
 - 외부 알림은 현재 요구사항에서 제외한다. 감사기록에는 자격정보, QR 원문, 답안, 점수와 학습지 내용을 저장하지 않는다.
 - `FLAG_SECURE`, backup/device transfer 전면 제외와 cleartext 차단을 적용한다.
 
+## Gate 5 전용기기 통제
+
+- `kiosk`를 Device Owner와 전용 HOME으로 등록한 공장초기화 기기에서만 완전 잠금으로 판정한다.
+- Lock Task allowlist는 `kiosk`와 동일 서명의 검증된 `webpoc` 두 패키지로 제한한다.
+- QR 대기, 관리자 PIN과 Web 채점 구간은 Lock Task를 유지하고 홈·최근 앱·알림창 기능을 허용하지 않는다.
+- 관리자 PIN 성공 뒤에만 Lock Task를 종료한다. 관리자 화면 이탈 시 PIN 화면과 Lock Task를 다시 적용한다.
+- 수업 잠금 중 다른 앱의 overlay 창 생성을 제한한다.
+- Device Owner 제거와 관리자 PIN 분실 복구는 공장초기화로만 수행한다. 기존 Keystore 키·자격정보·QR을 외부로 우회 백업하지 않는다.
+
 ## 신고 및 대응
 
 비밀정보가 커밋되거나 보고서에 노출된 경우:

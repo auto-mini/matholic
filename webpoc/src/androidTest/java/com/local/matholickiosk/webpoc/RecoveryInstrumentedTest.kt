@@ -140,6 +140,10 @@ class RecoveryInstrumentedTest {
                     WindowManager.LayoutParams.FLAG_SECURE,
                     flags and WindowManager.LayoutParams.FLAG_SECURE,
                 )
+                assertEquals(
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                    flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                )
             }
         }
     }

@@ -41,4 +41,4 @@ try {
 Write-Host "Probe APK: $buildRoot\probe\outputs\apk\debug\probe-debug.apk"
 Write-Host "Locked POC APK: $buildRoot\poc\outputs\apk\debug\poc-debug.apk"
 Write-Host "Web POC APK: $buildRoot\webpoc\outputs\apk\debug\webpoc-debug.apk"
-Write-Host "Gate 4 Kiosk APK: $buildRoot\kiosk\outputs\apk\debug\kiosk-debug.apk"
+Write-Host "Gate 5 Kiosk APK: $buildRoot\kiosk\outputs\apk\debug\kiosk-debug.apk"

@@ -25,12 +25,14 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import com.local.matholickiosk.kiosk.admin.KioskLockTaskController
 import com.local.matholickiosk.kiosk.bridge.CredentialBridgeContract
 import com.local.matholickiosk.kiosk.bridge.OneTimeCredentialBroker
 import com.local.matholickiosk.kiosk.data.ActiveSessionEntity
@@ -41,6 +43,7 @@ import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
+import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
@@ -53,6 +56,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private lateinit var statusText: TextView
+    private lateinit var deviceModeText: TextView
     private lateinit var authPanel: LinearLayout
     private lateinit var authTitle: TextView
     private lateinit var authDescription: TextView
@@ -89,6 +93,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var database: KioskDatabase
     private lateinit var authRepository: AdminAuthRepository
     private lateinit var studentRepository: StudentRepository
+    private lateinit var lockTaskController: KioskLockTaskController
 
     private var authEnrollmentMode = false
     private var authBusy = false
@@ -105,6 +110,8 @@ class MainActivity : ComponentActivity() {
     private var destroyed = false
     private var pendingCredentialBridgeId: String? = null
     private var relockAdminOnStart = false
+    private var suppressNextAdminStopRelock = false
+    private var dedicatedDevicePolicyFailed = false
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -165,10 +172,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_SECURE or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+        )
         setContentView(R.layout.activity_main)
         bindViews()
         configureSensitiveViews()
+        configureBackNavigation()
+        lockTaskController = KioskLockTaskController(this)
+        configureDedicatedDevice()
 
         database = KioskDatabase.get(this)
         authRepository = AdminAuthRepository(database)
@@ -183,6 +196,7 @@ class MainActivity : ComponentActivity() {
 
     private fun bindViews() {
         statusText = findViewById(R.id.status_text)
+        deviceModeText = findViewById(R.id.device_mode_text)
         authPanel = findViewById(R.id.auth_panel)
         authTitle = findViewById(R.id.auth_title)
         authDescription = findViewById(R.id.auth_description)
@@ -264,6 +278,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun configureBackNavigation() {
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (
+                        ::adminPanel.isInitialized &&
+                        adminPanel.visibility == View.VISIBLE
+                    ) {
+                        showAuthentication(enrollment = false)
+                    }
+                }
+            },
+        )
+    }
+
     private fun loadInitialState() {
         statusText.text = "초기 상태 확인 중"
         ioExecutor.execute {
@@ -296,6 +326,7 @@ class MainActivity : ComponentActivity() {
         pinInput.text.clear()
         pinConfirmInput.text.clear()
         pinInput.requestFocus()
+        enterDedicatedMode()
     }
 
     private fun submitAuthentication() {
@@ -363,8 +394,58 @@ class MainActivity : ComponentActivity() {
         scannerPanel.visibility = View.GONE
         adminPanel.visibility = View.VISIBLE
         scannerVisible = false
+        suppressNextAdminStopRelock = true
+        exitDedicatedModeForAdministrator()
+        mainHandler.postDelayed(
+            { suppressNextAdminStopRelock = false },
+            LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS,
+        )
         statusText.text = "ADMIN_LOADING"
         refreshAdminData()
+    }
+
+    private fun configureDedicatedDevice() {
+        val configured = lockTaskController.configureIfDeviceOwner()
+        dedicatedDevicePolicyFailed = configured.isFailure
+        if (configured.getOrDefault(false)) {
+            enterDedicatedMode()
+        } else {
+            updateDedicatedDeviceStatus(administratorUnlocked = false)
+        }
+    }
+
+    private fun enterDedicatedMode() {
+        val entered = lockTaskController.enterRestrictedMode()
+        dedicatedDevicePolicyFailed = dedicatedDevicePolicyFailed || entered.isFailure
+        updateDedicatedDeviceStatus(administratorUnlocked = false)
+        mainHandler.postDelayed(
+            {
+                if (
+                    !destroyed &&
+                    adminPanel.visibility != View.VISIBLE
+                ) {
+                    updateDedicatedDeviceStatus(administratorUnlocked = false)
+                }
+            },
+            LOCK_TASK_STATUS_REFRESH_MS,
+        )
+    }
+
+    private fun exitDedicatedModeForAdministrator() {
+        val exited = lockTaskController.exitForAdministrator()
+        dedicatedDevicePolicyFailed = dedicatedDevicePolicyFailed || exited.isFailure
+        updateDedicatedDeviceStatus(administratorUnlocked = true)
+    }
+
+    private fun updateDedicatedDeviceStatus(administratorUnlocked: Boolean) {
+        deviceModeText.text = if (dedicatedDevicePolicyFailed) {
+            "전용기기 정책 오류"
+        } else {
+            DedicatedDevicePolicy.statusLabel(
+                status = lockTaskController.status(),
+                administratorUnlocked = administratorUnlocked,
+            )
+        }
     }
 
     private fun refreshAdminData(
@@ -848,6 +929,7 @@ class MainActivity : ComponentActivity() {
         scannerMessage.text = "QR카드를 카메라에 보여주세요"
         statusText.text = KioskState.QR_READY.name
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        enterDedicatedMode()
         ensureCamera()
     }
 
@@ -1100,11 +1182,16 @@ class MainActivity : ComponentActivity() {
         cameraBindGeneration += 1
         qrAnalyzer?.setEnabled(false)
         cameraProvider?.unbindAll()
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onStop() {
-        if (adminPanel.visibility == View.VISIBLE) relockAdminOnStart = true
+        if (adminPanel.visibility == View.VISIBLE) {
+            if (suppressNextAdminStopRelock) {
+                suppressNextAdminStopRelock = false
+            } else {
+                relockAdminOnStart = true
+            }
+        }
         super.onStop()
         stopCamera()
         clearQrPreview("보안을 위해 QR 표시를 지웠습니다")
@@ -1121,7 +1208,13 @@ class MainActivity : ComponentActivity() {
                 relockAdminOnStart = false
                 showAuthentication(enrollment = false)
             }
-            scannerVisible && ::studentRepository.isInitialized -> ensureCamera()
+            scannerVisible && ::studentRepository.isInitialized -> {
+                enterDedicatedMode()
+                ensureCamera()
+            }
+            ::lockTaskController.isInitialized &&
+                ::authPanel.isInitialized &&
+                authPanel.visibility == View.VISIBLE -> enterDedicatedMode()
         }
     }
 
@@ -1161,5 +1254,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
+        private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
+        private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
     }
 }
