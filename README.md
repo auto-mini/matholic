@@ -1,6 +1,6 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 release signer 전용으로 다시 공장초기화해 `0.5.0-rc02`/`0.3.5-rc02`를 Device Owner로 배포했다. QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 홈·최근 앱·알림창 차단과 재부팅 복구를 확인했다. 개발자 옵션과 USB 디버깅을 끈 뒤 ADB 없는 물리 재부팅·복구·잠금도 통과했다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다. 실제 프린터 출력과 1~2시간 연속 운전은 별도 남은 항목이다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 release signer 전용으로 다시 공장초기화해 `0.5.0-rc02`/`0.3.5-rc02`를 Device Owner로 배포했다. QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 홈·최근 앱·알림창 차단과 재부팅 복구를 확인했다. 개발자 옵션과 USB 디버깅을 끈 뒤 ADB 없는 물리 재부팅·복구·잠금, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복까지 통과했다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다.
 
 ## 현재 Gate
 
@@ -9,7 +9,7 @@
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
 - `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.5.0-rc02`다.
 - `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.3.5-rc02`다.
-- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 A에 배포했고 실제 프린터·장시간 운전은 아직 수행하지 않았다.
+- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 A에 배포했고 정의된 운영 인수시험까지 완료했다.
 
 ## 확인된 대상
 
@@ -91,7 +91,7 @@ Release RC 빌드:
 ```
 
 release 키 복구 확인, 공장초기화·운영 프로비저닝·관리자 Web 세션 복구 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다.
-사용자가 단독으로 수행할 1~2시간 연속 운전과 조건부 실제 프린터 시험은 [docs/OPERATOR_ACCEPTANCE_CHECKLIST.md](docs/OPERATOR_ACCEPTANCE_CHECKLIST.md)를 그대로 따라 기록한다.
+사용자가 단독으로 수행한 120분 연속 운전과 실제 프린터 시험 절차·결과는 [docs/OPERATOR_ACCEPTANCE_CHECKLIST.md](docs/OPERATOR_ACCEPTANCE_CHECKLIST.md)에 기록했다.
 
 기기 A(`SM-P610`)를 연결한 뒤 전체 빌드→비민감 기준정보→25개 계측시험→재설치→`IDLE` 확인을 한 번에 수행하려면:
 
