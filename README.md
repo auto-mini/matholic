@@ -1,15 +1,15 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5 alpha에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 공장초기화해 실제 Device Owner로 등록한 뒤 홈·최근 앱·알림창·설정 차단, QR→Web 문제 화면→로그아웃 자동 복귀와 재부팅 복구를 확인했다. 정의된 Gate 5 alpha 범위는 PASS다. 별도 release signer의 RC APK·검증 파이프라인과 Android 폰의 암호화 키 복구본까지 준비했다. A 재초기화, release 실기, USB 디버깅 제거와 생산 배포는 아직 수행하지 않았다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 release signer 전용으로 다시 공장초기화해 `0.5.0-rc02`/`0.3.5-rc02`를 Device Owner로 배포했다. QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 홈·최근 앱·알림창 차단과 재부팅 복구를 확인했다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다. 실제 프린터 출력, 1~2시간 연속 운전과 USB 디버깅 제거 후 물리 버튼 최종 실기는 별도 남은 항목이다.
 
 ## 현재 Gate
 
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.5.0-rc01`, A 설치본은 `0.5.0-alpha05`다.
-- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.3.5-rc01`, A 설치본은 `0.3.5`다.
-- 외부 알림은 현재 요구사항에서 제외했다. release RC는 A에 미배포이며 생산 배포도 완료하지 않았다.
+- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.5.0-rc02`다.
+- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.3.5-rc02`다.
+- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 A에 배포했고 실제 프린터·장시간 운전은 아직 수행하지 않았다.
 
 ## 확인된 대상
 
@@ -90,7 +90,7 @@ Release RC 빌드:
 .\scripts\build-release.ps1
 ```
 
-release 키 복구 확인, 두 번째 공장초기화와 운영 프로비저닝 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다. 현재 A에는 release APK를 설치하지 않는다.
+release 키 복구 확인, 공장초기화·운영 프로비저닝·관리자 Web 세션 복구 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다.
 
 기기 A(`SM-P610`)를 연결한 뒤 전체 빌드→비민감 기준정보→25개 계측시험→재설치→`IDLE` 확인을 한 번에 수행하려면:
 

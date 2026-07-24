@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var updateCredentialsButton: Button
     private lateinit var deactivateStudentButton: Button
     private lateinit var addTemporaryButton: Button
+    private lateinit var recoverWebSessionButton: Button
     private lateinit var startSessionButton: Button
     private lateinit var resumeSessionButton: Button
     private lateinit var adminMessage: TextView
@@ -170,6 +171,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val webRecoveryLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val failureReason = result.data
+            ?.getStringExtra(CredentialBridgeContract.EXTRA_FAILURE_REASON)
+            ?.take(80)
+        val message = if (result.resultCode == Activity.RESULT_OK) {
+            "Web 로그인 상태를 안전하게 정리했습니다. 잠긴 수업이면 기존 수업을 안전 종료한 뒤 다시 시작하세요."
+        } else {
+            "Web 세션 정리에 실패했습니다" +
+                (failureReason?.let { " · $it" } ?: "")
+        }
+        refreshAdminData(message)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(
@@ -217,6 +233,7 @@ class MainActivity : ComponentActivity() {
         updateCredentialsButton = findViewById(R.id.update_credentials_button)
         deactivateStudentButton = findViewById(R.id.deactivate_student_button)
         addTemporaryButton = findViewById(R.id.add_temporary_button)
+        recoverWebSessionButton = findViewById(R.id.recover_web_session_button)
         startSessionButton = findViewById(R.id.start_session_button)
         resumeSessionButton = findViewById(R.id.resume_session_button)
         adminMessage = findViewById(R.id.admin_message)
@@ -270,6 +287,7 @@ class MainActivity : ComponentActivity() {
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
         printQrButton.setOnClickListener { confirmQrPrint() }
         addTemporaryButton.setOnClickListener { addTemporaryStudent() }
+        recoverWebSessionButton.setOnClickListener { confirmWebSessionRecovery() }
         startSessionButton.setOnClickListener { startOrEndSession() }
         resumeSessionButton.setOnClickListener { showScanner() }
         switchCameraButton.setOnClickListener { switchCamera() }
@@ -839,6 +857,35 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun confirmWebSessionRecovery() {
+        AlertDialog.Builder(this)
+            .setTitle("Web 세션 안전 정리")
+            .setMessage(
+                "남아 있는 매쓰홀릭 로그인 상태, 쿠키와 Web 저장정보를 안전 로그아웃 후 정리합니다. " +
+                    "학생 등록정보와 QR은 변경하지 않습니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("정리 시작") { _, _ -> launchWebSessionRecovery() }
+            .show()
+    }
+
+    private fun launchWebSessionRecovery() {
+        adminMessage.text = "Web 로그인 상태 안전 정리 중"
+        suppressNextAdminStopRelock = true
+        val intent = Intent(CredentialBridgeContract.ACTION_RECOVER_WEB_SESSION)
+            .setComponent(
+                ComponentName(
+                    CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
+                    "com.local.matholickiosk.webpoc.MainActivity",
+                ),
+            )
+        runCatching { webRecoveryLauncher.launch(intent) }
+            .onFailure {
+                suppressNextAdminStopRelock = false
+                adminMessage.text = "Web 세션 정리 화면을 열지 못했습니다."
+            }
     }
 
     private fun startOrEndSession() {

@@ -4,17 +4,19 @@
 
 ## 현재 상태
 
-운영 후보 소스와 APK는 만들었지만 A에는 배포하지 않았다.
+운영 후보 RC02를 A에 release Device Owner로 배포하고 핵심 실기를 완료했다.
 
-- Kiosk: `0.5.0-rc01`/code 6
-- Web POC: `0.3.5-rc01`/code 18
+- Kiosk: `0.5.0-rc02`/code 7
+- Web POC: `0.3.5-rc02`/code 19
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: 기존 debug signer의 `0.5.0-alpha05`, Device Owner, `QR_READY`, `LOCKED`
+- 현재 A: release signer의 RC02 두 앱, Device Owner, `QR_READY`, `LOCKED`
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
-- 생산 배포: **미수행**
+- 두 번째 공장초기화·release 프로비저닝: **완료**
+- 정상 왕복·비정상 Web 세션 자체 복구·재부팅 복구: **완료**
+- 실제 프린터·1~2시간 연속 운전·USB 디버깅 제거 후 최종 실기: **미수행**
 
-debug signer와 release signer가 다르므로 현재 Device Owner 앱에 release APK를 덮어쓸 수 없다. release 전환에는 A 공장초기화와 새 Device Owner 등록이 필요하다.
+debug signer에서 release signer로의 전환은 공장초기화와 새 Device Owner 등록으로 완료했다. 앞으로 같은 release signer와 더 높은 versionCode의 APK는 앱 데이터와 Device Owner를 보존해 덮어쓸 수 있다.
 
 ## 서명키 경계
 
@@ -117,6 +119,21 @@ ADB가 허용된 개인 Android 폰을 복구 매체로 쓸 수도 있다.
 9. 관리자 화면에서 개발자 옵션과 USB 디버깅 끄기
 10. ADB가 끊긴 상태에서 홈·최근 앱·재부팅을 물리 버튼으로 최종 확인
 
+2026-07-24 RC02 실기에서 1~6은 통과했다. 추가로 Web POC 강제 종료를 주입해 `WEB_SESSION_FAILED` 잠금, 관리자 PIN, 아래 자체 복구 절차와 정상 왕복 회귀를 확인했다. 7~10은 아직 남아 있다.
+
+### 잠긴 Web 세션 자체 복구
+
+`WEB_SESSION_FAILED`, `WEB_SESSION_NOT_CLEAN` 또는 재부팅 복구가 나타나면 QR을 반복 촬영하지 않는다.
+
+1. 관리자 PIN으로 반 관리 화면 진입
+2. `Web 세션 안전 정리`
+3. 확인창의 `정리 시작`
+4. 성공 메시지 확인
+5. `현재 수업 안전 종료`
+6. 같은 반의 새 수업 시작
+
+복구 호출은 정확한 Kiosk package와 같은 signer인 Web POC만 허용한다. Web 로그아웃·쿠키·저장정보를 정리하지만 학생 등록과 QR은 바꾸지 않는다.
+
 USB 디버깅을 끄기 전까지 생산 잠금 완료로 판정하지 않는다. 현재 별도 원격 업데이트 채널은 없으므로 향후 APK 업데이트 때는 관리자가 USB 디버깅을 일시 재활성화하거나 별도 MDM/업데이트 채널을 구축해야 한다.
 
 ## 실패와 롤백
@@ -126,3 +143,4 @@ USB 디버깅을 끄기 전까지 생산 잠금 완료로 판정하지 않는다
 - 초기화 후 Device Owner 등록 실패: 계정·사용자 조건을 점검하고 다시 공장초기화
 - release 등록 후 debug alpha로 복귀: 서명이 달라 덮어쓰기 불가, 공장초기화 필요
 - release 키 또는 복구 비밀번호 분실: 기존 설치본 업데이트 불가, 공장초기화와 새 application/signing 전략 필요
+- Web 세션 잠금: 관리자 자체 복구 후 기존 수업 안전 종료·재시작

@@ -28,6 +28,8 @@ object CredentialBridgeContract {
     const val TRUSTED_CONSUMER_PACKAGE = "com.local.matholickiosk.webpoc"
     const val ACTION_START_SECURE_SESSION =
         "com.local.matholickiosk.action.START_SECURE_WEB_SESSION"
+    const val ACTION_RECOVER_WEB_SESSION =
+        "com.local.matholickiosk.action.RECOVER_WEB_SESSION"
     const val COLUMN_EXPECTED_NAME = "expected_name"
     const val COLUMN_USERNAME = "username"
     const val COLUMN_PASSWORD = "password"

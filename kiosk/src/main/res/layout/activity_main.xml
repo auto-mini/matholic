@@ -285,10 +285,17 @@
                             android:text="선택 학생 비활성화·QR 폐기" />
 
                         <Button
-                            android:id="@+id/start_session_button"
+                            android:id="@+id/recover_web_session_button"
                             android:layout_width="match_parent"
                             android:layout_height="52dp"
                             android:layout_marginTop="16dp"
+                            android:text="Web 세션 안전 정리" />
+
+                        <Button
+                            android:id="@+id/start_session_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
                             android:text="선택한 반 수업 시작" />
 
                         <Button

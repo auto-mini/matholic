@@ -3,6 +3,7 @@ package com.local.matholickiosk.webpoc
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -81,6 +82,8 @@ class MainActivity : Activity() {
     private var destroyed = false
     private var secureKioskSession = false
     private var secureResultDelivered = false
+    private var adminRecoverySession = false
+    private var adminRecoveryResultDelivered = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,14 +102,15 @@ class MainActivity : Activity() {
                     initializeUi()
                     when (result) {
                         ProxyBootstrapResult.READY -> {
-                            if (isSecureKioskLaunch(intent)) {
-                                beginSecureKioskSession(intent)
-                            } else {
-                                resumeFromPersistedState()
+                            when {
+                                isSecureKioskLaunch(intent) -> beginSecureKioskSession(intent)
+                                isAdminRecoveryLaunch(intent) -> beginAdminRecovery()
+                                else -> resumeFromPersistedState()
                             }
                         }
-                        ProxyBootstrapResult.UNSUPPORTED -> showLocked("WEB_PROXY_UNSUPPORTED")
-                        ProxyBootstrapResult.FAILED -> showLocked("WEB_PROXY_SETUP")
+                        ProxyBootstrapResult.UNSUPPORTED ->
+                            failInitialization("WEB_PROXY_UNSUPPORTED")
+                        ProxyBootstrapResult.FAILED -> failInitialization("WEB_PROXY_SETUP")
                     }
                 }
             }
@@ -121,8 +125,11 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (uiInitialized && isSecureKioskLaunch(intent)) {
-            beginSecureKioskSession(intent)
+        if (uiInitialized) {
+            when {
+                isSecureKioskLaunch(intent) -> beginSecureKioskSession(intent)
+                isAdminRecoveryLaunch(intent) -> beginAdminRecovery()
+            }
         }
     }
 
@@ -154,12 +161,50 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun failInitialization(reason: String) {
+        if (isAdminRecoveryLaunch(intent)) {
+            finishAdminRecoveryWithFailure(reason)
+        } else {
+            showLocked(reason)
+        }
+    }
+
     private fun isSecureKioskLaunch(candidate: Intent?): Boolean =
         candidate?.action == ACTION_START_SECURE_SESSION &&
             candidate.data?.authority == CREDENTIAL_BRIDGE_AUTHORITY
 
+    private fun isAdminRecoveryLaunch(candidate: Intent?): Boolean =
+        candidate?.action == ACTION_RECOVER_WEB_SESSION
+
+    private fun isTrustedKioskCaller(): Boolean {
+        val caller = callingPackage
+        return AdminRecoveryPolicy.isTrustedCaller(
+            callerPackage = caller,
+            expectedPackage = TRUSTED_KIOSK_PACKAGE,
+            signaturesMatch = caller != null &&
+                packageManager.checkSignatures(packageName, caller) == PackageManager.SIGNATURE_MATCH,
+        )
+    }
+
+    private fun beginAdminRecovery() {
+        if (adminRecoverySession || adminRecoveryResultDelivered) return
+        if (secureKioskSession || !isTrustedKioskCaller()) {
+            finishAdminRecoveryWithFailure("ADMIN_RECOVERY_CALLER")
+            return
+        }
+        adminRecoverySession = true
+        val savedState = preferences.getString(KEY_STATE, WebPocState.IDLE.name)
+            ?.let { runCatching { WebPocState.valueOf(it) }.getOrNull() }
+            ?: WebPocState.RECOVERY_REQUIRED
+        if (AdminRecoveryPolicy.requiresSanitization(savedState)) {
+            beginRecovery()
+        } else {
+            finishAdminRecovery()
+        }
+    }
+
     private fun beginSecureKioskSession(launchIntent: Intent) {
-        if (secureKioskSession || secureResultDelivered) return
+        if (secureKioskSession || secureResultDelivered || adminRecoverySession) return
         secureKioskSession = true
         val savedState = preferences.getString(KEY_STATE, WebPocState.IDLE.name)
             ?.let { runCatching { WebPocState.valueOf(it) }.getOrNull() }
@@ -858,6 +903,7 @@ class MainActivity : Activity() {
         pendingLockReason = null
         when {
             lockReason != null -> showLocked(lockReason)
+            adminRecoverySession -> finishAdminRecovery()
             secureKioskSession -> finishSecureKioskSession()
             gate3Session != null -> recordGate3CycleAndContinue()
             else -> showSetup()
@@ -878,6 +924,28 @@ class MainActivity : Activity() {
         if (!secureKioskSession || secureResultDelivered) return
         secureResultDelivered = true
         secureKioskSession = false
+        setResult(
+            Activity.RESULT_CANCELED,
+            Intent().putExtra(EXTRA_FAILURE_REASON, reason.take(MAX_BRIDGE_REASON_LENGTH)),
+        )
+        finish()
+    }
+
+    private fun finishAdminRecovery() {
+        if (!adminRecoverySession || adminRecoveryResultDelivered) return
+        wipeRuntimeSecrets()
+        transition(WebPocState.IDLE)
+        adminRecoveryResultDelivered = true
+        adminRecoverySession = false
+        setResult(Activity.RESULT_OK)
+        finish()
+    }
+
+    private fun finishAdminRecoveryWithFailure(reason: String) {
+        if (adminRecoveryResultDelivered) return
+        wipeRuntimeSecrets()
+        adminRecoveryResultDelivered = true
+        adminRecoverySession = false
         setResult(
             Activity.RESULT_CANCELED,
             Intent().putExtra(EXTRA_FAILURE_REASON, reason.take(MAX_BRIDGE_REASON_LENGTH)),
@@ -1009,6 +1077,10 @@ class MainActivity : Activity() {
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = getString(R.string.status_locked_with_code, reason)
         recoveryButton.visibility = View.VISIBLE
+        if (adminRecoverySession) {
+            finishAdminRecoveryWithFailure(reason)
+            return
+        }
         finishSecureKioskSessionWithFailure(reason)
     }
 
@@ -1034,6 +1106,10 @@ class MainActivity : Activity() {
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = getString(R.string.status_maintenance_with_code, reason)
         recoveryButton.visibility = View.VISIBLE
+        if (adminRecoverySession) {
+            finishAdminRecoveryWithFailure(reason)
+            return
+        }
         finishSecureKioskSessionWithFailure(reason)
     }
 
@@ -1147,6 +1223,10 @@ class MainActivity : Activity() {
         if (!destroyed && uiInitialized) {
             val activeGate3 = gate3Session
             when {
+                adminRecoveryResultDelivered -> clearSetupFields()
+                adminRecoverySession && !isFinishing -> {
+                    finishAdminRecoveryWithFailure("ADMIN_RECOVERY_BACKGROUND")
+                }
                 secureKioskSession && !isFinishing -> {
                     showLocked("SECURE_SESSION_BACKGROUND")
                 }
@@ -1191,6 +1271,9 @@ class MainActivity : Activity() {
     private companion object {
         const val ACTION_START_SECURE_SESSION =
             "com.local.matholickiosk.action.START_SECURE_WEB_SESSION"
+        const val ACTION_RECOVER_WEB_SESSION =
+            "com.local.matholickiosk.action.RECOVER_WEB_SESSION"
+        const val TRUSTED_KIOSK_PACKAGE = "com.local.matholickiosk.kiosk"
         const val CREDENTIAL_BRIDGE_AUTHORITY =
             "com.local.matholickiosk.kiosk.credentials"
         const val COLUMN_EXPECTED_NAME = "expected_name"
