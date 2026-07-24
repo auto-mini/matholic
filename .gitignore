@@ -12,12 +12,16 @@ artifacts/
 # Signing material and credentials
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.clixml
 keystore.properties
 secrets.properties
 *.env
 .env*
 credentials*
 telegram*
+private-signing/
 
 # Potentially sensitive diagnostic material
 *.mp4

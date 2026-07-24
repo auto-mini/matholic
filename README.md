@@ -1,15 +1,15 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5 alpha에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 공장초기화해 실제 Device Owner로 등록한 뒤 홈·최근 앱·알림창·설정 차단, QR→Web 문제 화면→로그아웃 자동 복귀와 재부팅 복구를 확인했다. 정의된 Gate 5 alpha 범위는 PASS이며 실제 프린터 출력, 실제 학생 파일럿, 장시간 성능 통계, release signing과 생산 배포는 후속 범위다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5 alpha에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 공장초기화해 실제 Device Owner로 등록한 뒤 홈·최근 앱·알림창·설정 차단, QR→Web 문제 화면→로그아웃 자동 복귀와 재부팅 복구를 확인했다. 정의된 Gate 5 alpha 범위는 PASS다. 별도 release signer의 RC APK와 검증 파이프라인도 준비했지만 키 복구 확인·재초기화·release 실기·USB 디버깅 제거와 생산 배포는 아직 수행하지 않았다.
 
 ## 현재 Gate
 
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공하는 `0.5.0-alpha05`다.
-- `webpoc`: Gate 5에서 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행되는 `0.3.5`다.
-- 외부 알림은 현재 요구사항에서 제외했다. release signing과 생산 배포는 완료하지 않았다.
+- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.5.0-rc01`, A 설치본은 `0.5.0-alpha05`다.
+- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.3.5-rc01`, A 설치본은 `0.3.5`다.
+- 외부 알림은 현재 요구사항에서 제외했다. release RC는 A에 미배포이며 생산 배포도 완료하지 않았다.
 
 ## 확인된 대상
 
@@ -84,6 +84,14 @@ Web POC에는 시험계정만 태블릿 화면에서 입력한다. 입력값은 
 
 등록 뒤 읽기 전용 정책 확인은 `.\scripts\verify-gate5-device-owner.ps1 -Serial R54TB029FHZ`로 수행한다. 관리자 PIN, 학생 자격정보와 QR 원문은 태블릿 밖으로 내보내지 않는다. 초기화 조건, 잠금 경계, 복구와 실기 결과는 [docs/GATE5_IMPLEMENTATION.md](docs/GATE5_IMPLEMENTATION.md)에 기록했다.
 
+Release RC 빌드:
+
+```powershell
+.\scripts\build-release.ps1
+```
+
+release 키 복구 확인, 두 번째 공장초기화와 운영 프로비저닝 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다. 현재 A에는 release APK를 설치하지 않는다.
+
 기기 A(`SM-P610`)를 연결한 뒤 전체 빌드→비민감 기준정보→25개 계측시험→재설치→`IDLE` 확인을 한 번에 수행하려면:
 
 ```powershell
@@ -114,3 +122,4 @@ Web POC 설계와 시험 항목은 [docs/WEB_POC_DESIGN.md](docs/WEB_POC_DESIGN.
 Web POC의 실제 빌드·B 기기 계측·A 이관 준비·남은 실기는 [docs/WEB_POC_VERIFICATION.md](docs/WEB_POC_VERIFICATION.md)에 기록했다.
 Gate 3의 2계정 교차 절차와 준비 검증은 [docs/WEB_GATE3_TEST_PLAN.md](docs/WEB_GATE3_TEST_PLAN.md), [docs/WEB_GATE3_VERIFICATION.md](docs/WEB_GATE3_VERIFICATION.md)에 기록했다.
 Gate 5 전용기기 등록·운영·복구와 실제 잠금 검증은 [docs/GATE5_IMPLEMENTATION.md](docs/GATE5_IMPLEMENTATION.md)에 기록했다.
+Release 서명키·복구·RC 빌드·운영 전환 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)에 기록했다.

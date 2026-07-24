@@ -66,3 +66,7 @@ Gate 5는 사용자 승인으로 A를 공장초기화한 뒤 Device Owner로 등
 ```
 
 스크립트가 `Lock Task mode: LOCKED`를 출력하면 태블릿에서 관리자 PIN을 새로 설정한다. 학생과 시험계정도 새로 등록하고 이전 QR은 사용하지 않는다. 상세 경계와 복구 절차는 `GATE5_IMPLEMENTATION.md`를 따른다.
+
+## Release 운영 전환
+
+현재 debug Device Owner 설치본과 release signer는 다르므로 덮어쓰지 않는다. release 키 복구 확인과 RC APK 검증을 완료한 뒤 A를 다시 공장초기화하고 `scripts\provision-release-device-owner.ps1`로 등록한다. release signer, 복구본, 초기화 조건과 USB 디버깅 제거 절차는 `RELEASE_OPERATIONS.md`를 따른다.
