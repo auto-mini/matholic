@@ -1,7 +1,11 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $true, ParameterSetName = 'FileSystem')]
     [string]$BackupDirectory,
+    [Parameter(Mandatory = $true, ParameterSetName = 'AndroidPhone')]
+    [string]$PhoneSerial,
+    [Parameter(ParameterSetName = 'AndroidPhone')]
+    [string]$PhoneBackupPath = '/sdcard/Documents/MatholicKioskSigningBackup/matholic-kiosk-release.p12',
     [string]$SigningRoot = (Join-Path $env:LOCALAPPDATA 'MatholicKiosk\release-signing')
 )
 
@@ -11,18 +15,22 @@ $keytool = Join-Path $javaRoot 'bin\keytool.exe'
 $keystorePath = Join-Path $SigningRoot 'matholic-kiosk-release.p12'
 $credentialPath = Join-Path $SigningRoot 'matholic-kiosk-release.credential.clixml'
 $markerPath = Join-Path $SigningRoot 'portable-recovery-confirmed.json'
+$adb = 'C:\Users\user\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 
 foreach ($path in @($keytool, $keystorePath, $credentialPath)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Required signing input not found: $path"
     }
 }
-
-New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null
-$resolvedBackupDirectory = (Resolve-Path -LiteralPath $BackupDirectory).Path
 $resolvedSigningRoot = (Resolve-Path -LiteralPath $SigningRoot).Path
-if ($resolvedBackupDirectory.StartsWith($resolvedSigningRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Portable backup directory must be outside the local signing directory.'
+if ($PSCmdlet.ParameterSetName -eq 'FileSystem') {
+    New-Item -ItemType Directory -Force -Path $BackupDirectory | Out-Null
+    $resolvedBackupDirectory = (Resolve-Path -LiteralPath $BackupDirectory).Path
+    if ($resolvedBackupDirectory.StartsWith($resolvedSigningRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Portable backup directory must be outside the local signing directory.'
+    }
+} elseif (-not (Test-Path -LiteralPath $adb)) {
+    throw "ADB not found: $adb"
 }
 
 $credential = Import-Clixml -LiteralPath $credentialPath
@@ -30,14 +38,46 @@ if ($credential -isnot [pscredential]) {
     throw "Invalid DPAPI signing credential: $credentialPath"
 }
 $password = $credential.GetNetworkCredential().Password
-$backupPath = Join-Path $resolvedBackupDirectory 'matholic-kiosk-release.p12'
 $certificatePath = Join-Path $env:TEMP "matholic-release-$([guid]::NewGuid().ToString('N')).cer"
+$sourceHash = (Get-FileHash -LiteralPath $keystorePath -Algorithm SHA256).Hash
+$backupKind = $null
+$backupReference = $null
+$backupHash = $null
 $confirmed = $false
 
 try {
-    Copy-Item -LiteralPath $keystorePath -Destination $backupPath -Force
-    $sourceHash = (Get-FileHash -LiteralPath $keystorePath -Algorithm SHA256).Hash
-    $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
+    if ($PSCmdlet.ParameterSetName -eq 'FileSystem') {
+        $backupPath = Join-Path $resolvedBackupDirectory 'matholic-kiosk-release.p12'
+        Copy-Item -LiteralPath $keystorePath -Destination $backupPath -Force
+        $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
+        $backupKind = 'filesystem'
+        $backupReference = $backupPath
+    } else {
+        $deviceState = ((& $adb -s $PhoneSerial get-state) -join '').Trim()
+        if ($LASTEXITCODE -ne 0 -or $deviceState -ne 'device') {
+            throw "Authorized Android phone is not connected: $PhoneSerial"
+        }
+        $phoneModel = ((& $adb -s $PhoneSerial shell getprop ro.product.model) -join '').Trim()
+        if (-not $phoneModel) {
+            throw "Could not read Android phone model: $PhoneSerial"
+        }
+        $remoteDirectory = $PhoneBackupPath.Substring(
+            0,
+            $PhoneBackupPath.LastIndexOf('/')
+        )
+        & $adb -s $PhoneSerial shell mkdir -p $remoteDirectory
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Android phone backup directory creation failed.'
+        }
+        & $adb -s $PhoneSerial push $keystorePath $PhoneBackupPath
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Release key transfer to Android phone failed.'
+        }
+        $remoteHashOutput = ((& $adb -s $PhoneSerial shell sha256sum $PhoneBackupPath) -join '').Trim()
+        $backupHash = ($remoteHashOutput -split '\s+')[0].ToUpperInvariant()
+        $backupKind = 'android-adb'
+        $backupReference = "${phoneModel}:${PhoneBackupPath}"
+    }
     if ($sourceHash -ne $backupHash) {
         throw 'Portable keystore backup hash does not match the source.'
     }
@@ -114,7 +154,9 @@ try {
 
     $marker = [ordered]@{
         confirmedAt = [DateTimeOffset]::Now.ToString('o')
-        backupPath = $backupPath
+        backupKind = $backupKind
+        backupReference = $backupReference
+        backupSha256 = $backupHash
         keystoreSha256 = $sourceHash
         signerSha256 = $signerSha256
     }
@@ -124,7 +166,12 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
 } catch {
-    if (-not $confirmed -and (Test-Path -LiteralPath $backupPath)) {
+    if (
+        -not $confirmed -and
+        $PSCmdlet.ParameterSetName -eq 'FileSystem' -and
+        $backupPath -and
+        (Test-Path -LiteralPath $backupPath)
+    ) {
         [System.IO.File]::Delete($backupPath)
     }
     throw
@@ -146,6 +193,6 @@ try {
     $password = $null
 }
 
-Write-Host "Portable keystore backup verified: $backupPath"
+Write-Host "Portable keystore backup verified: $backupReference"
 Write-Host "Recovery confirmation marker: $markerPath"
 Write-Host 'Release signer is eligible for production provisioning.'

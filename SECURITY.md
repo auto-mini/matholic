@@ -57,6 +57,7 @@
 - release 빌드는 configuration cache와 장기 Gradle daemon을 사용하지 않으며 종료 후 비밀번호 환경변수를 제거한다.
 - debug signer, 다중 signer, `debuggable=true`, 두 APK signer 불일치와 서명 환경 없는 release 빌드를 거부한다.
 - release Device Owner 등록 전에 키 파일의 별도 복사와 복구 비밀번호의 분리 보관을 확인한다.
+- Android 폰 복구본은 암호화된 PKCS12 키만 저장하고 DPAPI 자격정보나 복구 비밀번호를 함께 복사하지 않는다.
 - 키 복구본을 클라우드·공유 폴더 등 새 외부 대상으로 복사하는 것은 사용자가 정확한 대상을 선택한 경우에만 수행한다.
 - 키 또는 비밀번호 분실 시 기존 applicationId의 업데이트를 보장할 수 없으므로 release 기기 배포를 중단한다.
 

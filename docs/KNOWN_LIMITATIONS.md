@@ -16,7 +16,7 @@
 - Web POC 식별자 잔류: 공식 웹은 저장 checkbox가 해제되어도 로그아웃 뒤 이전 아이디를 다시 채운다. `webpoc`은 모든 로그인 페이지 로드에서 두 입력값을 비우고 checkbox를 해제한 뒤 재검증하지만, 이 동작이 실패하면 다음 학생 입력을 허용하지 않는다.
 - WebView 임시 저장: 인증 중 access/refresh token이 공식 학습 웹의 WebView 저장소에 존재할 수 있다. 정상 로그아웃 뒤 Cookie/WebStorage/form data를 삭제하며, 민감 상태에서 재시작하면 안전 로그아웃·정리를 우선한다.
 - Gate 5 alpha: A 한 대에서 Device Owner 잠금, QR→Web→QR 왕복과 재부팅 복구를 통과했다. 다른 제조사·Android 버전, 실제 학생 파일럿과 장시간 무인 운전 결과는 없다.
-- Gate 5 패키징: 별도 release signer의 RC APK와 자동 검증은 준비했지만 A에는 아직 두 debug APK가 설치되어 있다. release 키의 휴대 가능한 복구 확인, 두 번째 공장초기화, release 실기, 서명키 회전과 원격 업데이트 채널은 완료하지 않았다.
+- Gate 5 패키징: 별도 release signer의 RC APK, 자동 검증과 Android 폰 복구본은 준비했지만 A에는 아직 두 debug APK가 설치되어 있다. 폰 외 추가 오프라인 키 백업, 두 번째 공장초기화, release 실기, 서명키 회전과 원격 업데이트 채널은 완료하지 않았다.
 - USB 디버깅: 프로비저닝과 검증을 위해 A의 USB 디버깅과 PC 승인을 유지했다. 승인된 PC의 ADB는 앱 삭제·데이터 초기화 등 Lock Task보다 강하므로 생산 투입 전 개발자 옵션과 USB 디버깅을 끄고 별도 실기 재검증해야 한다.
 - Device Owner 복구: 관리자 PIN 분실이나 Device Owner 제거는 공장초기화가 필요하며 앱 DB, Keystore 키, 자격정보와 기존 QR을 복구하지 않는다.
 - 관리자 PIN 지연은 앱 private DB의 wall clock 기준이다. 잠금 중 설정 진입은 차단하지만, 관리자 잠금 해제나 승인된 ADB를 가진 주체의 시각 변경·앱 데이터 삭제까지 방어하지 않는다.

@@ -1,6 +1,6 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5 alpha에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 공장초기화해 실제 Device Owner로 등록한 뒤 홈·최근 앱·알림창·설정 차단, QR→Web 문제 화면→로그아웃 자동 복귀와 재부팅 복구를 확인했다. 정의된 Gate 5 alpha 범위는 PASS다. 별도 release signer의 RC APK와 검증 파이프라인도 준비했지만 키 복구 확인·재초기화·release 실기·USB 디버깅 제거와 생산 배포는 아직 수행하지 않았다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5 alpha에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 공장초기화해 실제 Device Owner로 등록한 뒤 홈·최근 앱·알림창·설정 차단, QR→Web 문제 화면→로그아웃 자동 복귀와 재부팅 복구를 확인했다. 정의된 Gate 5 alpha 범위는 PASS다. 별도 release signer의 RC APK·검증 파이프라인과 Android 폰의 암호화 키 복구본까지 준비했다. A 재초기화, release 실기, USB 디버깅 제거와 생산 배포는 아직 수행하지 않았다.
 
 ## 현재 Gate
 

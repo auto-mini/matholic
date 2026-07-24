@@ -22,6 +22,13 @@ foreach ($path in @($KioskApk, $WebPocApk, $apksigner, $zipalign, $apkanalyzer))
         throw "Required file not found: $path"
     }
 }
+$verificationParent = Join-Path $env:LOCALAPPDATA 'MatholicKiosk\verification'
+$verificationRoot = Join-Path $verificationParent ([guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force -Path $verificationRoot | Out-Null
+$stagedKioskApk = Join-Path $verificationRoot 'kiosk-release.apk'
+$stagedWebPocApk = Join-Path $verificationRoot 'webpoc-release.apk'
+Copy-Item -LiteralPath $KioskApk -Destination $stagedKioskApk
+Copy-Item -LiteralPath $WebPocApk -Destination $stagedWebPocApk
 
 function Get-ApkSignerDigest([string]$ApkPath) {
     $output = (& $apksigner verify --verbose --print-certs $ApkPath 2>&1) -join "`n"
@@ -83,27 +90,38 @@ function Assert-ApkManifest(
     }
 }
 
-$kioskDigest = Get-ApkSignerDigest $KioskApk
-$webPocDigest = Get-ApkSignerDigest $WebPocApk
-if ($kioskDigest -ne $webPocDigest) {
-    throw 'Kiosk and Web POC APK signer digests do not match.'
+try {
+    $kioskDigest = Get-ApkSignerDigest $stagedKioskApk
+    $webPocDigest = Get-ApkSignerDigest $stagedWebPocApk
+    if ($kioskDigest -ne $webPocDigest) {
+        throw 'Kiosk and Web POC APK signer digests do not match.'
+    }
+
+    Assert-ApkManifest `
+        -ApkPath $stagedKioskApk `
+        -ExpectedPackage 'com.local.matholickiosk.kiosk' `
+        -ExpectedVersion $ExpectedKioskVersion `
+        -RequiredPermissions @('android.permission.CAMERA') `
+        -ForbiddenPermissions @('android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE')
+    Assert-ApkManifest `
+        -ApkPath $stagedWebPocApk `
+        -ExpectedPackage 'com.local.matholickiosk.webpoc' `
+        -ExpectedVersion $ExpectedWebPocVersion `
+        -RequiredPermissions @(
+            'android.permission.INTERNET',
+            'com.local.matholickiosk.permission.CREDENTIAL_BRIDGE'
+        ) `
+        -ForbiddenPermissions @()
+
+    Write-Host "Release APK verification passed."
+    Write-Host "Signer SHA-256: $kioskDigest"
+} finally {
+    foreach ($path in @($stagedKioskApk, $stagedWebPocApk)) {
+        if (Test-Path -LiteralPath $path) {
+            [System.IO.File]::Delete($path)
+        }
+    }
+    if (Test-Path -LiteralPath $verificationRoot) {
+        [System.IO.Directory]::Delete($verificationRoot, $false)
+    }
 }
-
-Assert-ApkManifest `
-    -ApkPath $KioskApk `
-    -ExpectedPackage 'com.local.matholickiosk.kiosk' `
-    -ExpectedVersion $ExpectedKioskVersion `
-    -RequiredPermissions @('android.permission.CAMERA') `
-    -ForbiddenPermissions @('android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE')
-Assert-ApkManifest `
-    -ApkPath $WebPocApk `
-    -ExpectedPackage 'com.local.matholickiosk.webpoc' `
-    -ExpectedVersion $ExpectedWebPocVersion `
-    -RequiredPermissions @(
-        'android.permission.INTERNET',
-        'com.local.matholickiosk.permission.CREDENTIAL_BRIDGE'
-    ) `
-    -ForbiddenPermissions @()
-
-Write-Host "Release APK verification passed."
-Write-Host "Signer SHA-256: $kioskDigest"

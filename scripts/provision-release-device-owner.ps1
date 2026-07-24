@@ -35,21 +35,36 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $marker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
-foreach ($property in @('backupPath', 'keystoreSha256', 'signerSha256')) {
+foreach ($property in @(
+    'backupKind',
+    'backupReference',
+    'backupSha256',
+    'keystoreSha256',
+    'signerSha256'
+)) {
     if (-not $marker.$property) {
         throw "Recovery marker is missing property: $property"
     }
 }
-if (-not (Test-Path -LiteralPath $marker.backupPath)) {
-    throw "Portable release key backup is unavailable: $($marker.backupPath)"
-}
 $localKeystoreHash = (Get-FileHash -LiteralPath $keystorePath -Algorithm SHA256).Hash
-$backupKeystoreHash = (Get-FileHash -LiteralPath $marker.backupPath -Algorithm SHA256).Hash
 if (
     $localKeystoreHash -ne $marker.keystoreSha256 -or
-    $backupKeystoreHash -ne $marker.keystoreSha256
+    $marker.backupSha256 -ne $marker.keystoreSha256
 ) {
     throw 'Release keystore or portable backup hash does not match the confirmed recovery marker.'
+}
+if ($marker.backupKind -eq 'filesystem') {
+    if (-not (Test-Path -LiteralPath $marker.backupReference)) {
+        throw "Portable release key backup is unavailable: $($marker.backupReference)"
+    }
+    $backupKeystoreHash = (
+        Get-FileHash -LiteralPath $marker.backupReference -Algorithm SHA256
+    ).Hash
+    if ($backupKeystoreHash -ne $marker.backupSha256) {
+        throw 'Filesystem release key backup changed after recovery confirmation.'
+    }
+} elseif ($marker.backupKind -ne 'android-adb') {
+    throw "Unsupported portable backup kind: $($marker.backupKind)"
 }
 
 $signatureOutput = (& $apksigner verify --print-certs $KioskApk 2>&1) -join "`n"
