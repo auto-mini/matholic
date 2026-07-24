@@ -69,4 +69,4 @@ Gate 5는 사용자 승인으로 A를 공장초기화한 뒤 Device Owner로 등
 
 ## Release 운영 전환
 
-현재 debug Device Owner 설치본과 release signer는 다르므로 덮어쓰지 않는다. release 키 복구 확인과 RC APK 검증을 완료한 뒤 A를 다시 공장초기화하고 `scripts\provision-release-device-owner.ps1`로 등록한다. release signer, 복구본, 초기화 조건과 USB 디버깅 제거 절차는 `RELEASE_OPERATIONS.md`를 따른다.
+debug Device Owner에서 release signer로 처음 전환할 때는 덮어쓰지 않고 공장초기화 후 `scripts\provision-release-device-owner.ps1`로 등록한다. A의 전환은 2026-07-24 완료했다. 이후 같은 release signer의 더 높은 versionCode는 데이터를 보존해 업데이트할 수 있다. release signer, 복구본, 초기화 조건과 USB 디버깅 제거 절차는 `RELEASE_OPERATIONS.md`를 따른다.
