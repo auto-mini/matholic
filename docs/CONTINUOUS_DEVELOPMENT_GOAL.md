@@ -91,7 +91,7 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc06`/code 11
-  - Web POC `0.4.0-rc04`/code 21
+  - Web POC `0.4.0-rc05`/code 22
 - ADB: 2026-07-25 현재 기존 PC 승인이 유지된 `device` 상태
 - A의 Kiosk RC06 설치: 2026-07-25 `adb install -r`로 완료
   - 설치 전후 package UID `10288`, firstInstallTime, dataDir 유지
@@ -103,16 +103,16 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc06-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc05-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `522A668BBE70F87BA5B5D7677C59428D662A662D3F326EF64CA7DBD1939B0ACB`
   - Web POC:
-    `2E955D1DD52F5989DA3219C7F3FB5D2C8DC036FDAA2546A612F33FE315742CDD`
-- 현재 보관 Web POC RC04는 같은 소스·버전·signer를 RC06 릴리스 파이프라인에서
-  재빌드한 파일이며 SHA-256은
-  `C0E48C5CD6128B18D5D45AC8080D576F0887E57451E13B3460A6A472D81B5311`다.
-  A의 Web POC는 변경이 없어 다시 설치하지 않았다.
+    `E09399F0F90A8353D2EBD396647D4436394CA739BCFD65107ABBD66E4E161A0C`
+- 현재 보관 Kiosk RC06은 같은 소스·버전·signer를 Web RC05 릴리스
+  파이프라인에서 재빌드한 파일이며 SHA-256은
+  `E3F072A1550DD986245749C0768BC85DF84F7BA2D27F8D93522419D1D0E746AC`다.
+  A 설치 Kiosk는 변경이 없어 다시 설치하지 않았다.
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -120,6 +120,7 @@
   - RC04 기준 Web 33개, Kiosk 11개, 실패 0
   - RC05 Kiosk 14개, 실패 0
   - RC06 Kiosk 16개, 실패 0
+  - Web POC RC05 34개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -150,6 +151,21 @@
   - 최신 소스 전체 debug 204 tasks, JVM 57개, 실패 0
   - RC06에 포함해 A에 설치했으며 현재 수업의 복수 보강 학생 추가 실기는
     사용자 복귀 뒤 수행
+- Web secure session 호출자 경계 커밋 `ce6458f`를 추가하고 Web POC RC05로
+  A에 설치했다.
+  - credential URI를 읽기 전에 호출 package가 정확한 Kiosk package인지,
+    Web POC와 같은 signer인지 검사
+  - 비신뢰 명시적 호출은 `SECURE_SESSION_CALLER`로 취소하고 영속 상태를
+    `IDLE`로 유지
+  - 수정 전 신규 회귀시험에서 기존 `CREDENTIAL_BRIDGE_EMPTY` 경로를 재현하고
+    수정 뒤 단일 시험과 Web 전체 계측 34개 통과
+  - 전체 debug 회귀 204 tasks, JVM 57개, release 158 tasks와 APK 검증 통과
+  - Web POC RC05 보관본 크기 3,080,528 bytes, SHA-256
+    `E09399F0F90A8353D2EBD396647D4436394CA739BCFD65107ABBD66E4E161A0C`
+  - 설치 전 RC04/code 21에서 RC05/code 22로 `adb install -r`; UID `10287`,
+    firstInstallTime, dataDir, Device Owner, HOME, `LOCKED`, Kiosk RC06과
+    화면 `Dozing` 유지
+  - 실제 Kiosk→Web 정상 호출과 QR→Web→QR 왕복은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

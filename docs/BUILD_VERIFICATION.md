@@ -840,3 +840,81 @@ Kiosk가 Web POC를 실행한 뒤 프로세스가 재시작되면 저장소는 �
 - 현재 수업에 복수 보강 학생 추가와 후반 실패의 A 실기
 - 관리자 PIN 입력 뒤 관리자 UI와 정상 `QR_READY` 복귀
 - 실제 사이트·카메라·PDF·직접 인쇄 실기
+
+---
+
+## Web POC RC05 secure-session 호출자 경계 — 2026-07-25
+
+### 확인한 문제와 변경
+
+Web POC의 secure session 진입은 credential bridge URI를 읽기 전에 호출
+주체를 검증하지 않았다. 비신뢰 앱이 명시적으로 진입점을 호출하는 회귀시험을
+추가했을 때 수정 전에는 호출자 거부가 아니라 `CREDENTIAL_BRIDGE_EMPTY`까지
+진행했다.
+
+- 구현 커밋: `ce6458f`
+- Web POC는 호출 package가 정확히 `com.local.matholickiosk.kiosk`이고
+  자신의 signer와 같은 경우에만 credential bridge URI를 읽는다.
+- 그 밖의 호출은 `RESULT_CANCELED`와 `SECURE_SESSION_CALLER`로 거부하고
+  영속 상태를 `IDLE`로 유지한다.
+- RC05 버전·릴리스 검증본 커밋: `a0c438c`
+- Web POC `0.4.0-rc05`/code 22
+
+### 자동 검증
+
+- 수정 전 신규 비신뢰 호출 회귀시험: 실패, 기존
+  `CREDENTIAL_BRIDGE_EMPTY` 경로 재현
+- 수정 뒤 같은 단일 시험: 통과
+- Android 13 AOSP ATD 일회용 에뮬레이터 Web POC 전체 계측시험:
+  34개, 실패·오류 0, 실행 149.799초
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- JVM 단위시험: 총 57개, 실패 0
+- 네 모듈 debug lint와 debug APK assemble: 성공
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·권한·`debuggable=false`, APK Signature
+  Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와 zipalign: 통과
+
+### 릴리스 APK
+
+- Web POC:
+  `artifacts/matholic-webpoc-0.4.0-rc05-release.apk`
+  - 크기: 3,080,528 bytes
+  - SHA-256:
+    `E09399F0F90A8353D2EBD396647D4436394CA739BCFD65107ABBD66E4E161A0C`
+- 같은 파이프라인에서 재빌드한 Kiosk RC06 보관본:
+  `artifacts/matholic-kiosk-0.6.0-rc06-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `E3F072A1550DD986245749C0768BC85DF84F7BA2D27F8D93522419D1D0E746AC`
+  - A 설치 Kiosk와 같은 소스·버전·release signer지만 바이트 해시는 다르며,
+    Kiosk는 변경이 없어 다시 설치하지 않음
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc06`/code 11,
+  Web POC `0.4.0-rc04`/code 21
+- 정확한 serial·SM-P610 모델, 유일한 ADB `device`, 배터리 100%·USB 전원,
+  화면 `Dozing`, 설치 버전·signer·Device Owner·HOME·Lock Task를 확인
+- Web POC만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc06`/code 11,
+  Web POC `0.4.0-rc05`/code 22
+- Web POC package UID `10287`, firstInstallTime
+  `2026-07-24 12:52:24`, dataDir: 설치 전후 동일
+- 설치된 Web POC base APK SHA-256은 RC05 보관본과 일치
+- Kiosk package UID `10288`, firstInstallTime
+  `2026-07-24 12:52:28`, dataDir와 설치 APK SHA-256
+  `522A668BBE70F87BA5B5D7677C59428D662A662D3F326EF64CA7DBD1939B0ACB`:
+  변경 없음
+- 설치된 두 APK signer, Device Owner, 전용 HOME, Kiosk 프로세스와
+  Lock Task `LOCKED`: 유지
+- 설치 전후 화면: `Dozing` 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 Kiosk가 RC05 secure session을 정상 호출하는 QR→Web→QR 왕복
+- 실제 사이트의 자동 학습지 진입, 두 탭·경로 제한, 문제 입력 확대와
+  오답 번호 전용 결과 회귀
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
