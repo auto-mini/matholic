@@ -72,6 +72,15 @@ interface ClassDao {
 
     @Query("SELECT * FROM class_groups WHERE classId = :classId AND isActive = 1 LIMIT 1")
     fun findActiveById(classId: String): ClassGroupEntity?
+
+    @Query(
+        """
+        SELECT * FROM class_groups
+        WHERE isActive = 1 AND className = :className COLLATE NOCASE
+        LIMIT 1
+        """,
+    )
+    fun findActiveByName(className: String): ClassGroupEntity?
 }
 
 @Dao

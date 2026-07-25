@@ -39,6 +39,9 @@ class StudentRepository(
     fun createClass(className: String): String {
         val normalized = className.trim()
         require(normalized.isNotEmpty()) { "Class name is required" }
+        require(database.classDao().findActiveByName(normalized) == null) {
+            "같은 이름의 반이 이미 있습니다."
+        }
         val now = nowEpochMs()
         val classId = UUID.randomUUID().toString()
         database.classDao().upsert(

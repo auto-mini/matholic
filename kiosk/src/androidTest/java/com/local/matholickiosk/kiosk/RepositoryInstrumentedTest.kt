@@ -125,6 +125,27 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun activeClassNamesAreUniqueButDeletedNamesCanBeReused() {
+        val originalClassId = repository.createClass("Synthetic Class")
+
+        assertTrue(
+            runCatching {
+                repository.createClass("  synthetic class  ")
+            }.isFailure,
+        )
+        assertEquals(1, repository.listClasses().size)
+
+        repository.deleteClass(originalClassId)
+        val replacementClassId = repository.createClass("synthetic class")
+
+        assertTrue(replacementClassId != originalClassId)
+        assertEquals(
+            listOf("synthetic class"),
+            repository.listClasses().map { it.className },
+        )
+    }
+
+    @Test
     fun reissueRevokesOldQrAndTemporaryStudentIsSessionOnly() {
         val classId = repository.createClass("가상반")
         val registered = repository.registerStudent(
