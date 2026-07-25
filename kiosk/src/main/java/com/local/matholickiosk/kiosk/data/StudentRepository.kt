@@ -396,22 +396,29 @@ class StudentRepository(
     }
 
     fun transitionSession(
+        expectedState: KioskState,
         state: KioskState,
         currentStudentId: String? = null,
         automationStep: String? = null,
         lockedReason: String? = null,
     ) {
-        val current = requireNotNull(database.sessionDao().get()) { "No session state" }
-        database.sessionDao().save(
-            current.copy(
-                state = state.name,
-                currentStudentId = currentStudentId,
-                automationStep = automationStep,
-                lockedReason = lockedReason,
-                previousCheckpoint = current.state,
-                updatedAtEpochMs = nowEpochMs(),
-            ),
-        )
+        database.runInTransaction {
+            val current = requireNotNull(database.sessionDao().get()) { "No session state" }
+            require(current.sessionId != null) { "No active session" }
+            require(current.state == expectedState.name) {
+                "Session state changed before transition"
+            }
+            database.sessionDao().save(
+                current.copy(
+                    state = state.name,
+                    currentStudentId = currentStudentId,
+                    automationStep = automationStep,
+                    lockedReason = lockedReason,
+                    previousCheckpoint = current.state,
+                    updatedAtEpochMs = nowEpochMs(),
+                ),
+            )
+        }
     }
 
     fun endSession() {

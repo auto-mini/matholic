@@ -149,10 +149,14 @@ class MainActivity : ComponentActivity() {
         ioExecutor.execute {
             val outcome = runCatching {
                 if (result.resultCode == Activity.RESULT_OK) {
-                    studentRepository.transitionSession(KioskState.QR_READY)
+                    studentRepository.transitionSession(
+                        expectedState = KioskState.PRELOGIN_CHECK,
+                        state = KioskState.QR_READY,
+                    )
                     true
                 } else {
                     studentRepository.transitionSession(
+                        expectedState = KioskState.PRELOGIN_CHECK,
                         state = KioskState.LOCKED,
                         lockedReason = failureReason,
                     )
@@ -1640,6 +1644,7 @@ class MainActivity : ComponentActivity() {
         ioExecutor.execute {
             val prepared = runCatching {
                 studentRepository.transitionSession(
+                    expectedState = KioskState.QR_READY,
                     state = KioskState.PRELOGIN_CHECK,
                     currentStudentId = student.studentId,
                     automationStep = "CREDENTIAL_BRIDGE",
@@ -1687,6 +1692,7 @@ class MainActivity : ComponentActivity() {
         ioExecutor.execute {
             runCatching {
                 studentRepository.transitionSession(
+                    expectedState = KioskState.PRELOGIN_CHECK,
                     state = KioskState.LOCKED,
                     lockedReason = reason,
                 )

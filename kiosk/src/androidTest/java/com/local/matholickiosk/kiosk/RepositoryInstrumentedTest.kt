@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
+import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.qr.QrParseResult
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
@@ -189,6 +190,58 @@ class RepositoryInstrumentedTest {
 
         assertTrue(runCatching { repository.endSession() }.isFailure)
         assertNull(repository.currentSession()?.sessionId)
+    }
+
+    @Test
+    fun staleWebResultCannotUnlockRestartedOrCompletedSession() {
+        val classId = repository.createClass("가상반")
+        val registered = repository.registerStudent(
+            "가상학생-가",
+            "user-a".toCharArray(),
+            "password-a".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        repository.startSession(classId)
+        repository.transitionSession(
+            expectedState = KioskState.QR_READY,
+            state = KioskState.PRELOGIN_CHECK,
+            currentStudentId = registered.studentId,
+        )
+        assertEquals(KioskState.LOCKED, repository.applyRestartPolicy())
+
+        assertTrue(
+            runCatching {
+                repository.transitionSession(
+                    expectedState = KioskState.PRELOGIN_CHECK,
+                    state = KioskState.QR_READY,
+                )
+            }.isFailure,
+        )
+        assertEquals(KioskState.LOCKED.name, repository.currentSession()?.state)
+
+        repository.endSession()
+        repository.startSession(classId)
+        repository.transitionSession(
+            expectedState = KioskState.QR_READY,
+            state = KioskState.PRELOGIN_CHECK,
+            currentStudentId = registered.studentId,
+        )
+        repository.transitionSession(
+            expectedState = KioskState.PRELOGIN_CHECK,
+            state = KioskState.QR_READY,
+        )
+
+        assertTrue(
+            runCatching {
+                repository.transitionSession(
+                    expectedState = KioskState.PRELOGIN_CHECK,
+                    state = KioskState.QR_READY,
+                )
+            }.isFailure,
+        )
+        assertEquals(KioskState.QR_READY.name, repository.currentSession()?.state)
+        assertNull(repository.currentSession()?.currentStudentId)
     }
 
     @Test
