@@ -45,8 +45,10 @@ import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
+import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
+import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
@@ -103,10 +105,10 @@ class MainActivity : ComponentActivity() {
     private var authBusy = false
     private var classes: List<Choice> = emptyList()
     private var students: List<StudentChoice> = emptyList()
-    private var selectedClassIdForUi: String? = null
+    private val classRosterState = ClassRosterSelectionState()
+    private val webRecoveryGate = SingleFlightGate()
     private var issuedQrPreview: QrPreview? = null
     private var currentSession: ActiveSessionEntity? = null
-    private var selectedClassMembershipIds: Set<String> = emptySet()
     private var pendingTemporaryStudentIds: Set<String> = emptySet()
     private var suppressClassSelectionCallback = false
     private var cameraProvider: ProcessCameraProvider? = null
@@ -190,14 +192,17 @@ class MainActivity : ComponentActivity() {
             ?.take(80)
         if (result.resultCode == Activity.RESULT_OK) {
             when (requestedAction) {
-                PendingRecoveryAction.None ->
+                PendingRecoveryAction.None -> {
+                    webRecoveryGate.finish()
                     refreshAdminData("Web 로그인 상태를 안전하게 정리했습니다.")
+                }
                 is PendingRecoveryAction.StartSession ->
                     completeSessionStart(requestedAction)
                 PendingRecoveryAction.EndSession ->
                     completeSessionEnd()
             }
         } else {
+            webRecoveryGate.finish()
             val message = "Web 세션 정리에 실패해 수업 상태를 변경하지 않았습니다" +
                 (failureReason?.let { " · $it" } ?: "")
             refreshAdminData(message)
@@ -326,15 +331,16 @@ class MainActivity : ComponentActivity() {
             ) {
                 if (!suppressClassSelectionCallback) {
                     val selectedClassId = classes.getOrNull(position)?.id
-                    val changed = selectedClassId != selectedClassIdForUi
-                    selectedClassIdForUi = selectedClassId
-                    refreshSelectedClassDetails(clearPendingTemporaryStudents = changed)
+                    classRosterState.select(selectedClassId)?.let { request ->
+                        pendingTemporaryStudentIds = emptySet()
+                        updateClassRosterUi()
+                        refreshSelectedClassDetails(request)
+                    }
                 }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {
-                selectedClassIdForUi = null
-                selectedClassMembershipIds = emptySet()
+                classRosterState.resolve(classId = null, studentIds = emptySet())
                 pendingTemporaryStudentIds = emptySet()
                 updateClassRosterUi()
             }
@@ -540,8 +546,7 @@ class MainActivity : ComponentActivity() {
                 classes = loadedClasses
                 students = loadedStudents
                 currentSession = session
-                selectedClassMembershipIds = loadedMembershipIds
-                selectedClassIdForUi = resolvedClassId
+                classRosterState.resolve(resolvedClassId, loadedMembershipIds)
                 pendingTemporaryStudentIds = pendingTemporaryStudentIds
                     .intersect(students.mapTo(mutableSetOf(), StudentChoice::id))
                 suppressClassSelectionCallback = true
@@ -647,7 +652,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "먼저 학생을 등록하세요."
             return
         }
-        val chosen = selectedClassMembershipIds.toMutableSet()
+        val chosen = classRosterState.membershipStudentIds.toMutableSet()
         val checked = BooleanArray(students.size) { index -> students[index].id in chosen }
         AlertDialog.Builder(this)
             .setTitle("${selectedClass.label} 학생 구성")
@@ -675,9 +680,10 @@ class MainActivity : ComponentActivity() {
                 if (destroyed) return@runOnUiThread
                 result.fold(
                     onSuccess = {
-                        selectedClassMembershipIds = studentIds
-                        pendingTemporaryStudentIds -= studentIds
-                        updateClassRosterUi()
+                        if (classRosterState.replaceIfSelected(selectedClass.id, studentIds)) {
+                            pendingTemporaryStudentIds -= studentIds
+                            updateClassRosterUi()
+                        }
                         adminMessage.text = "${selectedClass.label} 반 학생 ${studentIds.size}명을 저장했습니다."
                     },
                     onFailure = { adminMessage.text = it.message ?: "반 학생 구성 저장 실패" },
@@ -686,24 +692,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun refreshSelectedClassDetails(clearPendingTemporaryStudents: Boolean) {
-        val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
-        if (clearPendingTemporaryStudents) pendingTemporaryStudentIds = emptySet()
-        if (selectedClass == null) {
-            selectedClassMembershipIds = emptySet()
-            updateClassRosterUi()
-            return
-        }
+    private fun refreshSelectedClassDetails(
+        request: ClassRosterSelectionState.LoadRequest,
+    ) {
         ioExecutor.execute {
             val membershipIds = runCatching {
-                studentRepository.membershipStudentIds(selectedClass.id)
+                studentRepository.membershipStudentIds(request.classId)
             }.getOrDefault(emptySet())
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                if (classes.getOrNull(classSpinner.selectedItemPosition)?.id != selectedClass.id) {
+                if (!classRosterState.apply(request, membershipIds)) {
                     return@runOnUiThread
                 }
-                selectedClassMembershipIds = membershipIds
                 pendingTemporaryStudentIds -= membershipIds
                 updateClassRosterUi()
             }
@@ -713,21 +713,26 @@ class MainActivity : ComponentActivity() {
     private fun updateClassRosterUi() {
         val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
         val memberNames = students
-            .filter { it.id in selectedClassMembershipIds }
+            .filter { it.id in classRosterState.membershipStudentIds }
             .map(StudentChoice::label)
         classRosterText.text = when {
             selectedClass == null -> "반을 먼저 생성하세요."
+            classRosterState.isLoading -> "소속 학생 불러오는 중"
             memberNames.isEmpty() -> "소속 학생 없음"
             else -> "소속 ${memberNames.size}명 · ${memberNames.joinToString(", ")}"
         }
         val activeClassId = currentSession?.classId
         val classAvailable = selectedClass != null
-        manageClassMembersButton.isEnabled = classAvailable && currentSession?.sessionId == null
-        deleteClassButton.isEnabled = classAvailable &&
+        val classReady = classAvailable && !classRosterState.isLoading
+        manageClassMembersButton.isEnabled = classReady && currentSession?.sessionId == null
+        deleteClassButton.isEnabled = classReady &&
             (currentSession?.sessionId == null || activeClassId != selectedClass?.id)
-        addTemporaryButton.isEnabled = classAvailable && students.any {
-            it.id !in selectedClassMembershipIds
+        addTemporaryButton.isEnabled = classReady && students.any {
+            it.id !in classRosterState.membershipStudentIds
         }
+        startSessionButton.isEnabled = !webRecoveryGate.isActive &&
+            (currentSession?.sessionId != null || classReady)
+        resumeSessionButton.isEnabled = !webRecoveryGate.isActive
         val pendingCount = pendingTemporaryStudentIds.size
         addTemporaryButton.text = if (currentSession?.sessionId == null) {
             "이번 수업 보강 학생 선택" + if (pendingCount > 0) " (${pendingCount}명)" else ""
@@ -1205,7 +1210,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "수업 반을 먼저 선택하세요."
             return
         }
-        val candidates = students.filter { it.id !in selectedClassMembershipIds }
+        val candidates = students.filter { it.id !in classRosterState.membershipStudentIds }
         if (candidates.isEmpty()) {
             adminMessage.text = "이 반 밖에서 추가할 활성 학생이 없습니다."
             return
@@ -1272,12 +1277,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchWebSessionRecovery(action: PendingRecoveryAction) {
+        if (!webRecoveryGate.tryStart()) {
+            adminMessage.text = "Web 로그인 상태를 이미 안전하게 정리하고 있습니다."
+            return
+        }
         pendingRecoveryAction = action
         adminMessage.text = when (action) {
             PendingRecoveryAction.None -> "Web 로그인 상태 안전 정리 중"
             is PendingRecoveryAction.StartSession -> "Web 상태 확인 후 수업 시작 준비 중"
             PendingRecoveryAction.EndSession -> "Web 상태 정리 후 수업 안전 종료 중"
         }
+        updateSessionAdminControls(currentSession)
         suppressNextAdminStopRelock = true
         val intent = Intent(CredentialBridgeContract.ACTION_RECOVER_WEB_SESSION)
             .setComponent(
@@ -1290,6 +1300,8 @@ class MainActivity : ComponentActivity() {
             .onFailure {
                 suppressNextAdminStopRelock = false
                 pendingRecoveryAction = PendingRecoveryAction.None
+                webRecoveryGate.finish()
+                updateSessionAdminControls(currentSession)
                 adminMessage.text = "Web 세션 정리 화면을 열지 못했습니다."
             }
     }
@@ -1314,7 +1326,10 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "수업 반을 선택하세요."
             return
         }
-        if (selectedClassMembershipIds.isEmpty() && pendingTemporaryStudentIds.isEmpty()) {
+        if (
+            classRosterState.membershipStudentIds.isEmpty() &&
+            pendingTemporaryStudentIds.isEmpty()
+        ) {
             adminMessage.text = "반 학생 또는 이번 수업 보강 학생을 한 명 이상 선택하세요."
             return
         }
@@ -1336,13 +1351,17 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
+                webRecoveryGate.finish()
                 result.fold(
                     onSuccess = {
                         currentSession = it
                         pendingTemporaryStudentIds = emptySet()
                         showScanner()
                     },
-                    onFailure = { adminMessage.text = it.message ?: "수업 시작 실패" },
+                    onFailure = {
+                        updateSessionAdminControls(currentSession)
+                        adminMessage.text = it.message ?: "수업 시작 실패"
+                    },
                 )
             }
         }
@@ -1353,12 +1372,16 @@ class MainActivity : ComponentActivity() {
             val result = runCatching { studentRepository.endSession() }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
+                webRecoveryGate.finish()
                 result.fold(
                     onSuccess = {
                         pendingTemporaryStudentIds = emptySet()
                         refreshAdminData("Web 로그인과 현재 수업을 안전하게 종료했습니다.")
                     },
-                    onFailure = { adminMessage.text = it.message ?: "수업 종료 실패" },
+                    onFailure = {
+                        updateSessionAdminControls(currentSession)
+                        adminMessage.text = it.message ?: "수업 종료 실패"
+                    },
                 )
             }
         }
@@ -1374,7 +1397,7 @@ class MainActivity : ComponentActivity() {
         } else {
             "선택한 반 수업 안전 시작"
         }
-        classSpinner.isEnabled = !active
+        classSpinner.isEnabled = !active && !webRecoveryGate.isActive
         statusText.text = session?.state ?: KioskState.ADMIN_IDLE.name
         updateClassRosterUi()
         if (active && !resumable) {
