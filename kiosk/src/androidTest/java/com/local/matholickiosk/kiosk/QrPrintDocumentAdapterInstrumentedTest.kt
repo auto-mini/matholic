@@ -10,6 +10,7 @@ import android.print.PrintAttributes
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
+import com.local.matholickiosk.kiosk.print.QrPrintCardRenderer
 import com.local.matholickiosk.kiosk.print.QrPrintPdfWriter
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
@@ -21,6 +22,24 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class QrPrintDocumentAdapterInstrumentedTest {
+    @Test
+    fun physicalCardAndQrSizesUseIndependentPrinterDpi() {
+        val resolution = PrintAttributes.Resolution(
+            "asymmetric",
+            "asymmetric",
+            600,
+            300,
+        )
+
+        val card = QrPrintCardRenderer.cardSizePixels(resolution)
+        val qr = QrPrintCardRenderer.qrSizePixels(resolution)
+
+        assertEquals(65f, card.width / resolution.horizontalDpi * 25.4f, 0.01f)
+        assertEquals(90f, card.height / resolution.verticalDpi * 25.4f, 0.01f)
+        assertEquals(30f, qr.width / resolution.horizontalDpi * 25.4f, 0.01f)
+        assertEquals(30f, qr.height / resolution.verticalDpi * 25.4f, 0.01f)
+    }
+
     @Test
     fun writesOnePagePdfAndWipesOwnedBitmapOnFinish() {
         val context = ApplicationProvider.getApplicationContext<Context>()
