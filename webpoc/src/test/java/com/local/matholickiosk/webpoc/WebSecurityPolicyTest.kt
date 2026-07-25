@@ -46,4 +46,23 @@ class WebSecurityPolicyTest {
         assertFalse(WebSecurityPolicy.isAllowedStudentUrl("http://im.matholic.com/workbook"))
         assertFalse(WebSecurityPolicy.isAllowedStudentUrl("https://user@im.matholic.com/workbook"))
     }
+
+    @Test
+    fun `student routes reject path traversal and ambiguous encoded separators`() {
+        val rejected = listOf(
+            "https://im.matholic.com/workbook/../course",
+            "https://im.matholic.com/workbook/%2e%2e/course",
+            "https://im.matholic.com/workbook/%2E%2E/course",
+            "https://im.matholic.com/workbook/%2f../course",
+            "https://im.matholic.com/workbook/%5c..%5ccourse",
+            "https://im.matholic.com/learningV2/../course",
+            "https://im.matholic.com/learningV2/%2e%2e/course",
+            "https://im.matholic.com/workbook/%252e%252e/course",
+        )
+
+        rejected.forEach { url ->
+            assertFalse(url, WebSecurityPolicy.isAllowedStudentUrl(url))
+            assertTrue(url, WebSecurityPolicy.pathOf(url) == null)
+        }
+    }
 }

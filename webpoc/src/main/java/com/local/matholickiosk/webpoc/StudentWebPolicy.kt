@@ -19,7 +19,8 @@ object StudentWebPolicy {
             (uri.port != -1 && uri.port != 443)
         ) return false
 
-        return isAllowedPath(uri.path.orEmpty())
+        val path = safePath(uri) ?: return false
+        return isAllowedPath(path)
     }
 
     fun isAllowedPath(path: String): Boolean =
@@ -40,6 +41,28 @@ object StudentWebPolicy {
 
     fun pathOf(value: String?): String? {
         if (value.isNullOrBlank()) return null
-        return runCatching { URI(value).path }.getOrNull()
+        val uri = runCatching { URI(value) }.getOrNull() ?: return null
+        return safePath(uri)
     }
+
+    private fun safePath(uri: URI): String? {
+        val rawPath = uri.rawPath ?: return null
+        if (ambiguousEscape.containsMatchIn(rawPath)) return null
+        val path = uri.path ?: return null
+        if (
+            path.any { character ->
+                character == '\\' || character.code < 0x20 || character.code == 0x7f
+            }
+        ) return null
+        if (path.split('/').any { segment -> segment == "." || segment == ".." }) {
+            return null
+        }
+        if (uri.normalize().path != path) return null
+        return path
+    }
+
+    private val ambiguousEscape = Regex(
+        "%(?:2e|2f|5c|25)",
+        RegexOption.IGNORE_CASE,
+    )
 }
