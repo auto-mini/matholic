@@ -1329,12 +1329,10 @@ class MainActivity : ComponentActivity() {
         adminMessage.text = "현재 수업 보강 학생 추가 중"
         ioExecutor.execute {
             val result = runCatching {
-                studentIds.forEach { studentId ->
-                    studentRepository.addTemporaryStudent(
-                        requireNotNull(session.sessionId),
-                        studentId,
-                    )
-                }
+                studentRepository.addTemporaryStudents(
+                    requireNotNull(session.sessionId),
+                    studentIds,
+                )
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread

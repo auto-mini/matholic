@@ -293,16 +293,31 @@ class StudentRepository(
         return session
     }
 
-    fun addTemporaryStudent(sessionId: String, studentId: String) {
-        val session = requireNotNull(database.sessionDao().get()) { "No active session" }
-        require(session.sessionId == sessionId) { "Session mismatch" }
-        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
-        require(student.isActive) { "Student is inactive" }
+    fun addTemporaryStudents(sessionId: String, studentIds: Set<String>) {
+        require(studentIds.isNotEmpty()) { "Temporary students are required" }
         database.runInTransaction {
-            database.sessionDao().addTemporaryStudent(
-                SessionStudentEntity(sessionId, studentId, nowEpochMs()),
+            val session = requireNotNull(database.sessionDao().get()) { "No active session" }
+            require(session.sessionId == sessionId) { "Session mismatch" }
+            require(session.state == KioskState.QR_READY.name) {
+                "Session is not ready for temporary students"
+            }
+            val activeStudentIds = database.studentDao().listAllActive()
+                .mapTo(mutableSetOf(), StudentEntity::studentId)
+            require(studentIds.all(activeStudentIds::contains)) {
+                "Inactive or unknown temporary student selected"
+            }
+            val now = nowEpochMs()
+            studentIds.forEach { studentId ->
+                database.sessionDao().addTemporaryStudent(
+                    SessionStudentEntity(sessionId, studentId, now),
+                )
+            }
+            audit(
+                "TEMPORARY_STUDENTS_ADDED",
+                studentIds.size.toString(),
+                null,
+                sessionId,
             )
-            audit("TEMPORARY_STUDENT_ADDED", null, studentId, sessionId)
         }
     }
 

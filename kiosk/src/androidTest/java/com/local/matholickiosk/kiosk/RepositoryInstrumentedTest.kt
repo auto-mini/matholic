@@ -169,6 +169,39 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun temporaryStudentBatchDoesNotLeavePartialMembershipOnFailure() {
+        val classId = repository.createClass("가상반")
+        val classStudent = repository.registerStudent(
+            "가상학생-반",
+            "class-user".toCharArray(),
+            "class-password".toCharArray(),
+        )
+        val temporaryStudent = repository.registerStudent(
+            "가상학생-보강",
+            "temporary-user".toCharArray(),
+            "temporary-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(classStudent.studentId))
+        val session = repository.startSession(classId)
+
+        assertTrue(
+            runCatching {
+                repository.addTemporaryStudents(
+                    requireNotNull(session.sessionId),
+                    linkedSetOf(temporaryStudent.studentId, "missing-student"),
+                )
+            }.isFailure,
+        )
+
+        assertNull(repository.validateForActiveSession(temporaryStudent.issuedQr.hash))
+        repository.addTemporaryStudents(
+            requireNotNull(session.sessionId),
+            setOf(temporaryStudent.studentId),
+        )
+        assertNotNull(repository.validateForActiveSession(temporaryStudent.issuedQr.hash))
+    }
+
+    @Test
     fun sessionLifecycleRejectsOverwriteAndDuplicateEnd() {
         val classA = repository.createClass("가상반-A")
         val classB = repository.createClass("가상반-B")
