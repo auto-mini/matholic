@@ -107,7 +107,7 @@
     `5A99CFCDEDA3206D19D51884B44BF2D224259059967F44AB16315B2507D2437B`
   - Web POC:
     `2E955D1DD52F5989DA3219C7F3FB5D2C8DC036FDAA2546A612F33FE315742CDD`
-- RC04 전체 debug 회귀 204 tasks, JVM 시험 50개, debug lint·APK,
+- RC04 전체 debug 회귀 204 tasks, JVM 시험 51개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
@@ -115,6 +115,11 @@
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
+- RC04 설치 뒤 관리자 비동기 안전성 보강 커밋 `206b6e7`을 추가했다.
+  - 반 전환 즉시 이전 명단 제거, 최신 조회 세대만 반영
+  - Web 안전정리와 후속 수업 DB 반영의 중복 실행 차단
+  - 최신 소스 전체 debug 204 tasks, JVM 57개, Kiosk 계측 11개, 실패 0
+  - 아직 A에 설치하지 않았으며 다음 상위 versionCode 검증본에 포함
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
