@@ -391,6 +391,14 @@ class MainActivity : Activity() {
                 ) {
                     view?.stopLoading()
                     view?.loadUrl(lastAllowedStudentUrl)
+                    return
+                }
+                if (
+                    state == WebPocState.ACTIVE &&
+                    WebSecurityPolicy.isAllowedStudentUrl(url)
+                ) {
+                    showBlocking("학습 화면을 안전하게 준비 중입니다")
+                    scheduleTimeout(PAGE_TIMEOUT_MS, "STUDENT_PAGE_TIMEOUT")
                 }
             }
 
@@ -866,6 +874,7 @@ class MainActivity : Activity() {
             webView.loadUrl(lastAllowedStudentUrl)
             return
         }
+        cancelTimeout()
         lastAllowedStudentUrl = url
         showActive(url)
         startStudentExperienceMonitor()

@@ -213,6 +213,43 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceShieldsAnalysisBeforeNativeSummary() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error">
+                <h3>3번 문제</h3>
+                <p id="sensitive-analysis">풀이와 정답</p>
+              </section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const shield = document.getElementById('matholic-kiosk-result-shield');
+                  return JSON.stringify({
+                    shieldPresent: !!shield,
+                    shieldCoversViewport: !!shield &&
+                      getComputedStyle(shield).position === 'fixed' &&
+                      getComputedStyle(shield).zIndex === '2147483646',
+                    sensitiveContentStillBehindShield:
+                      !!document.getElementById('sensitive-analysis')
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("shieldPresent"))
+            assertTrue(proof.getBoolean("shieldCoversViewport"))
+            assertTrue(proof.getBoolean("sensitiveContentStillBehindShield"))
+        }
+    }
+
+    @Test
     fun testWrongAnswerSummaryReturnsOnlyVerifiedProblemNumbers() {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",
@@ -230,6 +267,26 @@ class DomContractInstrumentedTest {
             assertEquals(2, result.getInt("errorCardCount"))
             assertEquals(3, result.getJSONArray("wrongNumbers").getInt(0))
             assertEquals(12, result.getJSONArray("wrongNumbers").getInt(1))
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryReportsNoWrongProblemsWhenAllCardsSucceed() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-success"><h3>1번 문제</h3></section>
+              <section class="ant-alert-success"><h3>2번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(0, result.getInt("errorCardCount"))
+            assertEquals(2, result.getInt("successCardCount"))
+            assertEquals(0, result.getJSONArray("wrongNumbers").length())
         }
     }
 
