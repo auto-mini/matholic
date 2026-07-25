@@ -58,6 +58,15 @@ interface ClassDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun addMembership(membership: ClassMembershipEntity): Long
 
+    @Query("DELETE FROM class_memberships WHERE classId = :classId")
+    fun clearMemberships(classId: String)
+
+    @Query("SELECT studentId FROM class_memberships WHERE classId = :classId")
+    fun listMembershipStudentIds(classId: String): List<String>
+
+    @Query("DELETE FROM class_groups WHERE classId = :classId")
+    fun deleteById(classId: String): Int
+
     @Query("SELECT * FROM class_groups WHERE isActive = 1 ORDER BY className")
     fun listActive(): List<ClassGroupEntity>
 

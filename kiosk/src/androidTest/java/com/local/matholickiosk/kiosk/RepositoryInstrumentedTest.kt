@@ -56,9 +56,7 @@ class RepositoryInstrumentedTest {
         assertTrue(
             runCatching {
                 repository.registerStudent(
-                    "missing-class",
-                    "가상학생-거절",
-                    "가상학생-*",
+                    "",
                     rejectedUsername,
                     rejectedPassword,
                 )
@@ -67,13 +65,10 @@ class RepositoryInstrumentedTest {
         assertTrue(rejectedUsername.all { it == '\u0000' })
         assertTrue(rejectedPassword.all { it == '\u0000' })
 
-        val classId = repository.createClass("가상반")
         val username = "synthetic-user".toCharArray()
         val password = "synthetic-password".toCharArray()
         val registered = repository.registerStudent(
-            classId,
             "가상학생-가",
-            "가상학생-*",
             username,
             password,
         )
@@ -99,20 +94,46 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
-    fun reissueRevokesOldQrAndTemporaryStudentIsSessionOnly() {
+    fun sameQrWorksAcrossClassesAndClassDeletePreservesStudent() {
         val classA = repository.createClass("가상반-A")
         val classB = repository.createClass("가상반-B")
         val registered = repository.registerStudent(
-            classA,
             "가상학생-가",
-            "가상학생-*",
             "user-a".toCharArray(),
             "password-a".toCharArray(),
         )
-        val session = repository.startSession(classB)
+        repository.replaceClassMemberships(classA, setOf(registered.studentId))
+        repository.replaceClassMemberships(classB, setOf(registered.studentId))
 
-        assertNull(repository.validateForActiveSession(registered.issuedQr.hash))
-        repository.addTemporaryStudent(session.sessionId!!, registered.studentId)
+        repository.startSession(classA)
+        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        repository.endSession()
+        repository.startSession(classB)
+        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        repository.endSession()
+
+        val originalHash = database.studentDao().findById(registered.studentId)!!.qrTokenHash
+        repository.deleteClass(classA)
+        assertTrue(repository.listClasses().none { it.classId == classA })
+        assertTrue(repository.membershipStudentIds(classA).isEmpty())
+        val preserved = database.studentDao().findById(registered.studentId)!!
+        assertTrue(preserved.isActive)
+        assertArrayEquals(originalHash, preserved.qrTokenHash)
+
+        repository.startSession(classB)
+        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+    }
+
+    @Test
+    fun reissueRevokesOldQrAndTemporaryStudentIsSessionOnly() {
+        val classId = repository.createClass("가상반")
+        val registered = repository.registerStudent(
+            "가상학생-가",
+            "user-a".toCharArray(),
+            "password-a".toCharArray(),
+        )
+        repository.startSession(classId, setOf(registered.studentId))
+
         assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
 
         val replacement = repository.reissueQr(registered.studentId)
@@ -121,7 +142,7 @@ class RepositoryInstrumentedTest {
         assertTrue(QrTokenCodec().parse(replacement.payload) is QrParseResult.Valid)
 
         repository.endSession()
-        val nextSession = repository.startSession(classB)
+        val nextSession = repository.startSession(classId)
         assertNotNull(nextSession.sessionId)
         assertNull(repository.validateForActiveSession(replacement.hash))
     }
@@ -130,18 +151,16 @@ class RepositoryInstrumentedTest {
     fun profileCredentialUpdateAndDeactivationAreAuditedAndFailClosed() {
         val classId = repository.createClass("가상반")
         val registered = repository.registerStudent(
-            classId,
             "가상학생-이전",
-            "가상학생-*",
             "old-user".toCharArray(),
             "old-password".toCharArray(),
         )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
         val original = database.studentDao().findById(registered.studentId)!!
 
         repository.updateStudentProfile(
             registered.studentId,
             "가상학생-변경",
-            "가상학생-○",
         )
         val newUsername = "new-user".toCharArray()
         val newPassword = "new-password".toCharArray()
@@ -155,7 +174,7 @@ class RepositoryInstrumentedTest {
         assertTrue(newPassword.all { it == '\u0000' })
         val updated = database.studentDao().findById(registered.studentId)!!
         assertEquals("가상학생-변경", updated.displayNameExact)
-        assertEquals("가상학생-○", updated.displayNameMasked)
+        assertEquals("가상학생-변경", updated.displayNameMasked)
         assertFalse(original.usernameIv.contentEquals(updated.usernameIv))
         assertFalse(original.passwordIv.contentEquals(updated.passwordIv))
         repository.decryptCredentials(registered.studentId).use { decrypted ->
@@ -166,6 +185,7 @@ class RepositoryInstrumentedTest {
         val session = repository.startSession(classId)
         assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
         repository.recordQrPrintRequested(registered.studentId)
+        repository.recordQrExportRequested(registered.studentId)
         repository.deactivateStudent(registered.studentId)
 
         assertNull(repository.validateForActiveSession(registered.issuedQr.hash))
@@ -192,6 +212,7 @@ class RepositoryInstrumentedTest {
         assertTrue(auditEvents.any { it.eventType == "STUDENT_PROFILE_UPDATED" })
         assertTrue(auditEvents.any { it.eventType == "STUDENT_CREDENTIALS_UPDATED" })
         assertTrue(auditEvents.any { it.eventType == "QR_PRINT_REQUESTED" })
+        assertTrue(auditEvents.any { it.eventType == "QR_PDF_EXPORT_REQUESTED" })
         assertTrue(auditEvents.any { it.eventType == "QR_REVOKED" })
         assertTrue(auditEvents.any { it.eventType == "STUDENT_DEACTIVATED" })
         assertTrue(auditEvents.any { it.sessionId == session.sessionId })

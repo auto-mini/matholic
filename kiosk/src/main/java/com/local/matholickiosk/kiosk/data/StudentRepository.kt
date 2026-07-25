@@ -52,23 +52,22 @@ class StudentRepository(
 
     fun listStudents(): List<StudentEntity> = database.studentDao().listAllActive()
 
+    fun listStudentsForClass(classId: String): List<StudentEntity> =
+        database.studentDao().listActiveForClass(classId)
+
+    fun membershipStudentIds(classId: String): Set<String> =
+        database.classDao().listMembershipStudentIds(classId).toSet()
+
     fun currentSession(): ActiveSessionEntity? = database.sessionDao().get()
 
     fun registerStudent(
-        classId: String,
         displayNameExact: String,
-        displayNameMasked: String,
         username: CharArray,
         password: CharArray,
     ): RegisteredStudent {
         try {
-            require(database.classDao().findActiveById(classId) != null) {
-                "Active class not found"
-            }
             val exact = displayNameExact.trim()
-            val masked = displayNameMasked.trim()
             require(exact.isNotEmpty()) { "Exact display name is required" }
-            require(masked.isNotEmpty()) { "Masked display name is required" }
             require(username.isNotEmpty() && password.isNotEmpty()) { "Credentials are required" }
 
             val studentId = UUID.randomUUID().toString()
@@ -81,7 +80,9 @@ class StudentRepository(
                     StudentEntity(
                         studentId = studentId,
                         displayNameExact = exact,
-                        displayNameMasked = masked,
+                        // Schema-v1 compatibility only. Masked names are no longer
+                        // collected or displayed, so the exact name is mirrored here.
+                        displayNameMasked = exact,
                         usernameCiphertext = usernameEncrypted.ciphertext,
                         usernameIv = usernameEncrypted.iv,
                         usernameEncryptionVersion = usernameEncrypted.version,
@@ -94,7 +95,6 @@ class StudentRepository(
                         updatedAtEpochMs = now,
                     ),
                 )
-                database.classDao().addMembership(ClassMembershipEntity(classId, studentId))
                 audit("STUDENT_REGISTERED", null, studentId, null)
                 audit("QR_ISSUED", null, studentId, null)
             }
@@ -121,23 +121,56 @@ class StudentRepository(
     fun updateStudentProfile(
         studentId: String,
         displayNameExact: String,
-        displayNameMasked: String,
     ) {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
         val exact = displayNameExact.trim()
-        val masked = displayNameMasked.trim()
         require(exact.isNotEmpty()) { "Exact display name is required" }
-        require(masked.isNotEmpty()) { "Masked display name is required" }
         database.runInTransaction {
             database.studentDao().update(
                 student.copy(
                     displayNameExact = exact,
-                    displayNameMasked = masked,
+                    displayNameMasked = exact,
                     updatedAtEpochMs = nowEpochMs(),
                 ),
             )
             audit("STUDENT_PROFILE_UPDATED", null, studentId, null)
+        }
+    }
+
+    fun replaceClassMemberships(classId: String, studentIds: Set<String>) {
+        require(database.classDao().findActiveById(classId) != null) {
+            "Active class not found"
+        }
+        val activeStudentIds = database.studentDao().listAllActive()
+            .mapTo(mutableSetOf(), StudentEntity::studentId)
+        require(studentIds.all(activeStudentIds::contains)) {
+            "Inactive or unknown student selected"
+        }
+        database.runInTransaction {
+            database.classDao().clearMemberships(classId)
+            studentIds.forEach { studentId ->
+                database.classDao().addMembership(
+                    ClassMembershipEntity(classId = classId, studentId = studentId),
+                )
+            }
+            audit("CLASS_MEMBERSHIPS_REPLACED", studentIds.size.toString(), null, null)
+        }
+    }
+
+    fun deleteClass(classId: String) {
+        requireNotNull(database.classDao().findActiveById(classId)) {
+            "Active class not found"
+        }
+        val current = database.sessionDao().get()
+        require(current?.sessionId == null || current.classId != classId) {
+            "Active session class cannot be deleted"
+        }
+        database.runInTransaction {
+            check(database.classDao().deleteById(classId) == 1) {
+                "Class delete failed"
+            }
+            audit("CLASS_DELETED", null, null, null)
         }
     }
 
@@ -198,8 +231,22 @@ class StudentRepository(
         audit("QR_PRINT_REQUESTED", null, studentId, null)
     }
 
-    fun startSession(classId: String): ActiveSessionEntity {
+    fun recordQrExportRequested(studentId: String) {
+        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
+        require(student.isActive) { "Student is inactive" }
+        audit("QR_PDF_EXPORT_REQUESTED", null, studentId, null)
+    }
+
+    fun startSession(
+        classId: String,
+        temporaryStudentIds: Set<String> = emptySet(),
+    ): ActiveSessionEntity {
         require(database.classDao().findActiveById(classId) != null) { "Active class not found" }
+        val activeStudentIds = database.studentDao().listAllActive()
+            .mapTo(mutableSetOf(), StudentEntity::studentId)
+        require(temporaryStudentIds.all(activeStudentIds::contains)) {
+            "Inactive or unknown temporary student selected"
+        }
         val now = nowEpochMs()
         val session = ActiveSessionEntity(
             sessionId = UUID.randomUUID().toString(),
@@ -214,7 +261,20 @@ class StudentRepository(
         )
         database.runInTransaction {
             database.sessionDao().save(session)
+            temporaryStudentIds.forEach { studentId ->
+                database.sessionDao().addTemporaryStudent(
+                    SessionStudentEntity(session.sessionId!!, studentId, now),
+                )
+            }
             audit("SESSION_STARTED", null, null, session.sessionId)
+            if (temporaryStudentIds.isNotEmpty()) {
+                audit(
+                    "TEMPORARY_STUDENTS_ADDED",
+                    temporaryStudentIds.size.toString(),
+                    null,
+                    session.sessionId,
+                )
+            }
         }
         return session
     }

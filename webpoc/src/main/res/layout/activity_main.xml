@@ -14,6 +14,35 @@
         android:importantForAutofill="noExcludeDescendants"
         android:visibility="invisible" />
 
+    <LinearLayout
+        android:id="@+id/student_nav_bar"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_gravity="top"
+        android:background="#FF102A43"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingHorizontal="18dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/workbook_button"
+            android:layout_width="200dp"
+            android:layout_height="52dp"
+            android:layout_marginEnd="10dp"
+            android:text="학습지"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/diagnostic_button"
+            android:layout_width="200dp"
+            android:layout_height="52dp"
+            android:text="진단평가"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/status_badge"
         android:layout_width="wrap_content"
@@ -41,10 +70,57 @@
         android:visibility="gone" />
 
     <FrameLayout
+        android:id="@+id/result_summary_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF102A43"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="720dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="#FFFFFFFF"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="42dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="채점 결과"
+                android:textColor="#102A43"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/wrong_answer_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:gravity="center"
+                android:textColor="#102A43"
+                android:textSize="28sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/result_confirm_button"
+                android:layout_width="300dp"
+                android:layout_height="64dp"
+                android:layout_marginTop="30dp"
+                android:text="확인하고 채점 끝내기"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
         android:id="@+id/blocker"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#E6102A43"
+        android:background="#FF102A43"
         android:clickable="true"
         android:focusable="true">
 

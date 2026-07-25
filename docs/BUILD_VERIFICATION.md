@@ -410,3 +410,44 @@ release RC 빌드와 정적 검증은 **PASS**다. SM-S918N Android 폰에 암�
 ### 판정과 남은 항목
 
 release RC02의 정의된 자동 검증, 핵심 정상 왕복, 비정상 Web 세션 자체 복구, 재부팅 복구, USB 디버깅 제거, ADB 없는 물리 잠금, 120분 연속 운전과 실제 프린터·종이 QR 왕복은 모두 **PASS**다.
+
+---
+
+## RC03 사용성 개선 내부 보관본 — 2026-07-25
+
+### 버전
+
+- Kiosk `0.6.0-rc03`/code 8
+- Web POC `0.4.0-rc03`/code 20
+
+### 자동 검증
+
+- 네 모듈 전체 debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- JVM 단위시험: Probe 8, 잠긴 POC 1, Web POC 24, Kiosk 17;
+  총 50개, 실패 0
+- 네 모듈 debug lint 오류: 0
+- 네 debug APK assemble: 성공
+- Kiosk/Web 계측시험 소스 컴파일: 성공
+- release 빌드: `BUILD SUCCESSFUL`, 158 tasks
+- release lint 오류: 0
+- applicationId·versionName·필수/금지 권한·`debuggable=false`: 통과
+- APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부: 통과
+- zipalign: 통과
+
+### RC03 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc03-release.apk`
+  - 크기: 34,941,240 bytes
+  - SHA-256: `3D9B985B4DB190FA607A46DA600B0464B0CE84F1DBDAE70CAA5B8187D0D9A5BE`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc03-release.apk`
+  - 크기: 3,078,500 bytes
+  - SHA-256: `F84511D71EBD7BA9A0E7E5486DE7CBC87832B425E8050130C908ABA8698A4EA2`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### 미검증
+
+- A는 USB 디버깅이 꺼져 ADB 목록에 나타나지 않으므로 RC03을 아직 설치하지 않았다.
+- 신규 계측시험은 컴파일했지만 기기에서 실행하지 않았다.
+- 실제 사이트의 자동 학습지 진입, 두 탭 제한, 문제 입력 확대와 오답 번호 요약은 미실기다.
+- 미리보기 없는 전면·후면 QR 분석 단독 바인딩, PDF Quick Share와 직접 프린터 실패 로그도 미실기다.

@@ -31,7 +31,7 @@ class QrPrintDocumentAdapterInstrumentedTest {
         ).copy(Bitmap.Config.ARGB_8888, true)
         val adapter = QrPrintDocumentAdapter(
             context,
-            "가상학생-*",
+            "가상학생 전체이름",
             qrBitmap,
         )
         val attributes = PrintAttributes.Builder()
@@ -52,7 +52,7 @@ class QrPrintDocumentAdapterInstrumentedTest {
                     QrPrintPdfWriter.write(
                         context = context,
                         attributes = attributes,
-                        maskedDisplayName = "가상학생-*",
+                        displayName = "가상학생 전체이름",
                         qrBitmap = qrBitmap,
                         destination = destination.fileDescriptor,
                         cancellationSignal = CancellationSignal(),

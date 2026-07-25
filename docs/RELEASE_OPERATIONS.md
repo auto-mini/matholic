@@ -4,10 +4,12 @@
 
 ## 현재 상태
 
-운영 후보 RC02를 A에 release Device Owner로 배포하고 핵심 실기를 완료했다.
+운영 중인 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다.
+RC03 내부 보관본은 같은 signer와 더 높은 versionCode로 빌드했지만 아직 A에
+설치하거나 실제 사이트로 검증하지 않았다.
 
-- Kiosk: `0.5.0-rc02`/code 7
-- Web POC: `0.3.5-rc02`/code 19
+- 현재 A: Kiosk `0.5.0-rc02`/code 7, Web POC `0.3.5-rc02`/code 19
+- RC03 보관본: Kiosk `0.6.0-rc03`/code 8, Web POC `0.4.0-rc03`/code 20
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
 - 현재 A: release signer의 RC02 두 앱, Device Owner, `QR_READY`, `LOCKED`
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**

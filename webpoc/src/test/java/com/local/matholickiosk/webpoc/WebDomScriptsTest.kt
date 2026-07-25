@@ -33,4 +33,27 @@ class WebDomScriptsTest {
         assertTrue(WebDomScripts.portalFingerprint.contains("/userAccessLog"))
         assertTrue(WebDomScripts.clickLogout.contains("로그아웃"))
     }
+
+    @Test
+    fun `student experience is route scoped and uses semantic answer controls`() {
+        val script = WebDomScripts.applyStudentExperience
+        assertTrue(script.contains("/workbook"))
+        assertTrue(script.contains("/diagnostic"))
+        assertTrue(script.contains("/learningV2/"))
+        assertTrue(script.contains("답안제출"))
+        assertTrue(script.contains("모름"))
+        assertTrue(script.contains("다음 문제"))
+        assertTrue(script.contains("전체답안"))
+        assertFalse(script.contains("getBoundingClientRect"))
+        assertFalse(script.contains("elementFromPoint"))
+    }
+
+    @Test
+    fun `result summary requires semantic analysis heading and alert cards`() {
+        val script = WebDomScripts.wrongAnswerSummary
+        assertTrue(script.contains("종합분석"))
+        assertTrue(script.contains(".ant-alert-error"))
+        assertTrue(script.contains(".ant-alert-success"))
+        assertTrue(script.contains("wrongNumbers"))
+    }
 }

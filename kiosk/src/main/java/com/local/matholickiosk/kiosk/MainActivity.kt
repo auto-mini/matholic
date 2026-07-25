@@ -13,9 +13,12 @@ import android.os.Looper
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.text.Editable
+import android.text.InputType
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -29,9 +32,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
+import androidx.core.content.FileProvider
 import com.local.matholickiosk.kiosk.admin.KioskLockTaskController
 import com.local.matholickiosk.kiosk.bridge.CredentialBridgeContract
 import com.local.matholickiosk.kiosk.bridge.OneTimeCredentialBroker
@@ -45,12 +47,14 @@ import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
+import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
 import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
+import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -67,25 +71,24 @@ class MainActivity : ComponentActivity() {
     private lateinit var adminPanel: LinearLayout
     private lateinit var classNameInput: EditText
     private lateinit var classSpinner: Spinner
-    private lateinit var studentNameInput: EditText
-    private lateinit var studentMaskedInput: EditText
-    private lateinit var usernameInput: EditText
-    private lateinit var passwordInput: EditText
+    private lateinit var classRosterText: TextView
+    private lateinit var manageClassMembersButton: Button
+    private lateinit var deleteClassButton: Button
     private lateinit var studentSpinner: Spinner
+    private lateinit var registerStudentButton: Button
     private lateinit var reissueQrButton: Button
     private lateinit var updateProfileButton: Button
     private lateinit var updateCredentialsButton: Button
     private lateinit var deactivateStudentButton: Button
     private lateinit var addTemporaryButton: Button
-    private lateinit var recoverWebSessionButton: Button
     private lateinit var startSessionButton: Button
     private lateinit var resumeSessionButton: Button
     private lateinit var adminMessage: TextView
     private lateinit var qrCardName: TextView
     private lateinit var qrImage: ImageView
     private lateinit var printQrButton: Button
+    private lateinit var exportQrPdfButton: Button
     private lateinit var scannerPanel: FrameLayout
-    private lateinit var cameraPreview: PreviewView
     private lateinit var scannerMessage: TextView
     private lateinit var switchCameraButton: Button
 
@@ -100,8 +103,12 @@ class MainActivity : ComponentActivity() {
     private var authBusy = false
     private var classes: List<Choice> = emptyList()
     private var students: List<StudentChoice> = emptyList()
+    private var selectedClassIdForUi: String? = null
     private var issuedQrPreview: QrPreview? = null
     private var currentSession: ActiveSessionEntity? = null
+    private var selectedClassMembershipIds: Set<String> = emptySet()
+    private var pendingTemporaryStudentIds: Set<String> = emptySet()
+    private var suppressClassSelectionCallback = false
     private var cameraProvider: ProcessCameraProvider? = null
     private var qrAnalyzer: QrImageAnalyzer? = null
     private var scannerVisible = false
@@ -113,6 +120,8 @@ class MainActivity : ComponentActivity() {
     private var relockAdminOnStart = false
     private var suppressNextAdminStopRelock = false
     private var dedicatedDevicePolicyFailed = false
+    private var pendingRecoveryAction: PendingRecoveryAction = PendingRecoveryAction.None
+    private var pendingSharedPdf: File? = null
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -174,16 +183,25 @@ class MainActivity : ComponentActivity() {
     private val webRecoveryLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        val requestedAction = pendingRecoveryAction
+        pendingRecoveryAction = PendingRecoveryAction.None
         val failureReason = result.data
             ?.getStringExtra(CredentialBridgeContract.EXTRA_FAILURE_REASON)
             ?.take(80)
-        val message = if (result.resultCode == Activity.RESULT_OK) {
-            "Web 로그인 상태를 안전하게 정리했습니다. 잠긴 수업이면 기존 수업을 안전 종료한 뒤 다시 시작하세요."
+        if (result.resultCode == Activity.RESULT_OK) {
+            when (requestedAction) {
+                PendingRecoveryAction.None ->
+                    refreshAdminData("Web 로그인 상태를 안전하게 정리했습니다.")
+                is PendingRecoveryAction.StartSession ->
+                    completeSessionStart(requestedAction)
+                PendingRecoveryAction.EndSession ->
+                    completeSessionEnd()
+            }
         } else {
-            "Web 세션 정리에 실패했습니다" +
+            val message = "Web 세션 정리에 실패해 수업 상태를 변경하지 않았습니다" +
                 (failureReason?.let { " · $it" } ?: "")
+            refreshAdminData(message)
         }
-        refreshAdminData(message)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -206,6 +224,7 @@ class MainActivity : ComponentActivity() {
             cipher = AndroidKeystoreCredentialCipher(),
             appVersion = applicationVersion(),
         )
+        QrPdfExporter.cleanupExpired(this)
         configureActions()
         loadInitialState()
     }
@@ -223,31 +242,30 @@ class MainActivity : ComponentActivity() {
         adminPanel = findViewById(R.id.admin_panel)
         classNameInput = findViewById(R.id.class_name_input)
         classSpinner = findViewById(R.id.class_spinner)
-        studentNameInput = findViewById(R.id.student_name_input)
-        studentMaskedInput = findViewById(R.id.student_masked_input)
-        usernameInput = findViewById(R.id.username_input)
-        passwordInput = findViewById(R.id.password_input)
+        classRosterText = findViewById(R.id.class_roster_text)
+        manageClassMembersButton = findViewById(R.id.manage_class_members_button)
+        deleteClassButton = findViewById(R.id.delete_class_button)
         studentSpinner = findViewById(R.id.student_spinner)
+        registerStudentButton = findViewById(R.id.register_student_button)
         reissueQrButton = findViewById(R.id.reissue_qr_button)
         updateProfileButton = findViewById(R.id.update_profile_button)
         updateCredentialsButton = findViewById(R.id.update_credentials_button)
         deactivateStudentButton = findViewById(R.id.deactivate_student_button)
         addTemporaryButton = findViewById(R.id.add_temporary_button)
-        recoverWebSessionButton = findViewById(R.id.recover_web_session_button)
         startSessionButton = findViewById(R.id.start_session_button)
         resumeSessionButton = findViewById(R.id.resume_session_button)
         adminMessage = findViewById(R.id.admin_message)
         qrCardName = findViewById(R.id.qr_card_name)
         qrImage = findViewById(R.id.qr_image)
         printQrButton = findViewById(R.id.print_qr_button)
+        exportQrPdfButton = findViewById(R.id.export_qr_pdf_button)
         scannerPanel = findViewById(R.id.scanner_panel)
-        cameraPreview = findViewById(R.id.camera_preview)
         scannerMessage = findViewById(R.id.scanner_message)
         switchCameraButton = findViewById(R.id.switch_camera_button)
     }
 
     private fun configureSensitiveViews() {
-        listOf(pinInput, pinConfirmInput, usernameInput, passwordInput).forEach {
+        listOf(pinInput, pinConfirmInput).forEach {
             it.isSaveEnabled = false
             it.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
             it.filterTouchesWhenObscured = true
@@ -255,12 +273,15 @@ class MainActivity : ComponentActivity() {
         listOf(
             authSubmit,
             findViewById<Button>(R.id.create_class_button),
-            findViewById<Button>(R.id.register_student_button),
+            registerStudentButton,
+            manageClassMembersButton,
+            deleteClassButton,
             reissueQrButton,
             updateProfileButton,
             updateCredentialsButton,
             deactivateStudentButton,
             printQrButton,
+            exportQrPdfButton,
             addTemporaryButton,
             startSessionButton,
             resumeSessionButton,
@@ -280,19 +301,43 @@ class MainActivity : ComponentActivity() {
     private fun configureActions() {
         authSubmit.setOnClickListener { submitAuthentication() }
         findViewById<Button>(R.id.create_class_button).setOnClickListener { createClass() }
-        findViewById<Button>(R.id.register_student_button).setOnClickListener { registerStudent() }
+        registerStudentButton.setOnClickListener { showRegisterStudentDialog() }
+        manageClassMembersButton.setOnClickListener { showClassMembershipDialog() }
+        deleteClassButton.setOnClickListener { confirmDeleteClass() }
         reissueQrButton.setOnClickListener { reissueQr() }
-        updateProfileButton.setOnClickListener { updateStudentProfile() }
-        updateCredentialsButton.setOnClickListener { updateStudentCredentials() }
+        updateProfileButton.setOnClickListener { showUpdateStudentNameDialog() }
+        updateCredentialsButton.setOnClickListener { showUpdateCredentialsDialog() }
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
         printQrButton.setOnClickListener { confirmQrPrint() }
-        addTemporaryButton.setOnClickListener { addTemporaryStudent() }
-        recoverWebSessionButton.setOnClickListener { confirmWebSessionRecovery() }
+        exportQrPdfButton.setOnClickListener { confirmQrPdfExport() }
+        addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
         startSessionButton.setOnClickListener { startOrEndSession() }
         resumeSessionButton.setOnClickListener { showScanner() }
         switchCameraButton.setOnClickListener { switchCamera() }
         findViewById<Button>(R.id.session_admin_button).setOnClickListener {
             requestSessionAdminAuthentication()
+        }
+        classSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) {
+                if (!suppressClassSelectionCallback) {
+                    val selectedClassId = classes.getOrNull(position)?.id
+                    val changed = selectedClassId != selectedClassIdForUi
+                    selectedClassIdForUi = selectedClassId
+                    refreshSelectedClassDetails(clearPendingTemporaryStudents = changed)
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedClassIdForUi = null
+                selectedClassMembershipIds = emptySet()
+                pendingTemporaryStudentIds = emptySet()
+                updateClassRosterUi()
+            }
         }
     }
 
@@ -479,24 +524,38 @@ class MainActivity : ComponentActivity() {
                     StudentChoice(
                         id = it.studentId,
                         label = it.displayNameExact,
-                        maskedLabel = it.displayNameMasked,
                     )
                 }
             val session = studentRepository.currentSession()
+            val resolvedClassId = session?.classId
+                ?: preferredClassId?.takeIf { candidate ->
+                    loadedClasses.any { it.id == candidate }
+                }
+                ?: loadedClasses.firstOrNull()?.id
+            val loadedMembershipIds = resolvedClassId
+                ?.let(studentRepository::membershipStudentIds)
+                .orEmpty()
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 classes = loadedClasses
                 students = loadedStudents
                 currentSession = session
+                selectedClassMembershipIds = loadedMembershipIds
+                selectedClassIdForUi = resolvedClassId
+                pendingTemporaryStudentIds = pendingTemporaryStudentIds
+                    .intersect(students.mapTo(mutableSetOf(), StudentChoice::id))
+                suppressClassSelectionCallback = true
                 classSpinner.adapter = choiceAdapter(classes, "먼저 반을 생성하세요")
                 studentSpinner.adapter = studentChoiceAdapter(students, "등록 학생이 없습니다")
-                classes.indexOfFirst { it.id == preferredClassId }
+                classes.indexOfFirst { it.id == resolvedClassId }
                     .takeIf { it >= 0 }
                     ?.let(classSpinner::setSelection)
                 students.indexOfFirst { it.id == preferredStudentId }
                     .takeIf { it >= 0 }
                     ?.let(studentSpinner::setSelection)
+                suppressClassSelectionCallback = false
                 updateSessionAdminControls(session)
+                updateClassRosterUi()
                 adminMessage.text = message.orEmpty()
             }
         }
@@ -544,38 +603,197 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun registerStudent() {
+    private fun confirmDeleteClass() {
+        val selected = classes.getOrNull(classSpinner.selectedItemPosition)
+        if (selected == null) {
+            adminMessage.text = "삭제할 반을 선택하세요."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("반 삭제")
+            .setMessage(
+                "${selected.label} 반과 소속 관계를 삭제합니다.\n" +
+                    "학생 정보와 QR은 삭제되지 않으며 다른 반에서는 그대로 사용할 수 있습니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("반 삭제") { _, _ -> deleteClass(selected) }
+            .show()
+    }
+
+    private fun deleteClass(selected: Choice) {
+        adminMessage.text = "반 삭제 중"
+        ioExecutor.execute {
+            val result = runCatching { studentRepository.deleteClass(selected.id) }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = {
+                        pendingTemporaryStudentIds = emptySet()
+                        refreshAdminData("${selected.label} 반을 삭제했습니다.")
+                    },
+                    onFailure = { adminMessage.text = it.message ?: "반 삭제 실패" },
+                )
+            }
+        }
+    }
+
+    private fun showClassMembershipDialog() {
         val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
         if (selectedClass == null) {
-            adminMessage.text = "학생을 등록할 반을 먼저 생성하세요."
+            adminMessage.text = "반을 먼저 선택하세요."
             return
         }
-        val exactName = studentNameInput.text.toString().trim()
-        val maskedName = studentMaskedInput.text.toString().trim()
-        val username = usernameInput.text.toSensitiveCharArray()
-        val password = passwordInput.text.toSensitiveCharArray()
-        usernameInput.text.clear()
-        passwordInput.text.clear()
-        if (exactName.isEmpty() || maskedName.isEmpty() || username.isEmpty() || password.isEmpty()) {
-            username.fill('\u0000')
-            password.fill('\u0000')
-            adminMessage.text = "학생 표시명, 마스킹명, 아이디와 비밀번호를 모두 입력하세요."
+        if (students.isEmpty()) {
+            adminMessage.text = "먼저 학생을 등록하세요."
             return
         }
-        adminMessage.text = "Keystore 암호화 등록 중"
+        val chosen = selectedClassMembershipIds.toMutableSet()
+        val checked = BooleanArray(students.size) { index -> students[index].id in chosen }
+        AlertDialog.Builder(this)
+            .setTitle("${selectedClass.label} 학생 구성")
+            .setMultiChoiceItems(
+                students.map(StudentChoice::label).toTypedArray(),
+                checked,
+            ) { _, which, isChecked ->
+                val studentId = students[which].id
+                if (isChecked) chosen += studentId else chosen -= studentId
+            }
+            .setNegativeButton("취소", null)
+            .setPositiveButton("저장") { _, _ ->
+                replaceClassMemberships(selectedClass, chosen)
+            }
+            .show()
+    }
+
+    private fun replaceClassMemberships(selectedClass: Choice, studentIds: Set<String>) {
+        adminMessage.text = "반 학생 구성 저장 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.replaceClassMemberships(selectedClass.id, studentIds)
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = {
+                        selectedClassMembershipIds = studentIds
+                        pendingTemporaryStudentIds -= studentIds
+                        updateClassRosterUi()
+                        adminMessage.text = "${selectedClass.label} 반 학생 ${studentIds.size}명을 저장했습니다."
+                    },
+                    onFailure = { adminMessage.text = it.message ?: "반 학생 구성 저장 실패" },
+                )
+            }
+        }
+    }
+
+    private fun refreshSelectedClassDetails(clearPendingTemporaryStudents: Boolean) {
+        val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
+        if (clearPendingTemporaryStudents) pendingTemporaryStudentIds = emptySet()
+        if (selectedClass == null) {
+            selectedClassMembershipIds = emptySet()
+            updateClassRosterUi()
+            return
+        }
+        ioExecutor.execute {
+            val membershipIds = runCatching {
+                studentRepository.membershipStudentIds(selectedClass.id)
+            }.getOrDefault(emptySet())
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                if (classes.getOrNull(classSpinner.selectedItemPosition)?.id != selectedClass.id) {
+                    return@runOnUiThread
+                }
+                selectedClassMembershipIds = membershipIds
+                pendingTemporaryStudentIds -= membershipIds
+                updateClassRosterUi()
+            }
+        }
+    }
+
+    private fun updateClassRosterUi() {
+        val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
+        val memberNames = students
+            .filter { it.id in selectedClassMembershipIds }
+            .map(StudentChoice::label)
+        classRosterText.text = when {
+            selectedClass == null -> "반을 먼저 생성하세요."
+            memberNames.isEmpty() -> "소속 학생 없음"
+            else -> "소속 ${memberNames.size}명 · ${memberNames.joinToString(", ")}"
+        }
+        val activeClassId = currentSession?.classId
+        val classAvailable = selectedClass != null
+        manageClassMembersButton.isEnabled = classAvailable && currentSession?.sessionId == null
+        deleteClassButton.isEnabled = classAvailable &&
+            (currentSession?.sessionId == null || activeClassId != selectedClass?.id)
+        addTemporaryButton.isEnabled = classAvailable && students.any {
+            it.id !in selectedClassMembershipIds
+        }
+        val pendingCount = pendingTemporaryStudentIds.size
+        addTemporaryButton.text = if (currentSession?.sessionId == null) {
+            "이번 수업 보강 학생 선택" + if (pendingCount > 0) " (${pendingCount}명)" else ""
+        } else {
+            "현재 수업 보강 학생 추가"
+        }
+    }
+
+    private fun showRegisterStudentDialog() {
+        val nameInput = dialogTextInput(
+            hint = "학생 전체 이름",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PERSON_NAME,
+        )
+        val usernameInput = dialogTextInput(
+            hint = "매쓰홀릭 아이디",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            sensitive = true,
+        )
+        val passwordInput = dialogTextInput(
+            hint = "매쓰홀릭 비밀번호",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            sensitive = true,
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("새 학생 등록")
+            .setMessage("학생은 먼저 한 번만 등록한 뒤 여러 반에 소속시킬 수 있습니다.")
+            .setView(dialogForm(nameInput, usernameInput, passwordInput))
+            .setNegativeButton("취소", null)
+            .setPositiveButton("등록 및 QR 발급", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val exactName = nameInput.text.toString().trim()
+                val username = usernameInput.text.toSensitiveCharArray()
+                val password = passwordInput.text.toSensitiveCharArray()
+                usernameInput.text.clear()
+                passwordInput.text.clear()
+                if (exactName.isEmpty() || username.isEmpty() || password.isEmpty()) {
+                    username.fill('\u0000')
+                    password.fill('\u0000')
+                    nameInput.error = "이름, 아이디와 비밀번호를 모두 입력하세요."
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                registerStudent(exactName, username, password)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun registerStudent(
+        exactName: String,
+        username: CharArray,
+        password: CharArray,
+    ) {
+        adminMessage.text = "학생 정보 암호화 등록 중"
         ioExecutor.execute {
             val result = runCatching {
                 val registered = studentRepository.registerStudent(
-                    selectedClass.id,
                     exactName,
-                    maskedName,
                     username,
                     password,
                 )
                 QrPreview(
                     studentId = registered.studentId,
                     exactName = exactName,
-                    maskedName = maskedName,
                     bitmap = QrImageRenderer.render(
                         registered.issuedQr.payload,
                         QR_SIZE_PIXELS,
@@ -590,11 +808,8 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = { preview ->
                         showQrPreview(preview)
-                        studentNameInput.text.clear()
-                        studentMaskedInput.text.clear()
                         refreshAdminData(
-                            message = "학생을 암호화 등록하고 QR을 발급했습니다.",
-                            preferredClassId = selectedClass.id,
+                            message = "학생을 등록하고 QR을 발급했습니다. 반 학생 구성에서 소속 반을 선택하세요.",
                             preferredStudentId = preview.studentId,
                         )
                     },
@@ -621,7 +836,6 @@ class MainActivity : ComponentActivity() {
                 QrPreview(
                     studentId = selected.id,
                     exactName = selected.label,
-                    maskedName = selected.maskedLabel,
                     bitmap = QrImageRenderer.render(issued.payload, QR_SIZE_PIXELS),
                 )
             }
@@ -641,33 +855,52 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun updateStudentProfile() {
+    private fun showUpdateStudentNameDialog() {
         val selected = students.getOrNull(studentSpinner.selectedItemPosition)
         if (selected == null) {
             adminMessage.text = "학생을 선택하세요."
             return
         }
-        val exactName = studentNameInput.text.toString().trim()
-        val maskedName = studentMaskedInput.text.toString().trim()
-        if (exactName.isEmpty() || maskedName.isEmpty()) {
-            adminMessage.text = "변경할 정확한 표시명과 마스킹명을 모두 입력하세요."
-            return
+        val nameInput = dialogTextInput(
+            hint = "학생 전체 이름",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PERSON_NAME,
+        ).apply {
+            setText(selected.label)
+            selectAll()
         }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("학생 이름 변경")
+            .setView(dialogForm(nameInput))
+            .setNegativeButton("취소", null)
+            .setPositiveButton("변경", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val exactName = nameInput.text.toString().trim()
+                if (exactName.isEmpty()) {
+                    nameInput.error = "학생 이름을 입력하세요."
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                updateStudentName(selected, exactName)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun updateStudentName(selected: StudentChoice, exactName: String) {
         adminMessage.text = "학생 표시명 수정 중"
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.updateStudentProfile(
                     selected.id,
                     exactName,
-                    maskedName,
                 )
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 result.fold(
                     onSuccess = {
-                        studentNameInput.text.clear()
-                        studentMaskedInput.text.clear()
                         if (issuedQrPreview?.studentId == selected.id) clearQrPreview()
                         refreshAdminData(
                             message = "학생 표시명을 수정했습니다. 이름이 적힌 카드는 QR을 재발급해 다시 인쇄하세요.",
@@ -680,22 +913,67 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun updateStudentCredentials() {
+    private fun showUpdateCredentialsDialog() {
         val selected = students.getOrNull(studentSpinner.selectedItemPosition)
         if (selected == null) {
             adminMessage.text = "학생을 선택하세요."
             return
         }
-        val username = usernameInput.text.toSensitiveCharArray()
-        val password = passwordInput.text.toSensitiveCharArray()
-        usernameInput.text.clear()
-        passwordInput.text.clear()
-        if (username.isEmpty() || password.isEmpty()) {
-            username.fill('\u0000')
-            password.fill('\u0000')
-            adminMessage.text = "새 매쓰홀릭 아이디와 비밀번호를 모두 입력하세요."
-            return
+        val usernameInput = dialogTextInput(
+            hint = "새 매쓰홀릭 아이디",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            sensitive = true,
+        )
+        val passwordInput = dialogTextInput(
+            hint = "새 매쓰홀릭 비밀번호",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            sensitive = true,
+        )
+        val passwordConfirmInput = dialogTextInput(
+            hint = "새 비밀번호 확인",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            sensitive = true,
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("${selected.label} 로그인 정보 변경")
+            .setMessage("아이디와 비밀번호를 모두 새 값으로 교체합니다. 기존 QR은 그대로 유지됩니다.")
+            .setView(dialogForm(usernameInput, passwordInput, passwordConfirmInput))
+            .setNegativeButton("취소", null)
+            .setPositiveButton("변경", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val username = usernameInput.text.toSensitiveCharArray()
+                val password = passwordInput.text.toSensitiveCharArray()
+                val confirmation = passwordConfirmInput.text.toSensitiveCharArray()
+                usernameInput.text.clear()
+                passwordInput.text.clear()
+                passwordConfirmInput.text.clear()
+                if (
+                    username.isEmpty() ||
+                    password.isEmpty() ||
+                    confirmation.isEmpty() ||
+                    !password.contentEquals(confirmation)
+                ) {
+                    username.fill('\u0000')
+                    password.fill('\u0000')
+                    confirmation.fill('\u0000')
+                    passwordConfirmInput.error = "아이디·비밀번호를 모두 입력하고 확인값을 맞추세요."
+                    return@setOnClickListener
+                }
+                confirmation.fill('\u0000')
+                dialog.dismiss()
+                updateStudentCredentials(selected, username, password)
+            }
         }
+        dialog.show()
+    }
+
+    private fun updateStudentCredentials(
+        selected: StudentChoice,
+        username: CharArray,
+        password: CharArray,
+    ) {
         adminMessage.text = "학생 계정정보 재암호화 중"
         ioExecutor.execute {
             val result = runCatching {
@@ -806,11 +1084,14 @@ class MainActivity : ComponentActivity() {
                         }
                         val adapter = QrPrintDocumentAdapter(
                             context = this,
-                            maskedDisplayName = preview.maskedName,
+                            displayName = preview.exactName,
                             qrBitmap = printable,
                         )
                         val attributes = PrintAttributes.Builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
+                            .setResolution(
+                                PrintAttributes.Resolution("print", "print", 300, 300),
+                            )
                             .setMinMargins(PrintAttributes.Margins(500, 500, 500, 500))
                             .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
                             .build()
@@ -838,41 +1119,165 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun addTemporaryStudent() {
-        val session = currentSession
-        val selected = students.getOrNull(studentSpinner.selectedItemPosition)
-        if (session?.sessionId == null || selected == null) {
-            adminMessage.text = "활성 수업과 보강 학생을 확인하세요."
+    private fun confirmQrPdfExport() {
+        val preview = issuedQrPreview
+        if (preview == null || preview.bitmap.isRecycled) {
+            adminMessage.text = "먼저 QR을 발급하거나 재발급하세요."
+            exportQrPdfButton.isEnabled = false
             return
         }
+        AlertDialog.Builder(this)
+            .setTitle("QR 카드 PDF 공유·저장")
+            .setMessage(
+                "65×90mm 세로 카드에 30×30mm QR과 학생 전체 이름을 넣습니다.\n" +
+                    "PDF에는 로그인 가능한 QR이 포함되므로 신뢰하는 PC나 저장 위치만 선택하세요.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("PDF 만들기") { _, _ -> prepareQrPdfExport(preview) }
+            .show()
+    }
+
+    private fun prepareQrPdfExport(preview: QrPreview) {
+        if (issuedQrPreview !== preview || preview.bitmap.isRecycled) {
+            adminMessage.text = "QR 미리보기가 만료되었습니다. 다시 발급하세요."
+            return
+        }
+        val exportBitmap = runCatching {
+            requireNotNull(preview.bitmap.copy(Bitmap.Config.ARGB_8888, true))
+        }.getOrElse {
+            adminMessage.text = "PDF용 QR 복사 실패"
+            return
+        }
+        adminMessage.text = "카드 크기 PDF 생성 중"
         ioExecutor.execute {
             val result = runCatching {
-                studentRepository.addTemporaryStudent(session.sessionId, selected.id)
+                studentRepository.recordQrExportRequested(preview.studentId)
+                QrPdfExporter.export(
+                    context = this,
+                    displayName = preview.exactName,
+                    qrBitmap = exportBitmap,
+                )
+            }
+            runOnUiThread {
+                if (destroyed) {
+                    result.getOrNull()?.delete()
+                    return@runOnUiThread
+                }
+                result.fold(
+                    onSuccess = { file -> shareQrPdf(file, preview) },
+                    onFailure = {
+                        if (!exportBitmap.isRecycled) {
+                            exportBitmap.eraseColor(android.graphics.Color.WHITE)
+                            exportBitmap.recycle()
+                        }
+                        adminMessage.text = it.message ?: "QR 카드 PDF 생성 실패"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun shareQrPdf(file: File, preview: QrPreview) {
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        val share = Intent(Intent.ACTION_SEND)
+            .setType("application/pdf")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_SUBJECT, "매쓰홀릭 QR 카드 · ${preview.exactName}")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        pendingSharedPdf = file
+        suppressNextAdminStopRelock = true
+        runCatching {
+            startActivity(Intent.createChooser(share, "PDF를 PC로 보내거나 저장"))
+        }.onSuccess {
+            clearQrPreview("QR 카드 PDF를 전달해 화면 표시를 지웠습니다")
+        }.onFailure {
+            suppressNextAdminStopRelock = false
+            pendingSharedPdf = null
+            file.delete()
+            adminMessage.text = "PDF 공유 화면을 열지 못했습니다."
+        }
+    }
+
+    private fun showTemporaryStudentDialog() {
+        val session = currentSession
+        val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
+        if (selectedClass == null) {
+            adminMessage.text = "수업 반을 먼저 선택하세요."
+            return
+        }
+        val candidates = students.filter { it.id !in selectedClassMembershipIds }
+        if (candidates.isEmpty()) {
+            adminMessage.text = "이 반 밖에서 추가할 활성 학생이 없습니다."
+            return
+        }
+        val chosen = if (session?.sessionId == null) {
+            pendingTemporaryStudentIds.toMutableSet()
+        } else {
+            mutableSetOf()
+        }
+        val checked = BooleanArray(candidates.size) { index -> candidates[index].id in chosen }
+        AlertDialog.Builder(this)
+            .setTitle(
+                if (session?.sessionId == null) {
+                    "${selectedClass.label} 이번 수업 보강 학생"
+                } else {
+                    "${selectedClass.label} 현재 수업 보강 학생 추가"
+                },
+            )
+            .setMultiChoiceItems(
+                candidates.map(StudentChoice::label).toTypedArray(),
+                checked,
+            ) { _, which, isChecked ->
+                val studentId = candidates[which].id
+                if (isChecked) chosen += studentId else chosen -= studentId
+            }
+            .setNegativeButton("취소", null)
+            .setPositiveButton(
+                if (session?.sessionId == null) "선택 저장" else "현재 수업에 추가",
+            ) { _, _ ->
+                if (session?.sessionId == null) {
+                    pendingTemporaryStudentIds = chosen
+                    updateClassRosterUi()
+                    adminMessage.text = "이번 수업 보강 학생 ${chosen.size}명을 선택했습니다."
+                } else {
+                    addTemporaryStudents(session, chosen)
+                }
+            }
+            .show()
+    }
+
+    private fun addTemporaryStudents(session: ActiveSessionEntity, studentIds: Set<String>) {
+        if (studentIds.isEmpty()) {
+            adminMessage.text = "추가할 학생을 선택하세요."
+            return
+        }
+        adminMessage.text = "현재 수업 보강 학생 추가 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentIds.forEach { studentId ->
+                    studentRepository.addTemporaryStudent(
+                        requireNotNull(session.sessionId),
+                        studentId,
+                    )
+                }
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 adminMessage.text = result.fold(
-                    onSuccess = { "${selected.label} 학생을 이번 수업에만 추가했습니다." },
+                    onSuccess = { "현재 수업에 보강 학생 ${studentIds.size}명을 추가했습니다." },
                     onFailure = { it.message ?: "보강 학생 추가 실패" },
                 )
             }
         }
     }
 
-    private fun confirmWebSessionRecovery() {
-        AlertDialog.Builder(this)
-            .setTitle("Web 세션 안전 정리")
-            .setMessage(
-                "남아 있는 매쓰홀릭 로그인 상태, 쿠키와 Web 저장정보를 안전 로그아웃 후 정리합니다. " +
-                    "학생 등록정보와 QR은 변경하지 않습니다.",
-            )
-            .setNegativeButton("취소", null)
-            .setPositiveButton("정리 시작") { _, _ -> launchWebSessionRecovery() }
-            .show()
-    }
-
-    private fun launchWebSessionRecovery() {
-        adminMessage.text = "Web 로그인 상태 안전 정리 중"
+    private fun launchWebSessionRecovery(action: PendingRecoveryAction) {
+        pendingRecoveryAction = action
+        adminMessage.text = when (action) {
+            PendingRecoveryAction.None -> "Web 로그인 상태 안전 정리 중"
+            is PendingRecoveryAction.StartSession -> "Web 상태 확인 후 수업 시작 준비 중"
+            PendingRecoveryAction.EndSession -> "Web 상태 정리 후 수업 안전 종료 중"
+        }
         suppressNextAdminStopRelock = true
         val intent = Intent(CredentialBridgeContract.ACTION_RECOVER_WEB_SESSION)
             .setComponent(
@@ -884,6 +1289,7 @@ class MainActivity : ComponentActivity() {
         runCatching { webRecoveryLauncher.launch(intent) }
             .onFailure {
                 suppressNextAdminStopRelock = false
+                pendingRecoveryAction = PendingRecoveryAction.None
                 adminMessage.text = "Web 세션 정리 화면을 열지 못했습니다."
             }
     }
@@ -891,16 +1297,16 @@ class MainActivity : ComponentActivity() {
     private fun startOrEndSession() {
         val active = currentSession?.sessionId != null
         if (active) {
-            ioExecutor.execute {
-                val result = runCatching { studentRepository.endSession() }
-                runOnUiThread {
-                    if (destroyed) return@runOnUiThread
-                    result.fold(
-                        onSuccess = { refreshAdminData("현재 수업을 종료했습니다.") },
-                        onFailure = { adminMessage.text = it.message ?: "수업 종료 실패" },
-                    )
+            AlertDialog.Builder(this)
+                .setTitle("현재 수업 안전 종료")
+                .setMessage(
+                    "남은 Web 로그인을 먼저 안전하게 정리한 뒤 현재 수업과 일회성 보강 명단을 종료합니다.",
+                )
+                .setNegativeButton("취소", null)
+                .setPositiveButton("안전 종료") { _, _ ->
+                    launchWebSessionRecovery(PendingRecoveryAction.EndSession)
                 }
-            }
+                .show()
             return
         }
         val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
@@ -908,13 +1314,32 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "수업 반을 선택하세요."
             return
         }
+        if (selectedClassMembershipIds.isEmpty() && pendingTemporaryStudentIds.isEmpty()) {
+            adminMessage.text = "반 학생 또는 이번 수업 보강 학생을 한 명 이상 선택하세요."
+            return
+        }
+        launchWebSessionRecovery(
+            PendingRecoveryAction.StartSession(
+                classId = selectedClass.id,
+                temporaryStudentIds = pendingTemporaryStudentIds,
+            ),
+        )
+    }
+
+    private fun completeSessionStart(action: PendingRecoveryAction.StartSession) {
         ioExecutor.execute {
-            val result = runCatching { studentRepository.startSession(selectedClass.id) }
+            val result = runCatching {
+                studentRepository.startSession(
+                    classId = action.classId,
+                    temporaryStudentIds = action.temporaryStudentIds,
+                )
+            }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 result.fold(
                     onSuccess = {
                         currentSession = it
+                        pendingTemporaryStudentIds = emptySet()
                         showScanner()
                     },
                     onFailure = { adminMessage.text = it.message ?: "수업 시작 실패" },
@@ -923,13 +1348,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun completeSessionEnd() {
+        ioExecutor.execute {
+            val result = runCatching { studentRepository.endSession() }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = {
+                        pendingTemporaryStudentIds = emptySet()
+                        refreshAdminData("Web 로그인과 현재 수업을 안전하게 종료했습니다.")
+                    },
+                    onFailure = { adminMessage.text = it.message ?: "수업 종료 실패" },
+                )
+            }
+        }
+    }
+
     private fun updateSessionAdminControls(session: ActiveSessionEntity?) {
         val active = session?.sessionId != null
         val resumable = active && session.state == KioskState.QR_READY.name
-        addTemporaryButton.visibility = if (resumable) View.VISIBLE else View.GONE
+        addTemporaryButton.visibility = if (!active || resumable) View.VISIBLE else View.GONE
         resumeSessionButton.visibility = if (resumable) View.VISIBLE else View.GONE
-        startSessionButton.text = if (active) "현재 수업 안전 종료" else "선택한 반 수업 시작"
+        startSessionButton.text = if (active) {
+            "현재 수업 안전 종료"
+        } else {
+            "선택한 반 수업 안전 시작"
+        }
+        classSpinner.isEnabled = !active
         statusText.text = session?.state ?: KioskState.ADMIN_IDLE.name
+        updateClassRosterUi()
         if (active && !resumable) {
             adminMessage.text = "재시작 또는 민감 상태 종료가 감지되어 ${session.state} 상태입니다. 기존 수업을 안전 종료하세요."
         }
@@ -941,6 +1388,7 @@ class MainActivity : ComponentActivity() {
         qrImage.setImageBitmap(preview.bitmap)
         qrCardName.text = preview.exactName
         printQrButton.isEnabled = true
+        exportQrPdfButton.isEnabled = true
     }
 
     private fun clearQrPreview(
@@ -950,6 +1398,7 @@ class MainActivity : ComponentActivity() {
         issuedQrPreview?.let(::wipeQrPreview)
         issuedQrPreview = null
         printQrButton.isEnabled = false
+        exportQrPdfButton.isEnabled = false
         qrCardName.text = cardMessage
     }
 
@@ -1011,9 +1460,6 @@ class MainActivity : ComponentActivity() {
             activeCameraFacing = facing
             preferredCameraFacing = facing
             updateCameraSwitchLabel()
-            val preview = Preview.Builder().build().also {
-                it.surfaceProvider = cameraPreview.surfaceProvider
-            }
             val analyzer = qrAnalyzer ?: QrImageAnalyzer(onDecision = ::handleQrDecision)
                 .also { qrAnalyzer = it }
             analyzer.setEnabled(true)
@@ -1029,7 +1475,6 @@ class MainActivity : ComponentActivity() {
                 } else {
                     CameraSelector.DEFAULT_BACK_CAMERA
                 },
-                preview,
                 analysis,
             )
         }, mainExecutor)
@@ -1242,14 +1687,16 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         stopCamera()
         clearQrPreview("보안을 위해 QR 표시를 지웠습니다")
-        usernameInput.text.clear()
-        passwordInput.text.clear()
         pinInput.text.clear()
         pinConfirmInput.text.clear()
     }
 
     override fun onStart() {
         super.onStart()
+        pendingSharedPdf?.let { shared ->
+            pendingSharedPdf = null
+            mainHandler.postDelayed({ shared.delete() }, SHARED_PDF_CLEANUP_DELAY_MS)
+        }
         when {
             relockAdminOnStart && ::authRepository.isInitialized -> {
                 relockAdminOnStart = false
@@ -1276,6 +1723,43 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    private fun dialogTextInput(
+        hint: String,
+        inputType: Int,
+        sensitive: Boolean = false,
+    ): EditText =
+        EditText(this).apply {
+            this.hint = hint
+            this.inputType = inputType
+            maxLines = 1
+            if (sensitive) {
+                isSaveEnabled = false
+                importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+                filterTouchesWhenObscured = true
+            }
+        }
+
+    private fun dialogForm(vararg inputs: EditText): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+            inputs.forEach { input ->
+                addView(
+                    input,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply {
+                        topMargin = dp(8)
+                    },
+                )
+            }
+        }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
     private fun applicationVersion(): String = runCatching {
         packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
     }.getOrDefault("unknown")
@@ -1288,20 +1772,28 @@ class MainActivity : ComponentActivity() {
     private data class StudentChoice(
         val id: String,
         val label: String,
-        val maskedLabel: String,
     )
 
     private data class QrPreview(
         val studentId: String,
         val exactName: String,
-        val maskedName: String,
         val bitmap: Bitmap,
     )
+
+    private sealed interface PendingRecoveryAction {
+        data object None : PendingRecoveryAction
+        data class StartSession(
+            val classId: String,
+            val temporaryStudentIds: Set<String>,
+        ) : PendingRecoveryAction
+        data object EndSession : PendingRecoveryAction
+    }
 
     companion object {
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
+        private const val SHARED_PDF_CLEANUP_DELAY_MS = 30_000L
     }
 }

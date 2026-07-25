@@ -30,4 +30,20 @@ class WebSecurityPolicyTest {
         assertFalse(WebSecurityPolicy.displayNamesMatch("홍길동", "홍길순"))
         assertFalse(WebSecurityPolicy.displayNamesMatch("", "홍길동"))
     }
+
+    @Test
+    fun `student mode allows only worksheet diagnostic and learning routes`() {
+        assertTrue(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/workbook"))
+        assertTrue(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/workbook/assigned?id=1"))
+        assertTrue(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/diagnostic"))
+        assertTrue(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/diagnostic/list"))
+        assertTrue(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/learningV2/answer/123"))
+
+        assertFalse(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/course"))
+        assertFalse(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/userInfo"))
+        assertFalse(WebSecurityPolicy.isAllowedStudentUrl("https://im.matholic.com/workbook-other"))
+        assertFalse(WebSecurityPolicy.isAllowedStudentUrl("https://login.matholic.com/workbook"))
+        assertFalse(WebSecurityPolicy.isAllowedStudentUrl("http://im.matholic.com/workbook"))
+        assertFalse(WebSecurityPolicy.isAllowedStudentUrl("https://user@im.matholic.com/workbook"))
+    }
 }

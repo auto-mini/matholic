@@ -24,8 +24,8 @@ android {
         applicationId = "com.local.matholickiosk.kiosk"
         minSdk = 33
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.5.0-rc02"
+        versionCode = 8
+        versionName = "0.6.0-rc03"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -77,7 +77,6 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
     implementation(libs.androidx.room.runtime)
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.zxing.core)

@@ -7,6 +7,8 @@ import java.util.Locale
 object WebSecurityPolicy {
     const val LOGIN_URL = "https://login.matholic.com/"
     const val COURSE_URL = "https://im.matholic.com/course"
+    const val WORKBOOK_URL = "https://im.matholic.com/workbook"
+    const val DIAGNOSTIC_URL = "https://im.matholic.com/diagnostic"
 
     private val allowedHosts = setOf(
         "login.matholic.com",
@@ -27,6 +29,10 @@ object WebSecurityPolicy {
     fun isLoginUrl(value: String?): Boolean = hostOf(value) == "login.matholic.com"
 
     fun isPortalUrl(value: String?): Boolean = hostOf(value) == "im.matholic.com"
+
+    fun isAllowedStudentUrl(value: String?): Boolean = StudentWebPolicy.isAllowedUrl(value)
+
+    fun pathOf(value: String?): String? = StudentWebPolicy.pathOf(value)
 
     fun normalizeDisplayName(value: String): String = Normalizer
         .normalize(value, Normalizer.Form.NFKC)

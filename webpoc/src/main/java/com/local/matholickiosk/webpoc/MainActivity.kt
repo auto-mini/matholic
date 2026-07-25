@@ -12,6 +12,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
@@ -62,6 +64,12 @@ class MainActivity : Activity() {
     private lateinit var gate3CancelButton: Button
     private lateinit var gate3AbortButton: Button
     private lateinit var gate3Result: TextView
+    private lateinit var studentNavBar: LinearLayout
+    private lateinit var workbookButton: Button
+    private lateinit var diagnosticButton: Button
+    private lateinit var resultSummaryPanel: FrameLayout
+    private lateinit var wrongAnswerSummary: TextView
+    private lateinit var resultConfirmButton: Button
 
     private val handler = Handler(Looper.getMainLooper())
     private val preferences by lazy { getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE) }
@@ -84,6 +92,9 @@ class MainActivity : Activity() {
     private var secureResultDelivered = false
     private var adminRecoverySession = false
     private var adminRecoveryResultDelivered = false
+    private var activeExperienceGeneration = 0
+    private var resultSummaryDisplayed = false
+    private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,6 +151,7 @@ class MainActivity : Activity() {
         configureWebView()
         configureActions()
         registerBackHandler()
+        hideSystemNavigation()
         uiInitialized = true
         showBlocking(getString(R.string.status_preparing))
     }
@@ -268,6 +280,12 @@ class MainActivity : Activity() {
         gate3CancelButton = findViewById(R.id.gate3_cancel_button)
         gate3AbortButton = findViewById(R.id.gate3_abort_button)
         gate3Result = findViewById(R.id.gate3_result)
+        studentNavBar = findViewById(R.id.student_nav_bar)
+        workbookButton = findViewById(R.id.workbook_button)
+        diagnosticButton = findViewById(R.id.diagnostic_button)
+        resultSummaryPanel = findViewById(R.id.result_summary_panel)
+        wrongAnswerSummary = findViewById(R.id.wrong_answer_summary)
+        resultConfirmButton = findViewById(R.id.result_confirm_button)
     }
 
     private fun configureSensitiveInputs() {
@@ -291,6 +309,9 @@ class MainActivity : Activity() {
             gate3StartButton,
             gate3CancelButton,
             gate3AbortButton,
+            workbookButton,
+            diagnosticButton,
+            resultConfirmButton,
             webView,
         ).forEach {
             it.filterTouchesWhenObscured = true
@@ -317,7 +338,8 @@ class MainActivity : Activity() {
             builtInZoomControls = false
             displayZoomControls = false
             useWideViewPort = true
-            loadWithOverviewMode = true
+            loadWithOverviewMode = false
+            textZoom = 110
             cacheMode = WebSettings.LOAD_NO_CACHE
             safeBrowsingEnabled = true
         }
@@ -345,6 +367,12 @@ class MainActivity : Activity() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 if (request?.isForMainFrame != true) return false
                 val target = request.url?.toString()
+                if (state == WebPocState.ACTIVE && !WebSecurityPolicy.isAllowedStudentUrl(target)) {
+                    if (!WebSecurityPolicy.isAllowedTopLevelUrl(target)) {
+                        showLocked("NAVIGATION_BLOCKED")
+                    }
+                    return true
+                }
                 if (WebSecurityPolicy.isAllowedTopLevelUrl(target)) return false
                 showLocked("NAVIGATION_BLOCKED")
                 return true
@@ -354,6 +382,15 @@ class MainActivity : Activity() {
                 if (url != null && url != "about:blank" && !WebSecurityPolicy.isAllowedTopLevelUrl(url)) {
                     view?.stopLoading()
                     showLocked("NAVIGATION_BLOCKED")
+                    return
+                }
+                if (
+                    state == WebPocState.ACTIVE &&
+                    url != null &&
+                    !WebSecurityPolicy.isAllowedStudentUrl(url)
+                ) {
+                    view?.stopLoading()
+                    view?.loadUrl(lastAllowedStudentUrl)
                 }
             }
 
@@ -371,7 +408,7 @@ class MainActivity : Activity() {
                 ) return
                 when {
                     WebSecurityPolicy.isLoginUrl(url) -> handleLoginPage()
-                    WebSecurityPolicy.isPortalUrl(url) -> handlePortalPage()
+                    WebSecurityPolicy.isPortalUrl(url) -> handlePortalPage(url)
                 }
             }
 
@@ -464,15 +501,33 @@ class MainActivity : Activity() {
                 beginLogout()
             }
         }
+        workbookButton.setOnClickListener {
+            if (state == WebPocState.ACTIVE) {
+                resultSummaryDisplayed = false
+                webView.loadUrl(WebSecurityPolicy.WORKBOOK_URL)
+            }
+        }
+        diagnosticButton.setOnClickListener {
+            if (state == WebPocState.ACTIVE) {
+                resultSummaryDisplayed = false
+                webView.loadUrl(WebSecurityPolicy.DIAGNOSTIC_URL)
+            }
+        }
+        resultConfirmButton.setOnClickListener {
+            if (state == WebPocState.ACTIVE && resultSummaryDisplayed) {
+                resultSummaryPanel.visibility = View.GONE
+                resultSummaryDisplayed = false
+                pendingLockReason = null
+                beginLogout()
+            }
+        }
         recoveryButton.setOnClickListener { restartForRecovery() }
     }
 
     private fun registerBackHandler() {
         onBackInvokedDispatcher.registerOnBackInvokedCallback(
             android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-        ) {
-            if (state == WebPocState.ACTIVE && webView.canGoBack()) webView.goBack()
-        }
+        ) { hideSystemNavigation() }
     }
 
     private fun prepareLoginPage() {
@@ -744,7 +799,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun handlePortalPage() {
+    private fun handlePortalPage(url: String) {
         when (state) {
             WebPocState.LOGIN_SUBMIT,
             WebPocState.LOGIN_VERIFY,
@@ -764,6 +819,7 @@ class MainActivity : Activity() {
                 transition(WebPocState.RECOVERY_REQUIRED)
                 beginLogout()
             }
+            WebPocState.ACTIVE -> handleActiveStudentPage(url)
             else -> Unit
         }
     }
@@ -796,9 +852,102 @@ class MainActivity : Activity() {
                     if (state == WebPocState.ACTIVE && gate3Session != null) beginLogout()
                 }, GATE3_ACTIVE_DWELL_MS)
             } else {
-                showActive()
+                resultSummaryDisplayed = false
+                lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
+                showBlocking("학습지를 여는 중입니다")
+                webView.loadUrl(WebSecurityPolicy.WORKBOOK_URL)
             }
         }
+    }
+
+    private fun handleActiveStudentPage(url: String) {
+        if (!WebSecurityPolicy.isAllowedStudentUrl(url)) {
+            webView.stopLoading()
+            webView.loadUrl(lastAllowedStudentUrl)
+            return
+        }
+        lastAllowedStudentUrl = url
+        showActive(url)
+        startStudentExperienceMonitor()
+    }
+
+    private fun startStudentExperienceMonitor() {
+        val generation = ++activeExperienceGeneration
+        pollStudentExperience(generation)
+    }
+
+    private fun pollStudentExperience(generation: Int) {
+        if (
+            destroyed ||
+            state != WebPocState.ACTIVE ||
+            generation != activeExperienceGeneration ||
+            resultSummaryDisplayed
+        ) return
+
+        evaluate(WebDomScripts.applyStudentExperience) { result ->
+            if (
+                state != WebPocState.ACTIVE ||
+                generation != activeExperienceGeneration ||
+                resultSummaryDisplayed
+            ) return@evaluate
+
+            if (result?.optString("version") == WebDomScripts.CONTRACT_VERSION) {
+                if (!result.optBoolean("ok")) {
+                    webView.loadUrl(lastAllowedStudentUrl)
+                    return@evaluate
+                }
+                val path = result.optString("path")
+                updateStudentChrome(path)
+                webView.url
+                    ?.takeIf(WebSecurityPolicy::isAllowedStudentUrl)
+                    ?.let { lastAllowedStudentUrl = it }
+            }
+            evaluate(WebDomScripts.wrongAnswerSummary) { summary ->
+                if (
+                    state != WebPocState.ACTIVE ||
+                    generation != activeExperienceGeneration ||
+                    resultSummaryDisplayed
+                ) return@evaluate
+
+                if (
+                    summary?.optBoolean("ok") == true &&
+                    summary.optString("version") == WebDomScripts.CONTRACT_VERSION
+                ) {
+                    val numbers = summary.optJSONArray("wrongNumbers")
+                    val wrong = buildList {
+                        if (numbers != null) {
+                            for (index in 0 until numbers.length()) {
+                                val number = numbers.optInt(index, -1)
+                                if (number > 0) add(number)
+                            }
+                        }
+                    }.distinct().sorted()
+                    showResultSummary(wrong)
+                } else {
+                    handler.postDelayed(
+                        { pollStudentExperience(generation) },
+                        STUDENT_EXPERIENCE_POLL_MS,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun showResultSummary(wrongNumbers: List<Int>) {
+        if (state != WebPocState.ACTIVE || resultSummaryDisplayed) return
+        resultSummaryDisplayed = true
+        activeExperienceGeneration += 1
+        wrongAnswerSummary.text = if (wrongNumbers.isEmpty()) {
+            "틀린 문제 없음"
+        } else {
+            "틀린 문제: " + wrongNumbers.joinToString(", ") { "${it}번" }
+        }
+        webView.visibility = View.INVISIBLE
+        studentNavBar.visibility = View.GONE
+        finishButton.visibility = View.GONE
+        statusBadge.visibility = View.GONE
+        resultSummaryPanel.visibility = View.VISIBLE
+        hideSystemNavigation()
     }
 
     private fun beginLogout() {
@@ -1029,6 +1178,7 @@ class MainActivity : Activity() {
         cancelTimeout()
         wipeRuntimeSecrets()
         transition(WebPocState.IDLE)
+        hideStudentExperienceLayers()
         blocker.visibility = View.GONE
         progress.visibility = View.VISIBLE
         recoveryButton.visibility = View.GONE
@@ -1042,17 +1192,24 @@ class MainActivity : Activity() {
         expectedNameInput.requestFocus()
     }
 
-    private fun showActive() {
+    private fun showActive(url: String) {
         blocker.visibility = View.GONE
         setupPanel.visibility = View.GONE
+        resultSummaryPanel.visibility = View.GONE
         webView.visibility = View.VISIBLE
         finishButton.visibility = View.VISIBLE
         gate3AbortButton.visibility = View.GONE
-        statusBadge.visibility = View.VISIBLE
-        statusBadge.setText(R.string.status_active)
+        statusBadge.visibility = View.GONE
+        updateStudentChrome(WebSecurityPolicy.pathOf(url))
+        hideSystemNavigation()
     }
 
     private fun showBlocking(message: String) {
+        activeExperienceGeneration += 1
+        resultSummaryDisplayed = false
+        webView.visibility = View.INVISIBLE
+        studentNavBar.visibility = View.GONE
+        resultSummaryPanel.visibility = View.GONE
         setupPanel.visibility = View.GONE
         finishButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
@@ -1069,6 +1226,7 @@ class MainActivity : Activity() {
         failGate3RunIfActive()
         wipeRuntimeSecrets()
         transition(WebPocState.LOCKED, reason)
+        hideStudentExperienceLayers()
         setupPanel.visibility = View.GONE
         finishButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
@@ -1098,6 +1256,7 @@ class MainActivity : Activity() {
         failGate3RunIfActive()
         wipeRuntimeSecrets()
         transition(WebPocState.MAINTENANCE_REQUIRED, reason)
+        hideStudentExperienceLayers()
         setupPanel.visibility = View.GONE
         finishButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
@@ -1111,6 +1270,54 @@ class MainActivity : Activity() {
             return
         }
         finishSecureKioskSessionWithFailure(reason)
+    }
+
+    private fun updateStudentChrome(path: String?) {
+        val showNavigation = state == WebPocState.ACTIVE && StudentWebPolicy.isListPath(path)
+        studentNavBar.visibility = if (showNavigation) View.VISIBLE else View.GONE
+        workbookButton.isEnabled = showNavigation && (
+            path == StudentWebPolicy.DIAGNOSTIC_PATH ||
+                path?.startsWith("${StudentWebPolicy.DIAGNOSTIC_PATH}/") == true
+            )
+        diagnosticButton.isEnabled = showNavigation && (
+            path == StudentWebPolicy.WORKBOOK_PATH ||
+                path?.startsWith("${StudentWebPolicy.WORKBOOK_PATH}/") == true
+            )
+        val layoutParams = webView.layoutParams as FrameLayout.LayoutParams
+        val topMargin = if (showNavigation) dpToPx(STUDENT_NAV_HEIGHT_DP) else 0
+        if (layoutParams.topMargin != topMargin) {
+            layoutParams.topMargin = topMargin
+            webView.layoutParams = layoutParams
+        }
+    }
+
+    private fun hideStudentExperienceLayers() {
+        activeExperienceGeneration += 1
+        resultSummaryDisplayed = false
+        studentNavBar.visibility = View.GONE
+        resultSummaryPanel.visibility = View.GONE
+        webView.visibility = View.INVISIBLE
+        val layoutParams = webView.layoutParams as FrameLayout.LayoutParams
+        if (layoutParams.topMargin != 0) {
+            layoutParams.topMargin = 0
+            webView.layoutParams = layoutParams
+        }
+    }
+
+    private fun dpToPx(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
+    private fun hideSystemNavigation() {
+        window.insetsController?.let { controller ->
+            controller.hide(WindowInsets.Type.navigationBars())
+            controller.systemBarsBehavior =
+                WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && uiInitialized) hideSystemNavigation()
     }
 
     private fun failGate3RunIfActive() {
@@ -1309,6 +1516,8 @@ class MainActivity : Activity() {
         const val STORAGE_CLEAR_DELAY_MS = 300L
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
+        const val STUDENT_EXPERIENCE_POLL_MS = 500L
+        const val STUDENT_NAV_HEIGHT_DP = 64
         const val PORTAL_PROBE_RETRIES = 8
         const val MAX_LOGOUT_RETRIES = 1
     }

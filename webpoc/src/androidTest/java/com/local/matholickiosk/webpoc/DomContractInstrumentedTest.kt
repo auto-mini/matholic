@@ -174,6 +174,80 @@ class DomContractInstrumentedTest {
         }
     }
 
+    @Test
+    fun testStudentExperienceEnlargesSemanticLearningControls() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <button id="unknown">모름</button>
+                <button id="next">&gt;</button>
+                <h2>전체답안</h2>
+                <button id="submit">답안 제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            assertTrue(result.getBoolean("learningPage"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  stylePresent: !!document.getElementById('matholic-kiosk-student-style'),
+                  unknownWidth: document.getElementById('unknown').style.minWidth,
+                  nextWidth: document.getElementById('next').style.minWidth,
+                  submitWidth: document.getElementById('submit').style.minWidth,
+                  submitPosition: document.getElementById('submit').style.position
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("stylePresent"))
+            assertEquals("104px", proof.getString("unknownWidth"))
+            assertEquals("72px", proof.getString("nextWidth"))
+            assertEquals("190px", proof.getString("submitWidth"))
+            assertEquals("fixed", proof.getString("submitPosition"))
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryReturnsOnlyVerifiedProblemNumbers() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>12번 문제</h3><p>풀이와 정답</p></section>
+              <section class="ant-alert-success"><h3>2번 문제</h3><p>풀이와 정답</p></section>
+              <section class="ant-alert-error"><h3>3번 문제</h3><p>풀이와 정답</p></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(2, result.getInt("errorCardCount"))
+            assertEquals(3, result.getJSONArray("wrongNumbers").getInt(0))
+            assertEquals(12, result.getJSONArray("wrongNumbers").getInt(1))
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryFailsClosedWhenErrorNumberIsMissing() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>오답</h3><p>풀이와 정답</p></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertFalse(evaluate(webView, WebDomScripts.wrongAnswerSummary).getBoolean("ok"))
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun withFixture(baseUrl: String, html: String, block: (WebView) -> Unit) {
         val loaded = CountDownLatch(1)
@@ -181,6 +255,7 @@ class DomContractInstrumentedTest {
         instrumentation.runOnMainSync {
             val webView = WebView(instrumentation.targetContext)
             webView.settings.javaScriptEnabled = true
+            webView.layout(0, 0, 1_200, 800)
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     loaded.countDown()

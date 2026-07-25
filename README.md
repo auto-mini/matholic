@@ -7,9 +7,15 @@
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.5.0-rc02`다.
-- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.3.5-rc02`다.
+- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.6.0-rc03`다.
+- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.4.0-rc03`다.
 - 외부 알림은 현재 요구사항에서 제외했다. release RC02는 A에 배포했고 정의된 운영 인수시험까지 완료했다.
+
+RC03 소스에는 학생 마스터 목록과 다중 반 소속, 학생을 보존하는 반 삭제,
+65×90mm 세로 카드·30×30mm QR PDF 공유, 카메라 미리보기 비표시,
+학습지 자동 진입·진단평가 전환, 문제 입력 확대와 오답 번호 전용 결과 화면이
+포함된다. RC03 자동 검증 및 A 기기 실기는
+[docs/RC03_USABILITY.md](docs/RC03_USABILITY.md)에 구분해 기록한다.
 
 ## 확인된 대상
 

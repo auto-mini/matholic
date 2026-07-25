@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-21.1"
+    const val CONTRACT_VERSION = "web-2026-07-25.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -223,6 +223,247 @@ object WebDomScripts {
             exactAllCount: exactAll.length, visibleExactCount: exactVisible.length,
             leafExactCount: leafExact.length, submenuVisible: visible(submenu),
             usedHiddenFallback: hiddenFallbackAllowed
+          });
+        })()
+        """.trimIndent()
+
+    val applyStudentExperience: String =
+        """
+        (() => {
+          const version = '${CONTRACT_VERSION}';
+          const path = location.pathname || '';
+          const isWorkbook = path === '/workbook' || path.startsWith('/workbook/');
+          const isDiagnostic = path === '/diagnostic' || path.startsWith('/diagnostic/');
+          const isLearning = path.startsWith('/learningV2/');
+          const allowed = location.protocol === 'https:' &&
+            location.hostname === 'im.matholic.com' &&
+            (isWorkbook || isDiagnostic || isLearning);
+          if (!allowed) {
+            return JSON.stringify({
+              version, ok: false, path, listPage: false,
+              learningPage: false, enhancedButtons: 0
+            });
+          }
+
+          const normalize = value =>
+            (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+          const visible = element => {
+            const style = getComputedStyle(element);
+            return style.display !== 'none' && style.visibility !== 'hidden' &&
+              (element.offsetWidth > 0 || element.offsetHeight > 0);
+          };
+          const important = (element, name, value) => {
+            if (element.style.getPropertyValue(name) !== value ||
+                element.style.getPropertyPriority(name) !== 'important') {
+              element.style.setProperty(name, value, 'important');
+            }
+          };
+
+          let style = document.getElementById('matholic-kiosk-student-style');
+          if (!style) {
+            style = document.createElement('style');
+            style.id = 'matholic-kiosk-student-style';
+            (document.head || document.documentElement).appendChild(style);
+          }
+          style.textContent = isLearning ? `
+            html, body { min-height: 100% !important; }
+            header, [role="banner"] { display: none !important; }
+            body {
+              box-sizing: border-box !important;
+              padding-top: 36px !important;
+              padding-bottom: 0 !important;
+            }
+            main { padding-top: 24px !important; }
+            button, [role="button"] {
+              min-width: 52px !important;
+              min-height: 52px !important;
+              padding: 10px 16px !important;
+              font-size: 18px !important;
+              line-height: 1.25 !important;
+              touch-action: manipulation !important;
+            }
+            input, textarea, [contenteditable="true"] {
+              min-height: 48px !important;
+              font-size: 18px !important;
+              touch-action: manipulation !important;
+            }
+          ` : `
+            header, nav, [role="navigation"] {
+              display: none !important;
+            }
+            main { margin-top: 0 !important; padding-top: 16px !important; }
+          `;
+
+          let enhancedButtons = 0;
+          if (isLearning) {
+            const exactButtons = Array.from(
+              document.querySelectorAll('button,[role="button"]')
+            ).filter(visible);
+            exactButtons.forEach(button => {
+              const text = normalize(button.textContent);
+              if (text === '답안제출' || text === '답안 제출' || text === '완료하기') {
+                important(button, 'min-width', '190px');
+                important(button, 'min-height', '60px');
+                important(button, 'font-size', '20px');
+                enhancedButtons += 1;
+              } else if (text === '모름') {
+                important(button, 'min-width', '104px');
+                important(button, 'min-height', '56px');
+                enhancedButtons += 1;
+              } else if (text === '다음 문제' || text === '>') {
+                important(button, 'min-width', text === '>' ? '72px' : '170px');
+                important(button, 'min-height', '58px');
+                enhancedButtons += 1;
+              }
+            });
+
+            const reviewHeading = Array.from(
+              document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
+            ).find(element => visible(element) && normalize(element.textContent) === '전체답안');
+            if (reviewHeading) {
+              const scope = reviewHeading.closest(
+                'main,section,[role="dialog"],.ant-modal,.ant-drawer'
+              ) || document.body;
+              const finalButton = Array.from(
+                scope.querySelectorAll('button,[role="button"]')
+              ).filter(visible).find(button => {
+                const text = normalize(button.textContent);
+                return text === '답안제출' || text === '답안 제출' || text === '완료하기';
+              });
+              if (finalButton) {
+                important(finalButton, 'position', 'fixed');
+                important(finalButton, 'right', '230px');
+                important(finalButton, 'bottom', '24px');
+                important(finalButton, 'z-index', '2147483000');
+                important(finalButton, 'box-shadow', '0 6px 18px rgba(0,0,0,.35)');
+              }
+            }
+
+            const protectAnalysisDetails = () => {
+              const analysisHeading = Array.from(
+                document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
+              ).find(element =>
+                visible(element) && normalize(element.textContent) === '종합분석'
+              );
+              const resultCards = document.querySelectorAll(
+                '.ant-alert-error,.ant-alert-success'
+              );
+              if (!analysisHeading || resultCards.length === 0 ||
+                  document.getElementById('matholic-kiosk-result-shield')) return;
+              const shield = document.createElement('div');
+              shield.id = 'matholic-kiosk-result-shield';
+              shield.textContent = '채점 결과를 정리하고 있습니다';
+              shield.setAttribute('aria-live', 'polite');
+              shield.style.cssText = [
+                'position:fixed', 'inset:0', 'z-index:2147483646',
+                'display:flex', 'align-items:center', 'justify-content:center',
+                'background:#102A43', 'color:white', 'font-size:28px',
+                'font-weight:700'
+              ].join(';');
+              document.documentElement.appendChild(shield);
+            };
+            protectAnalysisDetails();
+            if (!window.__matholicKioskExperienceObserver && document.body) {
+              const observer = new MutationObserver(protectAnalysisDetails);
+              observer.observe(document.body, { childList: true, subtree: true });
+              window.__matholicKioskExperienceObserver = observer;
+            }
+          }
+
+          if (!window.__matholicKioskNavigationGuard) {
+            document.addEventListener('click', event => {
+              const anchor = event.target && event.target.closest ?
+                event.target.closest('a[href]') : null;
+              if (!anchor) return;
+              try {
+                const target = new URL(anchor.href, location.href);
+                if (target.protocol !== 'https:' || target.hostname !== 'im.matholic.com') {
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  return;
+                }
+                const targetPath = target.pathname || '';
+                const targetAllowed =
+                  targetPath === '/workbook' || targetPath.startsWith('/workbook/') ||
+                  targetPath === '/diagnostic' || targetPath.startsWith('/diagnostic/') ||
+                  targetPath.startsWith('/learningV2/');
+                if (!targetAllowed) {
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                }
+              } catch (_) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+              }
+            }, true);
+            window.__matholicKioskNavigationGuard = true;
+          }
+
+          return JSON.stringify({
+            version, ok: true, path,
+            listPage: isWorkbook || isDiagnostic,
+            learningPage: isLearning,
+            enhancedButtons
+          });
+        })()
+        """.trimIndent()
+
+    val wrongAnswerSummary: String =
+        """
+        (() => {
+          const version = '${CONTRACT_VERSION}';
+          const path = location.pathname || '';
+          const normalize = value =>
+            (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+          const visible = element => {
+            const style = getComputedStyle(element);
+            return style.display !== 'none' && style.visibility !== 'hidden' &&
+              (element.offsetWidth > 0 || element.offsetHeight > 0);
+          };
+          const base = {
+            version, ok: false, path, wrongNumbers: [],
+            errorCardCount: 0, successCardCount: 0
+          };
+          if (
+            location.protocol !== 'https:' ||
+            location.hostname !== 'im.matholic.com' ||
+            !path.startsWith('/learningV2/')
+          ) return JSON.stringify(base);
+
+          const analysisHeading = Array.from(
+            document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
+          ).find(element => visible(element) && normalize(element.textContent) === '종합분석');
+          if (!analysisHeading) return JSON.stringify(base);
+
+          const errorCards = Array.from(
+            document.querySelectorAll('.ant-alert-error')
+          ).filter(visible);
+          const successCards = Array.from(
+            document.querySelectorAll('.ant-alert-success')
+          ).filter(visible);
+          if (errorCards.length + successCards.length === 0) return JSON.stringify(base);
+
+          const wrongNumbers = [];
+          for (const card of errorCards) {
+            const heading = Array.from(
+              card.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
+            ).find(visible);
+            const match = normalize(heading ? heading.textContent : '').match(/(?:^|\D)(\d{1,3})(?:\D|${'$'})/);
+            const number = match ? Number(match[1]) : NaN;
+            if (!Number.isInteger(number) || number < 1 || number > 999) {
+              return JSON.stringify({
+                ...base,
+                errorCardCount: errorCards.length,
+                successCardCount: successCards.length
+              });
+            }
+            if (!wrongNumbers.includes(number)) wrongNumbers.push(number);
+          }
+          wrongNumbers.sort((a, b) => a - b);
+          return JSON.stringify({
+            version, ok: true, path, wrongNumbers,
+            errorCardCount: errorCards.length,
+            successCardCount: successCards.length
           });
         })()
         """.trimIndent()
