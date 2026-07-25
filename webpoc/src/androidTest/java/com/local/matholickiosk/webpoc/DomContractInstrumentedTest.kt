@@ -250,6 +250,24 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceRejectsAmbiguousEncodedSpaPath() {
+        withFixture(
+            "https://im.matholic.com/learningV2/%252e%252e/result",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>3번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val experience = evaluate(webView, WebDomScripts.applyStudentExperience)
+            val summary = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertFalse(experience.getBoolean("ok"))
+            assertFalse(summary.getBoolean("ok"))
+        }
+    }
+
+    @Test
     fun testWrongAnswerSummaryReturnsOnlyVerifiedProblemNumbers() {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",

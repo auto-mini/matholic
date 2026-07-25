@@ -231,16 +231,29 @@ object WebDomScripts {
         """
         (() => {
           const version = '${CONTRACT_VERSION}';
-          const path = location.pathname || '';
-          const isWorkbook = path === '/workbook' || path.startsWith('/workbook/');
-          const isDiagnostic = path === '/diagnostic' || path.startsWith('/diagnostic/');
-          const isLearning = path.startsWith('/learningV2/');
+          const safeStudentPath = value => {
+            if (!value || /%(?:2e|2f|5c|25)/i.test(value) ||
+                value.includes('\\') || /[\u0000-\u001f\u007f]/.test(value)) {
+              return null;
+            }
+            const segments = value.split('/');
+            return segments.some(segment => segment === '.' || segment === '..') ?
+              null : value;
+          };
+          const rawPath = location.pathname || '';
+          const path = safeStudentPath(rawPath);
+          const isWorkbook = path !== null &&
+            (path === '/workbook' || path.startsWith('/workbook/'));
+          const isDiagnostic = path !== null &&
+            (path === '/diagnostic' || path.startsWith('/diagnostic/'));
+          const isLearning = path !== null && path.startsWith('/learningV2/');
           const allowed = location.protocol === 'https:' &&
             location.hostname === 'im.matholic.com' &&
+            path !== null &&
             (isWorkbook || isDiagnostic || isLearning);
           if (!allowed) {
             return JSON.stringify({
-              version, ok: false, path, listPage: false,
+              version, ok: false, path: rawPath, listPage: false,
               learningPage: false, enhancedButtons: 0
             });
           }
@@ -382,11 +395,12 @@ object WebDomScripts {
                   event.stopImmediatePropagation();
                   return;
                 }
-                const targetPath = target.pathname || '';
-                const targetAllowed =
+                const targetPath = safeStudentPath(target.pathname || '');
+                const targetAllowed = targetPath !== null && (
                   targetPath === '/workbook' || targetPath.startsWith('/workbook/') ||
                   targetPath === '/diagnostic' || targetPath.startsWith('/diagnostic/') ||
-                  targetPath.startsWith('/learningV2/');
+                  targetPath.startsWith('/learningV2/')
+                );
                 if (!targetAllowed) {
                   event.preventDefault();
                   event.stopImmediatePropagation();
@@ -412,7 +426,17 @@ object WebDomScripts {
         """
         (() => {
           const version = '${CONTRACT_VERSION}';
-          const path = location.pathname || '';
+          const safeStudentPath = value => {
+            if (!value || /%(?:2e|2f|5c|25)/i.test(value) ||
+                value.includes('\\') || /[\u0000-\u001f\u007f]/.test(value)) {
+              return null;
+            }
+            const segments = value.split('/');
+            return segments.some(segment => segment === '.' || segment === '..') ?
+              null : value;
+          };
+          const rawPath = location.pathname || '';
+          const path = safeStudentPath(rawPath);
           const normalize = value =>
             (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
           const visible = element => {
@@ -421,12 +445,13 @@ object WebDomScripts {
               (element.offsetWidth > 0 || element.offsetHeight > 0);
           };
           const base = {
-            version, ok: false, path, wrongNumbers: [],
+            version, ok: false, path: rawPath, wrongNumbers: [],
             errorCardCount: 0, successCardCount: 0
           };
           if (
             location.protocol !== 'https:' ||
             location.hostname !== 'im.matholic.com' ||
+            path === null ||
             !path.startsWith('/learningV2/')
           ) return JSON.stringify(base);
 
