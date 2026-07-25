@@ -244,12 +244,6 @@ class StudentRepository(
         classId: String,
         temporaryStudentIds: Set<String> = emptySet(),
     ): ActiveSessionEntity {
-        require(database.classDao().findActiveById(classId) != null) { "Active class not found" }
-        val activeStudentIds = database.studentDao().listAllActive()
-            .mapTo(mutableSetOf(), StudentEntity::studentId)
-        require(temporaryStudentIds.all(activeStudentIds::contains)) {
-            "Inactive or unknown temporary student selected"
-        }
         val now = nowEpochMs()
         val session = ActiveSessionEntity(
             sessionId = UUID.randomUUID().toString(),
@@ -263,6 +257,23 @@ class StudentRepository(
             updatedAtEpochMs = now,
         )
         database.runInTransaction {
+            require(database.classDao().findActiveById(classId) != null) {
+                "Active class not found"
+            }
+            val activeStudentIds = database.studentDao().listAllActive()
+                .mapTo(mutableSetOf(), StudentEntity::studentId)
+            require(temporaryStudentIds.all(activeStudentIds::contains)) {
+                "Inactive or unknown temporary student selected"
+            }
+            require(
+                database.studentDao().listActiveForClass(classId).isNotEmpty() ||
+                    temporaryStudentIds.isNotEmpty(),
+            ) {
+                "수업에는 반 학생 또는 보강 학생이 한 명 이상 필요합니다."
+            }
+            require(database.sessionDao().get()?.sessionId == null) {
+                "이미 진행 중인 수업이 있습니다."
+            }
             database.sessionDao().save(session)
             temporaryStudentIds.forEach { studentId ->
                 database.sessionDao().addTemporaryStudent(
@@ -404,10 +415,10 @@ class StudentRepository(
     }
 
     fun endSession() {
-        val current = requireNotNull(database.sessionDao().get()) { "No session state" }
-        val sessionId = current.sessionId
         database.runInTransaction {
-            if (sessionId != null) database.sessionDao().clearTemporaryStudents(sessionId)
+            val current = requireNotNull(database.sessionDao().get()) { "No session state" }
+            val sessionId = requireNotNull(current.sessionId) { "진행 중인 수업이 없습니다." }
+            database.sessionDao().clearTemporaryStudents(sessionId)
             database.sessionDao().save(
                 ActiveSessionEntity(
                     state = KioskState.ADMIN_IDLE.name,

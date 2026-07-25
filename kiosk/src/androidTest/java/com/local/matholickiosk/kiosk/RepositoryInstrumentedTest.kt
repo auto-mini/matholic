@@ -163,9 +163,32 @@ class RepositoryInstrumentedTest {
         assertTrue(QrTokenCodec().parse(replacement.payload) is QrParseResult.Valid)
 
         repository.endSession()
-        val nextSession = repository.startSession(classId)
-        assertNotNull(nextSession.sessionId)
-        assertNull(repository.validateForActiveSession(replacement.hash))
+        assertTrue(runCatching { repository.startSession(classId) }.isFailure)
+        assertNull(repository.currentSession()?.sessionId)
+    }
+
+    @Test
+    fun sessionLifecycleRejectsOverwriteAndDuplicateEnd() {
+        val classA = repository.createClass("가상반-A")
+        val classB = repository.createClass("가상반-B")
+        val registered = repository.registerStudent(
+            "가상학생-가",
+            "user-a".toCharArray(),
+            "password-a".toCharArray(),
+        )
+        repository.replaceClassMemberships(classA, setOf(registered.studentId))
+        repository.replaceClassMemberships(classB, setOf(registered.studentId))
+
+        val active = repository.startSession(classA)
+
+        assertTrue(runCatching { repository.startSession(classB) }.isFailure)
+        assertEquals(active.sessionId, repository.currentSession()?.sessionId)
+        assertEquals(classA, repository.currentSession()?.classId)
+
+        repository.endSession()
+
+        assertTrue(runCatching { repository.endSession() }.isFailure)
+        assertNull(repository.currentSession()?.sessionId)
     }
 
     @Test
