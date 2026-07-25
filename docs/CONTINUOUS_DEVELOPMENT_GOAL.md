@@ -90,18 +90,29 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.5.0-rc02`/code 7
-  - Web POC `0.3.5-rc02`/code 19
+  - Kiosk `0.6.0-rc03`/code 8
+  - Web POC `0.4.0-rc03`/code 20
 - ADB: 2026-07-25 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC03 설치: 아직 실행하지 않음
+- A의 RC03 설치: 2026-07-25 `adb install -r`로 완료
+  - 설치 전후 package UID, firstInstallTime, dataDir 유지
+  - release signer, Device Owner, 전용 HOME과 Kiosk 실행 유지
+  - HOME·최근 앱·뒤로가기 입력 뒤에도 Kiosk와 Lock Task `LOCKED` 유지
 - 내부 보관 RC03:
   - `artifacts/matholic-kiosk-0.6.0-rc03-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc03-release.apk`
-- RC03 APK는 같은 release signer와 더 높은 versionCode를 사용하므로 정상
-  덮어쓰기 설치는 앱 데이터와 Device Owner를 보존해야 한다.
+- A 설치 RC03 APK SHA-256:
+  - Kiosk:
+    `5546B399361227A38039AC0464A18DAE51DC17093B6DB530BEEFD0ABBD022AE6`
+  - Web POC:
+    `64A8C7D6DFE97B8BBBD0591CBABF1E538E082EC86AC4721D8350C97B64944A3E`
 - RC03 전체 debug 회귀 204 tasks, JVM 시험 50개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
-- RC03 계측시험은 컴파일했지만 A에서 아직 실행하지 않았다.
+- Android 13 일회용 에뮬레이터 계측시험:
+  - A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
+  - 최신 소스 기준 Web 32개, Kiosk 11개, 실패 0
+- 최신 소스는 A 설치본 뒤 결과 페이지 선차폐와 비대칭 프린터 DPI 보강
+  커밋이 추가됐다. 같은 versionCode로 A에 재설치하지 않고 다음 상위 버전에
+  포함한다.
 
 ## 연속 개발 사이클
 

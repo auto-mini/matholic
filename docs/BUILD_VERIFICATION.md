@@ -438,16 +438,33 @@ release RC02의 정의된 자동 검증, 핵심 정상 왕복, 비정상 Web 세
 
 - Kiosk: `artifacts/matholic-kiosk-0.6.0-rc03-release.apk`
   - 크기: 34,941,240 bytes
-  - SHA-256: `3D9B985B4DB190FA607A46DA600B0464B0CE84F1DBDAE70CAA5B8187D0D9A5BE`
+  - SHA-256: `5546B399361227A38039AC0464A18DAE51DC17093B6DB530BEEFD0ABBD022AE6`
 - Web POC: `artifacts/matholic-webpoc-0.4.0-rc03-release.apk`
-  - 크기: 3,078,500 bytes
-  - SHA-256: `F84511D71EBD7BA9A0E7E5486DE7CBC87832B425E8050130C908ABA8698A4EA2`
+  - 크기: 3,079,332 bytes
+  - SHA-256: `64A8C7D6DFE97B8BBBD0591CBABF1E538E082EC86AC4721D8350C97B64944A3E`
 - signer SHA-256:
   `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
 
+### A 보존형 업데이트와 안전 정책
+
+- 설치 전 A: Kiosk `0.5.0-rc02`/code 7, Web POC `0.3.5-rc02`/code 19
+- Web POC, Kiosk 순서의 `adb install -r`: 둘 다 성공
+- 설치 후 A: Kiosk `0.6.0-rc03`/code 8, Web POC `0.4.0-rc03`/code 20
+- 두 package UID, firstInstallTime, dataDir: 설치 전후 동일
+- 설치된 APK signer, Device Owner, 전용 HOME와 Kiosk 실행: 유지
+- HOME·최근 앱·뒤로가기 입력: Kiosk `MainActivity`와 Lock Task `LOCKED` 유지
+- 설치 직후 치명적 AndroidRuntime 예외: 없음
+
+### 에뮬레이터 계측시험
+
+- Android 13 AOSP ATD 일회용 에뮬레이터에서 A 설치 시점 소스:
+  Web 30개, Kiosk 10개, 총 40개 실패 0
+- 결과 페이지 선차폐 보강 뒤 Web 32개 실패 0
+- 비대칭 프린터 DPI 보강 뒤 Kiosk 11개 실패 0
+
 ### 미검증
 
-- A는 USB 디버깅이 꺼져 ADB 목록에 나타나지 않으므로 RC03을 아직 설치하지 않았다.
-- 신규 계측시험은 컴파일했지만 기기에서 실행하지 않았다.
 - 실제 사이트의 자동 학습지 진입, 두 탭 제한, 문제 입력 확대와 오답 번호 요약은 미실기다.
 - 미리보기 없는 전면·후면 QR 분석 단독 바인딩, PDF Quick Share와 직접 프린터 실패 로그도 미실기다.
+- 최신 소스의 결과 페이지 선차폐와 비대칭 프린터 DPI 보강은 A 설치 RC03보다
+  뒤의 커밋이며 다음 상위 versionCode 검증본에서 A에 반영한다.
