@@ -90,29 +90,31 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc03`/code 8
-  - Web POC `0.4.0-rc03`/code 20
+  - Kiosk `0.6.0-rc04`/code 9
+  - Web POC `0.4.0-rc04`/code 21
 - ADB: 2026-07-25 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC03 설치: 2026-07-25 `adb install -r`로 완료
+- A의 RC04 설치: 2026-07-25 `adb install -r`로 완료
   - 설치 전후 package UID, firstInstallTime, dataDir 유지
   - release signer, Device Owner, 전용 HOME과 Kiosk 실행 유지
-  - HOME·최근 앱·뒤로가기 입력 뒤에도 Kiosk와 Lock Task `LOCKED` 유지
-- 내부 보관 RC03:
-  - `artifacts/matholic-kiosk-0.6.0-rc03-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc03-release.apk`
-- A 설치 RC03 APK SHA-256:
+  - Lock Task `LOCKED` 유지
+  - 설치 전부터 화면은 꺼져 있었고 설치 뒤에도 `mAwake=false` 유지
+  - 사용자 부재로 화면을 깨우거나 관리자 PIN을 입력하지 않아 현재 UI는 미확인
+- 내부 보관 RC04:
+  - `artifacts/matholic-kiosk-0.6.0-rc04-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
+- A 설치 RC04 APK SHA-256:
   - Kiosk:
-    `5546B399361227A38039AC0464A18DAE51DC17093B6DB530BEEFD0ABBD022AE6`
+    `5A99CFCDEDA3206D19D51884B44BF2D224259059967F44AB16315B2507D2437B`
   - Web POC:
-    `64A8C7D6DFE97B8BBBD0591CBABF1E538E082EC86AC4721D8350C97B64944A3E`
-- RC03 전체 debug 회귀 204 tasks, JVM 시험 50개, debug lint·APK,
+    `2E955D1DD52F5989DA3219C7F3FB5D2C8DC036FDAA2546A612F33FE315742CDD`
+- RC04 전체 debug 회귀 204 tasks, JVM 시험 50개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
-  - A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
-  - 최신 소스 기준 Web 33개, Kiosk 11개, 실패 0
-- 최신 소스는 A 설치본 뒤 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA
-  인코딩 경로 차단 보강 커밋이 추가됐다. 같은 versionCode로 A에 재설치하지
-  않고 다음 상위 버전에 포함한다.
+  - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
+  - RC04 기준 Web 33개, Kiosk 11개, 실패 0
+- 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
+  RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
+  사용자 복귀 뒤 수행한다.
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

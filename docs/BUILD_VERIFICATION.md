@@ -466,9 +466,8 @@ release RC02의 정의된 자동 검증, 핵심 정상 왕복, 비정상 Web 세
 
 - 실제 사이트의 자동 학습지 진입, 두 탭 제한, 문제 입력 확대와 오답 번호 요약은 미실기다.
 - 미리보기 없는 전면·후면 QR 분석 단독 바인딩, PDF Quick Share와 직접 프린터 실패 로그도 미실기다.
-- 최신 소스의 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로
-  차단은 A 설치 RC03보다 뒤의 커밋이며 다음 상위 versionCode 검증본에서
-  A에 반영한다.
+- 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단은 RC04에
+  포함해 아래와 같이 A에 반영했다.
 
 ### A 직접 인쇄 읽기 전용 진단
 
@@ -485,3 +484,63 @@ release RC02의 정의된 자동 검증, 핵심 정상 왕복, 비정상 Web 세
 방법으로 제거하고 대기열 비움을 확인한 다음, 새 시험 작업 한 건의 BIPS와
 Print Spooler 로그를 동시에 수집해야 정확한 원인을 확정할 수 있다. 프린터
 주소와 작업 ID는 문서·Git에 기록하지 않았다.
+
+---
+
+## RC04 무인 검증본 — 2026-07-25
+
+### 버전과 보강 범위
+
+- Kiosk `0.6.0-rc04`/code 9
+- Web POC `0.4.0-rc04`/code 21
+- RC03 뒤에 추가한 결과 페이지 선차폐, SPA 인코딩 경로 차단과 비대칭
+  프린터 DPI 계산을 포함
+
+### 자동 검증
+
+- 네 모듈 전체 debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release 빌드와 단위시험·release lint·서명 검사:
+  `BUILD SUCCESSFUL`, 158 tasks
+- Android 13 AOSP ATD 일회용 에뮬레이터 계측시험:
+  - Web POC 33개
+  - Kiosk 11개
+  - 총 44개, 실패 0
+
+### RC04 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc04-release.apk`
+  - 크기: 34,941,240 bytes
+  - SHA-256: `5A99CFCDEDA3206D19D51884B44BF2D224259059967F44AB16315B2507D2437B`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
+  - 크기: 3,080,480 bytes
+  - SHA-256: `2E955D1DD52F5989DA3219C7F3FB5D2C8DC036FDAA2546A612F33FE315742CDD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 대상: Samsung SM-P610, Android 13/API 33
+- 설치 전 ADB `device`, serial·모델, 배터리 100%·USB 전원, 설치 버전,
+  signer와 Device Owner를 읽기 전용으로 확인
+- Web POC, Kiosk 순서의 `adb install -r`: 둘 다 성공
+- 설치 후 A: Kiosk `0.6.0-rc04`/code 9,
+  Web POC `0.4.0-rc04`/code 21
+- 두 package UID, firstInstallTime, dataDir: RC03 설치 때와 동일
+- 설치된 두 APK signer: 보관 RC04와 일치
+- Device Owner:
+  `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver` 유지
+- 전용 HOME: `com.local.matholickiosk.kiosk/.MainActivity` 유지
+- Lock Task: `LOCKED` 유지
+- 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외: 없음
+- 설치 전부터 화면은 꺼져 있었고 설치 뒤에도 `mAwake=false`를 유지했다.
+  물리 화면을 깨우거나 관리자 PIN을 입력하지 않았으므로 현재 UI 상태는
+  확인하지 않았다.
+
+### 미검증
+
+- RC04 실제 사이트의 자동 학습지 진입, 두 탭 제한, 문제 입력 확대,
+  결과 상세 선차폐와 오답 번호 요약
+- 미리보기 없는 전면·후면 QR 분석과 실물 QR 왕복
+- PDF Quick Share, 65×90mm 카드·30×30mm QR 실제 크기와 종이 QR 재인식
+- 정체된 기존 인쇄 작업을 안전하게 제거한 뒤의 직접 인쇄 재시험
+- 관리자 PIN이 필요한 현재 UI 확인과 정상 `QR_READY` 복귀
