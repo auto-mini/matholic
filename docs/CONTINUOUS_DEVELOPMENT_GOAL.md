@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc05`/code 10
+  - Kiosk `0.6.0-rc06`/code 11
   - Web POC `0.4.0-rc04`/code 21
 - ADB: 2026-07-25 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC05 설치: 2026-07-25 `adb install -r`로 완료
+- A의 Kiosk RC06 설치: 2026-07-25 `adb install -r`로 완료
   - 설치 전후 package UID `10288`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -102,23 +102,24 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc05-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc06-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `345CE31E094860D9A7D104955DC86D7FD4126A616EB5F370E972563A7B35D326`
+    `522A668BBE70F87BA5B5D7677C59428D662A662D3F326EF64CA7DBD1939B0ACB`
   - Web POC:
     `2E955D1DD52F5989DA3219C7F3FB5D2C8DC036FDAA2546A612F33FE315742CDD`
-- 현재 보관 Web POC RC04는 같은 소스·버전·signer를 RC05 릴리스 파이프라인에서
+- 현재 보관 Web POC RC04는 같은 소스·버전·signer를 RC06 릴리스 파이프라인에서
   재빌드한 파일이며 SHA-256은
-  `759B7E1B2A7373F24BCA6363F133F13AF297ED37ABC3018CFF10E7428F9EE694`다.
+  `C0E48C5CD6128B18D5D45AC8080D576F0887E57451E13B3460A6A472D81B5311`다.
   A의 Web POC는 변경이 없어 다시 설치하지 않았다.
-- RC05 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
+- RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
   - RC04 기준 Web 33개, Kiosk 11개, 실패 0
   - RC05 Kiosk 14개, 실패 0
+  - RC06 Kiosk 16개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -138,7 +139,8 @@
   - 수정 전 신규 회귀시험 실패를 재현하고 수정 뒤 단일 시험 1개와 Kiosk
     전체 계측 15개 통과
   - 최신 소스 전체 debug 204 tasks, JVM 57개, 실패 0
-  - 아직 A에는 설치하지 않았으며 다음 상위 versionCode 검증본에 포함
+  - RC06에 포함해 A에 설치했으며 재시작 중 늦은 Web 결과 실기는 사용자
+    복귀 뒤 수행
 - 현재 수업 보강 학생 배치 원자성 커밋 `6da40a0`을 추가했다.
   - 학생별 반복 저장 중 후반 실패 시 앞 학생만 남는 부분 반영을 회귀시험으로
     재현
@@ -146,7 +148,8 @@
     트랜잭션에서 확인하고 전부 성공하거나 전부 롤백
   - 수정 전 신규 회귀시험 실패, 수정 뒤 단일 시험과 Kiosk 전체 계측 16개 통과
   - 최신 소스 전체 debug 204 tasks, JVM 57개, 실패 0
-  - 아직 A에는 설치하지 않았으며 다음 상위 versionCode 검증본에 포함
+  - RC06에 포함해 A에 설치했으며 현재 수업의 복수 보강 학생 추가 실기는
+    사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

@@ -740,8 +740,8 @@ Kiosk가 Web POC를 실행한 뒤 프로세스가 재시작되면 저장소는 �
 - 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
 - JVM 단위시험: 총 57개, 실패 0
 - 네 모듈 debug lint와 debug APK assemble: 성공
-- 이 보강은 A 설치 RC05 뒤의 소스다. 다음 상위 versionCode 검증본에
-  포함하기 전까지 A 실기에는 적용되지 않는다.
+- 이 보강은 아래 RC06에 포함해 A에 설치했다. 재시작 중 늦은 Web 결과 실기는
+  사용자 복귀 뒤 수행한다.
 
 ---
 
@@ -771,5 +771,72 @@ Kiosk가 Web POC를 실행한 뒤 프로세스가 재시작되면 저장소는 �
 - 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
 - JVM 단위시험: 총 57개, 실패 0
 - 네 모듈 debug lint와 debug APK assemble: 성공
-- 이 보강은 A 설치 RC05 뒤의 소스다. 다음 상위 versionCode 검증본에
-  포함하기 전까지 A 실기에는 적용되지 않는다.
+- 이 보강은 아래 RC06에 포함해 A에 설치했다. 현재 수업의 복수 보강 학생
+  추가 실기는 사용자 복귀 뒤 수행한다.
+
+---
+
+## RC06 상태 전이·보강 학생 원자성 검증본 — 2026-07-25
+
+### 버전과 포함 변경
+
+- Kiosk `0.6.0-rc06`/code 11
+- Web POC는 소스와 A 설치본 모두 `0.4.0-rc04`/code 21 유지
+- 포함 커밋:
+  - `4526072`: 재시작·중복 Web 결과의 상태 덮어쓰기 차단
+  - `6da40a0`: 현재 수업 보강 학생 배치 추가 원자성
+  - `fa9cb15`: RC06 versionCode와 릴리스 검증본
+
+### 자동 검증
+
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- JVM 단위시험: Probe 8, 잠긴 POC 1, Web POC 25, Kiosk 23;
+  총 57개, 실패 0
+- 네 모듈 debug lint와 debug APK assemble: 성공
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- Android 13 AOSP ATD 일회용 에뮬레이터 Kiosk 계측시험:
+  16개, 실패 0
+
+### RC06 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc06-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `522A668BBE70F87BA5B5D7677C59428D662A662D3F326EF64CA7DBD1939B0ACB`
+- 같은 파이프라인에서 재빌드한 Web POC RC04 보관본:
+  `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
+  - 크기: 3,080,480 bytes
+  - SHA-256:
+    `C0E48C5CD6128B18D5D45AC8080D576F0887E57451E13B3460A6A472D81B5311`
+  - A 설치 Web APK와 같은 소스·버전·signer지만 바이트 해시는 다르며,
+    Web은 변경이 없어 A에 다시 설치하지 않음
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc05`/code 10,
+  Web POC `0.4.0-rc04`/code 21
+- 정확한 serial·SM-P610 모델, ADB `device`, 배터리 100%·USB 전원,
+  화면 `Dozing`, 설치 버전·signer·Device Owner·HOME·Lock Task를 확인
+- Kiosk만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc06`/code 11,
+  Web POC `0.4.0-rc04`/code 21
+- Kiosk package UID `10288`, firstInstallTime와 dataDir: 설치 전후 동일
+- 설치된 Kiosk base APK와 RC06 보관본 SHA-256·release signer: 일치
+- Web POC UID·firstInstallTime·dataDir와 설치 버전: 변경 없음
+- Device Owner와 전용 HOME: 유지
+- 설치 직후 Kiosk 프로세스 종료로 Lock Task가 일시 `NONE`이었으나,
+  화면을 깨우지 않는 명시적 HOME 시작으로 프로세스와 `LOCKED` 복구
+- 설치 전후 화면: `Dozing` 유지
+- 최근 Matholic 관련 치명적 AndroidRuntime 예외: 없음
+
+### 미검증
+
+- 재시작 중 늦게 반환되는 Web 성공·실패 결과의 A 실기
+- 현재 수업에 복수 보강 학생 추가와 후반 실패의 A 실기
+- 관리자 PIN 입력 뒤 관리자 UI와 정상 `QR_READY` 복귀
+- 실제 사이트·카메라·PDF·직접 인쇄 실기
