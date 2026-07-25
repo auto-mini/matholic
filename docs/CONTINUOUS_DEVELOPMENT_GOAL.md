@@ -90,39 +90,47 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc04`/code 9
+  - Kiosk `0.6.0-rc05`/code 10
   - Web POC `0.4.0-rc04`/code 21
 - ADB: 2026-07-25 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC04 설치: 2026-07-25 `adb install -r`로 완료
-  - 설치 전후 package UID, firstInstallTime, dataDir 유지
-  - release signer, Device Owner, 전용 HOME과 Kiosk 실행 유지
-  - Lock Task `LOCKED` 유지
-  - 설치 전부터 화면은 꺼져 있었고 설치 뒤에도 `mAwake=false` 유지
-  - 사용자 부재로 화면을 깨우거나 관리자 PIN을 입력하지 않아 현재 UI는 미확인
-- 내부 보관 RC04:
-  - `artifacts/matholic-kiosk-0.6.0-rc04-release.apk`
+- A의 Kiosk RC05 설치: 2026-07-25 `adb install -r`로 완료
+  - 설치 전후 package UID `10288`, firstInstallTime, dataDir 유지
+  - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
+    깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
+  - release signer, Device Owner와 전용 HOME 유지
+  - 설치 전후 화면은 `Dozing`을 유지했고 관리자 PIN을 입력하지 않아 현재
+    물리 UI는 미확인
+  - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
+- 내부 보관 현재 검증 묶음:
+  - `artifacts/matholic-kiosk-0.6.0-rc05-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
-- A 설치 RC04 APK SHA-256:
+- A 설치 APK SHA-256:
   - Kiosk:
-    `5A99CFCDEDA3206D19D51884B44BF2D224259059967F44AB16315B2507D2437B`
+    `345CE31E094860D9A7D104955DC86D7FD4126A616EB5F370E972563A7B35D326`
   - Web POC:
     `2E955D1DD52F5989DA3219C7F3FB5D2C8DC036FDAA2546A612F33FE315742CDD`
-- RC04 전체 debug 회귀 204 tasks, JVM 시험 51개, debug lint·APK,
+- 현재 보관 Web POC RC04는 같은 소스·버전·signer를 RC05 릴리스 파이프라인에서
+  재빌드한 파일이며 SHA-256은
+  `759B7E1B2A7373F24BCA6363F133F13AF297ED37ABC3018CFF10E7428F9EE694`다.
+  A의 Web POC는 변경이 없어 다시 설치하지 않았다.
+- RC05 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
   - RC04 기준 Web 33개, Kiosk 11개, 실패 0
+  - RC05 Kiosk 14개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
-- RC04 설치 뒤 관리자 비동기 안전성 보강 커밋 `206b6e7`을 추가했다.
+- RC05에 RC04 설치 뒤의 관리자 안전성 보강을 포함해 A에 설치했다.
+  - 관리자 비동기 안전성 커밋 `206b6e7`
   - 반 전환 즉시 이전 명단 제거, 최신 조회 세대만 반영
   - Web 안전정리와 후속 수업 DB 반영의 중복 실행 차단
   - QR 폐기 확인과 학생 변경 단일 실행 커밋 `ea6ad72` 추가
   - 활성 반 이름 중복 차단 커밋 `461ccd3` 추가
   - 수업 저장소 불변조건 커밋 `8881cd8` 추가
   - 최신 소스 전체 debug 204 tasks, JVM 57개, Kiosk 계측 14개, 실패 0
-  - 아직 A에 설치하지 않았으며 다음 상위 versionCode 검증본에 포함
+  - 실제 관리자 화면과 빠른 연속 탭·수업 시작/종료 실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

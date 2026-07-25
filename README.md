@@ -1,21 +1,21 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)는 release signer 전용 Device Owner 기기다. RC02에서 QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 잠금과 재부팅 복구, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복을 통과했다. 현재는 기존 데이터와 Device Owner를 보존해 RC04를 설치했고 자동검증과 비대면 설치 후 검사를 통과했지만, RC04의 실제 사이트·카메라·PDF·인쇄 실기는 아직 수행하지 않았다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)는 release signer 전용 Device Owner 기기다. RC02에서 QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 잠금과 재부팅 복구, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복을 통과했다. 현재는 기존 데이터와 Device Owner를 보존해 Kiosk RC05와 Web POC RC04를 설치했고 자동검증과 비대면 설치 후 검사를 통과했지만, RC05의 실제 관리자 화면·사이트·카메라·PDF·인쇄 실기는 아직 수행하지 않았다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다.
 
 ## 현재 Gate
 
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. A 설치본은 `0.6.0-rc04`이며 현재 브랜치에는 다음 검증본용 관리자 비동기 안전성 보강이 추가돼 있다.
+- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스와 A 설치본은 `0.6.0-rc05`이며 관리자 비동기 단일 실행, QR 재발급 확인, 중복 반 이름 차단과 수업 저장소 불변조건을 포함한다.
 - `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스와 A 설치본은 `0.4.0-rc04`다.
-- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 정의된 운영 인수시험을 완료했고 RC04는 자동검증·보존형 설치까지 완료했다.
+- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 정의된 운영 인수시험을 완료했고 Kiosk RC05/Web POC RC04 조합은 자동검증·보존형 설치까지 완료했다.
 
 RC03부터 학생 마스터 목록과 다중 반 소속, 학생을 보존하는 반 삭제,
 65×90mm 세로 카드·30×30mm QR PDF 공유, 카메라 미리보기 비표시,
 학습지 자동 진입·진단평가 전환, 문제 입력 확대와 오답 번호 전용 결과 화면이
 포함된다. RC03 이력은 [docs/RC03_USABILITY.md](docs/RC03_USABILITY.md)에,
-RC04와 이후 소스 검증은 [docs/BUILD_VERIFICATION.md](docs/BUILD_VERIFICATION.md)에
+RC04·RC05와 이후 소스 검증은 [docs/BUILD_VERIFICATION.md](docs/BUILD_VERIFICATION.md)에
 구분해 기록한다.
 
 ## 확인된 대상

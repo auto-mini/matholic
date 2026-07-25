@@ -581,9 +581,8 @@ Print Spooler 로그를 동시에 수집해야 정확한 원인을 확정할 수
 
 ### 배포 상태
 
-이 보강은 A 설치 RC04 뒤의 소스다. 같은 versionCode의 APK를 다시 설치하지
-않고 다음 상위 versionCode 검증본에 포함한다. 따라서 A에서 빠른 반 전환과
-Web 안전정리 중 연속 탭 실기는 아직 미수행이다.
+이 보강은 아래 RC05에 포함해 A에 설치했다. A에서 빠른 반 전환과 Web
+안전정리 중 연속 탭 실기는 아직 미수행이다.
 
 ### QR 폐기 확인과 학생 변경 단일 실행
 
@@ -601,8 +600,8 @@ Web 안전정리 중 연속 탭 실기는 아직 미수행이다.
   12개, 실패 0
   - 새 회귀시험은 재발급 버튼만 눌렀을 때 저장된 QR hash가 바뀌지 않음을 확인
 
-이 변경도 A 설치 RC04 뒤의 소스이므로 실제 관리자 화면의 확인 문구와 연속
-탭 동작은 다음 상위 검증본 설치 뒤 확인한다.
+이 변경도 아래 RC05에 포함해 A에 설치했다. 실제 관리자 화면의 확인 문구와
+연속 탭 동작은 사용자 복귀 뒤 확인한다.
 
 ### 활성 반 이름 중복 차단
 
@@ -619,7 +618,7 @@ Web 안전정리 중 연속 탭 실기는 아직 미수행이다.
   13개, 실패 0
 
 기존 A 데이터에 이미 같은 이름의 활성 반이 있는지는 화면을 깨우지 않고
-확인하지 않았다. 새 중복 생성 차단은 다음 상위 검증본 설치 뒤 적용된다.
+확인하지 않았다. 새 중복 생성 차단은 아래 RC05 설치본부터 적용된다.
 
 ### 수업 저장소 불변조건
 
@@ -636,5 +635,76 @@ Web 안전정리 중 연속 탭 실기는 아직 미수행이다.
 - Android 13 AOSP ATD 일회용 에뮬레이터 Kiosk 계측시험:
   14개, 실패 0
 
-이 저장소 제약은 다음 상위 검증본에 포함되며, A 설치 RC04의 실제 관리자
-수업 시작·종료 회귀는 사용자 복귀 뒤 수행한다.
+이 저장소 제약은 아래 RC05에 포함해 A에 설치했다. 실제 관리자 수업
+시작·종료 회귀는 사용자 복귀 뒤 수행한다.
+
+---
+
+## RC05 관리자 안전성 검증본 — 2026-07-25
+
+### 버전과 포함 변경
+
+- Kiosk `0.6.0-rc05`/code 10
+- Web POC는 소스와 A 설치본 모두 `0.4.0-rc04`/code 21 유지
+- 포함 커밋:
+  - `206b6e7`: 관리자 명단 조회 세대와 수업 Web 작업 단일 실행
+  - `ea6ad72`: QR 폐기 확인과 학생 변경 단일 실행
+  - `461ccd3`: 활성 반 이름 중복 차단
+  - `8881cd8`: 수업 시작·종료 저장소 불변조건
+  - `0025029`: RC05 versionCode와 릴리스 검증본
+
+### 자동 검증
+
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- JVM 단위시험: Probe 8, 잠긴 POC 1, Web POC 25, Kiosk 23;
+  총 57개, 실패 0
+- 네 모듈 debug lint와 debug APK assemble: 성공
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- Android 13 AOSP ATD 일회용 에뮬레이터 Kiosk 계측시험:
+  14개, 실패 0
+
+### RC05 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc05-release.apk`
+  - 크기: 34,941,244 bytes
+  - SHA-256:
+    `345CE31E094860D9A7D104955DC86D7FD4126A616EB5F370E972563A7B35D326`
+- 같은 파이프라인에서 재빌드한 Web POC RC04 보관본:
+  `artifacts/matholic-webpoc-0.4.0-rc04-release.apk`
+  - 크기: 3,080,480 bytes
+  - SHA-256:
+    `759B7E1B2A7373F24BCA6363F133F13AF297ED37ABC3018CFF10E7428F9EE694`
+  - 같은 소스·버전·release signer지만 A 설치 Web APK의 바이트 해시와는
+    다르며, Web은 변경이 없어 A에 다시 설치하지 않음
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc04`/code 9,
+  Web POC `0.4.0-rc04`/code 21
+- 정확한 serial·SM-P610 모델, ADB `device`, 배터리 100%·USB 전원,
+  화면 `Dozing`, 설치 버전·signer·Device Owner·HOME·Lock Task를 확인
+- Kiosk만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc05`/code 10,
+  Web POC `0.4.0-rc04`/code 21
+- Kiosk package UID `10288`, firstInstallTime와 dataDir: 설치 전후 동일
+- 설치된 Kiosk base APK와 RC05 보관본 SHA-256·release signer: 일치
+- Web POC UID·firstInstallTime·dataDir와 설치 버전: 변경 없음
+- Device Owner와 전용 HOME: 유지
+- 설치 직후 Kiosk 프로세스가 종료돼 Lock Task가 일시 `NONE`이었으나,
+  화면을 깨우지 않는 명시적 HOME 시작으로 프로세스와 `LOCKED` 복구
+- 설치 전후 화면: `Dozing` 유지
+- 최근 Matholic 관련 치명적 AndroidRuntime 예외: 없음
+
+### 미검증
+
+- 관리자 PIN 입력 뒤 RC05 관리자 화면의 확인 문구·버튼 활성 조건
+- 빠른 반 전환, 학생 변경·QR 재발급 연속 탭과 중복 반 이름 실기
+- 기존 A 데이터의 중복 활성 반 이름 존재 여부
+- 실제 수업 시작·종료와 Web 안전정리 회귀
+- RC04에서 이어진 실제 사이트·카메라·PDF·직접 인쇄 실기
+- 현재 물리 화면 상태와 정상 `QR_READY` 복귀
