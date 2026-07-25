@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
     private var students: List<StudentChoice> = emptyList()
     private val classRosterState = ClassRosterSelectionState()
     private val webRecoveryGate = SingleFlightGate()
+    private val studentMutationGate = SingleFlightGate()
     private var issuedQrPreview: QrPreview? = null
     private var currentSession: ActiveSessionEntity? = null
     private var pendingTemporaryStudentIds: Set<String> = emptySet()
@@ -309,7 +310,7 @@ class MainActivity : ComponentActivity() {
         registerStudentButton.setOnClickListener { showRegisterStudentDialog() }
         manageClassMembersButton.setOnClickListener { showClassMembershipDialog() }
         deleteClassButton.setOnClickListener { confirmDeleteClass() }
-        reissueQrButton.setOnClickListener { reissueQr() }
+        reissueQrButton.setOnClickListener { confirmReissueQr() }
         updateProfileButton.setOnClickListener { showUpdateStudentNameDialog() }
         updateCredentialsButton.setOnClickListener { showUpdateCredentialsDialog() }
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
@@ -521,6 +522,7 @@ class MainActivity : ComponentActivity() {
         message: String? = null,
         preferredClassId: String? = classes.getOrNull(classSpinner.selectedItemPosition)?.id,
         preferredStudentId: String? = students.getOrNull(studentSpinner.selectedItemPosition)?.id,
+        completeStudentMutationAfterLoad: Boolean = false,
     ) {
         ioExecutor.execute {
             val loadedClasses = studentRepository.listClasses()
@@ -559,7 +561,9 @@ class MainActivity : ComponentActivity() {
                     .takeIf { it >= 0 }
                     ?.let(studentSpinner::setSelection)
                 suppressClassSelectionCallback = false
+                if (completeStudentMutationAfterLoad) studentMutationGate.finish()
                 updateSessionAdminControls(session)
+                updateStudentManagementControls()
                 updateClassRosterUi()
                 adminMessage.text = message.orEmpty()
             }
@@ -788,7 +792,11 @@ class MainActivity : ComponentActivity() {
         username: CharArray,
         password: CharArray,
     ) {
-        adminMessage.text = "학생 정보 암호화 등록 중"
+        if (!beginStudentMutation("학생 정보 암호화 등록 중")) {
+            username.fill('\u0000')
+            password.fill('\u0000')
+            return
+        }
         ioExecutor.execute {
             val result = runCatching {
                 val registered = studentRepository.registerStudent(
@@ -816,9 +824,11 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "학생을 등록하고 QR을 발급했습니다. 반 학생 구성에서 소속 반을 선택하세요.",
                             preferredStudentId = preview.studentId,
+                            completeStudentMutationAfterLoad = true,
                         )
                     },
                     onFailure = {
+                        finishStudentMutation()
                         username.fill('\u0000')
                         password.fill('\u0000')
                         adminMessage.text = it.message ?: "학생 등록 실패"
@@ -828,13 +838,25 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun reissueQr() {
+    private fun confirmReissueQr() {
         val selected = students.getOrNull(studentSpinner.selectedItemPosition)
         if (selected == null) {
             adminMessage.text = "학생을 선택하세요."
             return
         }
-        adminMessage.text = "기존 QR 폐기 및 재발급 중"
+        AlertDialog.Builder(this)
+            .setTitle("QR 폐기·재발급")
+            .setMessage(
+                "${selected.label} 학생의 기존 QR은 즉시 사용할 수 없게 됩니다.\n" +
+                    "새 QR을 안전하게 저장하거나 인쇄하기 전에는 되돌릴 수 없습니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("기존 QR 폐기·재발급") { _, _ -> reissueQr(selected) }
+            .show()
+    }
+
+    private fun reissueQr(selected: StudentChoice) {
+        if (!beginStudentMutation("기존 QR 폐기 및 재발급 중")) return
         ioExecutor.execute {
             val result = runCatching {
                 val issued = studentRepository.reissueQr(selected.id)
@@ -851,10 +873,14 @@ class MainActivity : ComponentActivity() {
                 }
                 result.fold(
                     onSuccess = { preview ->
+                        finishStudentMutation()
                         showQrPreview(preview)
                         adminMessage.text = "기존 QR을 폐기하고 새 QR을 발급했습니다."
                     },
-                    onFailure = { adminMessage.text = it.message ?: "QR 재발급 실패" },
+                    onFailure = {
+                        finishStudentMutation()
+                        adminMessage.text = it.message ?: "QR 재발급 실패"
+                    },
                 )
             }
         }
@@ -894,7 +920,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateStudentName(selected: StudentChoice, exactName: String) {
-        adminMessage.text = "학생 표시명 수정 중"
+        if (!beginStudentMutation("학생 표시명 수정 중")) return
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.updateStudentProfile(
@@ -910,9 +936,13 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "학생 표시명을 수정했습니다. 이름이 적힌 카드는 QR을 재발급해 다시 인쇄하세요.",
                             preferredStudentId = selected.id,
+                            completeStudentMutationAfterLoad = true,
                         )
                     },
-                    onFailure = { adminMessage.text = it.message ?: "학생 표시명 수정 실패" },
+                    onFailure = {
+                        finishStudentMutation()
+                        adminMessage.text = it.message ?: "학생 표시명 수정 실패"
+                    },
                 )
             }
         }
@@ -979,7 +1009,11 @@ class MainActivity : ComponentActivity() {
         username: CharArray,
         password: CharArray,
     ) {
-        adminMessage.text = "학생 계정정보 재암호화 중"
+        if (!beginStudentMutation("학생 계정정보 재암호화 중")) {
+            username.fill('\u0000')
+            password.fill('\u0000')
+            return
+        }
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.updateStudentCredentials(
@@ -995,9 +1029,11 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "학생 계정정보를 새 IV로 암호화해 갱신했습니다. 기존 QR은 그대로 유효합니다.",
                             preferredStudentId = selected.id,
+                            completeStudentMutationAfterLoad = true,
                         )
                     },
                     onFailure = {
+                        finishStudentMutation()
                         username.fill('\u0000')
                         password.fill('\u0000')
                         adminMessage.text = it.message ?: "학생 계정정보 갱신 실패"
@@ -1025,7 +1061,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun deactivateStudent(selected: StudentChoice) {
-        adminMessage.text = "학생 비활성화 및 QR 폐기 중"
+        if (!beginStudentMutation("학생 비활성화 및 QR 폐기 중")) return
         ioExecutor.execute {
             val result = runCatching { studentRepository.deactivateStudent(selected.id) }
             runOnUiThread {
@@ -1036,12 +1072,42 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "${selected.label} 학생을 비활성화하고 QR을 폐기했습니다.",
                             preferredStudentId = null,
+                            completeStudentMutationAfterLoad = true,
                         )
                     },
-                    onFailure = { adminMessage.text = it.message ?: "학생 비활성화 실패" },
+                    onFailure = {
+                        finishStudentMutation()
+                        adminMessage.text = it.message ?: "학생 비활성화 실패"
+                    },
                 )
             }
         }
+    }
+
+    private fun beginStudentMutation(message: String): Boolean {
+        if (!studentMutationGate.tryStart()) {
+            adminMessage.text = "다른 학생 정보 변경을 처리하고 있습니다."
+            return false
+        }
+        adminMessage.text = message
+        updateStudentManagementControls()
+        return true
+    }
+
+    private fun finishStudentMutation() {
+        studentMutationGate.finish()
+        updateStudentManagementControls()
+    }
+
+    private fun updateStudentManagementControls() {
+        val available = !studentMutationGate.isActive
+        val hasStudents = students.isNotEmpty()
+        studentSpinner.isEnabled = available && hasStudents
+        registerStudentButton.isEnabled = available
+        reissueQrButton.isEnabled = available && hasStudents
+        updateProfileButton.isEnabled = available && hasStudents
+        updateCredentialsButton.isEnabled = available && hasStudents
+        deactivateStudentButton.isEnabled = available && hasStudents
     }
 
     private fun confirmQrPrint() {
