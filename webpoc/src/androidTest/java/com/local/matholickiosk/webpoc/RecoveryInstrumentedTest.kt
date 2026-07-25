@@ -1,6 +1,9 @@
 package com.local.matholickiosk.webpoc
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebSettings
@@ -63,6 +66,25 @@ class RecoveryInstrumentedTest {
             TimeUnit.SECONDS.sleep(2)
             assertEquals(WebPocState.LOCKED, readState())
         }
+    }
+
+    @Test
+    fun untrustedSecureSessionCallerIsRejectedWithoutChangingPersistedState() {
+        writeState(WebPocState.IDLE)
+        val intent = Intent(context, MainActivity::class.java)
+            .setAction(ACTION_START_SECURE_SESSION)
+            .setData(Uri.parse("content://$CREDENTIAL_BRIDGE_AUTHORITY/v1/untrusted"))
+
+        ActivityScenario.launchActivityForResult<MainActivity>(intent).use { scenario ->
+            val result = scenario.result
+            assertEquals(Activity.RESULT_CANCELED, result.resultCode)
+            assertEquals(
+                "SECURE_SESSION_CALLER",
+                result.resultData?.getStringExtra(EXTRA_FAILURE_REASON),
+            )
+        }
+
+        assertEquals(WebPocState.IDLE, readState())
     }
 
     @Test
@@ -387,6 +409,11 @@ class RecoveryInstrumentedTest {
         const val KEY_REASON = "reason"
         const val KEY_GATE3_STATUS = "gate3_status"
         const val KEY_GATE3_COMPLETED = "gate3_completed"
+        const val ACTION_START_SECURE_SESSION =
+            "com.local.matholickiosk.action.START_SECURE_WEB_SESSION"
+        const val CREDENTIAL_BRIDGE_AUTHORITY =
+            "com.local.matholickiosk.kiosk.credentials"
+        const val EXTRA_FAILURE_REASON = "failure_reason"
         const val UI_TIMEOUT_SECONDS = 10L
         const val TIMEOUT_SECONDS = 40L
     }

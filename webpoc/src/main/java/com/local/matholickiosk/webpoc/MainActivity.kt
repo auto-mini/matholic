@@ -218,6 +218,10 @@ class MainActivity : Activity() {
     private fun beginSecureKioskSession(launchIntent: Intent) {
         if (secureKioskSession || secureResultDelivered || adminRecoverySession) return
         secureKioskSession = true
+        if (!isTrustedKioskCaller()) {
+            finishSecureKioskSessionWithFailure("SECURE_SESSION_CALLER")
+            return
+        }
         val savedState = preferences.getString(KEY_STATE, WebPocState.IDLE.name)
             ?.let { runCatching { WebPocState.valueOf(it) }.getOrNull() }
             ?: WebPocState.RECOVERY_REQUIRED
