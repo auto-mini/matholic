@@ -268,6 +268,60 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceRejectsFragmentSelectedSpaView() {
+        withFixture(
+            "https://im.matholic.com/workbook#/course",
+            """
+            <!doctype html><html><body>
+              <h2>학습지처럼 보이는 다른 SPA 화면</h2>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertFalse(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+        }
+    }
+
+    @Test
+    fun testStudentNavigationGuardRejectsFragmentOnlyRoute() {
+        withFixture(
+            "https://im.matholic.com/workbook",
+            """
+            <!doctype html><html><body>
+              <a id="fragment-route" href="/workbook#/course">다른 SPA 화면</a>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+                  document.getElementById('fragment-route').dispatchEvent(event);
+                  return JSON.stringify({ prevented: event.defaultPrevented });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("prevented"))
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryRejectsFragmentSelectedSpaView() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual#/analysis",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>3번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertFalse(evaluate(webView, WebDomScripts.wrongAnswerSummary).getBoolean("ok"))
+        }
+    }
+
+    @Test
     fun testWrongAnswerSummaryReturnsOnlyVerifiedProblemNumbers() {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",

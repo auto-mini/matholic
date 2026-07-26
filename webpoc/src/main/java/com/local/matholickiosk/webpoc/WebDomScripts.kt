@@ -242,6 +242,7 @@ object WebDomScripts {
           };
           const rawPath = location.pathname || '';
           const path = safeStudentPath(rawPath);
+          const hasFragment = location.href.includes('#');
           const isWorkbook = path !== null &&
             (path === '/workbook' || path.startsWith('/workbook/'));
           const isDiagnostic = path !== null &&
@@ -249,6 +250,7 @@ object WebDomScripts {
           const isLearning = path !== null && path.startsWith('/learningV2/');
           const allowed = location.protocol === 'https:' &&
             location.hostname === 'im.matholic.com' &&
+            !hasFragment &&
             path !== null &&
             (isWorkbook || isDiagnostic || isLearning);
           if (!allowed) {
@@ -390,7 +392,9 @@ object WebDomScripts {
               if (!anchor) return;
               try {
                 const target = new URL(anchor.href, location.href);
-                if (target.protocol !== 'https:' || target.hostname !== 'im.matholic.com') {
+                if (target.protocol !== 'https:' ||
+                    target.hostname !== 'im.matholic.com' ||
+                    target.href.includes('#')) {
                   event.preventDefault();
                   event.stopImmediatePropagation();
                   return;
@@ -437,6 +441,7 @@ object WebDomScripts {
           };
           const rawPath = location.pathname || '';
           const path = safeStudentPath(rawPath);
+          const hasFragment = location.href.includes('#');
           const normalize = value =>
             (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
           const visible = element => {
@@ -451,6 +456,7 @@ object WebDomScripts {
           if (
             location.protocol !== 'https:' ||
             location.hostname !== 'im.matholic.com' ||
+            hasFragment ||
             path === null ||
             !path.startsWith('/learningV2/')
           ) return JSON.stringify(base);

@@ -46,6 +46,7 @@ object StudentWebPolicy {
     }
 
     private fun safePath(uri: URI): String? {
+        if (uri.rawFragment != null) return null
         val rawPath = uri.rawPath ?: return null
         if (ambiguousEscape.containsMatchIn(rawPath)) return null
         val path = uri.path ?: return null

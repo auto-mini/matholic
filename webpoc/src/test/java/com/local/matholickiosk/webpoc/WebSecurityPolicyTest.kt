@@ -65,4 +65,25 @@ class WebSecurityPolicyTest {
             assertTrue(url, WebSecurityPolicy.pathOf(url) == null)
         }
     }
+
+    @Test
+    fun `student routes reject fragments that can select a different SPA view`() {
+        val rejected = listOf(
+            "https://im.matholic.com/workbook#/course",
+            "https://im.matholic.com/diagnostic#userInfo",
+            "https://im.matholic.com/learningV2/answer/123#../course",
+            "https://im.matholic.com/workbook#",
+        )
+
+        rejected.forEach { url ->
+            assertFalse(url, WebSecurityPolicy.isAllowedStudentUrl(url))
+            assertTrue(url, WebSecurityPolicy.pathOf(url) == null)
+        }
+
+        assertTrue(
+            WebSecurityPolicy.isAllowedStudentUrl(
+                "https://im.matholic.com/workbook?tab=assigned&id=1",
+            ),
+        )
+    }
 }
