@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc08`/code 13
-  - Web POC `0.4.0-rc07`/code 24
+  - Web POC `0.4.0-rc08`/code 25
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC08/RC07 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC08/RC08 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -103,12 +103,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc07-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc08-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
   - Web POC:
-    `1B7995D52FBF969757BE0E29258A38862CB1ADB449B8939601AD5ACFF3B3731A`
+    `AEFE475F1B9AED658FDE6F2DDC32D4CC1DDAEC5DE83E34DACA48C8384BC8E3C1`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -120,6 +120,7 @@
   - secure session 전송 복구 기준 Web 34개, Kiosk 16개, 실패 0
   - QR PDF 공유 권한 보강 기준 Kiosk 17개, 실패 0
   - fragment SPA 경로 차단 기준 Web 37개, 실패 0
+  - 로그인 form endpoint 검증 기준 Web 39개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -220,6 +221,23 @@
   - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC08,
     Device Owner, HOME, `LOCKED`, 화면 `Dozing` 유지; crash 일치 항목 0
   - 실제 사이트의 정상 query 경로와 fragment 차단 실기는 사용자 복귀 뒤 수행
+- Web 로그인 form endpoint 검증 커밋 `95c7d23`을 추가하고 Web POC RC08로
+  A에 설치했다.
+  - 기존 DOM sanitizer와 실제 submit은 protocol·hostname·path만 확인해
+    비표준 port, userinfo, query와 fragment가 붙은 인증 endpoint도 허용
+  - 수정 전 신규 Web DOM 계측 20개 중 변형 endpoint 거부와 자격정보
+    미입력 시험 2개 실패를 재현
+  - 정확한 HTTPS 인증 host의 기본 port·`/token/signin`, 빈
+    username·password·query·fragment일 때만 form을 사용하도록 실패폐쇄
+  - 수정 뒤 대상 계측 20개와 Web 전체 계측 39개, JVM 59개, 전체 clean
+    debug 204 tasks, release 158 tasks와 APK 이중 검증 통과
+  - Web RC08 보관본 크기 3,082,472 bytes, SHA-256
+    `AEFE475F1B9AED658FDE6F2DDC32D4CC1DDAEC5DE83E34DACA48C8384BC8E3C1`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC08,
+    release signer, Device Owner, HOME, `LOCKED`, 화면 `Dozing` 유지;
+    crash 일치 항목 0
+  - 실제 공개 사이트의 로그인 form endpoint와 QR→Web→QR 왕복은 사용자
+    복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
