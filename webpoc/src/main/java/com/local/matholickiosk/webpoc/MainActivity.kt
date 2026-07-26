@@ -402,8 +402,7 @@ class MainActivity : Activity() {
                     url != null &&
                     !WebSecurityPolicy.isAllowedStudentUrl(url)
                 ) {
-                    view?.stopLoading()
-                    view?.loadUrl(lastAllowedStudentUrl)
+                    restoreStudentPageOrLock(view)
                     return
                 }
                 if (
@@ -520,6 +519,16 @@ class MainActivity : Activity() {
             // A dead renderer must not prevent the fail-closed state transition.
         }
         showLocked(reason)
+    }
+
+    private fun restoreStudentPageOrLock(view: WebView?) {
+        try {
+            val activeWebView = checkNotNull(view) { "WebView is unavailable" }
+            activeWebView.stopLoading()
+            activeWebView.loadUrl(lastAllowedStudentUrl)
+        } catch (_: RuntimeException) {
+            showLocked("NAVIGATION_BLOCKED")
+        }
     }
 
     private fun configureActions() {
@@ -909,8 +918,7 @@ class MainActivity : Activity() {
 
     private fun handleActiveStudentPage(url: String) {
         if (!WebSecurityPolicy.isAllowedStudentUrl(url)) {
-            webView.stopLoading()
-            webView.loadUrl(lastAllowedStudentUrl)
+            restoreStudentPageOrLock(webViewReference)
             return
         }
         cancelTimeout()

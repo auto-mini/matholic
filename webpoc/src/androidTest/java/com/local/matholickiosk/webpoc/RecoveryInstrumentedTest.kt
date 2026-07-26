@@ -184,6 +184,38 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun studentNavigationRestoreFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val client = activity.findViewById<WebView>(R.id.web_view).webViewClient
+                val replacement = ThrowingFirstLoadUrlWebView(activity)
+                replaceWebView(activity, replacement)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+
+                assertTrue(
+                    runCatching {
+                        client.onPageStarted(
+                            replacement,
+                            WebSecurityPolicy.COURSE_URL,
+                            null,
+                        )
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("NAVIGATION_BLOCKED", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
     fun rendererCrashRemovesUnusableWebViewAndFailsClosed() {
         writeState(WebPocState.IDLE)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -619,6 +651,17 @@ class RecoveryInstrumentedTest {
 
         fun deliver(raw: String) {
             checkNotNull(pendingCallback).onReceiveValue(raw)
+        }
+    }
+
+    private class ThrowingFirstLoadUrlWebView(context: Context) : WebView(context) {
+        private var loadAttempts = 0
+
+        override fun loadUrl(url: String) {
+            loadAttempts += 1
+            if (loadAttempts == 1) {
+                throw IllegalStateException("synthetic navigation restore failure")
+            }
         }
     }
 
