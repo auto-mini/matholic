@@ -188,6 +188,78 @@ class MainActivityInstrumentedTest {
         database.clearAllTables()
     }
 
+    @Test
+    fun failedRosterRefreshIsNotRenderedAsEmptyAndDisablesClassActions() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        repository.createClass("가상반-소속-A")
+        repository.createClass("가상반-소속-B")
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            }
+            scenario.onActivity { activity ->
+                activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                    .setText("654321")
+                activity.findViewById<View>(R.id.auth_submit).performClick()
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                    activity.findViewById<android.widget.Spinner>(R.id.class_spinner).count == 2 &&
+                    activity.findViewById<android.widget.TextView>(R.id.class_roster_text)
+                        .text
+                        .toString() != "소속 학생 불러오는 중"
+            }
+
+            val repositoryField = MainActivity::class.java
+                .getDeclaredField("studentRepository")
+                .apply { isAccessible = true }
+            lateinit var originalRepository: StudentRepository
+            try {
+                scenario.onActivity { activity ->
+                    originalRepository = repositoryField.get(activity) as StudentRepository
+                    repositoryField.set(activity, null)
+                    val spinner =
+                        activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                    spinner.setSelection(if (spinner.selectedItemPosition == 0) 1 else 0)
+                }
+
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.class_roster_text)
+                        .text
+                        .toString() == "소속 학생을 불러오지 못했습니다."
+                }
+                scenario.onActivity { activity ->
+                    assertFalse(
+                        activity.findViewById<View>(R.id.manage_class_members_button).isEnabled,
+                    )
+                    assertFalse(activity.findViewById<View>(R.id.delete_class_button).isEnabled)
+                    assertFalse(activity.findViewById<View>(R.id.add_temporary_button).isEnabled)
+                    assertFalse(activity.findViewById<View>(R.id.start_session_button).isEnabled)
+                    assertEquals(
+                        "반 소속 학생을 불러오지 못했습니다. 관리자 화면을 다시 열어 재시도하세요.",
+                        activity.findViewById<android.widget.TextView>(R.id.admin_message)
+                            .text
+                            .toString(),
+                    )
+                }
+            } finally {
+                scenario.onActivity { activity ->
+                    repositoryField.set(activity, originalRepository)
+                }
+            }
+        }
+        database.clearAllTables()
+    }
+
     private fun waitUntil(
         scenario: ActivityScenario<MainActivity>,
         timeoutMillis: Long = 15_000,

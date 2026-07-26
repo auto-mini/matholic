@@ -791,16 +791,29 @@ class MainActivity : ComponentActivity() {
         request: ClassRosterSelectionState.LoadRequest,
     ) {
         ioExecutor.execute {
-            val membershipIds = runCatching {
+            val result = runCatching {
                 studentRepository.membershipStudentIds(request.classId)
-            }.getOrDefault(emptySet())
+            }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                if (!classRosterState.apply(request, membershipIds)) {
-                    return@runOnUiThread
-                }
-                pendingTemporaryStudentIds -= membershipIds
-                updateClassRosterUi()
+                result.fold(
+                    onSuccess = { membershipIds ->
+                        if (!classRosterState.apply(request, membershipIds)) {
+                            return@runOnUiThread
+                        }
+                        pendingTemporaryStudentIds -= membershipIds
+                        updateClassRosterUi()
+                    },
+                    onFailure = {
+                        if (!classRosterState.fail(request)) {
+                            return@runOnUiThread
+                        }
+                        pendingTemporaryStudentIds = emptySet()
+                        updateClassRosterUi()
+                        adminMessage.text =
+                            "반 소속 학생을 불러오지 못했습니다. 관리자 화면을 다시 열어 재시도하세요."
+                    },
+                )
             }
         }
     }
@@ -813,12 +826,15 @@ class MainActivity : ComponentActivity() {
         classRosterText.text = when {
             selectedClass == null -> "반을 먼저 생성하세요."
             classRosterState.isLoading -> "소속 학생 불러오는 중"
+            classRosterState.hasLoadFailure -> "소속 학생을 불러오지 못했습니다."
             memberNames.isEmpty() -> "소속 학생 없음"
             else -> "소속 ${memberNames.size}명 · ${memberNames.joinToString(", ")}"
         }
         val activeClassId = currentSession?.classId
         val classAvailable = selectedClass != null
-        val classReady = classAvailable && !classRosterState.isLoading
+        val classReady = classAvailable &&
+            !classRosterState.isLoading &&
+            !classRosterState.hasLoadFailure
         manageClassMembersButton.isEnabled = classReady && currentSession?.sessionId == null
         deleteClassButton.isEnabled = classReady &&
             (currentSession?.sessionId == null || activeClassId != selectedClass?.id)

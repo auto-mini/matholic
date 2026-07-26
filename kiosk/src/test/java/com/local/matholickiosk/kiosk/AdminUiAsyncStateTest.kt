@@ -40,6 +40,34 @@ class AdminUiAsyncStateTest {
         assertTrue(state.apply(request, setOf("student-b")))
         assertEquals(setOf("student-b"), state.membershipStudentIds)
         assertFalse(state.isLoading)
+        assertFalse(state.hasLoadFailure)
+    }
+
+    @Test
+    fun currentRosterFailureCannotMasqueradeAsAnEmptyRoster() {
+        val state = ClassRosterSelectionState()
+        val request = requireNotNull(state.select("class-b"))
+
+        assertTrue(state.fail(request))
+        assertEquals("class-b", state.selectedClassId)
+        assertTrue(state.membershipStudentIds.isEmpty())
+        assertFalse(state.isLoading)
+        assertTrue(state.hasLoadFailure)
+    }
+
+    @Test
+    fun lateRosterFailureCannotBreakTheCurrentClassLoad() {
+        val state = ClassRosterSelectionState()
+        val staleRequest = requireNotNull(state.select("class-a"))
+        val currentRequest = requireNotNull(state.select("class-b"))
+
+        assertFalse(state.fail(staleRequest))
+        assertEquals("class-b", state.selectedClassId)
+        assertTrue(state.isLoading)
+        assertFalse(state.hasLoadFailure)
+        assertTrue(state.apply(currentRequest, setOf("student-b")))
+        assertEquals(setOf("student-b"), state.membershipStudentIds)
+        assertFalse(state.hasLoadFailure)
     }
 
     @Test

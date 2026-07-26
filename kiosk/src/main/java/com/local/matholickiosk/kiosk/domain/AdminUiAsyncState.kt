@@ -19,16 +19,23 @@ internal class ClassRosterSelectionState {
     var isLoading: Boolean = false
         private set
 
+    var hasLoadFailure: Boolean = false
+        private set
+
     private var generation: Long = 0
     private var selectionRevision: Long = 0
 
     fun select(classId: String?): LoadRequest? {
-        if (classId == selectedClassId) return null
+        val selectionChanged = classId != selectedClassId
+        if (!selectionChanged && !hasLoadFailure) return null
         generation += 1
-        selectionRevision += 1
+        if (selectionChanged) {
+            selectionRevision += 1
+        }
         selectedClassId = classId
         membershipStudentIds = emptySet()
         isLoading = classId != null
+        hasLoadFailure = false
         return classId?.let { LoadRequest(it, generation) }
     }
 
@@ -40,6 +47,7 @@ internal class ClassRosterSelectionState {
         selectedClassId = classId
         membershipStudentIds = studentIds.toSet()
         isLoading = false
+        hasLoadFailure = false
     }
 
     fun snapshotSelection(): SelectionSnapshot =
@@ -65,6 +73,15 @@ internal class ClassRosterSelectionState {
         if (request.generation != generation || request.classId != selectedClassId) return false
         membershipStudentIds = studentIds.toSet()
         isLoading = false
+        hasLoadFailure = false
+        return true
+    }
+
+    fun fail(request: LoadRequest): Boolean {
+        if (request.generation != generation || request.classId != selectedClassId) return false
+        membershipStudentIds = emptySet()
+        isLoading = false
+        hasLoadFailure = true
         return true
     }
 
@@ -73,6 +90,7 @@ internal class ClassRosterSelectionState {
         generation += 1
         membershipStudentIds = studentIds.toSet()
         isLoading = false
+        hasLoadFailure = false
         return true
     }
 }
