@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc24`/code 29
+  - Kiosk `0.6.0-rc25`/code 30
   - Web POC `0.4.0-rc15`/code 32
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC24/RC15 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC25/RC15 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,11 +104,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc24-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc25-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `2B7D7B95746E906D4E32D598C3CF673B85BE208F12EE55F5FDFB67F180488950`
+    `6DEC70E58BE3B61500E92671301670296CBCCF412C439C720F568C2D900DF4B9`
   - Web POC:
     `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -775,6 +775,34 @@
     AndroidRuntime 일치 항목 0
   - A에는 고의 카메라 오류를 주입하지 않았으며 실제 카메라 전환·QR→Web→QR
     왕복과 관리자 PIN·PDF·인쇄는 사용자 복귀 뒤 수행
+- QR 거부 감사기록 실패의 실패폐쇄 커밋 `5026daf`를 추가하고 Kiosk RC25로
+  A에 설치했다.
+  - 잘못된 QR 또는 복수 QR을 인식하면 감사기록을 백그라운드 DB에 저장했는데,
+    이 작업만 예외 경계가 없어 저장소 오류가 앱 프로세스를 종료했고 스캐너
+    cooldown은 이미 예약됐음
+  - 첫 계측 fixture는 에뮬레이터 카메라 분석기 활성화를 기다리다 목표 분기
+    전에 timeout되어, 합성 활성 분석기와 scanner UI 상태로 카메라 의존성을
+    제거
+  - 저장소를 고의로 사용할 수 없게 한 뒤 잘못된 QR 결정을 전달해 수정 전
+    `UninitializedPropertyAccessException`과 프로세스 종료를 정확히 재현
+  - 감사기록 성공 뒤에만 cooldown 재개를 예약하고, 저장 실패나 executor
+    예약 실패에는 현재 화면 세션 참조를 지우고 스캐너를 닫은 관리자 PIN
+    복구 화면을 표시
+  - 수정 뒤 대상 시험에서 추가 2초 뒤에도 `LOCKED`, 관리자 PIN 화면,
+    스캐너 숨김을 확인
+  - Kiosk 전체 계측 30개, 네 모듈 JVM 84개, clean debug 204 tasks,
+    release JVM 75개와 release 158 tasks·APK 이중 검증 통과
+  - Kiosk RC25 준비 커밋 `abbd256`
+  - Kiosk RC25 보관본 크기 34,974,012 bytes, SHA-256
+    `6DEC70E58BE3B61500E92671301670296CBCCF412C439C720F568C2D900DF4B9`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    명시적 HOME 시작 3초 뒤 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC15,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing`, USB 화면 유지
+    설정 0 유지; 설치된 base APK와 보관본 해시 일치, Matholic
+    AndroidRuntime 일치 항목 0
+  - A에는 고의 감사기록 실패를 주입하지 않았으며 실제 잘못된·복수 QR 거부,
+    QR→Web→QR 왕복과 관리자 PIN·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

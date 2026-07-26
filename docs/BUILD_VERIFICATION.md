@@ -3128,3 +3128,92 @@ Web을 실행하지 않고 `PRELOGIN_CHECK`를 `QR_READY`로 되돌린다. 기�
   실패주입
 - 실제 전면·후면 카메라 전환과 QR→Web→QR 정상 왕복
 - 관리자 PIN·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC25 QR 거부 감사기록 오류 실패폐쇄 — 2026-07-26
+
+### 재현한 백그라운드 프로세스 종료
+
+잘못된 QR 또는 복수 QR을 인식한 분기는 거부 사유 감사기록을
+`ioExecutor`에서 저장했지만 예외를 처리하지 않았고, 저장 결과를 기다리지
+않은 채 scanner cooldown도 예약했다. DB 오류가 나면 백그라운드 미처리
+예외가 앱 프로세스를 종료하고 스캐너 재개 예약과 실제 상태가 어긋날 수
+있었다.
+
+- 실제 A·실제 QR·실제 학생을 사용하지 않음
+- 첫 계측 fixture는 일회용 에뮬레이터의 실제 카메라 분석기 활성화를 기다리다
+  목표 분기 전에 timeout되어 시험 준비를 수정
+- 합성 PIN·반·학생·수업, 합성 활성 QR 분석기와 scanner UI 상태로 카메라
+  의존성을 제거
+- 저장소를 고의로 사용할 수 없게 한 뒤 `INVALID_QR` 결정을 전달
+- 수정 전 `UninitializedPropertyAccessException`이 executor에서 발생해
+  instrumentation 대상 프로세스가 종료됨을 재현
+
+### 변경
+
+- 구현·회귀시험 커밋: `5026daf`
+- Kiosk `0.6.0-rc25`/code 30과 릴리스 운영 경로 준비 커밋: `abbd256`
+- 거부 감사기록 저장을 예외 경계 안에서 수행하고 성공한 경우에만 scanner
+  cooldown 재개를 예약
+- 저장 실패나 executor 작업 예약 실패 시 현재 화면 세션 참조를 제거하고
+  카메라·스캐너를 닫은 관리자 PIN 복구 화면과 명시적 오류를 표시
+- 사용자가 이미 scanner를 떠났거나 Activity가 파기된 늦은 완료 결과는
+  화면을 변경하지 않음
+
+### 자동 검증
+
+- 수정 전 신규 계측시험: 감사기록 저장 예외와 앱 프로세스 종료 재현
+- 수정 뒤 대상 계측시험: 추가 2초 뒤에도 `LOCKED`, 관리자 PIN 화면 표시,
+  스캐너 숨김 유지
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 30개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc25-release.apk`
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `6DEC70E58BE3B61500E92671301670296CBCCF412C439C720F568C2D900DF4B9`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc24`/code 29,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Kiosk RC25만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 3초 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc25`/code 30,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 RC25 보관본 일치
+- 설치된 Kiosk와 RC25 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 감사기록 저장 실패와 관리자 PIN 복구를 확인하는 고의 실패주입
+- 실제 잘못된 QR·복수 QR의 정상 거부와 scanner cooldown
+- 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
