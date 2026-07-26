@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc13`/code 18
+  - Kiosk `0.6.0-rc14`/code 19
   - Web POC `0.4.0-rc13`/code 30
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC13/RC13 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC14/RC13 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,11 +104,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc13-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc14-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc13-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `8DA89E1A4086CDAB2CF4BA2E676DD04E44053F9F1197947C35696E833E68C9CC`
+    `1F2D2EF7F124DCAE6F91C5A6132C8F135CDD5E1D5F11642509C4278532C6CFED`
   - Web POC:
     `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -461,6 +461,31 @@
     base APK와 보관본 해시 일치, 최근 5분 Matholic AndroidRuntime 일치
     항목 0
   - 실제 QR PDF 내보내기·Quick Share·실물 인쇄는 사용자 복귀 뒤 수행
+- Activity 종료 시 대기 중 민감 작업 정리 커밋 `bfbfaf4`를 추가하고 Kiosk
+  RC14로 A에 설치했다.
+  - 기존 `ioExecutor.shutdownNow()`는 아직 시작하지 않은 작업을 반환하지만
+    무시해, 대기 Runnable에 캡처된 관리자 PIN·학생 아이디/비밀번호·QR
+    token hash·PDF용 QR bitmap의 작업 내부 정리 코드가 실행되지 않을 수
+    있었음
+  - 실행과 폐기 중 먼저 소유권을 얻은 한 경로만 작업하거나 정리하는
+    `SensitiveTask`를 추가하고, 종료 시 반환된 대기 작업을 즉시 폐기
+  - PIN 2개 경로, 학생 자격정보 2개 경로, QR 검증 hash와 PDF 복제 bitmap에
+    적용했으며 정상 실행·예외·대기열 폐기 모두 정확히 한 번 정리
+  - 수정 전 신규 JVM 계약은 클래스 부재로 컴파일 실패, 수정 뒤 대상 2개와
+    네 모듈 JVM 70개 통과
+  - Android 13 일회용 에뮬레이터 Kiosk 전체 계측 21개, clean debug
+    204 tasks, release 158 tasks와 APK 이중 검증 통과
+  - Kiosk RC14 준비 커밋 `5a99e73`
+  - Kiosk RC14 보관본 크기 34,957,624 bytes, SHA-256
+    `1F2D2EF7F124DCAE6F91C5A6132C8F135CDD5E1D5F11642509C4278532C6CFED`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    명시적 HOME 시작으로 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC13,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing` 유지; 설치된
+    base APK와 보관본 해시 일치, 최근 5분 Matholic AndroidRuntime 일치
+    항목 0
+  - 실제 Activity 종료와 민감 작업 대기를 겹치는 기기 실패주입, 실제
+    QR·관리자 PIN·PDF 흐름은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

@@ -2053,3 +2053,85 @@ UI 실패 콜백도 실행되지 않아 로그인 가능한 QR bitmap 복제본�
 - 실제 QR PDF 내보내기와 Quick Share 전달
 - 수신 PC에서 PDF 열기와 실물 인쇄
 - 실제 QR→Web→QR 왕복, 관리자 화면·카메라 회귀
+
+---
+
+## Kiosk RC14 종료 시 대기 민감 작업 정리 — 2026-07-26
+
+### 재현한 대기열 정리 공백
+
+Kiosk는 카메라 분석과 DB 작업에 단일 `ioExecutor`를 사용한다. Activity가
+종료될 때 `shutdownNow()`는 아직 실행을 시작하지 않은 Runnable 목록을
+반환하지만 기존 코드는 이를 무시했다. 그 결과 작업 본문이나 repository의
+`finally`에만 있던 정리 코드가 호출되지 않아 다음 값이 대기 Runnable에
+캡처된 채 GC 전까지 남을 수 있었다.
+
+- 관리자 인증·설정 PIN
+- 학생 등록·로그인 정보 변경의 아이디와 비밀번호
+- QR 검증 token hash
+- PDF 내보내기용 복제 QR bitmap
+
+회귀 JVM 시험을 먼저 추가했고 시험 import를 기존 JUnit 4 방식으로 맞춘 뒤
+수정 전에는 `SensitiveTask` 계약 부재로 컴파일 실패를 확인했다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `bfbfaf4`
+- Kiosk `0.6.0-rc14`/code 19와 릴리스 운영 경로 준비 커밋: `5a99e73`
+- `SensitiveTask`가 실행과 폐기 중 먼저 소유권을 얻은 한 경로만 허용하고,
+  정상 완료·예외·대기열 폐기에서 정리 동작을 정확히 한 번 실행한다.
+- `shutdownNow()`가 돌려준 대기 작업 중 `SensitiveTask`를 즉시 폐기한다.
+- executor가 작업 제출을 거부한 경로도 민감 값을 먼저 정리한다.
+- QR bitmap 정리는 기존 흰색 덮어쓰기·recycle 구현을 공통 사용한다.
+
+### 자동 검증
+
+- 대기 작업 폐기 후 미실행·정리 1회, 실행 중 예외 뒤 정리 1회 JVM 시험 통과
+- 네 모듈 JVM 단위시험 총 70개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 21개,
+  실패·오류·건너뜀 0
+- release Kiosk/Web JVM 보고서 61개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc14-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `1F2D2EF7F124DCAE6F91C5A6132C8F135CDD5E1D5F11642509C4278532C6CFED`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc13-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,084,708 bytes
+  - SHA-256:
+    `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc13`/code 18,
+  Web POC `0.4.0-rc13`/code 30
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC14만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc14`/code 19,
+  Web POC `0.4.0-rc13`/code 30
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- 설치된 Kiosk와 RC14 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- A에서 Activity 종료와 PIN·자격정보·QR 검증·PDF 대기 작업을 겹치는
+  고의 실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF·실물 인쇄 회귀
