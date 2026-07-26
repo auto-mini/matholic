@@ -8,7 +8,9 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.ValueCallback
 import android.widget.EditText
+import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -172,6 +174,45 @@ class RecoveryInstrumentedTest {
             scenario.onUiInitialized { activity ->
                 assertTrue(activity.findViewById<WebView?>(R.id.web_view) != null)
             }
+        }
+    }
+
+    @Test
+    fun synchronousJavascriptEvaluationFailureFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val original = activity.findViewById<WebView>(R.id.web_view)
+                val parent = original.parent as FrameLayout
+                val replacement = ThrowingEvaluateWebView(activity).apply {
+                    id = R.id.web_view
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    )
+                }
+                parent.removeView(original)
+                original.destroy()
+                parent.addView(replacement, 0)
+                MainActivity::class.java.getDeclaredField("webViewReference").apply {
+                    isAccessible = true
+                    set(activity, replacement)
+                }
+
+                val evaluate = MainActivity::class.java.getDeclaredMethod(
+                    "evaluate",
+                    String::class.java,
+                    kotlin.jvm.functions.Function1::class.java,
+                ).apply { isAccessible = true }
+                val callback: (Any?) -> Unit = { }
+                evaluate.invoke(activity, "({ ok: true })", callback)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_EVALUATION", preferences().getString(KEY_REASON, null))
         }
     }
 
@@ -424,6 +465,15 @@ class RecoveryInstrumentedTest {
         }
         val reason = preferences().getString(KEY_REASON, null)
         throw AssertionError("state did not reach expected safe value; final=${readState()}, reason=$reason")
+    }
+
+    private class ThrowingEvaluateWebView(context: Context) : WebView(context) {
+        override fun evaluateJavascript(
+            script: String,
+            resultCallback: ValueCallback<String>?,
+        ) {
+            throw IllegalStateException("synthetic evaluation failure")
+        }
     }
 
     private companion object {

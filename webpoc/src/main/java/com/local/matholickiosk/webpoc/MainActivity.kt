@@ -1447,8 +1447,12 @@ class MainActivity : Activity() {
 
     private fun evaluate(script: String, callback: (JSONObject?) -> Unit) {
         if (destroyed) return
-        webView.evaluateJavascript(script) { raw ->
-            if (!destroyed && !isTerminalState()) callback(parseJavascriptObject(raw))
+        try {
+            webView.evaluateJavascript(script) { raw ->
+                if (!destroyed && !isTerminalState()) callback(parseJavascriptObject(raw))
+            }
+        } catch (_: RuntimeException) {
+            if (!destroyed && !isTerminalState()) showLocked("WEB_EVALUATION")
         }
     }
 
