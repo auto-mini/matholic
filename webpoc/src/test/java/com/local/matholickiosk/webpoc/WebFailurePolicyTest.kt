@@ -6,6 +6,34 @@ import org.junit.Test
 
 class WebFailurePolicyTest {
     @Test
+    fun `logout callback requires both the expected state and current attempt generation`() {
+        assertTrue(
+            WebFailurePolicy.shouldProcessLogoutCallback(
+                state = WebPocState.LOGOUT_NAVIGATE,
+                expectedState = WebPocState.LOGOUT_NAVIGATE,
+                callbackGeneration = 2,
+                currentGeneration = 2,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessLogoutCallback(
+                state = WebPocState.LOGOUT_NAVIGATE,
+                expectedState = WebPocState.LOGOUT_NAVIGATE,
+                callbackGeneration = 1,
+                currentGeneration = 2,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessLogoutCallback(
+                state = WebPocState.LOGOUT_SUBMIT,
+                expectedState = WebPocState.LOGOUT_NAVIGATE,
+                callbackGeneration = 2,
+                currentGeneration = 2,
+            ),
+        )
+    }
+
+    @Test
     fun `page finish is processed only for the current main document`() {
         assertTrue(
             WebFailurePolicy.shouldProcessPageFinished(

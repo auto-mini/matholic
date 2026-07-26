@@ -1,6 +1,14 @@
 package com.local.matholickiosk.webpoc
 
 object WebFailurePolicy {
+    fun shouldProcessLogoutCallback(
+        state: WebPocState,
+        expectedState: WebPocState,
+        callbackGeneration: Int,
+        currentGeneration: Int,
+    ): Boolean =
+        state == expectedState && callbackGeneration == currentGeneration
+
     fun shouldProcessPageFinished(
         callbackUrl: String?,
         currentUrl: String?,

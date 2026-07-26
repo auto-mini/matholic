@@ -82,6 +82,7 @@ class MainActivity : Activity() {
     private var ephemeralCredentials: EphemeralCredentials? = null
     private var timeoutGeneration = 0
     private var logoutAttempt = 0
+    private var logoutAttemptGeneration = 0
     private var postClearVerificationPending = false
     private var pendingLockReason: String? = null
     private var preflightDnsRetryScheduled = false
@@ -841,10 +842,10 @@ class MainActivity : Activity() {
             }
             WebPocState.LOGOUT_NAVIGATE -> {
                 if (!WebSecurityPolicy.isPortalUrl(url)) {
-                    retryLogoutOrLock("PORTAL_ROUTE")
+                    retryLogoutOrLock("PORTAL_ROUTE", logoutAttemptGeneration)
                     return
                 }
-                openLogoutMenu(PORTAL_PROBE_RETRIES)
+                openLogoutMenu(PORTAL_PROBE_RETRIES, logoutAttemptGeneration)
             }
             WebPocState.PREFLIGHT,
             WebPocState.SESSION_SANITIZE,
@@ -996,54 +997,67 @@ class MainActivity : Activity() {
     }
 
     private fun startLogoutAttempt() {
+        val generation = ++logoutAttemptGeneration
         transition(WebPocState.LOGOUT_NAVIGATE)
         webView.loadUrl(WebSecurityPolicy.COURSE_URL)
-        scheduleTimeout(LOGOUT_TIMEOUT_MS, "LOGOUT_TIMEOUT") { retryLogoutOrLock("LOGOUT_TIMEOUT") }
+        scheduleTimeout(LOGOUT_TIMEOUT_MS, "LOGOUT_TIMEOUT") {
+            retryLogoutOrLock("LOGOUT_TIMEOUT", generation)
+        }
     }
 
-    private fun openLogoutMenu(retriesRemaining: Int) {
-        if (state != WebPocState.LOGOUT_NAVIGATE) return
+    private fun openLogoutMenu(retriesRemaining: Int, generation: Int) {
+        if (!isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) return
         evaluate(WebDomScripts.portalFingerprint) { fingerprint ->
-            if (state != WebPocState.LOGOUT_NAVIGATE) return@evaluate
+            if (!isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) {
+                return@evaluate
+            }
             if (fingerprint?.optBoolean("ok") != true) {
                 if (retriesRemaining > 0) {
-                    handler.postDelayed({ openLogoutMenu(retriesRemaining - 1) }, PROBE_DELAY_MS)
+                    handler.postDelayed({
+                        openLogoutMenu(retriesRemaining - 1, generation)
+                    }, PROBE_DELAY_MS)
                 } else {
-                    retryLogoutOrLock("PORTAL_FINGERPRINT")
+                    retryLogoutOrLock("PORTAL_FINGERPRINT", generation)
                 }
                 return@evaluate
             }
             evaluate(WebDomScripts.openAccountMenu) { opened ->
+                if (!isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) {
+                    return@evaluate
+                }
                 if (opened?.optBoolean("ok") != true) {
-                    retryLogoutOrLock("ACCOUNT_MENU")
+                    retryLogoutOrLock("ACCOUNT_MENU", generation)
                     return@evaluate
                 }
                 handler.postDelayed({
-                    if (state == WebPocState.LOGOUT_NAVIGATE) {
-                        clickLogout(LOGOUT_CONTROL_PROBE_RETRIES)
+                    if (isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) {
+                        clickLogout(LOGOUT_CONTROL_PROBE_RETRIES, generation)
                     }
                 }, MENU_OPEN_DELAY_MS)
             }
         }
     }
 
-    private fun clickLogout(probesRemaining: Int) {
-        if (state != WebPocState.LOGOUT_NAVIGATE) return
+    private fun clickLogout(probesRemaining: Int, generation: Int) {
+        if (!isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) return
         evaluate(WebDomScripts.clickLogout) { result ->
+            if (!isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) {
+                return@evaluate
+            }
             if (result?.optBoolean("ok") != true) {
                 val candidateCount = result?.optInt("count", -1) ?: -1
                 if (candidateCount == 0 && probesRemaining > 0) {
                     handler.postDelayed({
-                        clickLogout(probesRemaining - 1)
+                        clickLogout(probesRemaining - 1, generation)
                     }, LOGOUT_CONTROL_PROBE_DELAY_MS)
                 } else {
-                    retryLogoutOrLock(logoutControlReason(result))
+                    retryLogoutOrLock(logoutControlReason(result), generation)
                 }
             } else {
-                if (state == WebPocState.LOGOUT_NAVIGATE) {
+                if (isCurrentLogoutCallback(WebPocState.LOGOUT_NAVIGATE, generation)) {
                     transition(WebPocState.LOGOUT_SUBMIT)
                     scheduleTimeout(LOGOUT_TIMEOUT_MS, "LOGOUT_TIMEOUT") {
-                        retryLogoutOrLock("LOGOUT_TIMEOUT")
+                        retryLogoutOrLock("LOGOUT_TIMEOUT", generation)
                     }
                 }
             }
@@ -1061,7 +1075,15 @@ class MainActivity : Activity() {
             "_S$submenuVisible"
     }
 
-    private fun retryLogoutOrLock(reason: String) {
+    private fun retryLogoutOrLock(reason: String, generation: Int) {
+        val currentAttempt = isCurrentLogoutCallback(
+            WebPocState.LOGOUT_NAVIGATE,
+            generation,
+        ) || isCurrentLogoutCallback(
+            WebPocState.LOGOUT_SUBMIT,
+            generation,
+        )
+        if (!currentAttempt) return
         cancelTimeout()
         if (logoutAttempt < MAX_LOGOUT_RETRIES) {
             logoutAttempt += 1
@@ -1185,6 +1207,7 @@ class MainActivity : Activity() {
 
     @Suppress("DEPRECATION")
     private fun clearWebSessionAndReloadLogin() {
+        val generation = logoutAttemptGeneration
         webView.clearHistory()
         webView.clearFormData()
         webView.clearCache(true)
@@ -1195,12 +1218,25 @@ class MainActivity : Activity() {
         CookieManager.getInstance().removeAllCookies {
             CookieManager.getInstance().flush()
             handler.postDelayed({
-                if (!destroyed && state == WebPocState.LOGOUT_VERIFY) {
+                if (
+                    !destroyed &&
+                    isCurrentLogoutCallback(WebPocState.LOGOUT_VERIFY, generation)
+                ) {
                     webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
                 }
             }, STORAGE_CLEAR_DELAY_MS)
         }
     }
+
+    private fun isCurrentLogoutCallback(
+        expectedState: WebPocState,
+        generation: Int,
+    ): Boolean = WebFailurePolicy.shouldProcessLogoutCallback(
+        state = state,
+        expectedState = expectedState,
+        callbackGeneration = generation,
+        currentGeneration = logoutAttemptGeneration,
+    )
 
     private fun restartForRecovery() {
         cancelTimeout()
