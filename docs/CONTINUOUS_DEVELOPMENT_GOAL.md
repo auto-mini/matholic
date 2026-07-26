@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc08`/code 13
-  - Web POC `0.4.0-rc06`/code 23
+  - Web POC `0.4.0-rc07`/code 24
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC08/RC06 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC08/RC07 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -103,12 +103,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc06-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc07-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
   - Web POC:
-    `ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`
+    `1B7995D52FBF969757BE0E29258A38862CB1ADB449B8939601AD5ACFF3B3731A`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -119,6 +119,7 @@
   - Web POC RC05 34개, 실패 0
   - secure session 전송 복구 기준 Web 34개, Kiosk 16개, 실패 0
   - QR PDF 공유 권한 보강 기준 Kiosk 17개, 실패 0
+  - fragment SPA 경로 차단 기준 Web 37개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -204,6 +205,21 @@
     `ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`
     그대로 유지
   - 실제 A의 Quick Share 전송과 수신 PC 열기·인쇄는 사용자 복귀 뒤 수행
+- 학생 Web fragment SPA 경로 차단 커밋 `86d6cc5`를 추가하고 Web POC
+  RC07으로 A에 설치했다.
+  - `/workbook#/course`처럼 허용 path를 유지한 채 fragment로 다른 SPA 화면을
+    선택하는 URL이 기존 네이티브 정책에서 허용됨을 신규 JVM 시험으로 재현
+  - 학생 URL·`pathOf`, 현재 DOM 화면 검사, 링크 클릭 가드와 오답 번호 추출이
+    fragment 존재 시 모두 실패폐쇄하도록 변경
+  - 수정 전 신규 JVM 시험 실패, 수정 뒤 전체 JVM 59개 통과
+  - Android 13 일회용 에뮬레이터에서 Web DOM 대상 18개와 전체 계측 37개 통과
+  - 전체 clean debug 204 tasks, release 158 tasks와 APK 이중 검증 통과
+  - Web RC07 보관본 크기 3,081,628 bytes, SHA-256
+    `1B7995D52FBF969757BE0E29258A38862CB1ADB449B8939601AD5ACFF3B3731A`
+  - Kiosk RC08 artifact는 payload 동일 검사를 거쳐 기존 해시를 보존
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC08,
+    Device Owner, HOME, `LOCKED`, 화면 `Dozing` 유지; crash 일치 항목 0
+  - 실제 사이트의 정상 query 경로와 fragment 차단 실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

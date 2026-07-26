@@ -1100,3 +1100,79 @@ intent의 `data`와 `ClipData` URI에 적용되므로 일부 chooser·수신 앱
 - A에서 실제 Quick Share 대상 선택, 수신 PC PDF 열기와 실제 인쇄
 - 실제 종이 QR을 사용하는 RC08→RC06 session과 QR→Web→QR 왕복
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## Web RC07 fragment SPA 경로 차단 — 2026-07-26
+
+### 재현한 정책 결함
+
+기존 학생 URL 정책은 scheme·host·port와 path를 엄격히 확인했지만 fragment를
+검사하지 않았다. 따라서 `/workbook#/course`처럼 허용 path를 유지한 채
+fragment만으로 다른 SPA 화면을 선택하는 URL을 허용하고 `pathOf`도
+`/workbook`으로 반환했다. 같은 문서 안의 hash 전환은 새 main-frame load를
+발생시키지 않을 수 있어 WebViewClient만으로 차단을 보장할 수 없다.
+
+- 신규 JVM 회귀시험을 먼저 추가
+- 수정 전 WebSecurityPolicyTest 5개 중 신규 1개 실패
+- 정상 `/workbook?tab=assigned&id=1` query 경로는 계속 허용
+
+### 변경
+
+- 구현·회귀시험 커밋: `86d6cc5`
+- Web POC `0.4.0-rc07`/code 24 준비 커밋: `59c9520`
+- `StudentWebPolicy.safePath`는 raw fragment가 존재하면 null을 반환한다.
+- DOM 학생 화면 보조는 현재 URL에 `#`가 있으면 적용하지 않는다.
+- DOM 링크 클릭 가드는 허용 path라도 target URL에 fragment가 있으면
+  기본 동작과 후속 handler를 차단한다.
+- 오답 번호 추출도 fragment가 있는 결과 화면에서는 실패폐쇄한다.
+
+### 자동 검증
+
+- 수정 뒤 WebSecurityPolicyTest 5개: 통과
+- 네 모듈 JVM 단위시험: 총 59개, 실패·오류 0
+- Web debug lint·AndroidTest 컴파일: 통과
+- Android 13 일회용 에뮬레이터:
+  - Web DOM 대상 시험 18개, 실패·오류·건너뜀 0
+  - Web 전체 계측 37개, 실패·오류·건너뜀 0, 159.4초
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc07-release.apk`
+  - 크기: 3,081,628 bytes
+  - SHA-256:
+    `1B7995D52FBF969757BE0E29258A38862CB1ADB449B8939601AD5ACFF3B3731A`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc06`/code 23
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Web POC RC07만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc07`/code 24
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 두 base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 사이트에서 정상 query 경로 사용과 fragment 링크 차단
+- 실제 종이 QR을 사용하는 RC08→RC07 session과 QR→Web→QR 왕복
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
