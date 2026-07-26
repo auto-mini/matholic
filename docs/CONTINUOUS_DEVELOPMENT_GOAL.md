@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc15`/code 20
+  - Kiosk `0.6.0-rc16`/code 21
   - Web POC `0.4.0-rc15`/code 32
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC15/RC15 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC16/RC15 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,11 +104,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc15-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc16-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `7F56D96A6C1EF3A54B58AA07EB75829C2392BE5A1DC1F22E409C79A10D5AB92B`
+    `080FE9AF7865740551B7D2FFF6A0788C9FECDC3261C5F5901CFDA8838ADA1A87`
   - Web POC:
     `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -553,6 +553,31 @@
     일치 항목 0
   - 실제 공개 사이트에서 같은 `/course` 연속 완료와 fingerprint 경합,
     QR→Web→QR 왕복은 사용자 복귀 뒤 수행
+- 관리자 새로고침의 더 새로운 반 선택 보존 커밋 `30ec5e3`을 추가하고
+  Kiosk RC16으로 A에 설치했다.
+  - 반 생성·삭제나 Web 정리 뒤 목록을 읽는 동안 교사가 다른 반을 선택하면
+    기존 완료 콜백이 새로고침 시작 때 캡처한 반과 명단을 무조건 다시 적용해
+    방금 선택한 반이 되돌아갈 수 있었음
+  - 새로고침 시작 때 반 선택 revision을 캡처하고, 활성 수업이 없으며 완료
+    시점의 더 새로운 선택 반이 여전히 존재하면 이전 목록 결과가 선택과 명단
+    로딩 상태를 덮지 않도록 변경
+  - 활성 수업 반은 계속 강제하고 새 선택 반이 삭제된 경우에는 새로 읽은
+    유효 반으로 안전하게 fallback
+  - 수정 전 신규 JVM 계약은 `snapshotSelection`·`resolveRefresh` 부재로
+    컴파일 실패, 수정 뒤 관리자 비동기 상태 시험 9개와 네 모듈 JVM 75개 통과
+  - Android 13 일회용 에뮬레이터 Kiosk 전체 계측 22개, clean debug
+    204 tasks, release JVM 66개와 release 158 tasks·APK 이중 검증 통과
+  - Kiosk RC16 준비 커밋 `ee87b98`
+  - Kiosk RC16 보관본 크기 34,957,624 bytes, SHA-256
+    `080FE9AF7865740551B7D2FFF6A0788C9FECDC3261C5F5901CFDA8838ADA1A87`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    명시적 HOME 시작으로 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC15,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing` 유지; 설치된
+    base APK와 보관본 해시 일치, 설치 시점 이후 Matholic AndroidRuntime
+    일치 항목 0
+  - 실제 관리자 화면의 목록 새로고침과 빠른 반 전환 경합, QR→Web→QR
+    왕복은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

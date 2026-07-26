@@ -2367,3 +2367,82 @@ Kiosk는 카메라 분석과 DB 작업에 단일 `ioExecutor`를 사용한다. A
 - 실제 공개 사이트에서 같은 `/course` 연속 완료와 fingerprint 경합
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC16 관리자 반 선택 새로고침 경합 차단 — 2026-07-26
+
+### 재현한 관리자 선택 경합
+
+반 생성·삭제나 Web 정리 뒤 `refreshAdminData`가 목록을 읽는 동안 교사가
+다른 반을 선택하면, 기존 구현은 새로고침 시작 때 캡처한 반과 명단을 완료
+콜백에서 무조건 다시 적용했다. 그 결과 방금 선택한 반이 이전 반이나 새로
+생성한 반으로 되돌아갈 수 있었다.
+
+- 실제 학생·관리자 PIN 없이 반 선택 세대와 합성 명단만 사용
+- 회귀 JVM 시험을 먼저 추가했고 수정 전 `snapshotSelection`과
+  `resolveRefresh` 계약 부재로 Kotlin test 컴파일 실패
+- 새 선택 보존, 활성 수업 반 강제, 삭제된 새 선택의 안전한 fallback을 각각
+  검증
+
+### 변경
+
+- 구현·회귀시험 커밋: `30ec5e3`
+- Kiosk `0.6.0-rc16`/code 21과 릴리스 운영 경로 준비 커밋: `ee87b98`
+- 관리자 새로고침 시작 때 반 선택 revision을 캡처
+- 활성 수업이 없고 완료 시점의 더 새로운 선택 반이 여전히 존재하면 이전
+  목록 결과가 그 선택과 명단 로딩 상태를 덮지 않음
+- 활성 수업 반은 계속 강제하고, 새 선택 반이 삭제됐으면 새로 읽은 유효 반으로
+  안전하게 fallback
+
+### 자동 검증
+
+- 관리자 비동기 상태 JVM 시험 9개 통과
+- 네 모듈 JVM 단위시험 총 75개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 22개,
+  실패·오류·건너뜀 0
+- release Kiosk/Web JVM 보고서 66개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc16-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `080FE9AF7865740551B7D2FFF6A0788C9FECDC3261C5F5901CFDA8838ADA1A87`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc15`/code 20,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시,
+  release signer, Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC16만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc16`/code 21,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- 설치된 Kiosk와 RC16 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 설치 시점 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 관리자 화면에서 목록 새로고침과 빠른 반 전환을 겹치는 실기
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
