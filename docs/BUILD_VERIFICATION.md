@@ -4266,3 +4266,90 @@ RC26은 프록시 초기화 API가 동기 예외를 내는 경로를 실패폐�
 - 실제 A에서 프록시 override 완료 콜백을 고의로 유실시키는 실패시험
 - 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
   회귀
+
+---
+
+## Web POC RC28 프록시 종료 경합 소켓 정리 — 2026-07-26
+
+### 재현한 종료 경합
+
+RC27 loopback CONNECT 프록시는 종료할 때 등록된 소켓 목록을 복사해 닫았지만,
+서버가 연결을 수락한 직후 목록 등록 전 종료 snapshot이 만들어지거나,
+executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발생하면
+해당 client 소켓을 정리하지 못할 수 있었다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- 종료와 등록을 직렬화하는 registry와 작업 거부 정리 계약 시험을 먼저 추가
+- 수정 전 신규 대상 JVM 시험은 필요한 registry와 제출 경계가 없어 컴파일
+  실패
+- 첫 구현 뒤 Kotlin collection 초기화 표현의 컴파일 오류를 확인하고
+  명시적인 snapshot 생성·목록 초기화로 수정
+
+### 변경
+
+- 구현·회귀시험 커밋: `a212198`
+- Web POC `0.4.0-rc28`/code 45와 릴리스 운영 경로 준비 커밋: `5bc8f98`
+- 소켓 등록과 종료 상태 전환을 하나의 동기화 경계로 직렬화
+- 종료 뒤 도착한 소켓은 등록을 거부하고 즉시 닫음
+- client 처리 또는 역방향 tunnel 작업이 executor 종료로 거부되면 소유한
+  client·upstream 소켓을 즉시 닫음
+- 서버 소켓, 등록된 소켓과 executor를 반복 호출에 안전하게 순서대로 종료
+
+### 자동 검증
+
+- 대상 JVM 시험 3개: 종료 뒤 늦은 등록 즉시 정리, executor 거부 시 cleanup,
+  정상 작업 제출 시 cleanup 미실행을 검증해 모두 통과
+- 첫 전체 회귀 시도는 재부팅 뒤 짧은 제한시간으로 시작했던 Gradle 하위
+  프로세스와 재시도가 빌드 캐시를 동시에 사용하고 한글 경로 해석까지 겹쳐
+  실패
+- 남은 프로세스가 없음을 확인하고 영문 작업 경로에서 configuration cache를
+  끈 단일 실행으로 재시험 통과
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 56개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 94개, 실패·오류 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 85개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc28-release.apk`
+  - 크기: 3,101,640 bytes
+  - SHA-256:
+    `19A6D31C92483E890FE9A2CA91909AFDFA17C58DA2FFC48A383ECF52917B7520`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc27`/code 44
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC28만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc28`/code 45
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC28 보관본 일치
+- 설치된 Web POC와 RC28 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 오류 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 accept·작업 제출과 프록시 종료를 고의로 경합시키는 실패시험
+- 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
+  회귀

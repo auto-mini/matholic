@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc26`/code 31
-  - Web POC `0.4.0-rc27`/code 44
+  - Web POC `0.4.0-rc28`/code 45
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC26/Web POC RC27 설치: 2026-07-26 `adb install -r`로 완료
+- A의 Kiosk RC26/Web POC RC28 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc27-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc28-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
   - Web POC:
-    `58958895AB1DDCEF548252B9F0F4F1E5E4ACBA357D56B1F61CB6CF98234F7D4B`
+    `19A6D31C92483E890FE9A2CA91909AFDFA17C58DA2FFC48A383ECF52917B7520`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -1087,6 +1087,24 @@
   - A와 PC 모두 프린터 IPP TCP 포트 연결 성공
   - 서비스 로그에는 원인을 확정할 오류가 남아 있지 않음
   - 사용자 복귀 전에는 대기열 취소·스풀러 초기화·새 출력 작업을 수행하지 않음
+- Web 프록시 종료 경합 소켓 정리 커밋 `a212198`을 추가하고 Web POC
+  RC28로 A에 설치했다.
+  - 종료 snapshot과 새 client 등록이 겹치거나 종료된 executor가 client·
+    역방향 tunnel 작업을 거부하면 소켓이 남을 수 있었음
+  - 등록·종료를 직렬화하고 종료 뒤 늦게 온 소켓과 거부된 작업의 client·
+    upstream 소켓을 즉시 닫도록 변경
+  - 대상 JVM 3개, Web POC 전체 계측 56개, 네 모듈 JVM 94개,
+    clean debug 204 tasks, release JVM 85개와 release 158 tasks·APK 이중
+    검증 통과
+  - Web POC RC28 준비 커밋 `5bc8f98`
+  - Web POC RC28 보관본 크기 3,101,640 bytes, SHA-256
+    `19A6D31C92483E890FE9A2CA91909AFDFA17C58DA2FFC48A383ECF52917B7520`
+  - A 설치 전후 Web POC UID `10287`, firstInstallTime, dataDir,
+    Kiosk RC26, release signer, Device Owner, 전용 HOME, `LOCKED`, 화면
+    `Dozing`, USB 화면 유지 설정 0 유지; 설치된 base APK와 보관본 해시
+    일치, 설치 시각 이후 AndroidRuntime 오류 일치 항목 0
+  - A에서 고의 종료 경합을 주입하지 않았으며 실제 QR→Web→QR 왕복,
+    관리자 PIN·사이트·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
 
 ## 연속 개발 사이클
 
@@ -1205,3 +1223,17 @@ force-push하지 않는다.
 
 각 주요 체크포인트에는 커밋 해시, 실행한 시험, A 설치 버전, 남은 제한과
 다음 우선순위를 기록한다.
+
+## 종료 기록 — 2026-07-26
+
+사용자가 PC 재부팅 뒤 진행 중이던 프록시 종료 경합 한 건까지만 마무리하고
+연속 개발 Goal을 종료하라고 명시했다. 위 RC28 구현·자동검증·A 보존형 설치와
+문서화를 마지막 사이클로 삼으며 새로운 개선 사이클은 시작하지 않는다.
+
+- 종료 시 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc28`/code 45
+- 종료 시 작업 브랜치: `codex/rc03-usability`
+- 최신 실물 관리자 화면·사이트·카메라·PDF·인쇄 회귀와 고의 프록시 종료
+  경합 시험은 미검증으로 남긴다.
+- 다시 작업할 때는 이 기록을 기준으로 새 사용자 지시와 안전 경계를 먼저
+  확인한다.
