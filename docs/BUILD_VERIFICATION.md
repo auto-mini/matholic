@@ -1253,3 +1253,86 @@ userinfo가 있는 URL, query 또는 fragment가 붙은 URL도 인증 endpoint�
 - 실제 공개 사이트의 로그인 form action이 새 계약과 일치하는지
 - 실제 종이 QR을 사용하는 RC08→RC08 session과 QR→Web→QR 왕복
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## Web RC09 DOM origin 일치 보강 — 2026-07-26
+
+### 재현한 DOM 방어 불일치
+
+네이티브 학생 URL 정책은 비표준 port와 userinfo를 이미 거부했지만, 포털
+지문·로그아웃 동작, 학생 UI·결과 요약과 링크 가드는 protocol·hostname
+중심으로 검사했다. 네이티브 main-frame 콜백에만 의존하지 않고 DOM 보조
+자체도 실패폐쇄해야 하므로 합성 fixture로 독립 경계를 확인했다.
+
+- 신규 Web DOM 계측 4개를 먼저 추가
+- 수정 전 대상 시험 24개 중 신규 4개 실패
+- 허용된 fixture:
+  - 비표준 port의 포털 current 문서
+  - userinfo가 포함된 포털 의미 링크
+  - 비표준 port의 학생 current 문서와 결과 문서
+  - userinfo 또는 비표준 port가 포함된 학생 링크
+- 실제 A나 공개 사이트에서 변형 URL을 탐색한 것은 아니다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `e6919e8`
+- Web POC `0.4.0-rc09`/code 26 준비 커밋: `6b5c3ee`
+- 포털 지문·계정 메뉴·로그아웃은 기본 HTTPS `im.matholic.com` origin,
+  빈 userinfo·fragment인 current 문서와 의미 링크만 사용한다.
+- 학생 UI·결과 요약은 같은 exact origin의 current 문서에서만 적용한다.
+- 학생 링크 가드는 비표준 port, userinfo와 fragment를 동기적으로 차단한다.
+- DOM 계약 버전은 `web-2026-07-26.2`로 갱신했다.
+
+### 자동 검증
+
+- 수정 뒤 Web DOM 대상 계측 24개, 실패·오류·건너뜀 0
+- Android 13 일회용 에뮬레이터 Web 전체 계측 43개,
+  실패·오류·건너뜀 0, 177.9초
+- 네 모듈 JVM 단위시험 총 59개, 실패·오류 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- 첫 release 빌드 158 tasks는 성공했지만 후단 검증기의 Web RC08 기대값이
+  RC09를 거부해 artifact 게시 전 실패
+- 릴리스 운영 설정 커밋 `f8fc9e3`에서 build artifact명, 독립 검증 기본값과
+  초기 provisioning 기본 APK 경로를 RC09 현재 묶음으로 갱신
+- 재실행한 release 단위시험·lint·두 APK assemble:
+  `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc09-release.apk`
+  - 크기: 3,083,756 bytes
+  - SHA-256:
+    `EE3349ED05D371FBF172A9221D6A0CE14F1DC5C6E642E79C987CD0EB415DEBDD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc08`/code 25
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Web POC RC09만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc09`/code 26
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 두 base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 공개 사이트의 포털·학생 문서와 링크가 exact origin 계약과 일치하는지
+- 실제 종이 QR을 사용하는 RC08→RC09 session과 QR→Web→QR 왕복
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`

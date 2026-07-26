@@ -1,6 +1,6 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)는 release signer 전용 Device Owner 기기다. RC02에서 QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 잠금과 재부팅 복구, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복을 통과했다. 현재는 기존 데이터와 Device Owner를 보존해 Kiosk RC08과 Web POC RC08을 설치했고 자동검증과 비대면 설치 후 검사를 통과했지만, RC08/RC08의 실제 관리자 화면·사이트·카메라·PDF·인쇄 실기는 아직 수행하지 않았다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)는 release signer 전용 Device Owner 기기다. RC02에서 QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 잠금과 재부팅 복구, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복을 통과했다. 현재는 기존 데이터와 Device Owner를 보존해 Kiosk RC08과 Web POC RC09를 설치했고 자동검증과 비대면 설치 후 검사를 통과했지만, RC08/RC09의 실제 관리자 화면·사이트·카메라·PDF·인쇄 실기는 아직 수행하지 않았다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다.
 
 ## 현재 Gate
 
@@ -8,8 +8,8 @@
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
 - `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스와 A 설치본은 `0.6.0-rc08`이며 관리자 비동기 단일 실행, QR 재발급 확인, 중복 반 이름 차단, 수업 저장소 불변조건, 늦은 Web 결과 차단, 보강 학생 배치 원자성, secure session handle 전달 복구와 QR PDF 공유 URI 권한 보강을 포함한다.
-- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스와 A 설치본은 `0.4.0-rc08`이며 secure session 진입은 정확한 Kiosk package와 같은 signer의 호출만 허용하고 고정 authority의 1회용 handle만 소비한다. 학생 URL과 DOM 보조는 fragment 기반 SPA 화면 전환을 차단하고, 로그인 자격정보는 정확한 기본 HTTPS 인증 endpoint에서만 입력한다.
-- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 정의된 운영 인수시험을 완료했고 Kiosk RC08/Web POC RC08 조합은 자동검증·보존형 설치까지 완료했다.
+- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스와 A 설치본은 `0.4.0-rc09`이며 secure session 진입은 정확한 Kiosk package와 같은 signer의 호출만 허용하고 고정 authority의 1회용 handle만 소비한다. 학생 URL과 DOM 보조는 fragment 기반 SPA 화면 전환과 변형 origin을 차단하고, 로그인 자격정보는 정확한 기본 HTTPS 인증 endpoint에서만 입력한다.
+- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 정의된 운영 인수시험을 완료했고 Kiosk RC08/Web POC RC09 조합은 자동검증·보존형 설치까지 완료했다.
 
 RC03부터 학생 마스터 목록과 다중 반 소속, 학생을 보존하는 반 삭제,
 65×90mm 세로 카드·30×30mm QR PDF 공유, 카메라 미리보기 비표시,
