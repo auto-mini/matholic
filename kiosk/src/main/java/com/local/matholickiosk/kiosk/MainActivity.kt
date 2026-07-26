@@ -153,30 +153,41 @@ class MainActivity : ComponentActivity() {
             ?.getStringExtra(CredentialBridgeContract.EXTRA_FAILURE_REASON)
             ?.take(80)
             ?: "WEB_SESSION_FAILED"
+        persistWebSessionResult(
+            passed = result.resultCode == Activity.RESULT_OK,
+            failureReason = failureReason,
+        )
+    }
+
+    private fun persistWebSessionResult(
+        passed: Boolean,
+        failureReason: String,
+    ) {
         ioExecutor.execute {
-            val outcome = runCatching {
-                if (result.resultCode == Activity.RESULT_OK) {
-                    studentRepository.transitionSession(
-                        expectedState = KioskState.PRELOGIN_CHECK,
-                        state = KioskState.QR_READY,
-                    )
-                    true
-                } else {
-                    studentRepository.transitionSession(
-                        expectedState = KioskState.PRELOGIN_CHECK,
-                        state = KioskState.LOCKED,
-                        lockedReason = failureReason,
-                    )
-                    false
-                }
-            }
-            val session = runCatching { studentRepository.currentSession() }.getOrNull()
+            val outcome = WebSessionResultPersistence.persist(
+                passed = passed,
+                persistTransition = {
+                    if (passed) {
+                        studentRepository.transitionSession(
+                            expectedState = KioskState.PRELOGIN_CHECK,
+                            state = KioskState.QR_READY,
+                        )
+                    } else {
+                        studentRepository.transitionSession(
+                            expectedState = KioskState.PRELOGIN_CHECK,
+                            state = KioskState.LOCKED,
+                            lockedReason = failureReason,
+                        )
+                    }
+                },
+                loadSession = { studentRepository.currentSession() },
+            )
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                currentSession = session
                 outcome.fold(
-                    onSuccess = { passed ->
-                        if (passed) {
+                    onSuccess = { persisted ->
+                        currentSession = persisted.session
+                        if (persisted.passed) {
                             showScanner()
                         } else {
                             statusText.text = KioskState.LOCKED.name
@@ -185,9 +196,11 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onFailure = {
+                        currentSession = null
                         statusText.text = KioskState.LOCKED.name
                         showAuthentication(enrollment = false)
-                        authError.text = "세션 결과 저장 실패"
+                        authError.text =
+                            "세션 결과를 확인하지 못했습니다. 관리자 PIN으로 상태를 확인하세요."
                     },
                 )
             }
