@@ -1661,35 +1661,68 @@ class MainActivity : ComponentActivity() {
                 }
             }
             runOnUiThread {
-                if (destroyed) {
-                    prepared.getOrNull()?.let { OneTimeCredentialBroker.revoke(it.id) }
-                    return@runOnUiThread
-                }
                 prepared.fold(
                     onSuccess = { handle ->
-                        pendingCredentialBridgeId = handle.id
-                        scannerVisible = false
-                        stopCamera()
-                        val intent = Intent(CredentialBridgeContract.ACTION_START_SECURE_SESSION)
-                            .setComponent(
-                                ComponentName(
-                                    CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
-                                    "com.local.matholickiosk.webpoc.MainActivity",
-                                ),
+                        when (
+                            PreparedWebSessionPolicy.decide(
+                                destroyed = destroyed,
+                                scannerVisible = scannerVisible,
                             )
-                            .putExtra(
-                                CredentialBridgeContract.EXTRA_CREDENTIAL_HANDLE,
-                                handle.id,
-                            )
-                        runCatching { webSessionLauncher.launch(intent) }
-                            .onFailure {
+                        ) {
+                            PreparedWebSessionDisposition.REVOKE_ONLY -> {
                                 OneTimeCredentialBroker.revoke(handle.id)
-                                pendingCredentialBridgeId = null
-                                lockAfterBridgeFailure("WEBPOC_NOT_AVAILABLE")
                             }
+                            PreparedWebSessionDisposition.CANCEL_AND_RESTORE -> {
+                                OneTimeCredentialBroker.revoke(handle.id)
+                                restoreQrReadyAfterCancelledWebLaunch()
+                            }
+                            PreparedWebSessionDisposition.LAUNCH -> {
+                                pendingCredentialBridgeId = handle.id
+                                scannerVisible = false
+                                stopCamera()
+                                val intent = Intent(
+                                    CredentialBridgeContract.ACTION_START_SECURE_SESSION,
+                                )
+                                    .setComponent(
+                                        ComponentName(
+                                            CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
+                                            "com.local.matholickiosk.webpoc.MainActivity",
+                                        ),
+                                    )
+                                    .putExtra(
+                                        CredentialBridgeContract.EXTRA_CREDENTIAL_HANDLE,
+                                        handle.id,
+                                    )
+                                runCatching { webSessionLauncher.launch(intent) }
+                                    .onFailure {
+                                        OneTimeCredentialBroker.revoke(handle.id)
+                                        pendingCredentialBridgeId = null
+                                        lockAfterBridgeFailure("WEBPOC_NOT_AVAILABLE")
+                                    }
+                            }
+                        }
                     },
-                    onFailure = { lockAfterBridgeFailure("CREDENTIAL_PREPARATION") },
+                    onFailure = {
+                        if (!destroyed) lockAfterBridgeFailure("CREDENTIAL_PREPARATION")
+                    },
                 )
+            }
+        }
+    }
+
+    private fun restoreQrReadyAfterCancelledWebLaunch() {
+        ioExecutor.execute {
+            val restored = runCatching {
+                studentRepository.transitionSession(
+                    expectedState = KioskState.PRELOGIN_CHECK,
+                    state = KioskState.QR_READY,
+                )
+                studentRepository.currentSession()
+            }.getOrNull()
+            runOnUiThread {
+                if (destroyed || restored == null) return@runOnUiThread
+                currentSession = restored
+                statusText.text = restored.state
             }
         }
     }
