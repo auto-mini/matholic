@@ -9,10 +9,8 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
-import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
 internal data class ConnectTarget(val host: String, val port: Int)
 
@@ -46,11 +44,13 @@ internal object ConnectTargetPolicy {
 internal class LoopbackConnectProxy private constructor(
     private val serverSocket: ServerSocket,
 ) : Closeable {
-    private val closed = AtomicBoolean(false)
     private val executor = Executors.newCachedThreadPool { task ->
         Thread(task, "matholic-loopback-proxy").apply { isDaemon = true }
     }
-    private val activeSockets = Collections.synchronizedSet(mutableSetOf<Socket>())
+    private val activeSockets = CloseableRegistry<Socket> { socket ->
+        runCatching { socket.close() }
+        Unit
+    }
 
     val port: Int = serverSocket.localPort
 
@@ -59,14 +59,22 @@ internal class LoopbackConnectProxy private constructor(
     }
 
     private fun acceptLoop() {
-        while (!closed.get()) {
+        while (!activeSockets.isClosed) {
             val client = try {
                 serverSocket.accept()
             } catch (_: IOException) {
                 return
             }
-            activeSockets += client
-            executor.execute { handle(client) }
+            if (!activeSockets.register(client)) return
+            if (
+                !ProxyTaskSubmission.submit(
+                    executor = executor,
+                    task = { handle(client) },
+                    onRejected = { closeSocket(client) },
+                )
+            ) {
+                return
+            }
         }
     }
 
@@ -82,27 +90,39 @@ internal class LoopbackConnectProxy private constructor(
                 return
             }
 
-            upstream = Socket().apply {
+            val connectedUpstream = Socket().apply {
                 connect(InetSocketAddress(target.host, target.port), CONNECT_TIMEOUT_MS)
                 soTimeout = 0
             }
-            activeSockets += upstream
+            upstream = connectedUpstream
+            if (!activeSockets.register(connectedUpstream)) return
             writeResponse(client, "HTTP/1.1 200 Connection Established\r\n\r\n")
             client.soTimeout = 0
 
-            val upstreamSocket = upstream
-            executor.execute {
-                try {
-                    upstreamSocket.getInputStream().copyTo(client.getOutputStream(), COPY_BUFFER_SIZE)
-                } catch (_: IOException) {
-                    // Either peer closed the tunnel.
-                } finally {
-                    closeSocket(client)
-                    closeSocket(upstreamSocket)
-                }
+            if (
+                !ProxyTaskSubmission.submit(
+                    executor = executor,
+                    task = {
+                        try {
+                            connectedUpstream.getInputStream()
+                                .copyTo(client.getOutputStream(), COPY_BUFFER_SIZE)
+                        } catch (_: IOException) {
+                            // Either peer closed the tunnel.
+                        } finally {
+                            closeSocket(client)
+                            closeSocket(connectedUpstream)
+                        }
+                    },
+                    onRejected = {
+                        closeSocket(client)
+                        closeSocket(connectedUpstream)
+                    },
+                )
+            ) {
+                return
             }
             try {
-                input.copyTo(upstreamSocket.getOutputStream(), COPY_BUFFER_SIZE)
+                input.copyTo(connectedUpstream.getOutputStream(), COPY_BUFFER_SIZE)
             } catch (_: IOException) {
                 // Either peer closed the tunnel.
             }
@@ -146,14 +166,17 @@ internal class LoopbackConnectProxy private constructor(
     }
 
     private fun closeSocket(socket: Socket) {
-        activeSockets.remove(socket)
-        runCatching { socket.close() }
+        activeSockets.close(socket)
     }
 
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        runCatching { serverSocket.close() }
-        synchronized(activeSockets) { activeSockets.toList() }.forEach(::closeSocket)
+        if (
+            !activeSockets.closeAll {
+                runCatching { serverSocket.close() }
+            }
+        ) {
+            return
+        }
         executor.shutdownNow()
     }
 
