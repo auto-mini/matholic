@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc15`/code 20
-  - Web POC `0.4.0-rc14`/code 31
+  - Web POC `0.4.0-rc15`/code 32
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC15/RC14 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC15/RC15 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc15-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc14-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `7F56D96A6C1EF3A54B58AA07EB75829C2392BE5A1DC1F22E409C79A10D5AB92B`
   - Web POC:
-    `476BAC1C0546EE9876F7B7985E567E596E478838A0D01327C974193335492EFD`
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -531,6 +531,28 @@
     항목 0
   - 실제 Quick Share 중 Activity 파기와 수신 PC 열기·실물 인쇄는 사용자
     복귀 뒤 수행
+- Web 로그인 확인 콜백 세대 차단 커밋 `9dabba0`을 추가하고 Web POC
+  RC15로 A에 설치했다.
+  - 같은 `/course` 문서가 연속 완료되면 이전 portal fingerprint 평가와 지연
+    재시도 콜백이 새 확인 시도와 같은 `LOGIN_VERIFY` 상태를 통과해, 이전
+    문서의 이름·fingerprint 결과로 정상 로그인을 잠그거나 잘못 진행할 수
+    있었음
+  - 포털 로그인 확인 시작마다 기존 login probe 세대를 증가시키고 fingerprint
+    평가 전·후와 모든 지연 재시도에서 상태와 세대를 함께 검사
+  - 수정 전 신규 JVM 계약은
+    `shouldProcessStateGenerationCallback` 부재로 컴파일 실패, 수정 뒤 대상
+    정책과 네 모듈 JVM 72개 통과
+  - Android 13 일회용 에뮬레이터 Web 전체 계측 46개, clean debug
+    204 tasks, release JVM 63개와 release 158 tasks·APK 이중 검증 통과
+  - Web RC15 준비 커밋 `5b531dc`
+  - Web RC15 보관본 크기 3,085,840 bytes, SHA-256
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC15,
+    release signer, Device Owner, 전용 HOME, `LOCKED`, 화면 `Dozing` 유지;
+    설치된 base APK와 보관본 해시 일치, 최근 5분 Matholic AndroidRuntime
+    일치 항목 0
+  - 실제 공개 사이트에서 같은 `/course` 연속 완료와 fingerprint 경합,
+    QR→Web→QR 왕복은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
