@@ -1393,8 +1393,16 @@ class MainActivity : Activity() {
         if (webViewReference === unusableWebView) {
             webViewReference = null
         }
-        (unusableWebView.parent as? ViewGroup)?.removeView(unusableWebView)
-        unusableWebView.destroy()
+        try {
+            (unusableWebView.parent as? ViewGroup)?.removeView(unusableWebView)
+        } catch (_: RuntimeException) {
+            // The dead renderer must not prevent the fail-closed state transition.
+        }
+        try {
+            unusableWebView.destroy()
+        } catch (_: RuntimeException) {
+            // The unusable instance is already detached from Activity ownership.
+        }
     }
 
     private fun dpToPx(value: Int): Int =

@@ -178,6 +178,33 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun rendererCleanupFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val client = activity.findViewById<WebView>(R.id.web_view).webViewClient
+                val replacement = ThrowingDestroyWebView(activity)
+                replaceWebView(activity, replacement)
+
+                assertTrue(
+                    runCatching {
+                        client.onRenderProcessGone(replacement, null)
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_PROCESS_GONE", preferences().getString(KEY_REASON, null))
+            scenario.onActivity { activity ->
+                assertNull(activity.findViewById<WebView?>(R.id.web_view))
+            }
+        }
+    }
+
+    @Test
     fun synchronousJavascriptEvaluationFailureFailsClosedWithoutEscaping() {
         writeState(WebPocState.IDLE)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -514,6 +541,12 @@ class RecoveryInstrumentedTest {
 
         fun deliver(raw: String) {
             checkNotNull(pendingCallback).onReceiveValue(raw)
+        }
+    }
+
+    private class ThrowingDestroyWebView(context: Context) : WebView(context) {
+        override fun destroy() {
+            throw IllegalStateException("synthetic destroy failure")
         }
     }
 
