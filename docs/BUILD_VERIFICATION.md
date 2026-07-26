@@ -3543,3 +3543,82 @@ renderer 종료 callback은 사용할 수 없는 WebView 참조를 해제한 뒤
   실패주입
 - 실제 renderer 종료 복구·QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·
   실물 인쇄 회귀
+
+---
+
+## Web POC RC19 Activity 종료 정리 오류 격리 — 2026-07-26
+
+### 재현한 프로세스 종료
+
+Activity 종료 시 WebView의 로딩 중지, 빈 문서 전환, 기록·캐시·SSL 정리와
+파기를 한 연속 호출로 수행했다. 앞 단계가 예외를 내면 뒤 정리 단계와
+`super.onDestroy()`에 도달하지 못했다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 `stopLoading()`이
+  `IllegalStateException`을 내는 합성 WebView로 기존 Activity 종료 실행
+- 수정 전 `Unable to destroy activity`와 Web POC 프로세스 crash를 재현
+
+### 변경
+
+- 구현·회귀시험 커밋: `e9a017e`
+- Web POC `0.4.0-rc19`/code 36과 릴리스 운영 경로 준비 커밋: `d93a4dd`
+- WebView 정리 일곱 단계를 각각 독립 예외 경계로 실행
+- Activity의 WebView 참조는 정리 전에 해제하고, 상위 `onDestroy()`는
+  `finally`에서 항상 실행
+
+### 자동 검증
+
+- 수정 전 신규 대상 계측시험: 합성 `stopLoading()` 예외가 Activity 종료와
+  Web 프로세스 밖으로 전파되는 실패 재현
+- 수정 뒤 대상 계측시험: 첫 정리 오류가 있어도 빈 문서 전환과 `destroy()`를
+  계속 실행하고 예외가 빠져나오지 않음
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 50개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc19-release.apk`
+  - 크기: 3,088,588 bytes
+  - SHA-256:
+    `77176D0778A71E98DEABF453F2615781C5D7CC30DEA1FA31206E8D66EA1B7531`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc18`/code 35
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC19만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc19`/code 36
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC19 보관본 일치
+- 설치된 Web POC와 RC19 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 Activity 종료 정리 오류와 Kiosk 관리자 복구를 확인하는 고의
+  실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
