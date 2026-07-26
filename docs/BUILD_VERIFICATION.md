@@ -2446,3 +2446,82 @@ Kiosk는 카메라 분석과 DB 작업에 단일 `ioExecutor`를 사용한다. A
 - 실제 관리자 화면에서 목록 새로고침과 빠른 반 전환을 겹치는 실기
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC17 관리자 학생 선택 새로고침 경합 차단 — 2026-07-26
+
+### 재현한 학생 선택 경합
+
+Web 정리 등으로 `refreshAdminData`가 학생 목록을 다시 읽는 동안 교사가 다른
+학생을 선택하면, 기존 구현은 새로고침 시작 때 캡처한 학생을 완료 콜백에서
+다시 선택했다. 학생 선택에는 반 선택과 달리 별도 상태·revision 추적이 없어
+방금 선택한 학생이 이전 학생으로 되돌아갈 수 있었다.
+
+- 실제 학생·관리자 PIN 없이 학생 ID와 선택 revision 합성값만 사용
+- 회귀 JVM 시험을 먼저 추가했고 수정 전 `RefreshableSelectionState` 부재로
+  Kotlin test 컴파일 실패
+- 새 선택 보존, 학생 등록·수정의 명시적 선호 적용, 삭제된 새 선택의 안전한
+  fallback을 각각 검증
+
+### 변경
+
+- 구현·회귀시험 커밋: `984e3fb`
+- Kiosk `0.6.0-rc17`/code 22와 릴리스 운영 경로 준비 커밋: `7f3e924`
+- 학생 Spinner의 실제 선택을 ID와 revision으로 추적
+- 새로고침 완료 시 더 새로운 선택 학생이 여전히 존재하면 이전 선호값이
+  선택을 덮지 않음
+- 학생 등록·이름/계정정보 수정은 기존 명시적 대상 학생을 계속 선택하고,
+  비활성화 등으로 선택 학생이 사라지면 남은 첫 학생으로 안전하게 fallback
+
+### 자동 검증
+
+- 관리자 비동기 상태 JVM 시험 12개 통과
+- 네 모듈 JVM 단위시험 총 78개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 22개,
+  실패·오류·건너뜀 0
+- release Kiosk/Web JVM 보고서 69개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc17-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `CCCAC3270E8C0D879330A7EC2EF33EA4C1B033EDD0A4BAB6145BD2522EF1B352`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc16`/code 21,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시,
+  release signer, Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC17만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc17`/code 22,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- 설치된 Kiosk와 RC17 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 설치 시점 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 관리자 화면에서 목록 새로고침과 빠른 학생 전환을 겹치는 실기
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
