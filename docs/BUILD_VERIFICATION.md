@@ -2777,3 +2777,97 @@ Web 정리 등으로 `refreshAdminData`가 학생 목록을 다시 읽는 동안
 - 실제 A에서 초기 상태 조회 실패와 `다시 시도` 복구를 확인하는 실기
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC21 Web 복귀 결과 확인 실패폐쇄 — 2026-07-26
+
+### 확인한 상태 불일치 위험
+
+Web 화면에서 Kiosk로 돌아온 뒤 수업 상태 변경과 현재 세션 재조회가 별도
+결과로 처리됐다. 상태 변경이 성공해도 재조회 예외는 `null`로 버려졌고,
+성공 복귀라면 스캐너 전환을 계속 시도해 저장 상태와 화면 상태가 어긋날 수
+있었다.
+
+- 신규 JVM 계약 4개를 먼저 추가했으며 기존 코드에는
+  `WebSessionResultPersistence`가 없어 컴파일 실패함을 확인
+- 상태 변경과 활성 세션 재조회를 하나의 `Result` 성공 조건으로 결합
+- 재조회 예외 또는 활성 세션 부재를 성공 복귀로 처리하지 않음
+- 결과 확인 실패 시 현재 화면 세션을 제거하고 스캐너·관리자 화면을 숨긴
+  관리자 PIN 복구 화면과 재확인 안내를 표시
+- 실제 A 데이터 대신 Android 13 일회용 에뮬레이터에서 저장소를 고의로
+  사용할 수 없게 한 계측시험을 사용
+- 첫 수정안은 저장소 메서드 참조를 실패 경계 밖에서 평가해
+  `UninitializedPropertyAccessException`과 앱 프로세스 종료가 발생
+- 저장소 접근 전체를 실패 경계 안으로 옮긴 뒤 같은 계측시험에서 프로세스
+  종료 없이 닫힌 복구 화면을 확인
+
+### 변경
+
+- 구현·회귀시험 커밋: `14a939d`
+- Kiosk `0.6.0-rc21`/code 26과 릴리스 운영 경로 준비 커밋: `fc81f9e`
+- 상태 전이 실패 시 세션 재조회를 시도하지 않고, 상태 전이와 재조회가 모두
+  성공한 경우에만 성공/실패 Web 결과 UI를 적용
+- 성공 결과는 실제 `QR_READY` 활성 세션이 다시 로드된 뒤에만 스캐너로 복귀
+- 결과 저장 또는 재조회 실패는 DB를 추가 변경하지 않고 관리자 PIN 확인으로
+  전환
+
+### 자동 검증
+
+- 수정 전 신규 JVM 계약: 구현 부재 컴파일 실패 확인
+- 수정 중 신규 계측시험: 실패 경계 밖 저장소 접근으로 앱 프로세스 종료 재현
+- 수정 뒤 신규 JVM 4개와 실패 UI 계측시험: 통과
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 26개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 첫 clean debug 호출은 시간 제한 뒤 남은 빌드와 재호출이 겹쳐
+  `:kiosk:clean` 파일 잠금으로 무효화; Gradle daemon을 정상 종료하고 단일
+  실행으로 재검증
+- 네 모듈 단일 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc21-release.apk`
+  - 크기: 34,974,008 bytes
+  - SHA-256:
+    `2C2938FC960173DE2EF1FF86065322B0FBE16F2EACB4E8757C1EEC7985C77081`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc20`/code 25,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 물리 ADB `device`, 정확한 serial·SM-P610, UID·firstInstallTime·
+  dataDir, 설치본·신규 artifact 해시와 release signer, Device Owner·전용
+  HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을 확인
+- Kiosk RC21만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 3초 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc21`/code 26,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 RC21 보관본 일치
+- 설치된 Kiosk와 RC21 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 Web 복귀 결과 저장·재조회 실패와 관리자 PIN 복구를 확인하는
+  고의 실패주입
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
