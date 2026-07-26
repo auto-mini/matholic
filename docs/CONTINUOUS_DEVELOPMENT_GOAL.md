@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc14`/code 19
+  - Kiosk `0.6.0-rc15`/code 20
   - Web POC `0.4.0-rc14`/code 31
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC14/RC14 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC15/RC14 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,11 +104,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc14-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc15-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc14-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `1F2D2EF7F124DCAE6F91C5A6132C8F135CDD5E1D5F11642509C4278532C6CFED`
+    `7F56D96A6C1EF3A54B58AA07EB75829C2392BE5A1DC1F22E409C79A10D5AB92B`
   - Web POC:
     `476BAC1C0546EE9876F7B7985E567E596E478838A0D01327C974193335492EFD`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -508,6 +508,29 @@
     일치 항목 0
   - 실제 공개 사이트에서 timeout과 빠른 로그아웃 재시도를 겹치는 실기,
     QR→Web→QR 왕복은 사용자 복귀 뒤 수행
+- 방치된 공유 QR PDF 수명 상한 커밋 `0b9b746`을 추가하고 Kiosk RC15로
+  A에 설치했다.
+  - 기존 30초 삭제는 공유 화면에서 Kiosk로 정상 복귀한 `onStart`에서만
+    예약되어, 공유 중 Activity가 파기되면 파일 참조를 잃고 다음 1시간
+    만료 정리까지 로그인 가능한 PDF가 캐시에 남을 수 있었음
+  - 공유 선택기를 열기 전에 process 범위 Handler에 기존 보존 한도와 같은
+    최대 1시간 삭제를 예약하고, 정상 복귀하면 기존 30초 삭제도 추가 예약
+  - 실제 QR 원문 없이 합성 PDF를 사용한 계측시험을 먼저 추가했으며 수정 전
+    `scheduleSharedFileExpiry` 부재로 컴파일 실패, 수정 뒤 대상 1개 통과
+  - Android 13 일회용 에뮬레이터 Kiosk 전체 계측 22개, 네 모듈 JVM
+    71개, clean debug 204 tasks, release JVM 62개와 release 158 tasks·APK
+    이중 검증 통과
+  - Kiosk RC15 준비 커밋 `17992f0`
+  - Kiosk RC15 보관본 크기 34,957,624 bytes, SHA-256
+    `7F56D96A6C1EF3A54B58AA07EB75829C2392BE5A1DC1F22E409C79A10D5AB92B`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    명시적 HOME 시작으로 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC14,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing` 유지; 설치된
+    base APK와 보관본 해시 일치, 최근 5분 Matholic AndroidRuntime 일치
+    항목 0
+  - 실제 Quick Share 중 Activity 파기와 수신 PC 열기·실물 인쇄는 사용자
+    복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

@@ -2212,3 +2212,82 @@ Kiosk는 카메라 분석과 DB 작업에 단일 `ioExecutor`를 사용한다. A
 - 실제 공개 사이트에서 첫 로그아웃 timeout과 두 번째 시도의 늦은 콜백 경합
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC15 방치된 공유 QR PDF 수명 상한 — 2026-07-26
+
+### 재현한 공유 수명주기 누락
+
+기존 구현은 PDF 공유 화면에서 Kiosk로 정상 복귀한 `onStart`에서만 30초
+삭제를 예약했다. 공유 화면에 있는 동안 Kiosk Activity가 파기되면
+`pendingSharedPdf` 참조가 사라져, 다음 생성·내보내기 때의 1시간 만료
+정리까지 로그인 가능한 PDF가 앱 캐시에 남을 수 있었다.
+
+- 실제 QR 원문 없이 합성 PDF만 사용
+- 회귀 계측시험을 먼저 추가했고 수정 전 `scheduleSharedFileExpiry` 부재로
+  Android test Kotlin 컴파일 실패
+- 공유 시작 시 수명 상한 예약이 실제 파일을 삭제하는지 50ms 합성 지연으로
+  검증
+
+### 변경
+
+- 구현·회귀시험 커밋: `0b9b746`
+- Kiosk `0.6.0-rc15`/code 20과 릴리스 운영 경로 준비 커밋: `17992f0`
+- 공유 선택기를 열기 전에 process 범위 Handler에 최대 1시간 삭제를 예약
+- 공유 화면에서 정상 복귀하면 기존 30초 삭제도 추가 예약
+- chooser 실행 또는 만료 예약 실패 시 기존처럼 공유를 중단하고 파일을 즉시
+  삭제
+- 예약 콜백은 Activity를 캡처하지 않고 `qr_exports` 직계 파일만 삭제
+
+### 자동 검증
+
+- 신규 방치 공유 만료 계측시험 1개 통과
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 22개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 71개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 62개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc15-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `7F56D96A6C1EF3A54B58AA07EB75829C2392BE5A1DC1F22E409C79A10D5AB92B`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc14-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,508 bytes
+  - SHA-256:
+    `476BAC1C0546EE9876F7B7985E567E596E478838A0D01327C974193335492EFD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc14`/code 19,
+  Web POC `0.4.0-rc14`/code 31
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시,
+  release signer, Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC15만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc15`/code 20,
+  Web POC `0.4.0-rc14`/code 31
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- 설치된 Kiosk와 RC15 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 Quick Share 중 Kiosk Activity 파기 뒤 1시간 이내 자동 삭제
+- 정상 공유 복귀 뒤 30초 삭제와 수신 PC에서 PDF 열기
+- 실제 QR→Web→QR 왕복, 관리자 PIN·카메라·실물 인쇄 회귀
