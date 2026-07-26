@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
 
     private var authEnrollmentMode = false
     private var authBusy = false
+    private var initialStateLoadFailed = false
     private var classes: List<Choice> = emptyList()
     private var students: List<StudentChoice> = emptyList()
     private val classRosterState = ClassRosterSelectionState()
@@ -315,7 +316,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun configureActions() {
-        authSubmit.setOnClickListener { submitAuthentication() }
+        authSubmit.setOnClickListener {
+            if (initialStateLoadFailed) {
+                loadInitialState()
+            } else {
+                submitAuthentication()
+            }
+        }
         findViewById<Button>(R.id.create_class_button).setOnClickListener { createClass() }
         registerStudentButton.setOnClickListener { showRegisterStudentDialog() }
         manageClassMembersButton.setOnClickListener { showClassMembershipDialog() }
@@ -393,20 +400,75 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadInitialState() {
-        statusText.text = "초기 상태 확인 중"
+        showInitialStateLoading()
         ioExecutor.execute {
-            val enrolled = authRepository.isEnrolled()
-            val recoveredState = studentRepository.applyRestartPolicy()
+            val result = runCatching {
+                InitialStateSnapshot(
+                    enrolled = authRepository.isEnrolled(),
+                    recoveredState = studentRepository.applyRestartPolicy(),
+                )
+            }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                statusText.text = recoveredState.name
-                showAuthentication(enrollment = !enrolled)
+                result.fold(
+                    onSuccess = { snapshot ->
+                        statusText.text = snapshot.recoveredState.name
+                        showAuthentication(enrollment = !snapshot.enrolled)
+                    },
+                    onFailure = {
+                        showInitialStateFailure()
+                    },
+                )
             }
         }
     }
 
+    private fun showInitialStateLoading() {
+        stopCamera()
+        initialStateLoadFailed = false
+        authEnrollmentMode = false
+        authPanel.visibility = View.VISIBLE
+        adminPanel.visibility = View.GONE
+        scannerPanel.visibility = View.GONE
+        scannerVisible = false
+        statusText.text = "초기 상태 확인 중"
+        authTitle.text = "초기 상태 확인 중"
+        authDescription.text = "저장된 관리자 설정과 수업 복구 상태를 안전하게 확인하고 있습니다."
+        pinInput.text.clear()
+        pinConfirmInput.text.clear()
+        pinInput.visibility = View.GONE
+        pinConfirmInput.visibility = View.GONE
+        authError.text = ""
+        authSubmit.text = "확인 중"
+        authSubmit.isEnabled = false
+        enterDedicatedMode()
+    }
+
+    private fun showInitialStateFailure() {
+        stopCamera()
+        initialStateLoadFailed = true
+        authEnrollmentMode = false
+        authPanel.visibility = View.VISIBLE
+        adminPanel.visibility = View.GONE
+        scannerPanel.visibility = View.GONE
+        scannerVisible = false
+        statusText.text = "INITIALIZATION_FAILED"
+        authTitle.text = "초기 상태 복구 실패"
+        authDescription.text =
+            "저장된 관리자 설정과 수업 상태를 확인하지 못했습니다. 다른 작업은 차단했습니다."
+        pinInput.text.clear()
+        pinConfirmInput.text.clear()
+        pinInput.visibility = View.GONE
+        pinConfirmInput.visibility = View.GONE
+        authError.text = "기기 데이터는 변경하지 않았습니다. 잠시 후 다시 시도하세요."
+        authSubmit.text = "다시 시도"
+        authSubmit.isEnabled = true
+        enterDedicatedMode()
+    }
+
     private fun showAuthentication(enrollment: Boolean) {
         stopCamera()
+        initialStateLoadFailed = false
         authEnrollmentMode = enrollment
         authPanel.visibility = View.VISIBLE
         adminPanel.visibility = View.GONE
@@ -418,11 +480,13 @@ class MainActivity : ComponentActivity() {
         } else {
             "관리자 PIN을 입력하세요."
         }
+        pinInput.visibility = View.VISIBLE
         pinConfirmInput.visibility = if (enrollment) View.VISIBLE else View.GONE
         authSubmit.text = if (enrollment) "설정" else "인증"
         authError.text = ""
         pinInput.text.clear()
         pinConfirmInput.text.clear()
+        setAuthBusy(false)
         pinInput.requestFocus()
         enterDedicatedMode()
     }
@@ -2044,6 +2108,11 @@ class MainActivity : ComponentActivity() {
         val session: ActiveSessionEntity?,
         val resolvedClassId: String?,
         val membershipStudentIds: Set<String>,
+    )
+
+    private data class InitialStateSnapshot(
+        val enrolled: Boolean,
+        val recoveredState: KioskState,
     )
 
     private data class QrPreview(

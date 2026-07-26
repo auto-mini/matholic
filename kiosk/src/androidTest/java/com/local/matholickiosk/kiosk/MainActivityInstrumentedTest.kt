@@ -57,6 +57,82 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun failedInitialStateLoadShowsRetryWithoutOfferingPinEnrollment() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE &&
+                    activity.findViewById<android.widget.TextView>(R.id.auth_title)
+                        .text
+                        .toString() == "관리자 PIN 설정"
+            }
+
+            val repositoryField = MainActivity::class.java
+                .getDeclaredField("authRepository")
+                .apply { isAccessible = true }
+            val loadMethod = MainActivity::class.java
+                .getDeclaredMethod("loadInitialState")
+                .apply { isAccessible = true }
+            lateinit var originalRepository: AdminAuthRepository
+            try {
+                scenario.onActivity { activity ->
+                    originalRepository = repositoryField.get(activity) as AdminAuthRepository
+                    repositoryField.set(activity, null)
+                    loadMethod.invoke(activity)
+                }
+
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.status_text)
+                        .text
+                        .toString() == "INITIALIZATION_FAILED"
+                }
+                scenario.onActivity { activity ->
+                    assertEquals(
+                        "초기 상태 복구 실패",
+                        activity.findViewById<android.widget.TextView>(R.id.auth_title)
+                            .text
+                            .toString(),
+                    )
+                    assertEquals(
+                        View.GONE,
+                        activity.findViewById<View>(R.id.pin_input).visibility,
+                    )
+                    assertEquals(
+                        View.GONE,
+                        activity.findViewById<View>(R.id.pin_confirm_input).visibility,
+                    )
+                    val retryButton = activity.findViewById<android.widget.Button>(R.id.auth_submit)
+                    assertEquals("다시 시도", retryButton.text.toString())
+                    assertTrue(retryButton.isEnabled)
+                    assertEquals(View.GONE, activity.findViewById<View>(R.id.admin_panel).visibility)
+                    assertEquals(
+                        View.GONE,
+                        activity.findViewById<View>(R.id.scanner_panel).visibility,
+                    )
+                }
+                scenario.onActivity { activity ->
+                    repositoryField.set(activity, originalRepository)
+                    activity.findViewById<View>(R.id.auth_submit).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.auth_title)
+                        .text
+                        .toString() == "관리자 PIN 설정" &&
+                        activity.findViewById<View>(R.id.pin_input).visibility == View.VISIBLE
+                }
+            } finally {
+                scenario.onActivity { activity ->
+                    repositoryField.set(activity, originalRepository)
+                }
+            }
+        }
+        database.clearAllTables()
+    }
+
+    @Test
     fun qrReissueRequiresExplicitConfirmation() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
