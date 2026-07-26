@@ -161,6 +161,28 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testPortalActionsRejectNonDefaultPortOrigin() {
+        withFixture("https://im.matholic.com:444/course", portalFixture()) { webView ->
+            assertFalse(evaluate(webView, WebDomScripts.portalFingerprint).getBoolean("ok"))
+            assertFalse(evaluate(webView, WebDomScripts.openAccountMenu).getBoolean("ok"))
+            assertFalse(evaluate(webView, WebDomScripts.clickLogout).getBoolean("ok"))
+        }
+    }
+
+    @Test
+    fun testPortalFingerprintRejectsCredentialedSemanticLink() {
+        val fixture = portalFixture().replace(
+            "href=\"/userInfo\"",
+            "href=\"https://user:pass@im.matholic.com/userInfo\"",
+        )
+        withFixture("https://im.matholic.com/course", fixture) { webView ->
+            val fingerprint = evaluate(webView, WebDomScripts.portalFingerprint)
+            assertFalse(fingerprint.getBoolean("ok"))
+            assertEquals(0, fingerprint.getInt("userInfoCount"))
+        }
+    }
+
+    @Test
     fun testLogoutRejectsMultipleVisibleExactControls() {
         val fixture = portalFixture(
             "<button onclick=\"document.body.dataset.loggedOut='wrong'\">로그아웃</button>",
@@ -334,6 +356,22 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceAndSummaryRejectNonDefaultPortOrigin() {
+        withFixture(
+            "https://im.matholic.com:444/learningV2/result/virtual",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>3번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertFalse(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            assertFalse(evaluate(webView, WebDomScripts.wrongAnswerSummary).getBoolean("ok"))
+        }
+    }
+
+    @Test
     fun testStudentNavigationGuardRejectsFragmentOnlyRoute() {
         withFixture(
             "https://im.matholic.com/workbook",
@@ -355,6 +393,39 @@ class DomContractInstrumentedTest {
                 """.trimIndent(),
             )
             assertTrue(proof.getBoolean("prevented"))
+        }
+    }
+
+    @Test
+    fun testStudentNavigationGuardRejectsCredentialedAndNonDefaultPortTargets() {
+        withFixture(
+            "https://im.matholic.com/workbook",
+            """
+            <!doctype html><html><body>
+              <a id="credentialed" href="https://user:pass@im.matholic.com/workbook">자격 포함</a>
+              <a id="non-default-port" href="https://im.matholic.com:444/workbook">변형 포트</a>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const dispatch = id => {
+                    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+                    document.getElementById(id).dispatchEvent(event);
+                    return event.defaultPrevented;
+                  };
+                  return JSON.stringify({
+                    credentialedPrevented: dispatch('credentialed'),
+                    nonDefaultPortPrevented: dispatch('non-default-port')
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("credentialedPrevented"))
+            assertTrue(proof.getBoolean("nonDefaultPortPrevented"))
         }
     }
 

@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-26.1"
+    const val CONTRACT_VERSION = "web-2026-07-26.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -117,12 +117,19 @@ object WebDomScripts {
         """
         (() => {
           const anchors = Array.from(document.querySelectorAll('a'));
+          const exactImOrigin = url =>
+            url.protocol === 'https:' &&
+            url.hostname === 'im.matholic.com' &&
+            url.port === '' &&
+            url.username === '' &&
+            url.password === '';
           const pathOf = el => {
             try {
               const url = new URL(el.href, location.href);
-              return url.protocol === location.protocol && url.host === location.host ? url.pathname : '';
+              return exactImOrigin(url) && url.hash === '' ? url.pathname : '';
             } catch (_) { return ''; }
           };
+          const page = new URL(location.href);
           const userInfo = anchors.filter(el => pathOf(el) === '/userInfo');
           const accessLog = anchors.filter(el => pathOf(el) === '/userAccessLog');
           const course = anchors.filter(el => pathOf(el) === '/course');
@@ -138,8 +145,7 @@ object WebDomScripts {
             ) : null;
           }
           const actualName = trigger ? (trigger.innerText || '').normalize('NFKC').trim().replace(/\s+/g, ' ') : '';
-          const ok = location.protocol === 'https:' &&
-            location.hostname === 'im.matholic.com' &&
+          const ok = exactImOrigin(page) && page.hash === '' &&
             userInfo.length === 1 && accessLog.length === 1 &&
             course.length >= 1 && !!submenu && !!wrapper && !!trigger && actualName.length > 0;
           return JSON.stringify({
@@ -155,12 +161,22 @@ object WebDomScripts {
         """
         (() => {
           const anchors = Array.from(document.querySelectorAll('a'));
+          const exactImOrigin = url =>
+            url.protocol === 'https:' &&
+            url.hostname === 'im.matholic.com' &&
+            url.port === '' &&
+            url.username === '' &&
+            url.password === '';
           const pathOf = el => {
             try {
               const url = new URL(el.href, location.href);
-              return url.protocol === location.protocol && url.host === location.host ? url.pathname : '';
+              return exactImOrigin(url) && url.hash === '' ? url.pathname : '';
             } catch (_) { return ''; }
           };
+          const page = new URL(location.href);
+          if (!exactImOrigin(page) || page.hash !== '') {
+            return JSON.stringify({ version: '${CONTRACT_VERSION}', ok: false });
+          }
           const userInfo = anchors.filter(el => pathOf(el) === '/userInfo');
           const accessLog = anchors.filter(el => pathOf(el) === '/userAccessLog');
           if (userInfo.length !== 1 || accessLog.length !== 1) {
@@ -190,12 +206,26 @@ object WebDomScripts {
         """
         (() => {
           const anchors = Array.from(document.querySelectorAll('a'));
+          const exactImOrigin = url =>
+            url.protocol === 'https:' &&
+            url.hostname === 'im.matholic.com' &&
+            url.port === '' &&
+            url.username === '' &&
+            url.password === '';
           const pathOf = el => {
             try {
               const url = new URL(el.href, location.href);
-              return url.protocol === location.protocol && url.host === location.host ? url.pathname : '';
+              return exactImOrigin(url) && url.hash === '' ? url.pathname : '';
             } catch (_) { return ''; }
           };
+          const page = new URL(location.href);
+          if (!exactImOrigin(page) || page.hash !== '') {
+            return JSON.stringify({
+              version: '${CONTRACT_VERSION}', ok: false, count: -1,
+              exactAllCount: -1, visibleExactCount: -1, leafExactCount: -1,
+              submenuVisible: false, usedHiddenFallback: false
+            });
+          }
           const userInfo = anchors.filter(el => pathOf(el) === '/userInfo');
           const accessLog = anchors.filter(el => pathOf(el) === '/userAccessLog');
           if (userInfo.length !== 1 || accessLog.length !== 1) {
@@ -265,15 +295,20 @@ object WebDomScripts {
           };
           const rawPath = location.pathname || '';
           const path = safeStudentPath(rawPath);
-          const hasFragment = location.href.includes('#');
+          let page = null;
+          try { page = new URL(location.href); } catch (_) {}
           const isWorkbook = path !== null &&
             (path === '/workbook' || path.startsWith('/workbook/'));
           const isDiagnostic = path !== null &&
             (path === '/diagnostic' || path.startsWith('/diagnostic/'));
           const isLearning = path !== null && path.startsWith('/learningV2/');
-          const allowed = location.protocol === 'https:' &&
-            location.hostname === 'im.matholic.com' &&
-            !hasFragment &&
+          const allowed = page !== null &&
+            page.protocol === 'https:' &&
+            page.hostname === 'im.matholic.com' &&
+            page.port === '' &&
+            page.username === '' &&
+            page.password === '' &&
+            page.hash === '' &&
             path !== null &&
             (isWorkbook || isDiagnostic || isLearning);
           if (!allowed) {
@@ -417,7 +452,10 @@ object WebDomScripts {
                 const target = new URL(anchor.href, location.href);
                 if (target.protocol !== 'https:' ||
                     target.hostname !== 'im.matholic.com' ||
-                    target.href.includes('#')) {
+                    target.port !== '' ||
+                    target.username !== '' ||
+                    target.password !== '' ||
+                    target.hash !== '') {
                   event.preventDefault();
                   event.stopImmediatePropagation();
                   return;
@@ -464,7 +502,8 @@ object WebDomScripts {
           };
           const rawPath = location.pathname || '';
           const path = safeStudentPath(rawPath);
-          const hasFragment = location.href.includes('#');
+          let page = null;
+          try { page = new URL(location.href); } catch (_) {}
           const normalize = value =>
             (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
           const visible = element => {
@@ -477,9 +516,13 @@ object WebDomScripts {
             errorCardCount: 0, successCardCount: 0
           };
           if (
-            location.protocol !== 'https:' ||
-            location.hostname !== 'im.matholic.com' ||
-            hasFragment ||
+            page === null ||
+            page.protocol !== 'https:' ||
+            page.hostname !== 'im.matholic.com' ||
+            page.port !== '' ||
+            page.username !== '' ||
+            page.password !== '' ||
+            page.hash !== '' ||
             path === null ||
             !path.startsWith('/learningV2/')
           ) return JSON.stringify(base);
