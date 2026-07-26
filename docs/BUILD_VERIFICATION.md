@@ -2135,3 +2135,80 @@ Kiosk는 카메라 분석과 DB 작업에 단일 `ioExecutor`를 사용한다. A
 - A에서 Activity 종료와 PIN·자격정보·QR 검증·PDF 대기 작업을 겹치는
   고의 실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF·실물 인쇄 회귀
+
+---
+
+## Web RC14 로그아웃 재시도 콜백 세대 차단 — 2026-07-26
+
+### 재현한 동일 상태 비동기 경합
+
+로그아웃 첫 시도의 portal fingerprint, 계정 메뉴 열기, 로그아웃 클릭과
+지연 재탐색 콜백은 `LOGOUT_NAVIGATE` 상태만 확인했다. 20초 timeout 뒤
+두 번째 시도가 같은 상태로 시작되면 첫 시도의 늦은 콜백도 상태 검사를
+통과해 새 문서에서 메뉴나 로그아웃을 중복 실행할 수 있었다. 첫 시도의
+`LOGOUT_SUBMIT` timeout과 cookie 삭제 완료 콜백도 같은 ABA 경계를 가졌다.
+
+- 실제 계정이나 공개 사이트 요청 없이 상태·세대 합성값만 사용
+- 회귀 JVM 정책을 먼저 추가했고 수정 전
+  `shouldProcessLogoutCallback` 부재로 컴파일 실패
+- 동일 상태·이전 세대 거부와 동일 상태·현재 세대 허용을 함께 검증
+
+### 변경
+
+- 구현·회귀시험 커밋: `1b2bc92`
+- Web POC `0.4.0-rc14`/code 31과 릴리스 운영 경로 준비 커밋: `ad7edbb`
+- 로그아웃 시도 시작마다 증가하는 세대 토큰을 만든다.
+- portal fingerprint, 계정 메뉴, 로그아웃 클릭과 재탐색, 두 timeout,
+  cookie 삭제 완료가 기대 상태와 현재 세대를 모두 확인한다.
+- 이전 시도의 콜백은 상태가 우연히 같아도 Web DOM·상태·timeout을 변경하지
+  않고 폐기한다.
+
+### 자동 검증
+
+- 현재 세대 허용·이전 세대와 다른 상태 거부 JVM 정책 1개 통과
+- 네 모듈 JVM 단위시험 총 71개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Web 전체 계측 46개,
+  실패·오류·건너뜀 0
+- release Kiosk/Web JVM 보고서 62개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc14-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `1F2D2EF7F124DCAE6F91C5A6132C8F135CDD5E1D5F11642509C4278532C6CFED`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc14-release.apk`
+  - 크기: 3,085,508 bytes
+  - SHA-256:
+    `476BAC1C0546EE9876F7B7985E567E596E478838A0D01327C974193335492EFD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc14`/code 19,
+  Web POC `0.4.0-rc13`/code 30
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·`LOCKED`를 확인
+- Web POC RC14만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc14`/code 19,
+  Web POC `0.4.0-rc14`/code 31
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Web base APK SHA-256과 보관본 일치
+- 설치된 Web과 RC14 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 공개 사이트에서 첫 로그아웃 timeout과 두 번째 시도의 늦은 콜백 경합
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀

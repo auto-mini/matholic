@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc14`/code 19
-  - Web POC `0.4.0-rc13`/code 30
+  - Web POC `0.4.0-rc14`/code 31
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC14/RC13 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC14/RC14 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc14-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc13-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc14-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `1F2D2EF7F124DCAE6F91C5A6132C8F135CDD5E1D5F11642509C4278532C6CFED`
   - Web POC:
-    `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
+    `476BAC1C0546EE9876F7B7985E567E596E478838A0D01327C974193335492EFD`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -486,6 +486,28 @@
     항목 0
   - 실제 Activity 종료와 민감 작업 대기를 겹치는 기기 실패주입, 실제
     QR·관리자 PIN·PDF 흐름은 사용자 복귀 뒤 수행
+- Web 로그아웃 재시도 세대 차단 커밋 `1b2bc92`를 추가하고 Web POC RC14로
+  A에 설치했다.
+  - 첫 로그아웃 시도의 DOM 평가·지연·timeout 콜백이 20초 timeout 뒤 같은
+    `LOGOUT_NAVIGATE`/`LOGOUT_SUBMIT` 상태의 두 번째 시도에서 늦게 돌아오면
+    기존 상태 검사만 통과해 새 문서의 계정 메뉴·로그아웃 동작을 중복 실행하거나
+    정상 재시도를 잠글 수 있었음
+  - 각 로그아웃 시도에 증가 세대를 부여하고 fingerprint, 계정 메뉴,
+    로그아웃 클릭·재탐색, timeout과 cookie 삭제 완료 콜백이 상태와 세대를
+    모두 만족할 때만 동작
+  - 수정 전 신규 JVM 계약은 정책 부재로 컴파일 실패, 수정 뒤 대상 정책과
+    네 모듈 JVM 71개 통과
+  - Android 13 일회용 에뮬레이터 Web 전체 계측 46개, clean debug
+    204 tasks, release 158 tasks와 APK 이중 검증 통과
+  - Web RC14 준비 커밋 `ad7edbb`
+  - Web RC14 보관본 크기 3,085,508 bytes, SHA-256
+    `476BAC1C0546EE9876F7B7985E567E596E478838A0D01327C974193335492EFD`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC14,
+    release signer, Device Owner, 전용 HOME, `LOCKED`, 화면 `Dozing` 유지;
+    설치된 base APK와 보관본 해시 일치, 최근 5분 Matholic AndroidRuntime
+    일치 항목 0
+  - 실제 공개 사이트에서 timeout과 빠른 로그아웃 재시도를 겹치는 실기,
+    QR→Web→QR 왕복은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
