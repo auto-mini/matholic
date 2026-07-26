@@ -2525,3 +2525,87 @@ Web 정리 등으로 `refreshAdminData`가 학생 목록을 다시 읽는 동안
 - 실제 관리자 화면에서 목록 새로고침과 빠른 학생 전환을 겹치는 실기
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC18 관리자 목록 새로고침 실패 복구 — 2026-07-26
+
+### 재현한 실패
+
+`refreshAdminData`의 반·학생·수업·소속 목록 DB 읽기는 예외 경계 밖에서
+실행됐다. 이 중 하나가 실패하면 executor 예외가 프로세스를 종료할 수 있었고,
+학생 변경 자체가 저장된 뒤 후속 목록 새로고침만 실패한 경우에는
+`studentMutationGate`가 해제되지 않아 관리자 UI가 영구 대기 상태로 남을
+수 있었다.
+
+- 실제 A 데이터나 관리자 PIN을 사용하지 않고 Android 13 일회용
+  에뮬레이터의 합성 학생과 고의로 사용할 수 없게 만든 저장소만 사용
+- 회귀 계측시험을 먼저 추가했고 수정 전
+  `UninitializedPropertyAccessException`이 `MainActivity.kt:560`에서 발생해
+  시험 앱 프로세스가 종료되는 것을 재현
+- 수정 뒤 같은 시험에서 기존 학생 목록 유지, 학생 변경 gate 해제,
+  관리자 입력 재활성화와 저장 성공·목록 실패를 함께 설명하는 재시도 안내를
+  검증
+
+### 변경
+
+- 구현·회귀시험 커밋: `7786ee0`
+- Kiosk `0.6.0-rc18`/code 23과 릴리스 운영 경로 준비 커밋: `8fc6e97`
+- 관리자 목록 전체를 하나의 `AdminDataSnapshot`으로 읽고 단일
+  `runCatching` 실패 경계에서 처리
+- 성공한 snapshot만 반·학생·수업·소속 상태에 일괄 반영
+- 실패 시 기존 화면 데이터와 선택·수업 상태를 유지하고, 필요한 경우
+  학생 변경 단일 실행 gate를 해제한 뒤 관리자 화면 재진입 안내를 표시
+
+### 자동 검증
+
+- 수정 전 신규 관리자 새로고침 실패 계측시험: 프로세스 종료 실패 재현
+- 수정 뒤 대상 계측시험과 Android 13 일회용 에뮬레이터 Kiosk 전체 계측
+  23개, 실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 78개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 69개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc18-release.apk`
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `48E03E8CBD14016C337A9DC9548139B4BD0F49FC4149015255504F601E274CDE`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc17`/code 22,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시,
+  release signer, Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC18만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc18`/code 23,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- 설치된 Kiosk와 RC18 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 설치 시점 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 관리자 화면에서 DB 읽기 실패와 후속 재시도 안내를 확인하는 실기
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀

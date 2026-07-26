@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc17`/code 22
+  - Kiosk `0.6.0-rc18`/code 23
   - Web POC `0.4.0-rc15`/code 32
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC17/RC15 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC18/RC15 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,11 +104,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc17-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc18-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `CCCAC3270E8C0D879330A7EC2EF33EA4C1B033EDD0A4BAB6145BD2522EF1B352`
+    `48E03E8CBD14016C337A9DC9548139B4BD0F49FC4149015255504F601E274CDE`
   - Web POC:
     `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -602,6 +602,30 @@
     일치 항목 0
   - 실제 관리자 화면의 목록 새로고침과 빠른 학생 전환 경합, QR→Web→QR
     왕복은 사용자 복귀 뒤 수행
+- 관리자 목록 새로고침 실패 복구 커밋 `7786ee0`을 추가하고 Kiosk RC18로
+  A에 설치했다.
+  - 기존 `refreshAdminData`의 DB 읽기 예외가 executor 밖으로 빠져 프로세스를
+    종료하거나, 저장에 성공한 학생 변경의 단일 실행 gate와 관리자 UI를
+    영구 대기 상태로 남길 수 있었음
+  - Android 13 일회용 에뮬레이터에서 저장소를 고의로 사용할 수 없게 만든
+    신규 계측시험으로 수정 전 `UninitializedPropertyAccessException`과
+    프로세스 종료를 재현
+  - 전체 목록 snapshot 읽기를 단일 실패 경계로 묶고, 실패 시 이전 목록과
+    수업·선택 상태를 유지하면서 학생 변경 gate를 해제하고 명시적인 재시도
+    안내를 표시
+  - 수정 뒤 Kiosk 전체 계측 23개, 네 모듈 JVM 78개, clean debug 204 tasks,
+    release JVM 69개와 release 158 tasks·APK 이중 검증 통과
+  - Kiosk RC18 준비 커밋 `8fc6e97`
+  - Kiosk RC18 보관본 크기 34,974,012 bytes, SHA-256
+    `48E03E8CBD14016C337A9DC9548139B4BD0F49FC4149015255504F601E274CDE`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    명시적 HOME 시작 뒤 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC15,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing` 유지; 설치된
+    base APK와 보관본 해시 일치, 설치 시점 이후 Matholic AndroidRuntime
+    일치 항목 0
+  - 실제 관리자 화면의 DB 실패·재시도, QR→Web→QR 왕복과 카메라·PDF·인쇄
+    실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
