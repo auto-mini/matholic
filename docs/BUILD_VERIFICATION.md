@@ -1336,3 +1336,82 @@ userinfo가 있는 URL, query 또는 fragment가 붙은 URL도 인증 endpoint�
 - 실제 공개 사이트의 포털·학생 문서와 링크가 exact origin 계약과 일치하는지
 - 실제 종이 QR을 사용하는 RC08→RC09 session과 QR→Web→QR 왕복
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## Web RC10 포털 `/course` 경로 제한 — 2026-07-26
+
+### 재현한 포털 판정 과허용
+
+`WebSecurityPolicy.isPortalUrl`은 허용 origin을 검사한 뒤
+`im.matholic.com` host만 비교해 `/userInfo`, `/workbook` 등 모든 경로를
+포털로 분류했다. 포털 DOM 지문·계정 메뉴·로그아웃도 exact origin만 확인해
+공통 계정 메뉴가 있는 비-course 문서에서 통과할 수 있었다.
+
+- 신규 JVM 정책시험과 Web DOM 계측시험을 먼저 추가
+- 수정 전 JVM 정책 6개 중 신규 1개 실패
+- 수정 전 Web DOM 대상 25개 중 신규 1개 실패
+- 실제 A나 공개 사이트에서 비-course 탐색을 주입한 것은 아니다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `02550ca`
+- Web POC `0.4.0-rc10`/code 27과 릴리스 운영 경로 준비 커밋: `2d8482f`
+- `isPortalUrl`은 exact origin에 더해 raw path가 `/course`이고 fragment가
+  없을 때만 true다. query는 허용한다.
+- 학생 문서 처리와 로그인 전 잔여 세션 탐지는 별도 learning-host 판정을
+  사용해 기존 복구·ACTIVE 흐름을 유지한다.
+- 로그인 확인 중 비-course 문서는 `PORTAL_ROUTE` 유지보수 상태로
+  실패폐쇄한다.
+- 로그아웃 이동 중 비-course 문서는 기존 제한 재시도·잠금 정책으로 넘긴다.
+- 포털 지문·계정 메뉴·로그아웃 DOM도 current pathname `/course`를 요구한다.
+- DOM 계약 버전은 `web-2026-07-26.3`으로 갱신했다.
+
+### 자동 검증
+
+- 수정 뒤 WebSecurityPolicyTest 6개, 실패·오류 0
+- 수정 뒤 Web DOM 대상 계측 25개, 실패·오류·건너뜀 0
+- Android 13 일회용 에뮬레이터 Web 전체 계측 44개,
+  실패·오류·건너뜀 0, 168.4초
+- 네 모듈 JVM 단위시험 총 60개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc10-release.apk`
+  - 크기: 3,084,104 bytes
+  - SHA-256:
+    `5D5503D4EE5D63B1EB872C27B9A12516177C7A56C9ED502BD8F3A66A7D723814`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc09`/code 26
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Web POC RC10만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc10`/code 27
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 두 base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 공개 사이트의 로그인 성공 후 URL이 `/course`이며 query만 사용하는지
+- 실제 종이 QR을 사용하는 RC08→RC10 session과 QR→Web→QR 왕복
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`

@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc08`/code 13
-  - Web POC `0.4.0-rc09`/code 26
+  - Web POC `0.4.0-rc10`/code 27
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC08/RC09 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC08/RC10 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -103,12 +103,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc09-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc10-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
   - Web POC:
-    `EE3349ED05D371FBF172A9221D6A0CE14F1DC5C6E642E79C987CD0EB415DEBDD`
+    `5D5503D4EE5D63B1EB872C27B9A12516177C7A56C9ED502BD8F3A66A7D723814`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -122,6 +122,7 @@
   - fragment SPA 경로 차단 기준 Web 37개, 실패 0
   - 로그인 form endpoint 검증 기준 Web 39개, 실패 0
   - DOM origin 일치 보강 기준 Web 43개, 실패 0
+  - 포털 `/course` 경로 제한 기준 Web 44개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -260,6 +261,25 @@
     crash 일치 항목 0
   - 실제 공개 사이트의 포털·학생 DOM origin과 QR→Web→QR 왕복은 사용자
     복귀 뒤 수행
+- Web 포털 경로 제한 커밋 `02550ca`를 추가하고 Web POC RC10으로 A에
+  설치했다.
+  - 기존 `isPortalUrl`은 `im.matholic.com`의 모든 경로를 포털로 분류했고
+    포털 DOM도 공통 메뉴가 있으면 `/userInfo` 같은 문서에서 통과
+  - 수정 전 신규 JVM 정책 6개 중 1개와 Web DOM 대상 25개 중 1개 실패를
+    재현
+  - 학습 host 판정과 포털 문서 판정을 분리하고 query를 허용한 정확한
+    `/course`·fragment 없음 조건을 네이티브 상태 전이와 DOM에 동시 적용
+  - 로그인 확인 중 비-course 문서는 `PORTAL_ROUTE`로 실패폐쇄하고,
+    로그아웃 중에는 기존 제한 재시도 정책으로 처리
+  - 수정 뒤 대상 JVM 6개, DOM 25개, Web 전체 계측 44개, 전체 JVM 60개,
+    clean debug 204 tasks와 release 158 tasks·APK 이중 검증 통과
+  - Web RC10 보관본 크기 3,084,104 bytes, SHA-256
+    `5D5503D4EE5D63B1EB872C27B9A12516177C7A56C9ED502BD8F3A66A7D723814`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC08,
+    release signer, Device Owner, HOME, `LOCKED`, 화면 `Dozing` 유지;
+    crash 일치 항목 0
+  - 실제 공개 사이트의 로그인 후 `/course` 경로와 query 사용 여부,
+    QR→Web→QR 왕복은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
