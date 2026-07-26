@@ -530,6 +530,76 @@ class MainActivityInstrumentedTest {
         database.clearAllTables()
     }
 
+    @Test
+    fun cameraBindingFailureClosesScannerAndRequiresAdminAuthentication() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("가상반-카메라오류")
+        val registered = repository.registerStudent(
+            displayNameExact = "가상학생-카메라오류",
+            username = "synthetic-camera-user".toCharArray(),
+            password = "synthetic-camera-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                    activity.findViewById<View>(R.id.auth_submit).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+                }
+                val activeSession = repository.startSession(classId)
+                val currentSessionField = MainActivity::class.java
+                    .getDeclaredField("currentSession")
+                    .apply { isAccessible = true }
+                val showScannerMethod = MainActivity::class.java
+                    .getDeclaredMethod("showScanner")
+                    .apply { isAccessible = true }
+                val failureMethod = MainActivity::class.java
+                    .getDeclaredMethod("handleCameraBindingFailure")
+                    .apply { isAccessible = true }
+
+                scenario.onActivity { activity ->
+                    currentSessionField.set(activity, activeSession)
+                    showScannerMethod.invoke(activity)
+                    failureMethod.invoke(activity)
+                }
+
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.status_text)
+                        .text
+                        .toString() == "CAMERA_ERROR"
+                }
+                scenario.onActivity { activity ->
+                    assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
+                    assertEquals(View.GONE, activity.findViewById<View>(R.id.scanner_panel).visibility)
+                    assertEquals(
+                        "카메라를 시작하지 못했습니다. 관리자 PIN으로 상태를 확인하세요.",
+                        activity.findViewById<android.widget.TextView>(R.id.auth_error)
+                            .text
+                            .toString(),
+                    )
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
     private fun waitUntil(
         scenario: ActivityScenario<MainActivity>,
         timeoutMillis: Long = 15_000,

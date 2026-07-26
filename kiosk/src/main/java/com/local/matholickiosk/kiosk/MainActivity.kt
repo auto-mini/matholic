@@ -1723,39 +1723,51 @@ class MainActivity : ComponentActivity() {
             if (!scannerVisible || destroyed || generation != cameraBindGeneration) {
                 return@addListener
             }
-            val provider = future.get()
-            cameraProvider = provider
-            val facing = CameraFacingPolicy.choose(
-                preferred = preferredCameraFacing,
-                frontAvailable = provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA),
-                backAvailable = provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA),
-            )
-            if (facing == null) {
-                scannerMessage.text = "사용 가능한 카메라가 없습니다\n선생님 확인이 필요합니다"
-                statusText.text = "CAMERA_UNAVAILABLE"
-                return@addListener
+            try {
+                val provider = future.get()
+                cameraProvider = provider
+                val facing = CameraFacingPolicy.choose(
+                    preferred = preferredCameraFacing,
+                    frontAvailable = provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA),
+                    backAvailable = provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA),
+                )
+                if (facing == null) {
+                    scannerMessage.text = "사용 가능한 카메라가 없습니다\n선생님 확인이 필요합니다"
+                    statusText.text = "CAMERA_UNAVAILABLE"
+                    return@addListener
+                }
+                activeCameraFacing = facing
+                preferredCameraFacing = facing
+                updateCameraSwitchLabel()
+                val analyzer = qrAnalyzer ?: QrImageAnalyzer(onDecision = ::handleQrDecision)
+                    .also { qrAnalyzer = it }
+                analyzer.setEnabled(true)
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { it.setAnalyzer(ioExecutor, analyzer) }
+                provider.unbindAll()
+                provider.bindToLifecycle(
+                    this,
+                    if (facing == CameraFacing.FRONT) {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    },
+                    analysis,
+                )
+            } catch (_: Exception) {
+                if (scannerVisible && !destroyed && generation == cameraBindGeneration) {
+                    handleCameraBindingFailure()
+                }
             }
-            activeCameraFacing = facing
-            preferredCameraFacing = facing
-            updateCameraSwitchLabel()
-            val analyzer = qrAnalyzer ?: QrImageAnalyzer(onDecision = ::handleQrDecision)
-                .also { qrAnalyzer = it }
-            analyzer.setEnabled(true)
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-                .also { it.setAnalyzer(ioExecutor, analyzer) }
-            provider.unbindAll()
-            provider.bindToLifecycle(
-                this,
-                if (facing == CameraFacing.FRONT) {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
-                },
-                analysis,
-            )
         }, mainExecutor)
+    }
+
+    private fun handleCameraBindingFailure() {
+        showAuthentication(enrollment = false)
+        statusText.text = "CAMERA_ERROR"
+        authError.text = "카메라를 시작하지 못했습니다. 관리자 PIN으로 상태를 확인하세요."
     }
 
     private fun switchCamera() {
@@ -2022,7 +2034,13 @@ class MainActivity : ComponentActivity() {
     private fun stopCamera() {
         cameraBindGeneration += 1
         qrAnalyzer?.setEnabled(false)
-        cameraProvider?.unbindAll()
+        val provider = cameraProvider
+        cameraProvider = null
+        try {
+            provider?.unbindAll()
+        } catch (_: Exception) {
+            // Camera teardown must not prevent the fail-closed authentication screen.
+        }
     }
 
     override fun onStop() {
