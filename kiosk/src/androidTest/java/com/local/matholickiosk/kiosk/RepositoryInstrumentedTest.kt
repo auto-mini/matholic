@@ -113,13 +113,22 @@ class RepositoryInstrumentedTest {
         assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
         repository.endSession()
 
-        val originalHash = database.studentDao().findById(registered.studentId)!!.qrTokenHash
+        val originalStudent = database.studentDao().findById(registered.studentId)!!
         repository.deleteClass(classA)
         assertTrue(repository.listClasses().none { it.classId == classA })
         assertTrue(repository.membershipStudentIds(classA).isEmpty())
+        assertEquals(setOf(registered.studentId), repository.membershipStudentIds(classB))
         val preserved = database.studentDao().findById(registered.studentId)!!
         assertTrue(preserved.isActive)
-        assertArrayEquals(originalHash, preserved.qrTokenHash)
+        assertArrayEquals(originalStudent.qrTokenHash, preserved.qrTokenHash)
+        assertArrayEquals(originalStudent.usernameCiphertext, preserved.usernameCiphertext)
+        assertArrayEquals(originalStudent.usernameIv, preserved.usernameIv)
+        assertArrayEquals(originalStudent.passwordCiphertext, preserved.passwordCiphertext)
+        assertArrayEquals(originalStudent.passwordIv, preserved.passwordIv)
+        repository.decryptCredentials(registered.studentId).use { credentials ->
+            assertArrayEquals("user-a".toCharArray(), credentials.username)
+            assertArrayEquals("password-a".toCharArray(), credentials.password)
+        }
 
         repository.startSession(classB)
         assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
