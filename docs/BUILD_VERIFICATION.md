@@ -3383,3 +3383,83 @@ WebView renderer 종료나 lifecycle 경계에서 `evaluateJavascript` 호출 �
 - 실제 A에서 WebView 평가 시작 오류와 Kiosk 관리자 복구를 확인하는 고의
   실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Web POC RC17 자바스크립트 평가 완료 콜백 오류 복구 — 2026-07-26
+
+### 재현한 비동기 콜백 예외
+
+`evaluateJavascript` 호출이 성공해 반환된 뒤 WebView가 main thread에서
+나중에 전달하는 결과 콜백은 평가 시작을 감싼 바깥 `try` 범위에 포함되지
+않았다. 결과 파싱 뒤 DOM 후속 처리에서 동기 예외가 나면 Web 프로세스 종료로
+전파될 수 있었다.
+
+- 실제 A 사이트나 자격정보를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 평가 결과 callback을 저장했다가 평가
+  호출 종료 뒤 별도로 전달하는 합성 WebView를 사용
+- 수정 전 `IllegalStateException: synthetic callback failure`가 결과
+  callback 밖으로 전파되고 잠금 상태가 저장되지 않아 대상 계측시험 실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `d0497be`
+- Web POC `0.4.0-rc17`/code 34와 릴리스 운영 경로 준비 커밋: `27c5fb1`
+- WebView 결과 파싱과 후속 callback 호출을 별도 예외 경계로 감쌈
+- Activity가 살아 있고 아직 terminal 상태가 아니면 `WEB_CALLBACK`으로
+  실패폐쇄
+
+### 자동 검증
+
+- 수정 전 신규 계측시험: 평가 호출 뒤 별도 전달한 callback 예외 전파 재현
+- 수정 뒤 대상 계측시험: 예외가 빠져나오지 않고 `LOCKED`,
+  이유 `WEB_CALLBACK` 저장 확인
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 48개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc17-release.apk`
+  - 크기: 3,085,980 bytes
+  - SHA-256:
+    `1B3B53CA99270BAACD7B47F3D676CDF7C5EBE99CED334EC107F6085CD93B6BF4`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc16`/code 33
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC17만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc17`/code 34
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC17 보관본 일치
+- 설치된 Web POC와 RC17 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 뒤 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 Web callback 오류와 Kiosk 관리자 복구를 확인하는 고의
+  실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
