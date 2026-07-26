@@ -6,6 +6,34 @@ import org.junit.Test
 
 class WebFailurePolicyTest {
     @Test
+    fun `portal verification callback requires the current login probe generation`() {
+        assertTrue(
+            WebFailurePolicy.shouldProcessStateGenerationCallback(
+                state = WebPocState.LOGIN_VERIFY,
+                expectedState = WebPocState.LOGIN_VERIFY,
+                callbackGeneration = 4,
+                currentGeneration = 4,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessStateGenerationCallback(
+                state = WebPocState.LOGIN_VERIFY,
+                expectedState = WebPocState.LOGIN_VERIFY,
+                callbackGeneration = 3,
+                currentGeneration = 4,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessStateGenerationCallback(
+                state = WebPocState.ACTIVE,
+                expectedState = WebPocState.LOGIN_VERIFY,
+                callbackGeneration = 4,
+                currentGeneration = 4,
+            ),
+        )
+    }
+
+    @Test
     fun `logout callback requires both the expected state and current attempt generation`() {
         assertTrue(
             WebFailurePolicy.shouldProcessLogoutCallback(

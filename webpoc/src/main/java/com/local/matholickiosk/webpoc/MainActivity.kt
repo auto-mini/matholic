@@ -834,7 +834,8 @@ class MainActivity : Activity() {
                     return
                 }
                 transition(WebPocState.LOGIN_VERIFY)
-                probePortalForLogin(PORTAL_PROBE_RETRIES)
+                val generation = ++loginProbeGeneration
+                probePortalForLogin(PORTAL_PROBE_RETRIES, generation)
             }
             WebPocState.RECOVERY_REQUIRED -> {
                 pendingLockReason = null
@@ -859,13 +860,16 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun probePortalForLogin(retriesRemaining: Int) {
-        if (state != WebPocState.LOGIN_VERIFY) return
+    private fun probePortalForLogin(retriesRemaining: Int, generation: Int) {
+        if (!isCurrentLoginProbeCallback(generation)) return
         evaluate(WebDomScripts.portalFingerprint) { result ->
-            if (state != WebPocState.LOGIN_VERIFY) return@evaluate
+            if (!isCurrentLoginProbeCallback(generation)) return@evaluate
             if (result?.optBoolean("ok") != true) {
                 if (retriesRemaining > 0) {
-                    handler.postDelayed({ probePortalForLogin(retriesRemaining - 1) }, PROBE_DELAY_MS)
+                    handler.postDelayed(
+                        { probePortalForLogin(retriesRemaining - 1, generation) },
+                        PROBE_DELAY_MS,
+                    )
                 } else {
                     showMaintenance("PORTAL_FINGERPRINT")
                 }
@@ -1237,6 +1241,14 @@ class MainActivity : Activity() {
         callbackGeneration = generation,
         currentGeneration = logoutAttemptGeneration,
     )
+
+    private fun isCurrentLoginProbeCallback(generation: Int): Boolean =
+        WebFailurePolicy.shouldProcessStateGenerationCallback(
+            state = state,
+            expectedState = WebPocState.LOGIN_VERIFY,
+            callbackGeneration = generation,
+            currentGeneration = loginProbeGeneration,
+        )
 
     private fun restartForRecovery() {
         cancelTimeout()
