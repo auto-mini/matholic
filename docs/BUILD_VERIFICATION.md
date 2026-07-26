@@ -2871,3 +2871,87 @@ Web 화면에서 Kiosk로 돌아온 뒤 수업 상태 변경과 현재 세션 �
   고의 실패주입
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC22 취소된 Web 준비 상태 복구 실패폐쇄 — 2026-07-26
+
+### 재현한 무응답 복구 실패
+
+QR 승인 뒤 Kiosk가 자격정보 handle을 준비하는 동안 스캐너 화면을 떠나면,
+Web을 실행하지 않고 `PRELOGIN_CHECK`를 `QR_READY`로 되돌린다. 기존 코드는
+이 복구의 상태 전이 또는 현재 세션 조회가 실패하면 결과를 `null`로 바꾼 뒤
+아무 안내도 하지 않았다. DB가 준비 상태에 남거나 화면이 이전 상태를 계속
+표시할 수 있었다.
+
+- Android 13 일회용 에뮬레이터의 빈 DB와 고의로 사용할 수 없게 만든
+  저장소만 사용
+- 신규 계측시험을 먼저 추가했고 수정 전 3초 안에 기대한 복구 오류 안내가
+  나타나지 않는 timeout 실패를 재현
+- 상태 전이와 현재 세션 조회를 하나의 실패 경계로 결합
+- 조회된 세션에 활성 session ID가 있고 상태가 정확히 `QR_READY`인 경우만
+  복구 성공으로 처리
+- 예외·세션 부재·잘못된 상태에서는 현재 화면 세션을 제거하고 스캐너와
+  관리자 화면을 숨긴 관리자 PIN 복구 화면을 표시
+
+### 변경
+
+- 구현·회귀시험 커밋: `a970c7d`
+- Kiosk `0.6.0-rc22`/code 27과 릴리스 운영 경로 준비 커밋: `555f4ec`
+- 실패 시 DB를 추가 변경하거나 성공 상태로 가정하지 않고 교사가 PIN 인증
+  뒤 최신 세션 상태를 다시 읽도록 안내
+
+### 자동 검증
+
+- 수정 전 신규 계측시험: 오류 안내 미표시 timeout 실패 재현
+- 수정 뒤 대상 계측시험: 통과
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 27개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc22-release.apk`
+  - 크기: 34,974,008 bytes
+  - SHA-256:
+    `F391504A1B1FAFAB309C43EE3F345D1FF6784EEEDD0400E0C4F2386D8556B5E4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc21`/code 26,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 물리 ADB `device`, 정확한 serial·SM-P610, UID·firstInstallTime·
+  dataDir, 설치본·신규 artifact 해시와 release signer, Device Owner·전용
+  HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을 확인
+- Kiosk RC22만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 3초 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc22`/code 27,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 RC22 보관본 일치
+- 설치된 Kiosk와 RC22 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 QR 준비 중 관리자 화면 전환과 복구 실패를 겹치는 고의 실패주입
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
