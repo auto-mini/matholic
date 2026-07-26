@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc26`/code 31
-  - Web POC `0.4.0-rc24`/code 41
+  - Web POC `0.4.0-rc25`/code 42
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC26/RC24 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC26/RC25 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc24-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc25-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
   - Web POC:
-    `5FC92F7DC0781A0614705B0C715D01FEBD7A1396C2318B29574F5DE5B03E16D1`
+    `5C87CAB5A9A7F0D26E3F133AFA63AF8834E61E138CF81ADE2B8EFE4A8266F7CD`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -1017,6 +1017,28 @@
     일치, 설치 시각 이후 AndroidRuntime 오류 일치 항목 0
   - A에서 DNS 재시도 준비 오류를 고의 주입하지 않았으며 실제 QR→Web→QR
     왕복과 관리자 PIN·사이트·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
+- Web 보안 거부 콜백 오류 실패폐쇄 커밋 `88995b9`를 추가하고 Web POC
+  RC25로 A에 설치했다.
+  - TLS 오류의 `SslErrorHandler.cancel()`과 Safe Browsing의
+    `backToSafety()`가 예외를 내면 기존 코드는 잠금 전환 전에 main thread로
+    전파될 수 있었음
+  - Android 13 일회용 에뮬레이터에서 거부 콜백이 예외를 내는 합성 함수로
+    공통 실패폐쇄 경계 부재를 수정 전 대상시험 실패로 확인
+  - 플랫폼 거부 호출을 공통 오류 경계에서 시도하고 예외와 무관하게
+    `TLS_ERROR` 또는 `SAFE_BROWSING`으로 실패폐쇄
+  - 수정 뒤 대상 시험, Web POC 전체 계측 56개, 네 모듈 JVM 84개,
+    clean debug 204 tasks, release JVM 75개와 release 158 tasks·APK 이중
+    검증 통과
+  - Web POC RC25 준비 커밋 `f5acace`
+  - Web POC RC25 보관본 크기 3,093,100 bytes, SHA-256
+    `5C87CAB5A9A7F0D26E3F133AFA63AF8834E61E138CF81ADE2B8EFE4A8266F7CD`
+  - A 설치 전후 Web POC UID `10287`, firstInstallTime, dataDir,
+    Kiosk RC26, release signer, Device Owner, 전용 HOME, `LOCKED`, 화면
+    `Dozing`, USB 화면 유지 설정 0 유지; 설치된 base APK와 보관본 해시
+    일치, 설치 시각 이후 AndroidRuntime 오류 일치 항목 0
+  - A에서 TLS·Safe Browsing 콜백 오류를 고의 주입하지 않았으며 실제
+    QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF·인쇄는 사용자 복귀 뒤
+    수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

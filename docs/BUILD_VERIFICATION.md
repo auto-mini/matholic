@@ -4022,3 +4022,83 @@ WebStorage, cookie를 연속 정리했다. 한 단계가 예외를 내면 뒤 �
 - 실제 A에서 DNS 오류와 WebView 중지 실패를 겹치는 고의 실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
   회귀
+
+---
+
+## Web POC RC25 Web 보안 거부 콜백 오류 실패폐쇄 — 2026-07-26
+
+### 재현한 보안 거부 중단
+
+TLS 오류와 Safe Browsing 위협은 플랫폼 콜백으로 현재 요청을 거부한 뒤
+Web POC를 잠갔다. 기존 경로는 `SslErrorHandler.cancel()` 또는
+`SafeBrowsingResponse.backToSafety()`가 동기 예외를 내면 잠금 전환까지
+도달하지 못할 수 있었다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 거부 콜백이
+  `IllegalStateException`을 내는 합성 함수 사용
+- 수정 전 공통 보안 거부 실패폐쇄 경계가 없어 신규 대상 계측시험 실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `88995b9`
+- Web POC `0.4.0-rc25`/code 42와 릴리스 운영 경로 준비 커밋: `f5acace`
+- TLS 취소와 Safe Browsing 안전 복귀 요청을 공통 오류 경계에서 실행
+- 플랫폼 거부 콜백의 런타임 예외를 격리하고 각각 `TLS_ERROR`,
+  `SAFE_BROWSING`으로 반드시 실패폐쇄
+
+### 자동 검증
+
+- 수정 전 신규 대상 계측시험: 보안 거부 실패폐쇄 경계 부재로 실패
+- 수정 뒤 대상 계측시험: 합성 거부 예외가 빠져나오지 않고 상태 `LOCKED`,
+  이유 `TLS_ERROR` 저장 확인
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 56개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc25-release.apk`
+  - 크기: 3,093,100 bytes
+  - SHA-256:
+    `5C87CAB5A9A7F0D26E3F133AFA63AF8834E61E138CF81ADE2B8EFE4A8266F7CD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc24`/code 41
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC25만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc25`/code 42
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC25 보관본 일치
+- 설치된 Web POC와 RC25 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 오류 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 TLS 취소 또는 Safe Browsing 복귀 콜백 오류를 주입하는 고의
+  실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
+  회귀
