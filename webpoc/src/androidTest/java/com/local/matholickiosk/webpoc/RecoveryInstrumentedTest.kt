@@ -235,6 +235,37 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun preflightDnsRetryStopFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val replacement = ThrowingStopLoadingWebView(activity)
+                replaceWebView(activity, replacement)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.PREFLIGHT)
+                }
+                val scheduleRetry = MainActivity::class.java.getDeclaredMethod(
+                    "schedulePreflightDnsRetry",
+                    WebView::class.java,
+                ).apply { isAccessible = true }
+
+                assertTrue(
+                    runCatching {
+                        scheduleRetry.invoke(activity, replacement)
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_NAVIGATION", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
     fun rendererCrashRemovesUnusableWebViewAndFailsClosed() {
         writeState(WebPocState.IDLE)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

@@ -457,14 +457,7 @@ class MainActivity : Activity() {
                     )
                 ) {
                     if (!preflightDnsRetryScheduled) {
-                        preflightDnsRetryScheduled = true
-                        view?.stopLoading()
-                        handler.postDelayed({
-                            if (!destroyed && state == WebPocState.PREFLIGHT) {
-                                preflightDnsRetryStarted = true
-                                navigateOrLock(WebSecurityPolicy.LOGIN_URL)
-                            }
-                        }, PREFLIGHT_DNS_RETRY_DELAY_MS)
+                        schedulePreflightDnsRetry(view)
                     }
                     return
                 }
@@ -509,6 +502,28 @@ class MainActivity : Activity() {
                 showLocked("WEB_PROCESS_GONE")
                 return true
             }
+        }
+    }
+
+    private fun schedulePreflightDnsRetry(view: WebView?): Boolean {
+        return try {
+            view?.stopLoading()
+            val scheduled = handler.postDelayed({
+                if (!destroyed && state == WebPocState.PREFLIGHT) {
+                    preflightDnsRetryStarted = true
+                    navigateOrLock(WebSecurityPolicy.LOGIN_URL)
+                }
+            }, PREFLIGHT_DNS_RETRY_DELAY_MS)
+            if (scheduled) {
+                preflightDnsRetryScheduled = true
+                true
+            } else {
+                showLocked("WEB_NAVIGATION")
+                false
+            }
+        } catch (_: RuntimeException) {
+            showLocked("WEB_NAVIGATION")
+            false
         }
     }
 
