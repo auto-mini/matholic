@@ -11,9 +11,14 @@ internal interface ProxyBootstrapHandle {
     fun close()
 }
 
+internal fun interface ProxyBootstrapTimeout {
+    fun cancel()
+}
+
 internal interface ProxyBootstrapPlatform {
     fun isSupported(): Boolean
     fun startProxy(): ProxyBootstrapHandle
+    fun scheduleTimeout(onTimeout: () -> Unit): ProxyBootstrapTimeout
     fun applyOverride(proxyPort: Int, onReady: () -> Unit)
 }
 
@@ -37,6 +42,7 @@ internal class ProxyBootstrapCoordinator(
     private val callbacks = mutableListOf<(ProxyBootstrapResult) -> Unit>()
     private var state = State.NEW
     private var proxy: ProxyBootstrapHandle? = null
+    private var timeout: ProxyBootstrapTimeout? = null
 
     fun ensureConfigured(callback: (ProxyBootstrapResult) -> Unit) {
         when (state) {
@@ -61,6 +67,14 @@ internal class ProxyBootstrapCoordinator(
             val candidate = platform.startProxy()
             proxy = candidate
             state = State.CONFIGURING
+            val candidateTimeout = platform.scheduleTimeout {
+                finish(State.FAILED, ProxyBootstrapResult.FAILED)
+            }
+            if (state != State.CONFIGURING) {
+                cancelTimeout(candidateTimeout)
+                return
+            }
+            timeout = candidateTimeout
             platform.applyOverride(candidate.port) {
                 finish(State.READY, ProxyBootstrapResult.READY)
             }
@@ -72,6 +86,8 @@ internal class ProxyBootstrapCoordinator(
     private fun finish(next: State, result: ProxyBootstrapResult) {
         if (state == State.READY || state == State.UNSUPPORTED || state == State.FAILED) return
         state = next
+        timeout?.let(::cancelTimeout)
+        timeout = null
         if (next != State.READY) {
             val failedProxy = proxy
             proxy = null
@@ -84,5 +100,13 @@ internal class ProxyBootstrapCoordinator(
         val pending = callbacks.toList()
         callbacks.clear()
         pending.forEach { it(result) }
+    }
+
+    private fun cancelTimeout(pendingTimeout: ProxyBootstrapTimeout) {
+        try {
+            pendingTimeout.cancel()
+        } catch (_: RuntimeException) {
+            // Watchdog cleanup failure must not suppress the terminal bootstrap result.
+        }
     }
 }

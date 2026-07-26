@@ -29,6 +29,16 @@ internal object WebViewProxyBootstrap {
                 }
             }
 
+            override fun scheduleTimeout(onTimeout: () -> Unit): ProxyBootstrapTimeout {
+                val timeout = Runnable(onTimeout)
+                check(mainHandler.postDelayed(timeout, PROXY_BOOTSTRAP_TIMEOUT_MS)) {
+                    "Web proxy bootstrap watchdog was rejected"
+                }
+                return ProxyBootstrapTimeout {
+                    mainHandler.removeCallbacks(timeout)
+                }
+            }
+
             override fun applyOverride(proxyPort: Int, onReady: () -> Unit) {
                 val config = ProxyConfig.Builder()
                     .addProxyRule("127.0.0.1:$proxyPort")
@@ -50,4 +60,6 @@ internal object WebViewProxyBootstrap {
 
         coordinator.ensureConfigured(callback)
     }
+
+    private const val PROXY_BOOTSTRAP_TIMEOUT_MS = 10_000L
 }
