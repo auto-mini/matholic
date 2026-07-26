@@ -6,6 +6,40 @@ import org.junit.Test
 
 class WebFailurePolicyTest {
     @Test
+    fun `page finish is processed only for the current main document`() {
+        assertTrue(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://im.matholic.com/course",
+                currentUrl = "https://im.matholic.com/course",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://login.matholic.com/",
+                currentUrl = "https://im.matholic.com/course",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://im.matholic.com/course",
+                currentUrl = "https://im.matholic.com/workbook",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = null,
+                currentUrl = "https://im.matholic.com/course",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://im.matholic.com/course",
+                currentUrl = null,
+            ),
+        )
+    }
+
+    @Test
     fun `error page finish is ignored only while preflight DNS retry is pending`() {
         assertTrue(
             WebFailurePolicy.shouldIgnorePageFinishedWhilePreflightRetryPending(

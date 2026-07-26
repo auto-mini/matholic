@@ -1,6 +1,11 @@
 package com.local.matholickiosk.webpoc
 
 object WebFailurePolicy {
+    fun shouldProcessPageFinished(
+        callbackUrl: String?,
+        currentUrl: String?,
+    ): Boolean = callbackUrl != null && callbackUrl == currentUrl
+
     fun shouldIgnorePageFinishedWhilePreflightRetryPending(
         state: WebPocState,
         retryScheduled: Boolean,

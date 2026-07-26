@@ -416,9 +416,11 @@ class MainActivity : Activity() {
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
+                val finishedUrl = url ?: return
                 if (
-                    destroyed || isTerminalState() || url == null ||
-                    !WebSecurityPolicy.isAllowedTopLevelUrl(url)
+                    destroyed || isTerminalState() ||
+                    !WebFailurePolicy.shouldProcessPageFinished(finishedUrl, view?.url) ||
+                    !WebSecurityPolicy.isAllowedTopLevelUrl(finishedUrl)
                 ) return
                 if (
                     WebFailurePolicy.shouldIgnorePageFinishedWhilePreflightRetryPending(
@@ -428,8 +430,8 @@ class MainActivity : Activity() {
                     )
                 ) return
                 when {
-                    WebSecurityPolicy.isLoginUrl(url) -> handleLoginPage()
-                    WebSecurityPolicy.isLearningHostUrl(url) -> handlePortalPage(url)
+                    WebSecurityPolicy.isLoginUrl(finishedUrl) -> handleLoginPage()
+                    WebSecurityPolicy.isLearningHostUrl(finishedUrl) -> handlePortalPage(finishedUrl)
                 }
             }
 
