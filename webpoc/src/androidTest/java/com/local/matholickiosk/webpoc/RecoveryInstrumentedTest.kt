@@ -185,34 +185,34 @@ class RecoveryInstrumentedTest {
             assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
 
             scenario.onActivity { activity ->
-                val original = activity.findViewById<WebView>(R.id.web_view)
-                val parent = original.parent as FrameLayout
-                val replacement = ThrowingEvaluateWebView(activity).apply {
-                    id = R.id.web_view
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                    )
-                }
-                parent.removeView(original)
-                original.destroy()
-                parent.addView(replacement, 0)
-                MainActivity::class.java.getDeclaredField("webViewReference").apply {
-                    isAccessible = true
-                    set(activity, replacement)
-                }
-
-                val evaluate = MainActivity::class.java.getDeclaredMethod(
-                    "evaluate",
-                    String::class.java,
-                    kotlin.jvm.functions.Function1::class.java,
-                ).apply { isAccessible = true }
-                val callback: (Any?) -> Unit = { }
-                evaluate.invoke(activity, "({ ok: true })", callback)
+                replaceWebView(activity, ThrowingEvaluateWebView(activity))
+                invokeEvaluate(activity) { }
             }
 
             assertEquals(WebPocState.LOCKED, readState())
             assertEquals("WEB_EVALUATION", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun asynchronousJavascriptCallbackFailureFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val replacement = CapturingEvaluateWebView(activity)
+                replaceWebView(activity, replacement)
+                invokeEvaluate(activity) {
+                    throw IllegalStateException("synthetic callback failure")
+                }
+
+                assertTrue(runCatching { replacement.deliver("null") }.isSuccess)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_CALLBACK", preferences().getString(KEY_REASON, null))
         }
     }
 
@@ -467,12 +467,53 @@ class RecoveryInstrumentedTest {
         throw AssertionError("state did not reach expected safe value; final=${readState()}, reason=$reason")
     }
 
+    private fun replaceWebView(activity: MainActivity, replacement: WebView) {
+        val original = activity.findViewById<WebView>(R.id.web_view)
+        val parent = original.parent as FrameLayout
+        replacement.id = R.id.web_view
+        replacement.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        )
+        parent.removeView(original)
+        original.destroy()
+        parent.addView(replacement, 0)
+        MainActivity::class.java.getDeclaredField("webViewReference").apply {
+            isAccessible = true
+            set(activity, replacement)
+        }
+    }
+
+    private fun invokeEvaluate(activity: MainActivity, callback: (Any?) -> Unit) {
+        MainActivity::class.java.getDeclaredMethod(
+            "evaluate",
+            String::class.java,
+            kotlin.jvm.functions.Function1::class.java,
+        ).apply { isAccessible = true }
+            .invoke(activity, "({ ok: true })", callback)
+    }
+
     private class ThrowingEvaluateWebView(context: Context) : WebView(context) {
         override fun evaluateJavascript(
             script: String,
             resultCallback: ValueCallback<String>?,
         ) {
             throw IllegalStateException("synthetic evaluation failure")
+        }
+    }
+
+    private class CapturingEvaluateWebView(context: Context) : WebView(context) {
+        private var pendingCallback: ValueCallback<String>? = null
+
+        override fun evaluateJavascript(
+            script: String,
+            resultCallback: ValueCallback<String>?,
+        ) {
+            pendingCallback = resultCallback
+        }
+
+        fun deliver(raw: String) {
+            checkNotNull(pendingCallback).onReceiveValue(raw)
         }
     }
 

@@ -1449,7 +1449,13 @@ class MainActivity : Activity() {
         if (destroyed) return
         try {
             webView.evaluateJavascript(script) { raw ->
-                if (!destroyed && !isTerminalState()) callback(parseJavascriptObject(raw))
+                if (!destroyed && !isTerminalState()) {
+                    try {
+                        callback(parseJavascriptObject(raw))
+                    } catch (_: RuntimeException) {
+                        if (!destroyed && !isTerminalState()) showLocked("WEB_CALLBACK")
+                    }
+                }
             }
         } catch (_: RuntimeException) {
             if (!destroyed && !isTerminalState()) showLocked("WEB_EVALUATION")
