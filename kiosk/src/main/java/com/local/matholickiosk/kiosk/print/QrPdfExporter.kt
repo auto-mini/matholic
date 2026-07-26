@@ -96,7 +96,7 @@ object QrPdfExporter {
             ?.forEach(File::delete)
     }
 
-    private fun releaseSensitiveBitmap(bitmap: Bitmap) {
+    internal fun releaseSensitiveBitmap(bitmap: Bitmap) {
         if (!bitmap.isRecycled) {
             if (bitmap.isMutable) bitmap.eraseColor(Color.WHITE)
             bitmap.recycle()

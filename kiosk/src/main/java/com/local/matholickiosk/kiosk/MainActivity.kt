@@ -48,6 +48,7 @@ import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
 import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
+import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
@@ -423,7 +424,9 @@ class MainActivity : ComponentActivity() {
         pinInput.text.clear()
         pinConfirmInput.text.clear()
         setAuthBusy(true)
-        ioExecutor.execute {
+        executeSensitive(
+            cleanup = { pin.fill('\u0000') },
+        ) {
             val result = runCatching {
                 if (authEnrollmentMode) {
                     authRepository.enroll(pin)
@@ -803,7 +806,12 @@ class MainActivity : ComponentActivity() {
             password.fill('\u0000')
             return
         }
-        ioExecutor.execute {
+        executeSensitive(
+            cleanup = {
+                username.fill('\u0000')
+                password.fill('\u0000')
+            },
+        ) {
             val result = runCatching {
                 val registered = studentRepository.registerStudent(
                     exactName,
@@ -1020,7 +1028,12 @@ class MainActivity : ComponentActivity() {
             password.fill('\u0000')
             return
         }
-        ioExecutor.execute {
+        executeSensitive(
+            cleanup = {
+                username.fill('\u0000')
+                password.fill('\u0000')
+            },
+        ) {
             val result = runCatching {
                 studentRepository.updateStudentCredentials(
                     selected.id,
@@ -1226,7 +1239,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         adminMessage.text = "카드 크기 PDF 생성 중"
-        ioExecutor.execute {
+        executeSensitive(
+            cleanup = { QrPdfExporter.releaseSensitiveBitmap(exportBitmap) },
+        ) {
             val result = runCatching {
                 QrPdfExporter.consumeSensitiveBitmap(exportBitmap) { ownedBitmap ->
                     studentRepository.recordQrExportRequested(preview.studentId)
@@ -1615,9 +1630,10 @@ class MainActivity : ComponentActivity() {
     private fun validateQr(tokenHash: ByteArray) {
         scannerMessage.text = "확인되었습니다"
         statusText.text = KioskState.QR_VALIDATING.name
-        ioExecutor.execute {
+        executeSensitive(
+            cleanup = { tokenHash.fill(0) },
+        ) {
             val result = runCatching { studentRepository.validateForActiveSession(tokenHash) }
-            tokenHash.fill(0)
             runOnUiThread {
                 if (!scannerVisible || destroyed) return@runOnUiThread
                 result.fold(
@@ -1773,7 +1789,9 @@ class MainActivity : ComponentActivity() {
                 val pin = input.text.toSensitiveCharArray()
                 input.text.clear()
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
-                ioExecutor.execute {
+                executeSensitive(
+                    cleanup = { pin.fill('\u0000') },
+                ) {
                     val result = authRepository.authenticate(pin)
                     runOnUiThread {
                         if (destroyed) return@runOnUiThread
@@ -1852,7 +1870,22 @@ class MainActivity : ComponentActivity() {
         stopCamera()
         qrAnalyzer?.close()
         ioExecutor.shutdownNow()
+            .filterIsInstance<SensitiveTask>()
+            .forEach(SensitiveTask::discard)
         super.onDestroy()
+    }
+
+    private fun executeSensitive(
+        cleanup: () -> Unit,
+        operation: () -> Unit,
+    ) {
+        val task = SensitiveTask(cleanup, operation)
+        try {
+            ioExecutor.execute(task)
+        } catch (failure: RuntimeException) {
+            task.discard()
+            if (!destroyed) throw failure
+        }
     }
 
     private fun dialogTextInput(
