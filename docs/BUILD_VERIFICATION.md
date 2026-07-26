@@ -1736,3 +1736,84 @@ WebView를 계층과 필드에 남긴 채 `true`를 반환했다.
 - A의 고의 Web renderer 충돌과 그 뒤 관리자 복구
 - 실제 QR→Web→QR 왕복과 공개 사이트 DOM 계약
 - 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC11 준비 완료 Web 세션 경합 차단 — 2026-07-26
+
+### 재현한 비동기 경계
+
+QR 검증 뒤 Kiosk는 세션을 `PRELOGIN_CHECK`로 바꾸고 암호화 자격정보를
+복호화해 1회용 handle을 준비한다. 이 작업 중 학생 화면의 교사 관리 버튼으로
+전환하면 scanner는 닫히지만, 기존 준비 완료 콜백은 Activity 파기 여부만
+검사했다. 따라서 PIN 화면이 열린 뒤에도 준비된 Web 세션을 시작할 수 있었다.
+
+- 현재 동작을 결정 정책으로 추출하고 회귀시험을 먼저 추가
+- 수정 전 정책 JVM 3개 중 scanner 이탈 취소 시험 1개 실패:
+  기대 `CANCEL_AND_RESTORE`, 실제 `LAUNCH`
+- 실제 QR·자격정보·PIN은 사용하지 않았다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `f613467`
+- Kiosk `0.6.0-rc11`/code 16과 릴리스 운영 경로 준비 커밋: `a82f606`
+- 준비 완료 시 Activity가 파기됐으면 handle만 폐기하고 기존 재시작
+  실패폐쇄 정책에 맡긴다.
+- Activity는 살아 있지만 scanner 화면을 떠났으면 handle을 폐기한다.
+- 이 경우 현재 DB 상태가 정확히 `PRELOGIN_CHECK`일 때만
+  `PRELOGIN_CHECK→QR_READY`로 복원한다.
+- 다른 Web 결과·잠금·복구 상태가 먼저 반영됐으면 기대 상태 검사가 복원을
+  거부하므로 늦은 콜백이 새 상태를 덮어쓰지 않는다.
+
+### 자동 검증
+
+- 수정 뒤 준비 완료 정책 JVM 3개, 실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 67개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 18개,
+  실패·오류·건너뜀 0
+  - 기존 저장소 시험이 `PRELOGIN_CHECK→QR_READY` 복원 시 학생 ID 제거와
+    중복·늦은 복원 거부를 포함
+- release Kiosk/Web JVM 보고서 58개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc11-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `E7E094EA353E924E151885C068559BD61FDC7DCAA8B2A314686F982CCD9788A9`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc12-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,084,508 bytes
+  - SHA-256:
+    `469493E02F1554279F3C6F7ACFBA0A149568225524013A55FA5CA20CDC45C880`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc10`/code 15,
+  Web POC `0.4.0-rc12`/code 29
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Kiosk RC11만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc11`/code 16,
+  Web POC `0.4.0-rc12`/code 29
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·최종 `LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+- 설치 스크립트의 마지막 전원 상태 출력 구문 오타로 설치 직후의 일시
+  Lock Task 값은 보존되지 않았으며 최종 `LOCKED`만 독립 재확인
+
+### 미검증
+
+- A에서 실제 QR 승인 직후 교사 관리 버튼을 빠르게 누르는 경합
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀

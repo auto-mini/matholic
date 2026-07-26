@@ -90,23 +90,25 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc10`/code 15
+  - Kiosk `0.6.0-rc11`/code 16
   - Web POC `0.4.0-rc12`/code 29
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC10/RC12 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC11/RC12 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
-  - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
-    깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
+  - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
+    화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
+  - RC11 설치 후 최종 `LOCKED`·전용 HOME은 독립 확인했으나 설치 스크립트
+    최종 출력 오타로 설치 직후 일시 상태는 기록되지 않음
   - release signer, Device Owner와 전용 HOME 유지
   - 설치 전후 화면은 `Dozing`을 유지했고 관리자 PIN을 입력하지 않아 현재
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc10-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc11-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc12-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `7BFF17A3D74C9DB2C699BE4EE4F3AEE3175F4A39C72B5032D590EAE4C7870187`
+    `E7E094EA353E924E151885C068559BD61FDC7DCAA8B2A314686F982CCD9788A9`
   - Web POC:
     `469493E02F1554279F3C6F7ACFBA0A149568225524013A55FA5CA20CDC45C880`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -374,6 +376,27 @@
     최근 5분 Matholic AndroidRuntime 일치 항목 0
   - A에는 고의 renderer 충돌을 주입하지 않았으며 실제 QR→Web→QR 왕복과
     renderer 종료 뒤 관리자 복구 실기는 사용자 복귀 뒤 수행
+- 준비 완료 Web 세션의 화면 전환 뒤 실행 차단 커밋 `f613467`을 추가하고
+  Kiosk RC11으로 A에 설치했다.
+  - QR 검증 뒤 DB를 `PRELOGIN_CHECK`로 바꾸고 자격정보 handle을 준비하는
+    동안 교사 관리로 전환하면 `scannerVisible=false`가 되지만, 기존 완료
+    콜백은 Activity 파기 여부만 검사해 PIN 화면 위로 Web 세션을 시작 가능
+  - 수정 전 신규 정책 JVM 시험 3개 중 scanner 이탈 취소 시험 1개 실패
+  - Activity 파기 시 handle만 폐기해 재시작 실패폐쇄에 맡기고, 살아 있는
+    Activity가 scanner를 떠났으면 handle을 폐기한 뒤 현재 상태가 정확히
+    `PRELOGIN_CHECK`일 때만 `QR_READY`로 복원
+  - 대상 정책 JVM 3개, 네 모듈 JVM 67개, clean debug 204 tasks,
+    Android 13 일회용 에뮬레이터 Kiosk 전체 계측 18개, release 158 tasks와
+    APK 이중 검증 통과
+  - Kiosk RC11 준비 커밋 `a82f606`
+  - Kiosk RC11 보관본 크기 34,957,624 bytes, SHA-256
+    `E7E094EA353E924E151885C068559BD61FDC7DCAA8B2A314686F982CCD9788A9`
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC12,
+    release signer, Device Owner, 전용 HOME, 최종 `LOCKED`, 화면 `Dozing`
+    유지; 최근 5분 Matholic AndroidRuntime 일치 항목 0
+  - 설치 스크립트 최종 출력 오타로 RC11 설치 직후의 일시 Lock Task 값은
+    기록되지 않았고 최종 상태만 독립 확인
+  - 실제 QR 승인 직후 교사 관리 전환 경합 실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
