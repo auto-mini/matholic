@@ -1907,12 +1907,33 @@ class MainActivity : ComponentActivity() {
                     expectedState = KioskState.PRELOGIN_CHECK,
                     state = KioskState.QR_READY,
                 )
-                studentRepository.currentSession()
-            }.getOrNull()
+                checkNotNull(studentRepository.currentSession()) {
+                    "Prepared Web session was restored without an active session"
+                }.also { session ->
+                    check(
+                        session.sessionId != null &&
+                            session.state == KioskState.QR_READY.name,
+                    ) {
+                        "Prepared Web session did not return to QR_READY"
+                    }
+                }
+            }
             runOnUiThread {
-                if (destroyed || restored == null) return@runOnUiThread
-                currentSession = restored
-                statusText.text = restored.state
+                if (destroyed) return@runOnUiThread
+                restored.fold(
+                    onSuccess = { session ->
+                        currentSession = session
+                        statusText.text = session.state
+                    },
+                    onFailure = {
+                        currentSession = null
+                        statusText.text = KioskState.LOCKED.name
+                        showAuthentication(enrollment = false)
+                        authError.text =
+                            "준비된 로그인 상태를 복구하지 못했습니다. " +
+                            "관리자 PIN으로 상태를 확인하세요."
+                    },
+                )
             }
         }
     }

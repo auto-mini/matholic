@@ -389,6 +389,58 @@ class MainActivityInstrumentedTest {
         database.clearAllTables()
     }
 
+    @Test
+    fun failedPreparedWebSessionRestoreShowsClosedRecoveryUi() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            }
+
+            val repositoryField = MainActivity::class.java
+                .getDeclaredField("studentRepository")
+                .apply { isAccessible = true }
+            val restoreMethod = MainActivity::class.java
+                .getDeclaredMethod("restoreQrReadyAfterCancelledWebLaunch")
+                .apply { isAccessible = true }
+            lateinit var originalRepository: StudentRepository
+            try {
+                scenario.onActivity { activity ->
+                    originalRepository = repositoryField.get(activity) as StudentRepository
+                    repositoryField.set(activity, null)
+                    restoreMethod.invoke(activity)
+                }
+
+                waitUntil(scenario, timeoutMillis = 3_000) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.auth_error)
+                        .text
+                        .toString()
+                        .contains("준비된 로그인 상태를 복구하지 못했습니다")
+                }
+                scenario.onActivity { activity ->
+                    assertEquals(
+                        "LOCKED",
+                        activity.findViewById<android.widget.TextView>(R.id.status_text)
+                            .text
+                            .toString(),
+                    )
+                    assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
+                    assertEquals(View.GONE, activity.findViewById<View>(R.id.admin_panel).visibility)
+                    assertEquals(View.GONE, activity.findViewById<View>(R.id.scanner_panel).visibility)
+                }
+            } finally {
+                scenario.onActivity { activity ->
+                    repositoryField.set(activity, originalRepository)
+                }
+            }
+        }
+        database.clearAllTables()
+    }
+
     private fun waitUntil(
         scenario: ActivityScenario<MainActivity>,
         timeoutMillis: Long = 15_000,
