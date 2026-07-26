@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc26`/code 31
-  - Web POC `0.4.0-rc26`/code 43
+  - Web POC `0.4.0-rc27`/code 44
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC26/Web POC RC26 설치: 2026-07-26 `adb install -r`로 완료
+- A의 Kiosk RC26/Web POC RC27 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc26-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc27-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
   - Web POC:
-    `32CFD09F788385A3EF0E78AEB15C44DBC5168CD1A3E1AC2AE277F33E97AFF2FC`
+    `58958895AB1DDCEF548252B9F0F4F1E5E4ACBA357D56B1F61CB6CF98234F7D4B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -1060,6 +1060,26 @@
     일치, 설치 시각 이후 AndroidRuntime 오류 일치 항목 0
   - A에서 프록시 초기화 오류를 고의 주입하지 않았으며 실제 QR→Web→QR
     왕복과 관리자 PIN·사이트·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
+- Web 프록시 초기화 완료 timeout 커밋 `32271c1`을 추가하고 Web POC
+  RC27로 A에 설치했다.
+  - RC26은 proxy override 요청이 예외 없이 접수된 뒤 완료 콜백이 오지
+    않으면 UI 초기화 전 `CONFIGURING` 상태와 부분 프록시를 무기한 유지했음
+  - 프록시 시작 뒤 10초 watchdog을 예약해 성공 때 취소하고, 예약 거부·
+    시간 초과 시 `FAILED`로 종결해 부분 프록시를 닫음
+  - 합성 platform으로 시간 초과 정리, 늦은 ready 무시와 watchdog 예약
+    실패 정리를 추가해 coordinator JVM 시험 7개 통과
+  - Web POC 전체 계측 56개, 네 모듈 JVM 91개, clean debug 204 tasks,
+    release JVM 82개와 release 158 tasks·APK 이중 검증 통과
+  - Web POC RC27 준비 커밋 `3ae6697`
+  - Web POC RC27 보관본 크기 3,097,596 bytes, SHA-256
+    `58958895AB1DDCEF548252B9F0F4F1E5E4ACBA357D56B1F61CB6CF98234F7D4B`
+  - A 설치 전후 Web POC UID `10287`, firstInstallTime, dataDir,
+    Kiosk RC26, release signer, Device Owner, 전용 HOME, `LOCKED`, 화면
+    `Dozing`, USB 화면 유지 설정 0 유지; 설치된 base APK와 보관본 해시
+    일치, 설치 시각 이후 AndroidRuntime 오류 일치 항목 0
+  - A에서 프록시 완료 콜백 유실을 고의 주입하지 않았으며 실제
+    QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF·인쇄는 사용자 복귀 뒤
+    수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

@@ -3946,91 +3946,6 @@ WebStorage, cookie를 연속 정리했다. 한 단계가 예외를 내면 뒤 �
 
 ---
 
-## Web POC RC26 프록시 초기화 오류 실패폐쇄 — 2026-07-26
-
-### 재현한 초기화 중단
-
-Web POC는 프로세스 시작 때 loopback CONNECT 프록시를 시작하고 WebView의
-process-wide proxy override를 설정한다. 기존 경로는 WebView 기능 지원 확인
-예외가 초기화 밖으로 전파될 수 있었고, 프록시 시작 뒤
-`ProxyConfig.Builder` 또는 override 적용이 실패하면 부분 시작된 프록시를
-남기거나 시작 완료 콜백을 끝내지 못할 수 있었다.
-
-- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
-- Android 의존성을 분리한 coordinator 시험을 먼저 추가
-- 수정 전 신규 대상 JVM 시험은 coordinator와 platform 경계가 없어 컴파일
-  실패
-
-### 변경
-
-- 구현·회귀시험 커밋: `055d0f8`
-- Web POC `0.4.0-rc26`/code 43과 릴리스 운영 경로 준비 커밋: `bf84e89`
-- 기능 지원 확인, loopback 시작과 proxy override 적용을 하나의 직렬 상태
-  기계에서 수행
-- 동기 런타임 예외를 `FAILED`로 종결하고 부분 시작된 프록시를 닫음
-- 프록시 닫기 자체가 실패해도 실패 결과 전달을 보장
-- 준비 중 중복 요청은 큐에 모으고, 완료 뒤 요청은 저장된 종결 결과를 즉시
-  전달하며 늦은 준비 완료 콜백은 무시
-
-### 자동 검증
-
-- 대상 coordinator JVM 시험 5개: 지원 확인 예외, override 적용 예외와 부분
-  프록시 정리, 미지원, 비동기 성공·중복 요청, 정리 예외를 검증해 모두 통과
-- 전체 자동시험 첫 시도는 앞서 시간 제한된 중복 Gradle 프로세스가 계측 결과
-  파일을 점유해 실패; 해당 저장소의 중복 프로세스만 종료한 뒤 재실행 통과
-- Android 13 일회용 에뮬레이터 Web POC 전체 계측 56개,
-  실패·오류·건너뜀 0
-- 네 모듈 JVM 단위시험 총 89개, 실패·오류 0
-- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
-- release Kiosk/Web JVM 보고서 80개, 실패·오류 0
-- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
-- release applicationId·versionName·versionCode·권한·`debuggable=false`,
-  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
-  zipalign: 통과
-- build APK와 저장 artifact 쌍의 이중 검증: 통과
-
-### 릴리스 APK
-
-- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - 기존 payload 검증본 보존
-  - 크기: 34,974,012 bytes
-  - SHA-256:
-    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
-- Web POC: `artifacts/matholic-webpoc-0.4.0-rc26-release.apk`
-  - 크기: 3,095,616 bytes
-  - SHA-256:
-    `32CFD09F788385A3EF0E78AEB15C44DBC5168CD1A3E1AC2AE277F33E97AFF2FC`
-- signer SHA-256:
-  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-
-### A 보존형 업데이트와 설치 후 검사
-
-- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
-  Web POC `0.4.0-rc25`/code 42
-- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
-  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
-  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
-  확인
-- Web POC RC26만 `adb install -r`: 성공
-- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
-  Web POC `0.4.0-rc26`/code 43
-- 두 package UID `10288`/`10287`, firstInstallTime
-  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
-- 설치된 Web POC base APK SHA-256과 RC26 보관본 일치
-- 설치된 Web POC와 RC26 artifact의 signer SHA-256 일치
-- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
-  유지
-- 설치 시각 이후 AndroidRuntime 오류 일치 항목: 0
-
-### 미검증
-
-- 실제 A에서 WebView 기능 지원 확인·프록시 시작·override 적용 오류를
-  고의 주입하는 실패시험
-- 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
-  회귀
-
----
-
 ## Web POC RC24 사전점검 DNS 재시도 준비 오류 실패폐쇄 — 2026-07-26
 
 ### 재현한 재시도 준비 중단
@@ -4185,5 +4100,169 @@ Web POC를 잠갔다. 기존 경로는 `SslErrorHandler.cancel()` 또는
 
 - 실제 A에서 TLS 취소 또는 Safe Browsing 복귀 콜백 오류를 주입하는 고의
   실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
+  회귀
+---
+
+## Web POC RC26 프록시 초기화 오류 실패폐쇄 — 2026-07-26
+
+### 재현한 초기화 중단
+
+Web POC는 프로세스 시작 때 loopback CONNECT 프록시를 시작하고 WebView의
+process-wide proxy override를 설정한다. 기존 경로는 WebView 기능 지원 확인
+예외가 초기화 밖으로 전파될 수 있었고, 프록시 시작 뒤
+`ProxyConfig.Builder` 또는 override 적용이 실패하면 부분 시작된 프록시를
+남기거나 시작 완료 콜백을 끝내지 못할 수 있었다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- Android 의존성을 분리한 coordinator 시험을 먼저 추가
+- 수정 전 신규 대상 JVM 시험은 coordinator와 platform 경계가 없어 컴파일
+  실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `055d0f8`
+- Web POC `0.4.0-rc26`/code 43과 릴리스 운영 경로 준비 커밋: `bf84e89`
+- 기능 지원 확인, loopback 시작과 proxy override 적용을 하나의 직렬 상태
+  기계에서 수행
+- 동기 런타임 예외를 `FAILED`로 종결하고 부분 시작된 프록시를 닫음
+- 프록시 닫기 자체가 실패해도 실패 결과 전달을 보장
+- 준비 중 중복 요청은 큐에 모으고, 완료 뒤 요청은 저장된 종결 결과를 즉시
+  전달하며 늦은 준비 완료 콜백은 무시
+
+### 자동 검증
+
+- 대상 coordinator JVM 시험 5개: 지원 확인 예외, override 적용 예외와 부분
+  프록시 정리, 미지원, 비동기 성공·중복 요청, 정리 예외를 검증해 모두 통과
+- 전체 자동시험 첫 시도는 앞서 시간 제한된 중복 Gradle 프로세스가 계측 결과
+  파일을 점유해 실패; 해당 저장소의 중복 프로세스만 종료한 뒤 재실행 통과
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 56개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 89개, 실패·오류 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 80개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc26-release.apk`
+  - 크기: 3,095,616 bytes
+  - SHA-256:
+    `32CFD09F788385A3EF0E78AEB15C44DBC5168CD1A3E1AC2AE277F33E97AFF2FC`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc25`/code 42
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC26만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc26`/code 43
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC26 보관본 일치
+- 설치된 Web POC와 RC26 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 오류 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 WebView 기능 지원 확인·프록시 시작·override 적용 오류를
+  고의 주입하는 실패시험
+- 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
+  회귀
+
+---
+
+## Web POC RC27 프록시 초기화 완료 timeout — 2026-07-26
+
+### 재현한 무기한 초기화 대기
+
+RC26은 프록시 초기화 API가 동기 예외를 내는 경로를 실패폐쇄했지만,
+`ProxyController.setProxyOverride`가 요청을 접수한 뒤 완료 콜백을 전달하지
+않으면 coordinator가 계속 `CONFIGURING`에 머물렀다. 이 상태에서는
+`MainActivity`가 UI 초기화를 시작하지 못하고 부분 시작된 loopback 프록시와
+대기 콜백도 남는다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- 합성 platform에 시간 제한 계약을 먼저 추가
+- 수정 전 신규 대상 JVM 시험은 timeout 손잡이와 예약 계약이 없어 컴파일
+  실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `32271c1`
+- Web POC `0.4.0-rc27`/code 44와 릴리스 운영 경로 준비 커밋: `3ae6697`
+- 프록시 시작 뒤 10초 watchdog을 예약하고 override 성공 때 즉시 취소
+- watchdog 예약이 거부되거나 완료 콜백이 10초 안에 오지 않으면 `FAILED`로
+  종결하고 부분 프록시를 닫음
+- 시간 초과 뒤 늦은 ready 콜백은 이미 확정된 실패 결과를 바꾸지 못함
+
+### 자동 검증
+
+- 대상 coordinator JVM 시험 7개: 기존 5개에 시간 초과 정리·늦은 ready
+  무시와 watchdog 예약 실패 정리를 추가해 모두 통과
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 56개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 91개, 실패·오류 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 82개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc27-release.apk`
+  - 크기: 3,097,596 bytes
+  - SHA-256:
+    `58958895AB1DDCEF548252B9F0F4F1E5E4ACBA357D56B1F61CB6CF98234F7D4B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc26`/code 43
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC27만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc27`/code 44
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC27 보관본 일치
+- 설치된 Web POC와 RC27 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 오류 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 프록시 override 완료 콜백을 고의로 유실시키는 실패시험
 - 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
   회귀
