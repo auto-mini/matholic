@@ -1564,22 +1564,37 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         destroyed = true
         cancelTimeout()
-        if (uiInitialized) {
-            gate3Session?.let {
-                persistGate3Outcome(GATE3_STATUS_ABORTED, it.completedCycles)
+        try {
+            if (uiInitialized) {
+                gate3Session?.let {
+                    persistGate3Outcome(GATE3_STATUS_ABORTED, it.completedCycles)
+                }
+                wipeRuntimeSecrets()
+                val activeWebView = webViewReference
+                webViewReference = null
+                activeWebView?.let(::disposeWebViewForActivityDestroy)
             }
-            wipeRuntimeSecrets()
-            val activeWebView = webViewReference
-            webViewReference = null
-            activeWebView?.stopLoading()
-            activeWebView?.loadUrl("about:blank")
-            activeWebView?.clearHistory()
-            activeWebView?.clearCache(true)
-            activeWebView?.clearSslPreferences()
-            activeWebView?.removeAllViews()
-            activeWebView?.destroy()
+        } finally {
+            super.onDestroy()
         }
-        super.onDestroy()
+    }
+
+    private fun disposeWebViewForActivityDestroy(activeWebView: WebView) {
+        ignoreWebViewCleanupFailure { activeWebView.stopLoading() }
+        ignoreWebViewCleanupFailure { activeWebView.loadUrl("about:blank") }
+        ignoreWebViewCleanupFailure { activeWebView.clearHistory() }
+        ignoreWebViewCleanupFailure { activeWebView.clearCache(true) }
+        ignoreWebViewCleanupFailure { activeWebView.clearSslPreferences() }
+        ignoreWebViewCleanupFailure { activeWebView.removeAllViews() }
+        ignoreWebViewCleanupFailure { activeWebView.destroy() }
+    }
+
+    private fun ignoreWebViewCleanupFailure(cleanup: () -> Unit) {
+        try {
+            cleanup()
+        } catch (_: RuntimeException) {
+            // One failed best-effort step must not skip the remaining lifecycle cleanup.
+        }
     }
 
     private data class SecureBridgePayload(

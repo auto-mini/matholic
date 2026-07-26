@@ -244,6 +244,32 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun activityDestroyCleanupContinuesAfterIndividualWebViewFailure() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val replacement = ThrowingStopLoadingWebView(activity)
+                replaceWebView(activity, replacement)
+
+                val cleanup = MainActivity::class.java.getDeclaredMethod(
+                    "disposeWebViewForActivityDestroy",
+                    WebView::class.java,
+                ).apply { isAccessible = true }
+
+                assertTrue(runCatching { cleanup.invoke(activity, replacement) }.isSuccess)
+                assertTrue(replacement.blankLoadAttempted)
+                assertEquals(1, replacement.destroyCalls)
+
+                MainActivity::class.java.getDeclaredField("webViewReference").apply {
+                    isAccessible = true
+                    set(activity, null)
+                }
+                (replacement.parent as? FrameLayout)?.removeView(replacement)
+            }
+        }
+    }
+
+    @Test
     fun activityPreventsScreenshotsAndRecentTaskPreview() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -547,6 +573,26 @@ class RecoveryInstrumentedTest {
     private class ThrowingDestroyWebView(context: Context) : WebView(context) {
         override fun destroy() {
             throw IllegalStateException("synthetic destroy failure")
+        }
+    }
+
+    private class ThrowingStopLoadingWebView(context: Context) : WebView(context) {
+        var blankLoadAttempted = false
+            private set
+        var destroyCalls = 0
+            private set
+
+        override fun stopLoading() {
+            throw IllegalStateException("synthetic stopLoading failure")
+        }
+
+        override fun loadUrl(url: String) {
+            if (url == "about:blank") blankLoadAttempted = true
+        }
+
+        override fun destroy() {
+            destroyCalls += 1
+            super.destroy()
         }
     }
 
