@@ -30,6 +30,22 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class QrPrintDocumentAdapterInstrumentedTest {
     @Test
+    fun copiedQrBitmapIsWipedWhenWorkFailsBeforePdfExport() {
+        val copiedQrBitmap = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.BLACK)
+        }
+
+        val failure = runCatching {
+            QrPdfExporter.consumeSensitiveBitmap(copiedQrBitmap) {
+                throw IllegalStateException("synthetic audit failure")
+            }
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertTrue(copiedQrBitmap.isRecycled)
+    }
+
+    @Test
     fun sharedPdfCleanupDeletesTheExportAfterItsGracePeriod() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val exportDirectory = File(context.cacheDir, "qr_exports").apply { mkdirs() }

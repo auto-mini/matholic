@@ -1228,12 +1228,14 @@ class MainActivity : ComponentActivity() {
         adminMessage.text = "카드 크기 PDF 생성 중"
         ioExecutor.execute {
             val result = runCatching {
-                studentRepository.recordQrExportRequested(preview.studentId)
-                QrPdfExporter.export(
-                    context = this,
-                    displayName = preview.exactName,
-                    qrBitmap = exportBitmap,
-                )
+                QrPdfExporter.consumeSensitiveBitmap(exportBitmap) { ownedBitmap ->
+                    studentRepository.recordQrExportRequested(preview.studentId)
+                    QrPdfExporter.export(
+                        context = this,
+                        displayName = preview.exactName,
+                        qrBitmap = ownedBitmap,
+                    )
+                }
             }
             runOnUiThread {
                 if (destroyed) {
@@ -1243,10 +1245,6 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = { file -> shareQrPdf(file, preview) },
                     onFailure = {
-                        if (!exportBitmap.isRecycled) {
-                            exportBitmap.eraseColor(android.graphics.Color.WHITE)
-                            exportBitmap.recycle()
-                        }
                         adminMessage.text = it.message ?: "QR 카드 PDF 생성 실패"
                     },
                 )

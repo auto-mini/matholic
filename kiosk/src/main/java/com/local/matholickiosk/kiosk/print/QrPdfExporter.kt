@@ -54,12 +54,19 @@ object QrPdfExporter {
             output.delete()
             throw failure
         } finally {
-            if (!qrBitmap.isRecycled) {
-                if (qrBitmap.isMutable) qrBitmap.eraseColor(Color.WHITE)
-                qrBitmap.recycle()
-            }
+            releaseSensitiveBitmap(qrBitmap)
         }
     }
+
+    internal fun <T> consumeSensitiveBitmap(
+        bitmap: Bitmap,
+        operation: (Bitmap) -> T,
+    ): T =
+        try {
+            operation(bitmap)
+        } finally {
+            releaseSensitiveBitmap(bitmap)
+        }
 
     fun cleanupExpired(context: Context) {
         cleanupExpired(File(context.cacheDir, EXPORT_DIRECTORY))
@@ -87,6 +94,13 @@ object QrPdfExporter {
         directory.listFiles()
             ?.filter { it.isFile && it.lastModified() < cutoff }
             ?.forEach(File::delete)
+    }
+
+    private fun releaseSensitiveBitmap(bitmap: Bitmap) {
+        if (!bitmap.isRecycled) {
+            if (bitmap.isMutable) bitmap.eraseColor(Color.WHITE)
+            bitmap.recycle()
+        }
     }
 
     private const val EXPORT_DIRECTORY = "qr_exports"
