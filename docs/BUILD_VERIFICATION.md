@@ -1657,3 +1657,82 @@ scanner 화면이 보이는지만 확인했고 PIN 대화상자가 열린 동안
 - A에서 QR 해석과 관리자 PIN 화면 진입을 의도적으로 겹치는 실기
 - 실제 QR→Web→QR 왕복, 관리자 화면과 정상 `QR_READY`
 - 실제 PDF 공유·인쇄물 크기·종이 QR 재인식
+
+---
+
+## Web RC12 renderer 종료 복구 — 2026-07-26
+
+### 재현한 계약 위반
+
+Android는 renderer process가 종료된 WebView를 다시 사용할 수 없으므로
+뷰 계층에서 제거하고 파기한 뒤 Activity의 참조도 해제하도록 요구한다.
+기존 `onRenderProcessGone`은 `WEB_PROCESS_GONE` 잠금만 표시하고 죽은
+WebView를 계층과 필드에 남긴 채 `true`를 반환했다.
+
+- 공식 근거:
+  [Android WebView termination handling](https://developer.android.com/develop/ui/views/layout/webapps/managing-webview)
+- Android 13 일회용 에뮬레이터에서 공식 시험용 `chrome://crash`를 사용
+- 수정 전 신규 계측시험 실패:
+  상태와 사유는 `LOCKED`·`WEB_PROCESS_GONE`이었지만 `web_view`가 계층에
+  그대로 남음
+- 실제 A에는 renderer 충돌을 주입하지 않았다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `4d54dee`
+- Web POC `0.4.0-rc12`/code 29와 릴리스 운영 경로 준비 커밋: `0695240`
+- renderer 종료 콜백의 WebView를 부모 계층에서 제거하고 `destroy()`한 뒤
+  Activity 참조를 `null`로 해제한다.
+- 죽은 WebView가 없는 상태에서도 잠금 UI와 Kiosk 실패 반환을 유지한다.
+- 잠금 화면의 복구 버튼으로 Activity를 재생성하면 새 WebView를 구성한다.
+- 일반 Activity 종료 시에도 활성 WebView 참조를 먼저 해제하고 정리해
+  renderer 종료 경로와 중복 사용하지 않는다.
+
+### 자동 검증
+
+- 수정 뒤 renderer 충돌·계층 제거·새 WebView 복구 대상 계측 1개 통과
+- Android 13 일회용 에뮬레이터 Web 전체 계측 46개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 64개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 55개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc10-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `7BFF17A3D74C9DB2C699BE4EE4F3AEE3175F4A39C72B5032D590EAE4C7870187`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc12-release.apk`
+  - 크기: 3,084,508 bytes
+  - SHA-256:
+    `469493E02F1554279F3C6F7ACFBA0A149568225524013A55FA5CA20CDC45C880`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc10`/code 15,
+  Web POC `0.4.0-rc11`/code 28
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Web POC RC12만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc10`/code 15,
+  Web POC `0.4.0-rc12`/code 29
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Web base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- A의 고의 Web renderer 충돌과 그 뒤 관리자 복구
+- 실제 QR→Web→QR 왕복과 공개 사이트 DOM 계약
+- 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀

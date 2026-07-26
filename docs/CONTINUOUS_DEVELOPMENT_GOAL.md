@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc10`/code 15
-  - Web POC `0.4.0-rc11`/code 28
+  - Web POC `0.4.0-rc12`/code 29
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC10/RC11 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC10/RC12 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -103,12 +103,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc10-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc12-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `7BFF17A3D74C9DB2C699BE4EE4F3AEE3175F4A39C72B5032D590EAE4C7870187`
   - Web POC:
-    `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
+    `469493E02F1554279F3C6F7ACFBA0A149568225524013A55FA5CA20CDC45C880`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -124,6 +124,7 @@
   - DOM origin 일치 보강 기준 Web 43개, 실패 0
   - 포털 `/course` 경로 제한 기준 Web 44개, 실패 0
   - 로그인 `/` 경로 제한 기준 Web 45개, 실패 0
+  - Web renderer 종료 복구 기준 Web 46개, 실패 0
   - QR PDF 실물 좌표계 보강 기준 Kiosk 18개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
@@ -354,6 +355,25 @@
   - 설치 직후 Lock Task `NONE`을 화면을 깨우지 않는 명시적 HOME 시작으로
     `LOCKED` 복구했으며 최근 5분 Matholic AndroidRuntime 일치 항목 0
   - 실제 QR 분석과 관리자 PIN 화면 진입을 겹치는 실기는 사용자 복귀 뒤 수행
+- Web renderer 종료 복구 커밋 `4d54dee`를 추가하고 Web POC RC12로 A에
+  설치했다.
+  - 기존 `onRenderProcessGone`은 `WEB_PROCESS_GONE`으로 잠그고 `true`를
+    반환하면서 사용할 수 없는 WebView를 뷰 계층과 Activity 필드에 남겨
+    Android의 renderer 종료 처리 계약을 위반
+  - 일회용 에뮬레이터에서 공식 시험용 `chrome://crash`로 수정 전 상태 잠금
+    뒤에도 죽은 WebView가 남는 실패를 재현
+  - renderer 종료 시 해당 WebView를 계층에서 제거·파기하고 참조를 해제한
+    뒤 실패폐쇄하며, 복구 버튼의 Activity 재생성에서 새 WebView를 생성
+  - 대상 충돌·복구 계측 1개, Web 전체 계측 46개, 네 모듈 JVM 64개,
+    clean debug 204 tasks, release 158 tasks와 APK 이중 검증 통과
+  - Web RC12 준비 커밋 `0695240`
+  - Web RC12 보관본 크기 3,084,508 bytes, SHA-256
+    `469493E02F1554279F3C6F7ACFBA0A149568225524013A55FA5CA20CDC45C880`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC10,
+    release signer, Device Owner, 전용 HOME, `LOCKED`, 화면 `Dozing` 유지;
+    최근 5분 Matholic AndroidRuntime 일치 항목 0
+  - A에는 고의 renderer 충돌을 주입하지 않았으며 실제 QR→Web→QR 왕복과
+    renderer 종료 뒤 관리자 복구 실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
