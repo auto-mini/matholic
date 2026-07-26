@@ -3,7 +3,9 @@ package com.local.matholickiosk.kiosk
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.CancellationSignal
@@ -46,21 +48,36 @@ class QrPrintDocumentAdapterInstrumentedTest {
     }
 
     @Test
-    fun physicalCardAndQrSizesUseIndependentPrinterDpi() {
-        val resolution = PrintAttributes.Resolution(
-            "asymmetric",
-            "asymmetric",
-            600,
-            300,
-        )
+    fun physicalCardAndQrSizesUsePostScriptPointsIndependentOfPrinterDpi() {
+        val card = QrPrintCardRenderer.cardSizePoints()
+        val qr = QrPrintCardRenderer.qrSizePoints()
 
-        val card = QrPrintCardRenderer.cardSizePixels(resolution)
-        val qr = QrPrintCardRenderer.qrSizePixels(resolution)
+        assertEquals(65f, card.width / 72f * 25.4f, 0.01f)
+        assertEquals(90f, card.height / 72f * 25.4f, 0.01f)
+        assertEquals(30f, qr.width / 72f * 25.4f, 0.01f)
+        assertEquals(30f, qr.height / 72f * 25.4f, 0.01f)
+    }
 
-        assertEquals(65f, card.width / resolution.horizontalDpi * 25.4f, 0.01f)
-        assertEquals(90f, card.height / resolution.verticalDpi * 25.4f, 0.01f)
-        assertEquals(30f, qr.width / resolution.horizontalDpi * 25.4f, 0.01f)
-        assertEquals(30f, qr.height / resolution.verticalDpi * 25.4f, 0.01f)
+    @Test
+    fun printableAreaSmallerThanTheCardIsRejectedInsteadOfScaled() {
+        val output = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        val qr = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+        try {
+            val failure = runCatching {
+                QrPrintCardRenderer.draw(
+                    canvas = Canvas(output),
+                    contentRect = Rect(0, 0, output.width, output.height),
+                    displayName = "가상학생 전체이름",
+                    qrBitmap = qr,
+                )
+            }.exceptionOrNull()
+
+            assertTrue(failure is IllegalArgumentException)
+            assertTrue(failure?.message?.contains("65×90mm") == true)
+        } finally {
+            output.recycle()
+            qr.recycle()
+        }
     }
 
     @Test
@@ -78,7 +95,7 @@ class QrPrintDocumentAdapterInstrumentedTest {
         )
         val attributes = PrintAttributes.Builder()
             .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
-            .setResolution(PrintAttributes.Resolution("test", "test", 300, 300))
+            .setResolution(PrintAttributes.Resolution("test", "test", 600, 300))
             .setMinMargins(PrintAttributes.Margins(500, 500, 500, 500))
             .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
             .build()
@@ -124,8 +141,12 @@ class QrPrintDocumentAdapterInstrumentedTest {
                                 PdfRenderer.Page.RENDER_MODE_FOR_PRINT,
                             )
                             var darkSamples = 0
-                            for (y in 0 until preview.height step 8) {
-                                for (x in 0 until preview.width step 8) {
+                            var minDarkX = preview.width
+                            var minDarkY = preview.height
+                            var maxDarkX = -1
+                            var maxDarkY = -1
+                            for (y in 0 until preview.height) {
+                                for (x in 0 until preview.width) {
                                     val pixel = preview.getPixel(x, y)
                                     if (
                                         Color.red(pixel) < 128 &&
@@ -133,10 +154,20 @@ class QrPrintDocumentAdapterInstrumentedTest {
                                         Color.blue(pixel) < 128
                                     ) {
                                         darkSamples += 1
+                                        minDarkX = minOf(minDarkX, x)
+                                        minDarkY = minOf(minDarkY, y)
+                                        maxDarkX = maxOf(maxDarkX, x)
+                                        maxDarkY = maxOf(maxDarkY, y)
                                     }
                                 }
                             }
                             assertTrue(darkSamples > 100)
+                            val renderedWidthMm =
+                                (maxDarkX - minDarkX + 1) / 72f * 25.4f
+                            val renderedHeightMm =
+                                (maxDarkY - minDarkY + 1) / 72f * 25.4f
+                            assertEquals(65f, renderedWidthMm, 1.5f)
+                            assertEquals(90f, renderedHeightMm, 1.5f)
                         } finally {
                             preview.recycle()
                         }

@@ -12,13 +12,11 @@ import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
 import android.print.PageRange
 import android.print.PrintAttributes
-import android.print.PrintAttributes.Resolution
 import android.print.PrintDocumentAdapter
 import android.print.PrintDocumentInfo
 import android.print.pdf.PrintedPdfDocument
 import java.io.FileDescriptor
 import java.io.FileOutputStream
-import kotlin.math.min
 
 class QrPrintDocumentAdapter(
     context: Context,
@@ -120,8 +118,6 @@ internal object QrPrintPdfWriter {
             QrPrintCardRenderer.draw(
                 canvas = page.canvas,
                 contentRect = page.info.contentRect,
-                resolution = attributes.resolution
-                    ?: PrintAttributes.Resolution("fallback", "fallback", 300, 300),
                 displayName = displayName,
                 qrBitmap = qrBitmap,
             )
@@ -136,7 +132,7 @@ internal object QrPrintPdfWriter {
 }
 
 internal object QrPrintCardRenderer {
-    internal data class PixelDimensions(
+    internal data class PointDimensions(
         val width: Float,
         val height: Float,
     )
@@ -144,34 +140,30 @@ internal object QrPrintCardRenderer {
     fun draw(
         canvas: Canvas,
         contentRect: Rect,
-        resolution: Resolution,
         displayName: String,
         qrBitmap: Bitmap,
     ) {
         canvas.drawColor(Color.WHITE)
         val availableWidth = contentRect.width().toFloat()
         val availableHeight = contentRect.height().toFloat()
-        val targetCard = cardSizePixels(resolution)
-        val fitScale = min(
-            1f,
-            min(
-                availableWidth / targetCard.width,
-                availableHeight / targetCard.height,
-            ),
-        )
-        val cardWidth = targetCard.width * fitScale
-        val cardHeight = targetCard.height * fitScale
+        val targetCard = cardSizePoints()
+        require(
+            availableWidth >= targetCard.width &&
+                availableHeight >= targetCard.height,
+        ) {
+            "인쇄 가능 영역이 65×90mm QR 카드보다 작습니다."
+        }
+        val cardWidth = targetCard.width
+        val cardHeight = targetCard.height
         val left = contentRect.left + (availableWidth - cardWidth) / 2f
         val top = contentRect.top + (availableHeight - cardHeight) / 2f
         val card = RectF(left, top, left + cardWidth, top + cardHeight)
-        val verticalPadding =
-            millimetersToPixels(CARD_PADDING_MM, resolution.verticalDpi) * fitScale
+        val verticalPadding = millimetersToPoints(CARD_PADDING_MM)
 
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = millimetersToPixels(0.35f, resolution.horizontalDpi)
-                .coerceAtLeast(1f)
+            strokeWidth = millimetersToPoints(0.35f).coerceAtLeast(1f)
         }
         canvas.drawRect(card, borderPaint)
 
@@ -180,7 +172,7 @@ internal object QrPrintCardRenderer {
             textAlign = Paint.Align.CENTER
         }
         val centerX = card.centerX()
-        textPaint.textSize = millimetersToPixels(5.2f, resolution.verticalDpi) * fitScale
+        textPaint.textSize = millimetersToPoints(5.2f)
         textPaint.isFakeBoldText = true
         canvas.drawText(
             displayName.trim().take(80),
@@ -190,9 +182,9 @@ internal object QrPrintCardRenderer {
         )
 
         val headerBottom = top + verticalPadding + textPaint.textSize * 1.8f
-        val qrSize = qrSizePixels(resolution, fitScale)
+        val qrSize = qrSizePoints()
         val qrLeft = centerX - qrSize.width / 2f
-        val qrTop = headerBottom + millimetersToPixels(4f, resolution.verticalDpi) * fitScale
+        val qrTop = headerBottom + millimetersToPoints(4f)
         canvas.drawBitmap(
             qrBitmap,
             null,
@@ -201,37 +193,32 @@ internal object QrPrintCardRenderer {
         )
 
         textPaint.isFakeBoldText = false
-        textPaint.textSize = millimetersToPixels(3.2f, resolution.verticalDpi) * fitScale
+        textPaint.textSize = millimetersToPoints(3.2f)
         canvas.drawText(
             "매쓰홀릭 채점 QR",
             centerX,
-            qrTop + qrSize.height + millimetersToPixels(7f, resolution.verticalDpi) * fitScale,
+            qrTop + qrSize.height + millimetersToPoints(7f),
             textPaint,
         )
     }
 
-    internal fun cardSizePixels(
-        resolution: Resolution,
-        fitScale: Float = 1f,
-    ): PixelDimensions = PixelDimensions(
-        width = millimetersToPixels(CARD_WIDTH_MM, resolution.horizontalDpi) * fitScale,
-        height = millimetersToPixels(CARD_HEIGHT_MM, resolution.verticalDpi) * fitScale,
+    internal fun cardSizePoints(): PointDimensions = PointDimensions(
+        width = millimetersToPoints(CARD_WIDTH_MM),
+        height = millimetersToPoints(CARD_HEIGHT_MM),
     )
 
-    internal fun qrSizePixels(
-        resolution: Resolution,
-        fitScale: Float = 1f,
-    ): PixelDimensions = PixelDimensions(
-        width = millimetersToPixels(QR_SIZE_MM, resolution.horizontalDpi) * fitScale,
-        height = millimetersToPixels(QR_SIZE_MM, resolution.verticalDpi) * fitScale,
+    internal fun qrSizePoints(): PointDimensions = PointDimensions(
+        width = millimetersToPoints(QR_SIZE_MM),
+        height = millimetersToPoints(QR_SIZE_MM),
     )
 
-    private fun millimetersToPixels(millimeters: Float, dpi: Int): Float =
-        millimeters * dpi.toFloat() / MILLIMETERS_PER_INCH
+    private fun millimetersToPoints(millimeters: Float): Float =
+        millimeters * POSTSCRIPT_POINTS_PER_INCH / MILLIMETERS_PER_INCH
 
     private const val CARD_WIDTH_MM = 65f
     private const val CARD_HEIGHT_MM = 90f
     private const val CARD_PADDING_MM = 5f
     private const val QR_SIZE_MM = 30f
     private const val MILLIMETERS_PER_INCH = 25.4f
+    private const val POSTSCRIPT_POINTS_PER_INCH = 72f
 }
