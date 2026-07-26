@@ -1212,23 +1212,70 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION")
     private fun clearWebSessionAndReloadLogin() {
         val generation = logoutAttemptGeneration
-        webView.clearHistory()
-        webView.clearFormData()
-        webView.clearCache(true)
-        webView.clearSslPreferences()
-        WebViewDatabase.getInstance(this).clearFormData()
-        WebStorage.getInstance().deleteAllData()
-        scheduleTimeout(LOGOUT_TIMEOUT_MS, "SESSION_CLEAR_TIMEOUT")
-        CookieManager.getInstance().removeAllCookies {
+        var cleanupFailed = false
+        fun attempt(cleanup: () -> Unit) {
+            try {
+                cleanup()
+            } catch (_: RuntimeException) {
+                cleanupFailed = true
+            }
+        }
+
+        attempt { webView.clearHistory() }
+        attempt { webView.clearFormData() }
+        attempt { webView.clearCache(true) }
+        attempt { webView.clearSslPreferences() }
+        attempt { WebViewDatabase.getInstance(this).clearFormData() }
+        attempt { WebStorage.getInstance().deleteAllData() }
+        attempt { scheduleTimeout(LOGOUT_TIMEOUT_MS, "SESSION_CLEAR_TIMEOUT") }
+        attempt {
+            CookieManager.getInstance().removeAllCookies {
+                finishCookieClear(generation)
+            }
+        }
+        if (cleanupFailed) {
+            failSessionClearIfCurrent(generation)
+        }
+    }
+
+    private fun finishCookieClear(generation: Int) {
+        if (
+            destroyed ||
+            !isCurrentLogoutCallback(WebPocState.LOGOUT_VERIFY, generation)
+        ) {
+            return
+        }
+        try {
             CookieManager.getInstance().flush()
-            handler.postDelayed({
-                if (
-                    !destroyed &&
-                    isCurrentLogoutCallback(WebPocState.LOGOUT_VERIFY, generation)
-                ) {
-                    webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
-                }
-            }, STORAGE_CLEAR_DELAY_MS)
+            val scheduled = handler.postDelayed(
+                {
+                    if (
+                        !destroyed &&
+                        isCurrentLogoutCallback(WebPocState.LOGOUT_VERIFY, generation)
+                    ) {
+                        try {
+                            webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+                        } catch (_: RuntimeException) {
+                            failSessionClearIfCurrent(generation)
+                        }
+                    }
+                },
+                STORAGE_CLEAR_DELAY_MS,
+            )
+            if (!scheduled) {
+                failSessionClearIfCurrent(generation)
+            }
+        } catch (_: RuntimeException) {
+            failSessionClearIfCurrent(generation)
+        }
+    }
+
+    private fun failSessionClearIfCurrent(generation: Int) {
+        if (
+            !destroyed &&
+            isCurrentLogoutCallback(WebPocState.LOGOUT_VERIFY, generation)
+        ) {
+            showLocked("SESSION_CLEAR")
         }
     }
 

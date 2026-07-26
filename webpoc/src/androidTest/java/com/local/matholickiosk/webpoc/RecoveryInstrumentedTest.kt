@@ -270,6 +270,30 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun synchronousSessionCleanupFailureContinuesAndFailsClosed() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val replacement = ThrowingSessionCleanupWebView(activity)
+                replaceWebView(activity, replacement)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.LOGOUT_VERIFY)
+                }
+                val cleanup = MainActivity::class.java.getDeclaredMethod(
+                    "clearWebSessionAndReloadLogin",
+                ).apply { isAccessible = true }
+
+                assertTrue(runCatching { cleanup.invoke(activity) }.isSuccess)
+                assertEquals(1, replacement.clearCacheCalls)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("SESSION_CLEAR", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
     fun activityPreventsScreenshotsAndRecentTaskPreview() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -593,6 +617,20 @@ class RecoveryInstrumentedTest {
         override fun destroy() {
             destroyCalls += 1
             super.destroy()
+        }
+    }
+
+    private class ThrowingSessionCleanupWebView(context: Context) : WebView(context) {
+        var clearCacheCalls = 0
+            private set
+
+        override fun clearHistory() {
+            throw IllegalStateException("synthetic session clear failure")
+        }
+
+        override fun clearCache(includeDiskFiles: Boolean) {
+            clearCacheCalls += 1
+            super.clearCache(includeDiskFiles)
         }
     }
 
