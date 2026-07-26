@@ -1974,3 +1974,82 @@ UI 콜백과 함께 파일 삭제까지 취소했다. 파일은 앱 전용 cache
 - A에서 실제 PDF 공유 복귀 뒤 30초 파일 삭제
 - Quick Share 수신 PC에서 PDF 열기와 실제 인쇄
 - 실제 QR→Web→QR 왕복, 관리자 화면·카메라·실물 인쇄 회귀
+
+---
+
+## Kiosk RC13 QR bitmap 내보내기 전 실패 정리 — 2026-07-26
+
+### 재현한 민감 메모리 정리 공백
+
+`MainActivity.prepareQrPdfExport`는 화면의 QR bitmap을 복제한 뒤 감사기록을
+저장하고 `QrPdfExporter.export`를 호출했다. 감사기록 저장이 예외로 끝나면
+exporter가 복제본의 소유권을 받지 못했다. 그 사이 Activity까지 파기되면
+UI 실패 콜백도 실행되지 않아 로그인 가능한 QR bitmap 복제본이 GC 전까지
+명시적으로 덮어쓰기·폐기되지 않았다.
+
+- 실제 QR 원문과 학생 정보 없이 합성 bitmap과 고의 예외만 사용
+- 회귀 계측시험을 먼저 추가했고, 수정 전에는
+  `consumeSensitiveBitmap` 소유권 계약이 없어 컴파일 실패
+- 정적 경로와 회귀시험으로 Activity 생명주기와 무관한 누락을 확인
+
+### 변경
+
+- 구현·계측시험 커밋: `0fc357c`
+- Kiosk `0.6.0-rc13`/code 18과 릴리스 운영 경로 준비 커밋: `9c94991`
+- 감사기록부터 PDF export까지 복제 bitmap 작업 전체를
+  `consumeSensitiveBitmap`의 단일 소유권 경계 안에서 실행한다.
+- 작업 성공·실패 여부와 관계없이 `finally`에서 mutable bitmap을 흰색으로
+  덮어쓰고 recycle한다.
+- 실제 PDF exporter도 같은 `releaseSensitiveBitmap`을 사용해 정리 동작이
+  서로 달라지지 않게 했다.
+
+### 자동 검증
+
+- 내보내기 전 고의 예외 뒤 복제 bitmap 덮어쓰기·recycle 계측 1개 통과
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 21개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 68개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 59개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc13-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `8DA89E1A4086CDAB2CF4BA2E676DD04E44053F9F1197947C35696E833E68C9CC`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc13-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,084,708 bytes
+  - SHA-256:
+    `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc12`/code 17,
+  Web POC `0.4.0-rc13`/code 30
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC13만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc13`/code 18,
+  Web POC `0.4.0-rc13`/code 30
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 QR PDF 내보내기와 Quick Share 전달
+- 수신 PC에서 PDF 열기와 실물 인쇄
+- 실제 QR→Web→QR 왕복, 관리자 화면·카메라 회귀
