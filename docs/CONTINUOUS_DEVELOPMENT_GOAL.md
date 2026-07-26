@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc26`/code 31
-  - Web POC `0.4.0-rc19`/code 36
+  - Web POC `0.4.0-rc20`/code 37
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC26/RC19 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC26/RC20 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc19-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc20-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
   - Web POC:
-    `77176D0778A71E98DEABF453F2615781C5D7CC30DEA1FA31206E8D66EA1B7531`
+    `862FD9F6173531A14D49FD2F9F35727C40DE5C65BD9CBE4B06302322F5C518AF`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -909,6 +909,29 @@
     일치, 설치 시각 이후 Matholic AndroidRuntime 일치 항목 0
   - A에서 고의 Activity 종료 정리 오류를 주입하지 않았으며 실제
     QR→Web→QR 왕복, 관리자 PIN·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
+- Web 세션 정리 오류 실패폐쇄 커밋 `d9601b7`을 추가하고 Web POC RC20으로
+  A에 설치했다.
+  - 로그아웃 확인 뒤 Web 기록·form·cache·SSL·WebStorage와 cookie를
+    연속 정리하는 중 한 단계가 예외를 내면 뒤 정리와 오류 잠금을 건너뛰고
+    main thread로 예외가 전파될 수 있었음
+  - Android 13 일회용 에뮬레이터에서 `clearHistory()`가 예외를 내는 합성
+    WebView로 수정 전 예외 전파와 후속 `clearCache()` 미실행을 재현
+  - 동기 정리 단계와 cookie 삭제 요청을 독립 경계에서 가능한 만큼 모두
+    시도하고 어느 단계든 실패하면 `SESSION_CLEAR`로 실패폐쇄
+  - cookie flush·로그인 재로딩의 비동기 오류와 Handler 예약 거부도 현재
+    로그아웃 세대에서만 `SESSION_CLEAR`로 잠그도록 보강
+  - 수정 뒤 대상 시험, Web POC 전체 계측 51개, 네 모듈 JVM 84개,
+    clean debug 204 tasks, release JVM 75개와 release 158 tasks·APK 이중
+    검증 통과
+  - Web POC RC20 준비 커밋 `e08a32e`
+  - Web POC RC20 보관본 크기 3,091,724 bytes, SHA-256
+    `862FD9F6173531A14D49FD2F9F35727C40DE5C65BD9CBE4B06302322F5C518AF`
+  - A 설치 전후 Web POC UID `10287`, firstInstallTime, dataDir,
+    Kiosk RC26, release signer, Device Owner, 전용 HOME, `LOCKED`, 화면
+    `Dozing`, USB 화면 유지 설정 0 유지; 설치된 base APK와 보관본 해시
+    일치, 설치 시각 이후 Matholic AndroidRuntime 일치 항목 0
+  - A에서 실제 세션 정리 실패를 주입하지 않았으며 실제 QR→Web→QR 왕복,
+    관리자 PIN·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

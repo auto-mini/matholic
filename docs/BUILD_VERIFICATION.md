@@ -3622,3 +3622,84 @@ Activity 종료 시 WebView의 로딩 중지, 빈 문서 전환, 기록·캐시�
 - 실제 A에서 Activity 종료 정리 오류와 Kiosk 관리자 복구를 확인하는 고의
   실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Web POC RC20 세션 정리 오류 실패폐쇄 — 2026-07-26
+
+### 재현한 정리 중단
+
+로그아웃 확인 뒤 WebView 기록·form·cache·SSL과 WebViewDatabase,
+WebStorage, cookie를 연속 정리했다. 한 단계가 예외를 내면 뒤 정리와
+명시적인 실패폐쇄 전환에 도달하지 못했다.
+
+- 실제 A, 공개 사이트·cookie와 자격정보를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 `clearHistory()`가
+  `IllegalStateException`을 내는 합성 WebView로 정리 함수 실행
+- 수정 전 예외가 함수 밖으로 전파되고 후속 `clearCache()` 호출 횟수가
+  0인 대상 계측시험 실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `d9601b7`
+- Web POC `0.4.0-rc20`/code 37과 릴리스 운영 경로 준비 커밋: `e08a32e`
+- 동기 Web·storage 정리 단계와 cookie 삭제 요청을 독립 예외 경계로 실행
+- 일부 단계가 실패해도 남은 정리를 시도한 뒤 `SESSION_CLEAR`로 잠금
+- cookie flush·지연 로그인 재로딩 오류와 Handler 예약 거부도 현재 로그아웃
+  세대에서만 실패폐쇄
+
+### 자동 검증
+
+- 수정 전 신규 대상 계측시험: 합성 `clearHistory()` 예외 전파와 후속
+  `clearCache()` 미실행 재현
+- 수정 뒤 대상 계측시험: 예외가 빠져나오지 않고 `clearCache()`를 계속
+  실행하며 상태 `LOCKED`, 이유 `SESSION_CLEAR` 저장 확인
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 51개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc20-release.apk`
+  - 크기: 3,091,724 bytes
+  - SHA-256:
+    `862FD9F6173531A14D49FD2F9F35727C40DE5C65BD9CBE4B06302322F5C518AF`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc19`/code 36
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC20만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc20`/code 37
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC20 보관본 일치
+- 설치된 Web POC와 RC20 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 세션 정리 오류와 Kiosk 관리자 복구를 확인하는 고의 실패주입
+- cookie flush·지연 로그인 재로딩 오류의 합성 실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
