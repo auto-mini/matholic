@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc07`/code 12
+  - Kiosk `0.6.0-rc08`/code 13
   - Web POC `0.4.0-rc06`/code 23
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC07/RC06 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC08/RC06 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -102,11 +102,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc07-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc06-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `7B423D6AFC1ECB7F53805259F218DBDB0DC689E822F83E4637273BA76B8451E4`
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
   - Web POC:
     `ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -118,6 +118,7 @@
   - RC06 Kiosk 16개, 실패 0
   - Web POC RC05 34개, 실패 0
   - secure session 전송 복구 기준 Web 34개, Kiosk 16개, 실패 0
+  - QR PDF 공유 권한 보강 기준 Kiosk 17개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -183,6 +184,26 @@
   - A 설치 전후 두 package UID, firstInstallTime, dataDir, signer, Device Owner,
     HOME, `LOCKED`, 화면 `Dozing` 유지; crash buffer의 Matholic 일치 항목 0
   - 실제 QR→Web→QR 왕복은 사용자 복귀 뒤 수행
+- QR PDF 공유 권한 보강 커밋 `f0d3e1a`를 추가하고 Kiosk RC08으로 A에
+  설치했다.
+  - `ACTION_SEND`의 FileProvider URI를 `EXTRA_STREAM`뿐 아니라 `ClipData`에도
+    넣어 `FLAG_GRANT_READ_URI_PERMISSION`이 chooser와 수신 앱에 적용되게 함
+  - Android 13 일회용 에뮬레이터에서 source intent와 chooser의 URI·권한,
+    Kiosk 전체 계측 17개 통과
+  - 전체 clean debug 204 tasks, release 158 tasks와 APK 검증 통과
+  - 같은 Web RC06 재빌드에서 Git 메타데이터만 달라진 APK가 기존 버전 파일을
+    덮어쓰는 운영 결함을 확인하고 커밋 `a1c8159`에서 보강
+  - 같은 버전 artifact는 `META-INF/version-control-info.textproto`를 제외한
+    전체 payload가 같을 때만 기존 검증본을 보존하고, 다르면 버전 상향 전까지
+    release publishing을 실패시킴
+  - Kiosk RC08 보관본 크기 34,957,624 bytes, SHA-256
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Device Owner,
+    HOME, 화면 `Dozing` 유지; 명시적 HOME 시작 뒤 `LOCKED` 복구
+  - Web RC06 설치본과 보관본은 기존 SHA-256
+    `ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`
+    그대로 유지
+  - 실제 A의 Quick Share 전송과 수신 PC 열기·인쇄는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

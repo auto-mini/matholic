@@ -1010,3 +1010,93 @@ Kiosk Activity가 이 intent를 실행하면 Web Activity가 설치되어 있어
 - 실제 사이트 자동 학습지 진입, 두 탭·경로 제한, 문제 입력 확대와 오답 번호
   전용 결과
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## RC08 QR PDF 공유 권한·artifact 보존 — 2026-07-26
+
+### 확인한 계약 공백
+
+Kiosk의 PDF 공유 intent는 FileProvider URI를 `EXTRA_STREAM`에만 넣고
+`FLAG_GRANT_READ_URI_PERMISSION`을 설정했다. Android의 URI 권한 플래그는
+intent의 `data`와 `ClipData` URI에 적용되므로 일부 chooser·수신 앱에서는
+`EXTRA_STREAM` URI 읽기 권한 전달을 보장하기 어려웠다. 실제 A 전송 실패로
+재현한 것은 아니며 정적 계약과 합성 계측에서 확인한 호환성 공백이다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `f0d3e1a`
+- Kiosk `0.6.0-rc08`/code 13 준비 커밋: `2c98eb5`
+- `QrPdfShareIntentFactory`가 같은 URI를 `EXTRA_STREAM`과 단일 `ClipData`
+  item에 넣고 읽기 권한만 부여한다.
+- subject의 학생 전체 이름과 `application/pdf` MIME 계약은 유지한다.
+
+### 자동 검증
+
+- Kiosk Kotlin·AndroidTest 컴파일, debug 단위시험·lint: 통과
+- Android 13 일회용 에뮬레이터:
+  - PDF intent·chooser 권한을 포함한 대상 시험 3개 통과
+  - Kiosk 전체 계측 17개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+
+### 같은 버전 artifact 덮어쓰기 방지
+
+첫 RC08 release 빌드에서 변경하지 않은 Web RC06의 새 APK SHA-256이
+`5531E29694338E9E97D956E02283F04B71E7CADDFA09771BC0F2A0B6B15F3F29`로
+달라져 기존 보관본을 같은 파일명으로 덮어썼다. A에서 설치 Web APK를
+읽기 전용으로 회수해 기존 검증 SHA-256
+`ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`를
+복원했다.
+
+- 두 Web APK의 ZIP 항목 이름과 timestamp: 전부 동일
+- 내용이 다른 항목:
+  `META-INF/version-control-info.textproto` 1개
+- 실제 Web payload가 아니라 빌드 시점 Git 커밋 메타데이터 차이로 판정
+- 릴리스 스크립트 보강 커밋: `a1c8159`
+- 동일 버전 파일이 이미 있으면 위 Git 메타데이터를 제외한 모든 ZIP entry
+  이름·길이·SHA-256을 비교한다.
+- payload가 같으면 기존 검증 artifact를 보존하고, 다르면 버전 상향을
+  요구하며 실패한다.
+- 보관 artifact 쌍을 다시 독립 검증한 뒤에만 checksum 파일을 쓴다.
+- 보강된 clean release 파이프라인 158 tasks와 build/stored APK 이중 검증:
+  통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc06-release.apk`
+  - 크기: 3,081,400 bytes
+  - SHA-256:
+    `ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc07`/code 12,
+  Web POC `0.4.0-rc06`/code 23
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Kiosk RC08만 `adb install -r`: 성공
+- 설치 직후 프로세스 교체로 Lock Task가 일시 `NONE`이었으나 화면을 깨우지
+  않는 명시적 HOME 시작으로 Kiosk pid와 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc06`/code 23
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 두 base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- A에서 실제 Quick Share 대상 선택, 수신 PC PDF 열기와 실제 인쇄
+- 실제 종이 QR을 사용하는 RC08→RC06 session과 QR→Web→QR 왕복
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
