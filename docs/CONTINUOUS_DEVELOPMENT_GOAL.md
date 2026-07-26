@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc09`/code 14
+  - Kiosk `0.6.0-rc10`/code 15
   - Web POC `0.4.0-rc11`/code 28
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC09/RC11 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC10/RC11 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -102,11 +102,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc09-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc10-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `68DB8304B87528DDE006B86A27E9B282899069D3F3F74165718455F2640A967D`
+    `7BFF17A3D74C9DB2C699BE4EE4F3AEE3175F4A39C72B5032D590EAE4C7870187`
   - Web POC:
     `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -334,6 +334,26 @@
     release signer, Device Owner, HOME, 화면 `Dozing` 유지; crash 일치
     항목 0
   - 실제 인쇄물 자 측정·Quick Share·종이 QR 재인식은 사용자 복귀 뒤 수행
+- 오래된 QR 분석 결과 차단 커밋 `32e41b9`를 추가하고 Kiosk RC10으로 A에
+  설치했다.
+  - 관리자 PIN 대화상자를 열 때 분석기를 중지해도 이미 ML Kit에서 처리
+    중이던 프레임 결과는 뒤늦게 도착할 수 있었고, 기존 UI 전달부는 scanner
+    화면 표시 여부만 검사해 관리자 화면 위에서 Web 로그인을 시작할 수 있었음
+  - 각 처리 프레임에 분석 세대를 부여하고 분석 중지·재개 때 세대를 바꿔
+    이전 결과를 폐기하며, 폐기한 승인 결과의 QR token hash를 즉시 덮어씀
+  - UI 전달 직전에도 분석 활성·화면·Activity 생명주기를 다시 확인하고
+    조건이 바뀌었으면 민감 결과를 폐기
+  - 신규 JVM 회귀시험 3개, 네 모듈 JVM 64개, clean debug 204 tasks,
+    Android 13 일회용 에뮬레이터 Kiosk 전체 계측 18개, release 158 tasks와
+    APK 이중 검증 통과
+  - Kiosk RC10 준비 커밋 `4e9fe30`
+  - Kiosk RC10 보관본 크기 34,957,624 bytes, SHA-256
+    `7BFF17A3D74C9DB2C699BE4EE4F3AEE3175F4A39C72B5032D590EAE4C7870187`
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC11,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing` 유지
+  - 설치 직후 Lock Task `NONE`을 화면을 깨우지 않는 명시적 HOME 시작으로
+    `LOCKED` 복구했으며 최근 5분 Matholic AndroidRuntime 일치 항목 0
+  - 실제 QR 분석과 관리자 PIN 화면 진입을 겹치는 실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

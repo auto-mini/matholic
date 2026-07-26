@@ -1581,3 +1581,79 @@ Android 공식 `PrintedPdfDocument` 구현은 page와 content rectangle을
 - 실제 A의 PDF 공유·PC 열기와 인쇄물 자 측정
 - 실제 종이 QR의 30×30mm 인식과 QR→Web→QR 왕복
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## Kiosk RC10 오래된 QR 분석 결과 차단 — 2026-07-26
+
+### 재현한 비동기 경계
+
+관리자 PIN 대화상자를 열면 카메라 분석기는 중지되지만, 그 직전에 ML Kit에
+넘긴 프레임은 계속 처리되어 결과가 늦게 도착할 수 있었다. 기존 UI 전달부는
+scanner 화면이 보이는지만 확인했고 PIN 대화상자가 열린 동안에도 scanner
+화면 자체는 남아 있어, 승인 결과가 Web 로그인을 시작할 가능성이 있었다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `32e41b9`
+- Kiosk `0.6.0-rc10`/code 15와 릴리스 운영 경로 준비 커밋: `4e9fe30`
+- `QrDecisionDeliveryGate`가 각 처리 프레임에 분석 세대를 부여한다.
+- 분석 중지와 재개는 세대를 바꾸므로 이미 처리 중이던 이전 프레임 결과도
+  전달되지 않는다.
+- 폐기하는 승인 결과의 QR token hash를 즉시 덮어쓴다.
+- `MainActivity`도 UI 전달 직전에 분석 활성·scanner 화면·Activity
+  생명주기를 다시 확인하고 조건이 바뀌었으면 민감 결과를 폐기한다.
+
+### 자동 검증
+
+- 신규 JVM 회귀시험 3개: 실패·오류 0
+  - 현재 세대 결과 전달
+  - 중지·재개 전 프레임 폐기와 hash 덮어쓰기
+  - 분석 중지 중 새 프레임 세대 발급 거부
+- 네 모듈 JVM 단위시험 총 64개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 18개,
+  실패·오류·건너뜀 0
+- release Kiosk/Web JVM 보고서 55개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc10-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `7BFF17A3D74C9DB2C699BE4EE4F3AEE3175F4A39C72B5032D590EAE4C7870187`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,084,304 bytes
+  - SHA-256:
+    `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc09`/code 14,
+  Web POC `0.4.0-rc11`/code 28
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Kiosk RC10만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc10`/code 15,
+  Web POC `0.4.0-rc11`/code 28
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- A에서 QR 해석과 관리자 PIN 화면 진입을 의도적으로 겹치는 실기
+- 실제 QR→Web→QR 왕복, 관리자 화면과 정상 `QR_READY`
+- 실제 PDF 공유·인쇄물 크기·종이 QR 재인식
