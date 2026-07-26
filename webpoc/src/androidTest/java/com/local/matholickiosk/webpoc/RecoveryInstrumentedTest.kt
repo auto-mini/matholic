@@ -7,6 +7,7 @@ import android.net.Uri
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebSettings
+import android.webkit.WebView
 import android.widget.EditText
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -149,6 +150,28 @@ class RecoveryInstrumentedTest {
                     .loadUrl("https://example.invalid/")
             }
             assertTrueWithin(5) { readState() == WebPocState.LOCKED }
+        }
+    }
+
+    @Test
+    fun rendererCrashRemovesUnusableWebViewAndFailsClosed() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                activity.findViewById<WebView>(R.id.web_view).loadUrl("chrome://crash")
+            }
+
+            assertTrueWithin(10) {
+                readState() == WebPocState.LOCKED &&
+                    preferences().getString(KEY_REASON, null) == "WEB_PROCESS_GONE"
+            }
+            scenario.onActivity { activity ->
+                assertNull(activity.findViewById<WebView?>(R.id.web_view))
+                activity.findViewById<View>(R.id.recovery_button).performClick()
+            }
+            scenario.onUiInitialized { activity ->
+                assertTrue(activity.findViewById<WebView?>(R.id.web_view) != null)
+            }
         }
     }
 

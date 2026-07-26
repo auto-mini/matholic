@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -39,7 +40,9 @@ import org.json.JSONObject
 import org.json.JSONTokener
 
 class MainActivity : Activity() {
-    private lateinit var webView: WebView
+    private var webViewReference: WebView? = null
+    private val webView: WebView
+        get() = checkNotNull(webViewReference) { "WebView is unavailable" }
     private lateinit var setupPanel: FrameLayout
     private lateinit var blocker: FrameLayout
     private lateinit var progress: ProgressBar
@@ -265,7 +268,7 @@ class MainActivity : Activity() {
     }
 
     private fun bindViews() {
-        webView = findViewById(R.id.web_view)
+        webViewReference = findViewById(R.id.web_view)
         setupPanel = findViewById(R.id.setup_panel)
         blocker = findViewById(R.id.blocker)
         progress = findViewById(R.id.progress)
@@ -501,6 +504,7 @@ class MainActivity : Activity() {
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                view?.let(::discardUnusableWebView)
                 showLocked("WEB_PROCESS_GONE")
                 return true
             }
@@ -1325,12 +1329,22 @@ class MainActivity : Activity() {
         resultSummaryDisplayed = false
         studentNavBar.visibility = View.GONE
         resultSummaryPanel.visibility = View.GONE
-        webView.visibility = View.INVISIBLE
-        val layoutParams = webView.layoutParams as FrameLayout.LayoutParams
-        if (layoutParams.topMargin != 0) {
-            layoutParams.topMargin = 0
-            webView.layoutParams = layoutParams
+        webViewReference?.let { activeWebView ->
+            activeWebView.visibility = View.INVISIBLE
+            val layoutParams = activeWebView.layoutParams as FrameLayout.LayoutParams
+            if (layoutParams.topMargin != 0) {
+                layoutParams.topMargin = 0
+                activeWebView.layoutParams = layoutParams
+            }
         }
+    }
+
+    private fun discardUnusableWebView(unusableWebView: WebView) {
+        if (webViewReference === unusableWebView) {
+            webViewReference = null
+        }
+        (unusableWebView.parent as? ViewGroup)?.removeView(unusableWebView)
+        unusableWebView.destroy()
     }
 
     private fun dpToPx(value: Int): Int =
@@ -1487,13 +1501,15 @@ class MainActivity : Activity() {
                 persistGate3Outcome(GATE3_STATUS_ABORTED, it.completedCycles)
             }
             wipeRuntimeSecrets()
-            webView.stopLoading()
-            webView.loadUrl("about:blank")
-            webView.clearHistory()
-            webView.clearCache(true)
-            webView.clearSslPreferences()
-            webView.removeAllViews()
-            webView.destroy()
+            val activeWebView = webViewReference
+            webViewReference = null
+            activeWebView?.stopLoading()
+            activeWebView?.loadUrl("about:blank")
+            activeWebView?.clearHistory()
+            activeWebView?.clearCache(true)
+            activeWebView?.clearSslPreferences()
+            activeWebView?.removeAllViews()
+            activeWebView?.destroy()
         }
         super.onDestroy()
     }
