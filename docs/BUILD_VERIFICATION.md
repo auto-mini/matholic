@@ -1817,3 +1817,82 @@ QR 검증 뒤 Kiosk는 세션을 `PRELOGIN_CHECK`로 바꾸고 암호화 자격�
 - A에서 실제 QR 승인 직후 교사 관리 버튼을 빠르게 누르는 경합
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Web RC13 오래된 문서 완료 콜백 차단 — 2026-07-26
+
+### 재현한 비동기 경계
+
+WebView는 새 최상위 문서 이동이 시작된 뒤에도 이전 문서의
+`onPageFinished` 콜백을 늦게 전달할 수 있다. 기존 코드는 콜백 URL이 허용
+origin인지와 현재 상태만 확인했으며, WebView가 실제로 표시 중인 최상위
+URL과 일치하는지는 확인하지 않았다. 따라서 현재 포털 위의 이전 로그인
+완료가 로그아웃 검증 상태를 잘못 시작하거나, 현재 학습지 위의 이전 포털
+완료가 학생 화면 준비를 잘못 완료할 수 있었다.
+
+- 현재 동작을 `WebFailurePolicy`의 완료 콜백 정책으로 분리하고 회귀시험을
+  먼저 추가
+- 수정 전 신규 정책 시험 실패:
+  - 현재 포털 위의 이전 로그인 완료를 처리
+  - 현재 학습지 위의 이전 포털 완료를 처리
+- 실제 A의 사이트 이동이나 자격정보는 사용하지 않았다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `8895d5f`
+- Web POC `0.4.0-rc13`/code 30과 릴리스 운영 경로 준비 커밋: `1ae4b6c`
+- `onPageFinished`의 콜백 URL과 WebView의 현재 최상위 URL이 정확히
+  일치할 때만 로그인·포털 상태 전이를 처리한다.
+- 이전 문서, 파기된 WebView와 현재 URL을 확인할 수 없는 콜백은 상태와
+  DOM을 변경하지 않고 폐기한다.
+- 기존 허용 origin·경로 검사와 preflight DNS 재시도 보호는 그대로 유지한다.
+
+### 자동 검증
+
+- 수정 전 신규 JVM 회귀시험 1개 실패, 수정 뒤 Web JVM 30개 통과
+- 네 모듈 JVM 단위시험 총 68개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- Android 13 일회용 에뮬레이터 Web 전체 계측 46개,
+  실패·오류·건너뜀 0
+- release Kiosk/Web JVM 보고서 59개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc11-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `E7E094EA353E924E151885C068559BD61FDC7DCAA8B2A314686F982CCD9788A9`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc13-release.apk`
+  - 크기: 3,084,708 bytes
+  - SHA-256:
+    `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc11`/code 16,
+  Web POC `0.4.0-rc12`/code 29
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·`LOCKED`를 확인
+- Web POC RC13만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc11`/code 16,
+  Web POC `0.4.0-rc13`/code 30
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Web base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- A의 실제 빠른 로그인·포털·학습지 전환 경합
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 화면·카메라·PDF 공유·실물 인쇄 회귀

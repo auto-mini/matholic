@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc11`/code 16
-  - Web POC `0.4.0-rc12`/code 29
+  - Web POC `0.4.0-rc13`/code 30
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC11/RC12 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC11/RC13 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc11-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc12-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc13-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `E7E094EA353E924E151885C068559BD61FDC7DCAA8B2A314686F982CCD9788A9`
   - Web POC:
-    `469493E02F1554279F3C6F7ACFBA0A149568225524013A55FA5CA20CDC45C880`
+    `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -397,6 +397,25 @@
   - 설치 스크립트 최종 출력 오타로 RC11 설치 직후의 일시 Lock Task 값은
     기록되지 않았고 최종 상태만 독립 확인
   - 실제 QR 승인 직후 교사 관리 전환 경합 실기는 사용자 복귀 뒤 수행
+- 오래된 Web 문서 완료 콜백 차단 커밋 `8895d5f`를 추가하고 Web POC
+  RC13으로 A에 설치했다.
+  - 새 최상위 문서 이동이 시작된 뒤 이전 로그인·포털 문서의
+    `onPageFinished`가 늦게 도착하면 기존 코드는 현재 문서 확인 없이 로그인
+    또는 로그아웃 상태 전이를 실행할 수 있었음
+  - 수정 전 신규 정책 JVM 시험에서 현재 포털 위의 이전 로그인 완료와 현재
+    학습지 위의 이전 포털 완료를 모두 처리하는 실패를 재현
+  - 콜백 URL과 WebView의 현재 최상위 URL이 정확히 일치할 때만 완료 콜백을
+    처리하고, 다르면 상태와 DOM을 변경하지 않고 폐기
+  - 네 모듈 JVM 68개, clean debug 204 tasks, Android 13 일회용
+    에뮬레이터 Web 전체 계측 46개, release 158 tasks와 APK 이중 검증 통과
+  - Web RC13 준비 커밋 `1ae4b6c`
+  - Web RC13 보관본 크기 3,084,708 bytes, SHA-256
+    `377C824C3900CA05F96F5C5A8C9F6FA2A85EA8AB8B94B07379F2BBA1869B4BDD`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC11,
+    release signer, Device Owner, 전용 HOME, `LOCKED`, 화면 `Dozing` 유지;
+    설치된 base APK와 보관본 해시 일치, 최근 5분 Matholic AndroidRuntime
+    일치 항목 0
+  - 실제 빠른 페이지 전환·로그아웃과 QR→Web→QR 왕복은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
