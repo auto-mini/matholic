@@ -50,6 +50,7 @@ import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
+import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
@@ -1254,11 +1255,7 @@ class MainActivity : ComponentActivity() {
 
     private fun shareQrPdf(file: File, preview: QrPreview) {
         val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
-        val share = Intent(Intent.ACTION_SEND)
-            .setType("application/pdf")
-            .putExtra(Intent.EXTRA_STREAM, uri)
-            .putExtra(Intent.EXTRA_SUBJECT, "매쓰홀릭 QR 카드 · ${preview.exactName}")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val share = QrPdfShareIntentFactory.create(uri, preview.exactName)
         pendingSharedPdf = file
         suppressNextAdminStopRelock = true
         runCatching {

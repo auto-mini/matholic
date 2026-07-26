@@ -1,9 +1,11 @@
 package com.local.matholickiosk.kiosk
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
+import android.net.Uri
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
 import android.print.PrintAttributes
@@ -12,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.print.QrPrintCardRenderer
 import com.local.matholickiosk.kiosk.print.QrPrintPdfWriter
+import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
 import org.junit.Assert.assertEquals
@@ -22,6 +25,26 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class QrPrintDocumentAdapterInstrumentedTest {
+    @Test
+    fun pdfShareGrantsReadAccessToTheStreamAndClipDataUri() {
+        val uri = Uri.parse(
+            "content://com.local.matholickiosk.kiosk.files/qr_exports/synthetic-card.pdf",
+        )
+        val share = QrPdfShareIntentFactory.create(uri, "가상학생 전체이름")
+
+        assertEquals(Intent.ACTION_SEND, share.action)
+        assertEquals("application/pdf", share.type)
+        assertEquals(uri, share.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java))
+        assertEquals("매쓰홀릭 QR 카드 · 가상학생 전체이름", share.getStringExtra(Intent.EXTRA_SUBJECT))
+        assertTrue(share.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertEquals(1, share.clipData?.itemCount)
+        assertEquals(uri, share.clipData?.getItemAt(0)?.uri)
+
+        val chooser = Intent.createChooser(share, "PDF 공유")
+        assertTrue(chooser.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertEquals(uri, chooser.clipData?.getItemAt(0)?.uri)
+    }
+
     @Test
     fun physicalCardAndQrSizesUseIndependentPrinterDpi() {
         val resolution = PrintAttributes.Resolution(
