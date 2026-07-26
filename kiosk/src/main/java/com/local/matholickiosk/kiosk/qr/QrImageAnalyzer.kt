@@ -33,35 +33,58 @@ class QrImageAnalyzer(
     override fun analyze(imageProxy: ImageProxy) {
         val frameGeneration = deliveryGate.currentFrameGeneration()
         if (frameGeneration == null || !processing.compareAndSet(false, true)) {
-            imageProxy.close()
+            closeFrame(imageProxy)
             return
         }
-        val mediaImage = imageProxy.image
-        if (mediaImage == null) {
-            processing.set(false)
-            imageProxy.close()
-            return
-        }
-        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-        scanner.process(image)
-            .addOnSuccessListener { barcodes ->
-                val decision = codec.decideFrame(barcodes.map { it.rawValue })
-                if (decision !is QrFrameDecision.Ignore) {
-                    deliveryGate.deliverIfCurrent(
-                        frameGeneration,
-                        decision,
-                        onDecision,
-                    )
-                }
-            }
-            .addOnCompleteListener {
+        val completed = AtomicBoolean(false)
+        fun completeFrame() {
+            if (completed.compareAndSet(false, true)) {
                 processing.set(false)
-                imageProxy.close()
+                closeFrame(imageProxy)
             }
+        }
+
+        try {
+            val mediaImage = imageProxy.image
+            if (mediaImage == null) {
+                completeFrame()
+                return
+            }
+            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            scanner.process(image)
+                .addOnCompleteListener { task ->
+                    try {
+                        if (task.isSuccessful) {
+                            val decision = codec.decideFrame(task.result.map { it.rawValue })
+                            if (decision !is QrFrameDecision.Ignore) {
+                                deliveryGate.deliverIfCurrent(
+                                    frameGeneration,
+                                    decision,
+                                    onDecision,
+                                )
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // Ignore a failed frame and leave the analyzer ready for the next one.
+                    } finally {
+                        completeFrame()
+                    }
+                }
+        } catch (_: Exception) {
+            completeFrame()
+        }
     }
 
     override fun close() {
         deliveryGate.setEnabled(false)
         scanner.close()
+    }
+
+    private fun closeFrame(imageProxy: ImageProxy) {
+        try {
+            imageProxy.close()
+        } catch (_: Exception) {
+            // CameraX owns the frame; a close failure must not terminate the analyzer thread.
+        }
     }
 }
