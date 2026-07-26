@@ -266,6 +266,36 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun webThreatRejectionFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val rejectAndLock = MainActivity::class.java.getDeclaredMethod(
+                    "rejectWebContentAndLock",
+                    String::class.java,
+                    kotlin.jvm.functions.Function0::class.java,
+                ).apply { isAccessible = true }
+
+                assertTrue(
+                    runCatching {
+                        rejectAndLock.invoke(
+                            activity,
+                            "TLS_ERROR",
+                            { throw IllegalStateException("synthetic rejection failure") },
+                        )
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("TLS_ERROR", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
     fun rendererCrashRemovesUnusableWebViewAndFailsClosed() {
         writeState(WebPocState.IDLE)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

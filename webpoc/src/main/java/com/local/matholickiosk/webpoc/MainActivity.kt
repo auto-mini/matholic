@@ -435,8 +435,9 @@ class MainActivity : Activity() {
             }
 
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                handler?.cancel()
-                showLocked("TLS_ERROR")
+                rejectWebContentAndLock("TLS_ERROR") {
+                    handler?.cancel()
+                }
             }
 
             override fun onReceivedError(
@@ -493,8 +494,9 @@ class MainActivity : Activity() {
                 threatType: Int,
                 callback: SafeBrowsingResponse?,
             ) {
-                callback?.backToSafety(true)
-                showLocked("SAFE_BROWSING")
+                rejectWebContentAndLock("SAFE_BROWSING") {
+                    callback?.backToSafety(true)
+                }
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
@@ -503,6 +505,15 @@ class MainActivity : Activity() {
                 return true
             }
         }
+    }
+
+    private fun rejectWebContentAndLock(reason: String, reject: () -> Unit) {
+        try {
+            reject()
+        } catch (_: RuntimeException) {
+            // A failed platform rejection callback must not prevent the fail-closed state.
+        }
+        showLocked(reason)
     }
 
     private fun schedulePreflightDnsRetry(view: WebView?): Boolean {
