@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc26`/code 31
-  - Web POC `0.4.0-rc21`/code 38
+  - Web POC `0.4.0-rc22`/code 39
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC26/RC21 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC26/RC22 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -105,12 +105,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc21-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc22-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
   - Web POC:
-    `182743349523E8A7353BE12193DC5B9F45BA5376B245A4E639FBF4E2CDD2AF7A`
+    `3EAA30E6BC793A0FB1896F09B043387ABFD1082FA65E08E931BF7C80A5297E43`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -953,6 +953,28 @@
     일치, 설치 시각 이후 Matholic AndroidRuntime 일치 항목 0
   - A에서 고의 WebView 중지 오류를 주입하지 않았으며 실제 허용 외 이동,
     QR→Web→QR 왕복과 관리자 PIN·카메라·PDF·인쇄는 사용자 복귀 뒤 수행
+- 학생 학습지 복귀 제어 오류 실패폐쇄 커밋 `084d6b9`를 추가하고 Web POC
+  RC22로 A에 설치했다.
+  - 학생 `ACTIVE` 상태에서 포털 등 학생용이 아닌 허용 문서가 시작되면
+    마지막 학습지로 복귀시키는데, 기존 `stopLoading()` 또는 `loadUrl()`이
+    동기 예외를 내면 잠금 없이 main thread로 전파될 수 있었음
+  - Android 13 일회용 에뮬레이터에서 첫 `loadUrl()`이 예외를 내는 합성
+    WebView로 수정 전 콜백 예외 전파와 잠금 미전환을 재현
+  - 학생 페이지 복귀의 로딩 중지·재로딩을 하나의 오류 경계로 묶고 어느
+    단계든 실패하면 `NAVIGATION_BLOCKED`로 실패폐쇄
+  - 수정 뒤 대상 시험, Web POC 전체 계측 53개, 네 모듈 JVM 84개,
+    clean debug 204 tasks, release JVM 75개와 release 158 tasks·APK 이중
+    검증 통과
+  - Web POC RC22 준비 커밋 `4548069`
+  - Web POC RC22 보관본 크기 3,092,092 bytes, SHA-256
+    `3EAA30E6BC793A0FB1896F09B043387ABFD1082FA65E08E931BF7C80A5297E43`
+  - A 설치 전후 Web POC UID `10287`, firstInstallTime, dataDir,
+    Kiosk RC26, release signer, Device Owner, 전용 HOME, `LOCKED`, 화면
+    `Dozing`, USB 화면 유지 설정 0 유지; 설치된 base APK와 보관본 해시
+    일치, 설치 시각 이후 Matholic AndroidRuntime 일치 항목 0
+  - A에서 고의 학생 페이지 복귀 오류를 주입하지 않았으며 실제 포털
+    리디렉션 복귀, QR→Web→QR 왕복과 관리자 PIN·카메라·PDF·인쇄는 사용자
+    복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

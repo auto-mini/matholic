@@ -3781,3 +3781,83 @@ WebStorage, cookie를 연속 정리했다. 한 단계가 예외를 내면 뒤 �
 - 실제 A에서 허용 외 최상위 이동과 WebView 중지 오류를 확인하는 고의
   실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Web POC RC22 학생 학습지 복귀 제어 오류 실패폐쇄 — 2026-07-26
+
+### 재현한 학생 경로 복귀 중단
+
+학생 `ACTIVE` 상태에서 포털 등 허용된 최상위 문서이지만 학생용이 아닌
+경로가 시작되면 기존 코드는 로딩을 중지하고 마지막 허용 학습지로 되돌렸다.
+이때 WebView 제어가 동기 예외를 내면 잠금 전환 없이 콜백 밖으로 전파됐다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 첫 `loadUrl()`이
+  `IllegalStateException`을 내는 합성 WebView로 학생 상태의
+  `onPageStarted` 실행
+- 수정 전 예외가 WebViewClient 콜백 밖으로 전파되는 대상 계측시험 실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `084d6b9`
+- Web POC `0.4.0-rc22`/code 39와 릴리스 운영 경로 준비 커밋: `4548069`
+- 학생 경로 복귀의 `stopLoading()`과 마지막 허용 URL `loadUrl()`을 단일
+  오류 경계로 실행
+- WebView 부재나 어느 제어 단계의 오류든 `NAVIGATION_BLOCKED` 상태를
+  저장하고 실패폐쇄 UI로 전환
+
+### 자동 검증
+
+- 수정 전 신규 대상 계측시험: 합성 첫 `loadUrl()` 예외 전파 재현
+- 수정 뒤 대상 계측시험: 예외가 빠져나오지 않고 상태 `LOCKED`, 이유
+  `NAVIGATION_BLOCKED` 저장 확인
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 53개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc22-release.apk`
+  - 크기: 3,092,092 bytes
+  - SHA-256:
+    `3EAA30E6BC793A0FB1896F09B043387ABFD1082FA65E08E931BF7C80A5297E43`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc21`/code 38
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC22만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc22`/code 39
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC22 보관본 일치
+- 설치된 Web POC와 RC22 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 학생 경로 복귀 제어 오류를 확인하는 고의 실패주입
+- 실제 포털 리디렉션 복귀, QR→Web→QR 왕복과 관리자 PIN·카메라·PDF
+  공유·실물 인쇄 회귀
