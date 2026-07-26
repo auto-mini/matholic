@@ -557,64 +557,109 @@ class MainActivity : ComponentActivity() {
         val classSelectionSnapshot = classRosterState.snapshotSelection()
         val studentSelectionSnapshot = studentSelectionState.snapshotSelection()
         ioExecutor.execute {
-            val loadedClasses = studentRepository.listClasses()
-                .map { Choice(it.classId, it.className) }
-            val loadedStudents = studentRepository.listStudents()
-                .map {
-                    StudentChoice(
-                        id = it.studentId,
-                        label = it.displayNameExact,
-                    )
-                }
-            val session = studentRepository.currentSession()
-            val resolvedClassId = session?.classId
-                ?: preferredClassId?.takeIf { candidate ->
-                    loadedClasses.any { it.id == candidate }
-                }
-                ?: loadedClasses.firstOrNull()?.id
-            val loadedMembershipIds = resolvedClassId
-                ?.let(studentRepository::membershipStudentIds)
-                .orEmpty()
+            val result = runCatching {
+                val loadedClasses = studentRepository.listClasses()
+                    .map { Choice(it.classId, it.className) }
+                val loadedStudents = studentRepository.listStudents()
+                    .map {
+                        StudentChoice(
+                            id = it.studentId,
+                            label = it.displayNameExact,
+                        )
+                    }
+                val session = studentRepository.currentSession()
+                val resolvedClassId = session?.classId
+                    ?: preferredClassId?.takeIf { candidate ->
+                        loadedClasses.any { it.id == candidate }
+                    }
+                    ?: loadedClasses.firstOrNull()?.id
+                AdminDataSnapshot(
+                    classes = loadedClasses,
+                    students = loadedStudents,
+                    session = session,
+                    resolvedClassId = resolvedClassId,
+                    membershipStudentIds = resolvedClassId
+                        ?.let(studentRepository::membershipStudentIds)
+                        .orEmpty(),
+                )
+            }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                classes = loadedClasses
-                students = loadedStudents
-                currentSession = session
-                classRosterState.resolveRefresh(
-                    snapshot = classSelectionSnapshot,
-                    loadedClassId = resolvedClassId,
-                    loadedStudentIds = loadedMembershipIds,
-                    availableClassIds = loadedClasses.mapTo(mutableSetOf(), Choice::id),
-                    forceLoadedSelection = session != null,
+                result.fold(
+                    onSuccess = { snapshot ->
+                        applyAdminDataSnapshot(
+                            snapshot = snapshot,
+                            classSelectionSnapshot = classSelectionSnapshot,
+                            studentSelectionSnapshot = studentSelectionSnapshot,
+                            preferredStudentId = preferredStudentId,
+                            completeStudentMutationAfterLoad = completeStudentMutationAfterLoad,
+                            message = message,
+                        )
+                    },
+                    onFailure = {
+                        if (completeStudentMutationAfterLoad) studentMutationGate.finish()
+                        updateSessionAdminControls(currentSession)
+                        updateStudentManagementControls()
+                        updateClassRosterUi()
+                        adminMessage.text = adminRefreshFailureMessage(message)
+                    },
                 )
-                val displayedClassId = classRosterState.selectedClassId
-                val displayedStudentId = studentSelectionState.resolveRefresh(
-                    snapshot = studentSelectionSnapshot,
-                    preferredId = preferredStudentId,
-                    availableIds = loadedStudents.map(StudentChoice::id),
-                )
-                pendingTemporaryStudentIds = pendingTemporaryStudentIds
-                    .intersect(students.mapTo(mutableSetOf(), StudentChoice::id))
-                suppressClassSelectionCallback = true
-                suppressStudentSelectionCallback = true
-                classSpinner.adapter = choiceAdapter(classes, "먼저 반을 생성하세요")
-                studentSpinner.adapter = studentChoiceAdapter(students, "등록 학생이 없습니다")
-                classes.indexOfFirst { it.id == displayedClassId }
-                    .takeIf { it >= 0 }
-                    ?.let(classSpinner::setSelection)
-                students.indexOfFirst { it.id == displayedStudentId }
-                    .takeIf { it >= 0 }
-                    ?.let(studentSpinner::setSelection)
-                suppressClassSelectionCallback = false
-                suppressStudentSelectionCallback = false
-                if (completeStudentMutationAfterLoad) studentMutationGate.finish()
-                updateSessionAdminControls(session)
-                updateStudentManagementControls()
-                updateClassRosterUi()
-                adminMessage.text = message.orEmpty()
             }
         }
     }
+
+    private fun applyAdminDataSnapshot(
+        snapshot: AdminDataSnapshot,
+        classSelectionSnapshot: ClassRosterSelectionState.SelectionSnapshot,
+        studentSelectionSnapshot: RefreshableSelectionState.SelectionSnapshot,
+        preferredStudentId: String?,
+        completeStudentMutationAfterLoad: Boolean,
+        message: String?,
+    ) {
+        classes = snapshot.classes
+        students = snapshot.students
+        currentSession = snapshot.session
+        classRosterState.resolveRefresh(
+            snapshot = classSelectionSnapshot,
+            loadedClassId = snapshot.resolvedClassId,
+            loadedStudentIds = snapshot.membershipStudentIds,
+            availableClassIds = snapshot.classes.mapTo(mutableSetOf(), Choice::id),
+            forceLoadedSelection = snapshot.session != null,
+        )
+        val displayedClassId = classRosterState.selectedClassId
+        val displayedStudentId = studentSelectionState.resolveRefresh(
+            snapshot = studentSelectionSnapshot,
+            preferredId = preferredStudentId,
+            availableIds = snapshot.students.map(StudentChoice::id),
+        )
+        pendingTemporaryStudentIds = pendingTemporaryStudentIds
+            .intersect(students.mapTo(mutableSetOf(), StudentChoice::id))
+        suppressClassSelectionCallback = true
+        suppressStudentSelectionCallback = true
+        classSpinner.adapter = choiceAdapter(classes, "먼저 반을 생성하세요")
+        studentSpinner.adapter = studentChoiceAdapter(students, "등록 학생이 없습니다")
+        classes.indexOfFirst { it.id == displayedClassId }
+            .takeIf { it >= 0 }
+            ?.let(classSpinner::setSelection)
+        students.indexOfFirst { it.id == displayedStudentId }
+            .takeIf { it >= 0 }
+            ?.let(studentSpinner::setSelection)
+        suppressClassSelectionCallback = false
+        suppressStudentSelectionCallback = false
+        if (completeStudentMutationAfterLoad) studentMutationGate.finish()
+        updateSessionAdminControls(snapshot.session)
+        updateStudentManagementControls()
+        updateClassRosterUi()
+        adminMessage.text = message.orEmpty()
+    }
+
+    private fun adminRefreshFailureMessage(completedMessage: String?): String =
+        if (completedMessage.isNullOrBlank()) {
+            "관리자 목록을 불러오지 못했습니다. 관리자 화면을 다시 열어 재시도하세요."
+        } else {
+            "$completedMessage 다만 최신 목록을 불러오지 못했습니다. " +
+                "관리자 화면을 다시 열어 재시도하세요."
+        }
 
     private fun choiceAdapter(choices: List<Choice>, emptyLabel: String): ArrayAdapter<String> =
         ArrayAdapter(
@@ -1975,6 +2020,14 @@ class MainActivity : ComponentActivity() {
     private data class StudentChoice(
         val id: String,
         val label: String,
+    )
+
+    private data class AdminDataSnapshot(
+        val classes: List<Choice>,
+        val students: List<StudentChoice>,
+        val session: ActiveSessionEntity?,
+        val resolvedClassId: String?,
+        val membershipStudentIds: Set<String>,
     )
 
     private data class QrPreview(

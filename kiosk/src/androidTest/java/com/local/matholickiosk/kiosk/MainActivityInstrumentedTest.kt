@@ -9,8 +9,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
+import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -98,11 +101,99 @@ class MainActivityInstrumentedTest {
         database.clearAllTables()
     }
 
+    @Test
+    fun failedAdminRefreshReleasesStudentMutationAndShowsRetryGuidance() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        ).registerStudent(
+            displayNameExact = "가상학생-새로고침",
+            username = "synthetic-refresh-user".toCharArray(),
+            password = "synthetic-refresh-password".toCharArray(),
+        )
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            }
+            scenario.onActivity { activity ->
+                activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                    .setText("654321")
+                activity.findViewById<View>(R.id.auth_submit).performClick()
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                    activity.findViewById<android.widget.Spinner>(R.id.student_spinner).count == 1
+            }
+
+            val repositoryField = MainActivity::class.java
+                .getDeclaredField("studentRepository")
+                .apply { isAccessible = true }
+            val mutationGateField = MainActivity::class.java
+                .getDeclaredField("studentMutationGate")
+                .apply { isAccessible = true }
+            val refreshMethod = MainActivity::class.java
+                .getDeclaredMethod(
+                    "refreshAdminData",
+                    String::class.java,
+                    String::class.java,
+                    String::class.java,
+                    Boolean::class.javaPrimitiveType,
+                )
+                .apply { isAccessible = true }
+            lateinit var originalRepository: StudentRepository
+            lateinit var mutationGate: SingleFlightGate
+            try {
+                scenario.onActivity { activity ->
+                    originalRepository = repositoryField.get(activity) as StudentRepository
+                    mutationGate = mutationGateField.get(activity) as SingleFlightGate
+                    assertTrue(mutationGate.tryStart())
+                    repositoryField.set(activity, null)
+                    refreshMethod.invoke(
+                        activity,
+                        "학생 변경은 저장됐습니다.",
+                        null,
+                        null,
+                        true,
+                    )
+                }
+
+                waitUntil(scenario, timeoutMillis = 3_000) {
+                    !mutationGate.isActive
+                }
+                scenario.onActivity { activity ->
+                    assertFalse(mutationGate.isActive)
+                    assertEquals(
+                        "학생 변경은 저장됐습니다. 다만 최신 목록을 불러오지 못했습니다. " +
+                            "관리자 화면을 다시 열어 재시도하세요.",
+                        activity.findViewById<android.widget.TextView>(R.id.admin_message)
+                            .text
+                            .toString(),
+                    )
+                    assertTrue(
+                        activity.findViewById<View>(R.id.register_student_button).isEnabled,
+                    )
+                }
+            } finally {
+                scenario.onActivity { activity ->
+                    repositoryField.set(activity, originalRepository)
+                }
+            }
+        }
+        database.clearAllTables()
+    }
+
     private fun waitUntil(
         scenario: ActivityScenario<MainActivity>,
+        timeoutMillis: Long = 15_000,
         condition: (MainActivity) -> Boolean,
     ) {
-        val deadline = System.currentTimeMillis() + 15_000
+        val deadline = System.currentTimeMillis() + timeoutMillis
         while (System.currentTimeMillis() < deadline) {
             var matched = false
             scenario.onActivity { matched = condition(it) }
