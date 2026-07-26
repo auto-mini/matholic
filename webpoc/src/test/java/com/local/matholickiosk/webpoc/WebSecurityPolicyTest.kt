@@ -20,6 +20,20 @@ class WebSecurityPolicyTest {
     }
 
     @Test
+    fun `portal recognition accepts only the course document without fragments`() {
+        assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/course"))
+        assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/course?from=login"))
+
+        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/"))
+        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/userInfo"))
+        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/workbook"))
+        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/course#/userInfo"))
+
+        assertTrue(WebSecurityPolicy.isLearningHostUrl("https://im.matholic.com/workbook"))
+        assertFalse(WebSecurityPolicy.isLearningHostUrl("https://login.matholic.com/course"))
+    }
+
+    @Test
     fun `display name comparison is exact after narrow normalization`() {
         assertTrue(WebSecurityPolicy.displayNamesMatch(" 홍길동 ", "홍길동"))
         assertTrue(WebSecurityPolicy.displayNamesMatch("홍  길동", "홍 길동"))

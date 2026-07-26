@@ -170,6 +170,15 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testPortalActionsRejectNonCourseDocument() {
+        withFixture("https://im.matholic.com/userInfo", portalFixture()) { webView ->
+            assertFalse(evaluate(webView, WebDomScripts.portalFingerprint).getBoolean("ok"))
+            assertFalse(evaluate(webView, WebDomScripts.openAccountMenu).getBoolean("ok"))
+            assertFalse(evaluate(webView, WebDomScripts.clickLogout).getBoolean("ok"))
+        }
+    }
+
+    @Test
     fun testPortalFingerprintRejectsCredentialedSemanticLink() {
         val fixture = portalFixture().replace(
             "href=\"/userInfo\"",

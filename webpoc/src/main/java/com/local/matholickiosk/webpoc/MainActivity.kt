@@ -426,7 +426,7 @@ class MainActivity : Activity() {
                 ) return
                 when {
                     WebSecurityPolicy.isLoginUrl(url) -> handleLoginPage()
-                    WebSecurityPolicy.isPortalUrl(url) -> handlePortalPage(url)
+                    WebSecurityPolicy.isLearningHostUrl(url) -> handlePortalPage(url)
                 }
             }
 
@@ -822,6 +822,10 @@ class MainActivity : Activity() {
             WebPocState.LOGIN_SUBMIT,
             WebPocState.LOGIN_VERIFY,
             -> {
+                if (!WebSecurityPolicy.isPortalUrl(url)) {
+                    showMaintenance("PORTAL_ROUTE")
+                    return
+                }
                 transition(WebPocState.LOGIN_VERIFY)
                 probePortalForLogin(PORTAL_PROBE_RETRIES)
             }
@@ -829,7 +833,13 @@ class MainActivity : Activity() {
                 pendingLockReason = null
                 beginLogout()
             }
-            WebPocState.LOGOUT_NAVIGATE -> openLogoutMenu(PORTAL_PROBE_RETRIES)
+            WebPocState.LOGOUT_NAVIGATE -> {
+                if (!WebSecurityPolicy.isPortalUrl(url)) {
+                    retryLogoutOrLock("PORTAL_ROUTE")
+                    return
+                }
+                openLogoutMenu(PORTAL_PROBE_RETRIES)
+            }
             WebPocState.PREFLIGHT,
             WebPocState.SESSION_SANITIZE,
             WebPocState.IDLE,

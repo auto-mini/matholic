@@ -28,7 +28,13 @@ object WebSecurityPolicy {
 
     fun isLoginUrl(value: String?): Boolean = hostOf(value) == "login.matholic.com"
 
-    fun isPortalUrl(value: String?): Boolean = hostOf(value) == "im.matholic.com"
+    fun isPortalUrl(value: String?): Boolean {
+        if (hostOf(value) != "im.matholic.com") return false
+        val uri = URI(value)
+        return uri.rawPath == "/course" && uri.rawFragment == null
+    }
+
+    fun isLearningHostUrl(value: String?): Boolean = hostOf(value) == "im.matholic.com"
 
     fun isAllowedStudentUrl(value: String?): Boolean = StudentWebPolicy.isAllowedUrl(value)
 
