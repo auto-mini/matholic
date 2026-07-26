@@ -1829,7 +1829,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         pendingSharedPdf?.let { shared ->
             pendingSharedPdf = null
-            mainHandler.postDelayed({ shared.delete() }, SHARED_PDF_CLEANUP_DELAY_MS)
+            QrPdfExporter.scheduleSharedFileCleanup(this, shared)
         }
         when {
             relockAdminOnStart && ::authRepository.isInitialized -> {
@@ -1928,6 +1928,5 @@ class MainActivity : ComponentActivity() {
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
-        private const val SHARED_PDF_CLEANUP_DELAY_MS = 30_000L
     }
 }

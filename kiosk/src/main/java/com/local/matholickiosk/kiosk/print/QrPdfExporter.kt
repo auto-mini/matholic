@@ -4,11 +4,17 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.print.PrintAttributes
 import java.io.File
 
 object QrPdfExporter {
+    private val sharedFileCleanupHandler by lazy {
+        Handler(Looper.getMainLooper())
+    }
+
     fun export(
         context: Context,
         displayName: String,
@@ -59,6 +65,23 @@ object QrPdfExporter {
         cleanupExpired(File(context.cacheDir, EXPORT_DIRECTORY))
     }
 
+    internal fun scheduleSharedFileCleanup(
+        context: Context,
+        file: File,
+        delayMillis: Long = SHARED_FILE_CLEANUP_DELAY_MS,
+    ) {
+        require(delayMillis >= 0L) { "Cleanup delay must not be negative" }
+        val exportDirectory = File(context.cacheDir, EXPORT_DIRECTORY).canonicalFile
+        val export = file.canonicalFile
+        require(export.parentFile == exportDirectory) {
+            "Shared PDF must be inside the QR export directory"
+        }
+        sharedFileCleanupHandler.postDelayed(
+            { export.delete() },
+            delayMillis,
+        )
+    }
+
     private fun cleanupExpired(directory: File) {
         val cutoff = System.currentTimeMillis() - EXPORT_RETENTION_MS
         directory.listFiles()
@@ -67,5 +90,6 @@ object QrPdfExporter {
     }
 
     private const val EXPORT_DIRECTORY = "qr_exports"
+    private const val SHARED_FILE_CLEANUP_DELAY_MS = 30_000L
     private const val EXPORT_RETENTION_MS = 60L * 60L * 1_000L
 }

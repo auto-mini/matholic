@@ -16,10 +16,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.print.QrPrintCardRenderer
 import com.local.matholickiosk.kiosk.print.QrPrintPdfWriter
+import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +29,55 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class QrPrintDocumentAdapterInstrumentedTest {
+    @Test
+    fun sharedPdfCleanupDeletesTheExportAfterItsGracePeriod() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val exportDirectory = File(context.cacheDir, "qr_exports").apply { mkdirs() }
+        val export = File(exportDirectory, "synthetic-cleanup-${System.nanoTime()}.pdf")
+        export.writeText("synthetic non-QR fixture")
+
+        try {
+            QrPdfExporter.scheduleSharedFileCleanup(
+                context = context,
+                file = export,
+                delayMillis = 50L,
+            )
+
+            val deadline = System.currentTimeMillis() + 5_000L
+            while (export.exists() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(25L)
+            }
+            assertFalse(export.exists())
+        } finally {
+            export.delete()
+        }
+    }
+
+    @Test
+    fun sharedPdfCleanupRefusesFilesOutsideTheExportDirectory() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val outsideExportDirectory = File(
+            context.cacheDir,
+            "synthetic-outside-cleanup-${System.nanoTime()}.pdf",
+        )
+        outsideExportDirectory.writeText("synthetic non-QR fixture")
+
+        try {
+            val failure = runCatching {
+                QrPdfExporter.scheduleSharedFileCleanup(
+                    context = context,
+                    file = outsideExportDirectory,
+                    delayMillis = 0L,
+                )
+            }.exceptionOrNull()
+
+            assertTrue(failure is IllegalArgumentException)
+            assertTrue(outsideExportDirectory.exists())
+        } finally {
+            outsideExportDirectory.delete()
+        }
+    }
+
     @Test
     fun pdfShareGrantsReadAccessToTheStreamAndClipDataUri() {
         val uri = Uri.parse(
