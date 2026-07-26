@@ -3703,3 +3703,81 @@ WebStorage, cookie를 연속 정리했다. 한 단계가 예외를 내면 뒤 �
 - 실제 A에서 세션 정리 오류와 Kiosk 관리자 복구를 확인하는 고의 실패주입
 - cookie flush·지연 로그인 재로딩 오류의 합성 실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Web POC RC21 허용되지 않은 이동 중지 오류 실패폐쇄 — 2026-07-26
+
+### 재현한 잠금 전환 중단
+
+허용되지 않은 최상위 문서가 시작되면 WebView 로딩을 중지한 뒤
+`NAVIGATION_BLOCKED`로 잠갔다. 죽어가는 renderer 경계에서
+`stopLoading()`이 동기 예외를 내면 잠금 전환에 도달하지 못했다.
+
+- 실제 A, 공개 사이트와 자격정보를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 `stopLoading()`이
+  `IllegalStateException`을 내는 합성 WebView로 `onPageStarted` 실행
+- 수정 전 예외가 WebViewClient 콜백 밖으로 전파되는 대상 계측시험 실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `ce95b42`
+- Web POC `0.4.0-rc21`/code 38과 릴리스 운영 경로 준비 커밋: `f4469bf`
+- 허용되지 않은 문서의 로딩 중지 오류를 격리
+- 중지 성공 여부와 무관하게 `NAVIGATION_BLOCKED` 상태를 저장하고
+  실패폐쇄 UI로 전환
+
+### 자동 검증
+
+- 수정 전 신규 대상 계측시험: 합성 `stopLoading()` 예외 전파 재현
+- 수정 뒤 대상 계측시험: 예외가 빠져나오지 않고 상태 `LOCKED`, 이유
+  `NAVIGATION_BLOCKED` 저장 확인
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 52개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc21-release.apk`
+  - 크기: 3,091,972 bytes
+  - SHA-256:
+    `182743349523E8A7353BE12193DC5B9F45BA5376B245A4E639FBF4E2CDD2AF7A`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc20`/code 37
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC21만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc21`/code 38
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC21 보관본 일치
+- 설치된 Web POC와 RC21 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 시각 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 허용 외 최상위 이동과 WebView 중지 오류를 확인하는 고의
+  실패주입
+- 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
