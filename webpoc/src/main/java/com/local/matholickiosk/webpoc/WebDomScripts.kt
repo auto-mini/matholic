@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-26.3"
+    const val CONTRACT_VERSION = "web-2026-07-26.4"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -32,7 +32,9 @@ object WebDomScripts {
               page.hostname === 'login.matholic.com' &&
               page.port === '' &&
               page.username === '' &&
-              page.password === '';
+              page.password === '' &&
+              page.pathname === '/' &&
+              page.hash === '';
           } catch (_) {}
           const contractOk = pageOriginOk &&
             usernames.length === 1 && passwords.length === 1 &&
@@ -89,7 +91,9 @@ object WebDomScripts {
                   page.hostname === 'login.matholic.com' &&
                   page.port === '' &&
                   page.username === '' &&
-                  page.password === '';
+                  page.password === '' &&
+                  page.pathname === '/' &&
+                  page.hash === '';
               } catch (_) {}
               const ok = pageOriginOk &&
                 usernames.length === 1 && passwords.length === 1 &&

@@ -52,6 +52,41 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testLoginScriptsRejectNonRootLoginDocumentWithoutTouchingCredentials() {
+        withFixture(
+            "https://login.matholic.com/not-a-login-document",
+            loginFixture(
+                "https://auth.matholic.com/token/signin",
+                preventSubmit = true,
+            ),
+        ) { webView ->
+            assertFalse(
+                evaluate(webView, WebDomScripts.sanitizeLoginAndFingerprint)
+                    .getBoolean("ok"),
+            )
+            assertFalse(
+                evaluate(webView, WebDomScripts.login("virtual-user", "virtual-pass"))
+                    .getBoolean("ok"),
+            )
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  submitted: document.body.dataset.submitted === 'yes',
+                  usernameUnchanged:
+                    document.querySelector('input[name="username"]').value === 'residual-user',
+                  passwordUnchanged:
+                    document.querySelector('input[name="password"]').value === 'residual-pass'
+                }))()
+                """.trimIndent(),
+            )
+            assertFalse(proof.getBoolean("submitted"))
+            assertTrue(proof.getBoolean("usernameUnchanged"))
+            assertTrue(proof.getBoolean("passwordUnchanged"))
+        }
+    }
+
+    @Test
     fun testLoginFingerprintRejectsUnsafeAuthEndpointDetails() {
         listOf(
             "https://auth.matholic.com:444/token/signin",

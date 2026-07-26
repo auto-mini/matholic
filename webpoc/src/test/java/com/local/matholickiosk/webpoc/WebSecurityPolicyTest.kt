@@ -34,6 +34,16 @@ class WebSecurityPolicyTest {
     }
 
     @Test
+    fun `login recognition accepts only the root document without fragments`() {
+        assertTrue(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/"))
+        assertTrue(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/?from=logout"))
+
+        assertFalse(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/course"))
+        assertFalse(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/#/alternate"))
+        assertFalse(WebSecurityPolicy.isLoginUrl("https://auth.matholic.com/"))
+    }
+
+    @Test
     fun `display name comparison is exact after narrow normalization`() {
         assertTrue(WebSecurityPolicy.displayNamesMatch(" 홍길동 ", "홍길동"))
         assertTrue(WebSecurityPolicy.displayNamesMatch("홍  길동", "홍 길동"))

@@ -26,7 +26,11 @@ object WebSecurityPolicy {
             (uri.port == -1 || uri.port == 443)
     }
 
-    fun isLoginUrl(value: String?): Boolean = hostOf(value) == "login.matholic.com"
+    fun isLoginUrl(value: String?): Boolean {
+        if (hostOf(value) != "login.matholic.com") return false
+        val uri = URI(value)
+        return uri.rawPath == "/" && uri.rawFragment == null
+    }
 
     fun isPortalUrl(value: String?): Boolean {
         if (hostOf(value) != "im.matholic.com") return false
