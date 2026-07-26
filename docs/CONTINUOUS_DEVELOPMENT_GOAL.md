@@ -91,9 +91,9 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc08`/code 13
-  - Web POC `0.4.0-rc10`/code 27
+  - Web POC `0.4.0-rc11`/code 28
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC08/RC10 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC08/RC11 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -103,12 +103,12 @@
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc10-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
   - Web POC:
-    `5D5503D4EE5D63B1EB872C27B9A12516177C7A56C9ED502BD8F3A66A7D723814`
+    `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -123,6 +123,7 @@
   - 로그인 form endpoint 검증 기준 Web 39개, 실패 0
   - DOM origin 일치 보강 기준 Web 43개, 실패 0
   - 포털 `/course` 경로 제한 기준 Web 44개, 실패 0
+  - 로그인 `/` 경로 제한 기준 Web 45개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -290,6 +291,29 @@
     17개 통과
   - 운영 코드와 A 설치본은 변경하지 않았으며 실제 관리자 화면에서의 반
     삭제·다중 반 소속 실기는 사용자 복귀 뒤 수행
+- Web 로그인 문서 경로 제한 커밋 `e67b655`을 추가하고 Web POC RC11로
+  A에 설치했다.
+  - 기존 native 로그인 판정과 DOM 자격정보 입력은 `login.matholic.com`
+    host만 확인해, 같은 host의 임의 경로가 같은 form을 노출하면 로그인
+    문서로 처리
+  - 공개 서버의 `/not-a-login-document`도 HTTP 200으로 응답함을 자격정보
+    없이 확인하고, 수정 전 신규 JVM 정책 7개 중 1개 실패를 재현
+  - 정확한 기본 HTTPS 로그인 origin의 루트 `/`와 fragment 없음 조건을
+    native 상태 전이와 DOM sanitizer·submit에 함께 적용하고 query는 허용
+  - 수정 뒤 대상 JVM 7개, 신규 DOM 1개, Web 전체 계측 45개, 전체 JVM
+    61개, clean debug 204 tasks 통과
+  - 첫 release 158 tasks와 APK 검증은 성공했으나 artifact payload 비교가
+    Windows PowerShell에 없는 `Convert.ToHexString` 호출로 게시 전에 실패
+  - 커밋 `37deb21`에서 `BitConverter` 기반 대문자 hex 변환으로 호환성을
+    복구하고 구문 분석·실제 SHA-256 비교 뒤 release 158 tasks와 원본·보관
+    APK 이중 검증을 재실행해 통과
+  - Web RC11 보관본 크기 3,084,304 bytes, SHA-256
+    `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
+  - A 설치 전후 Web UID `10287`, firstInstallTime, dataDir, Kiosk RC08,
+    release signer, Device Owner, HOME, `LOCKED`, 화면 `Dozing` 유지;
+    crash 일치 항목 0
+  - 실제 공개 사이트의 로그인 루트·query와 QR→Web→QR 왕복은 사용자 복귀
+    뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간

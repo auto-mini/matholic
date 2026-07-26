@@ -1415,3 +1415,86 @@ userinfo가 있는 URL, query 또는 fragment가 붙은 URL도 인증 endpoint�
 - 실제 공개 사이트의 로그인 성공 후 URL이 `/course`이며 query만 사용하는지
 - 실제 종이 QR을 사용하는 RC08→RC10 session과 QR→Web→QR 왕복
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## Web RC11 로그인 `/` 문서 경로 제한 — 2026-07-26
+
+### 재현한 로그인 판정 과허용
+
+`WebSecurityPolicy.isLoginUrl`과 로그인 DOM은 허용 origin을 확인한 뒤
+`login.matholic.com` host만 비교했다. 같은 host의 다른 path가 같은 로그인
+form을 노출하면 잔존값 정리와 새 자격정보 입력 대상이 될 수 있었다.
+
+- 공개 `https://login.matholic.com/not-a-login-document`가 자격정보 없이
+  HTTP 200으로 응답함을 확인
+- 신규 JVM 정책시험과 Web DOM 계측시험을 먼저 추가
+- 수정 전 JVM 정책 7개 중 신규 1개 실패
+- 실제 A나 공개 사이트에 자격정보를 입력해 변형 path를 시험하지는 않았다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `e67b655`
+- Web POC `0.4.0-rc11`/code 28과 릴리스 운영 경로 준비 커밋: `e1599f8`
+- native 로그인 판정과 DOM sanitizer·submit은 정확한 기본 HTTPS
+  `login.matholic.com` origin, 루트 path `/`, fragment 없음 조건을 요구한다.
+- 정상 로그아웃 복귀 호환성을 위해 query는 허용한다.
+- 비루트 문서에서는 잔존 입력값을 지우거나 새 아이디·비밀번호를 입력하지
+  않는다.
+- DOM 계약 버전은 `web-2026-07-26.4`로 갱신했다.
+
+### 자동 검증
+
+- 수정 뒤 WebSecurityPolicyTest 7개, 실패·오류 0
+- 신규 비루트 로그인 DOM 계측 1개, 실패·오류·건너뜀 0
+- Android 13 일회용 에뮬레이터 Web 전체 계측 45개,
+  실패·오류·건너뜀 0, 173.1초
+- 네 모듈 JVM 단위시험 총 61개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- 첫 release 단위시험·lint·두 APK assemble 158 tasks와 APK 검증은
+  통과했으나 artifact 게시 전 PowerShell hex 변환 호환성 오류로 전체
+  스크립트는 실패
+- Windows PowerShell 호환성 수정 커밋: `37deb21`
+  - `Convert.ToHexString` 대신 `BitConverter` 기반 대문자 hex 사용
+  - PowerShell AST 구문 분석, 합성 byte 변환과 실제 파일 SHA-256 비교 통과
+- 수정 뒤 release 단위시험·lint·두 APK assemble:
+  `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
+  - 크기: 3,084,304 bytes
+  - SHA-256:
+    `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc10`/code 27
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Web POC RC11만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc11`/code 28
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Web base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 공개 사이트의 로그인 문서가 루트 `/`와 허용 query 계약을 유지하는지
+- 실제 종이 QR을 사용하는 RC08→RC11 session과 QR→Web→QR 왕복
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
