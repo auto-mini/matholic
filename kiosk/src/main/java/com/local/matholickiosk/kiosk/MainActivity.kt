@@ -533,6 +533,7 @@ class MainActivity : ComponentActivity() {
         preferredStudentId: String? = students.getOrNull(studentSpinner.selectedItemPosition)?.id,
         completeStudentMutationAfterLoad: Boolean = false,
     ) {
+        val classSelectionSnapshot = classRosterState.snapshotSelection()
         ioExecutor.execute {
             val loadedClasses = studentRepository.listClasses()
                 .map { Choice(it.classId, it.className) }
@@ -557,13 +558,20 @@ class MainActivity : ComponentActivity() {
                 classes = loadedClasses
                 students = loadedStudents
                 currentSession = session
-                classRosterState.resolve(resolvedClassId, loadedMembershipIds)
+                classRosterState.resolveRefresh(
+                    snapshot = classSelectionSnapshot,
+                    loadedClassId = resolvedClassId,
+                    loadedStudentIds = loadedMembershipIds,
+                    availableClassIds = loadedClasses.mapTo(mutableSetOf(), Choice::id),
+                    forceLoadedSelection = session != null,
+                )
+                val displayedClassId = classRosterState.selectedClassId
                 pendingTemporaryStudentIds = pendingTemporaryStudentIds
                     .intersect(students.mapTo(mutableSetOf(), StudentChoice::id))
                 suppressClassSelectionCallback = true
                 classSpinner.adapter = choiceAdapter(classes, "먼저 반을 생성하세요")
                 studentSpinner.adapter = studentChoiceAdapter(students, "등록 학생이 없습니다")
-                classes.indexOfFirst { it.id == resolvedClassId }
+                classes.indexOfFirst { it.id == displayedClassId }
                     .takeIf { it >= 0 }
                     ?.let(classSpinner::setSelection)
                 students.indexOfFirst { it.id == preferredStudentId }

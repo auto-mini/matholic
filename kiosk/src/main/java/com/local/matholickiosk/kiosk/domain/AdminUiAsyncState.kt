@@ -6,6 +6,10 @@ internal class ClassRosterSelectionState {
         internal val generation: Long,
     )
 
+    class SelectionSnapshot internal constructor(
+        internal val revision: Long,
+    )
+
     var selectedClassId: String? = null
         private set
 
@@ -16,10 +20,12 @@ internal class ClassRosterSelectionState {
         private set
 
     private var generation: Long = 0
+    private var selectionRevision: Long = 0
 
     fun select(classId: String?): LoadRequest? {
         if (classId == selectedClassId) return null
         generation += 1
+        selectionRevision += 1
         selectedClassId = classId
         membershipStudentIds = emptySet()
         isLoading = classId != null
@@ -28,9 +34,31 @@ internal class ClassRosterSelectionState {
 
     fun resolve(classId: String?, studentIds: Set<String>) {
         generation += 1
+        if (classId != selectedClassId) {
+            selectionRevision += 1
+        }
         selectedClassId = classId
         membershipStudentIds = studentIds.toSet()
         isLoading = false
+    }
+
+    fun snapshotSelection(): SelectionSnapshot =
+        SelectionSnapshot(selectionRevision)
+
+    fun resolveRefresh(
+        snapshot: SelectionSnapshot,
+        loadedClassId: String?,
+        loadedStudentIds: Set<String>,
+        availableClassIds: Set<String>,
+        forceLoadedSelection: Boolean,
+    ): Boolean {
+        val newerSelectionIsAvailable = snapshot.revision != selectionRevision &&
+            selectedClassId?.let(availableClassIds::contains) == true
+        if (!forceLoadedSelection && newerSelectionIsAvailable) {
+            return false
+        }
+        resolve(loadedClassId, loadedStudentIds)
+        return true
     }
 
     fun apply(request: LoadRequest, studentIds: Set<String>): Boolean {
