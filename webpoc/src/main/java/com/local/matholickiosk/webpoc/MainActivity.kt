@@ -264,7 +264,7 @@ class MainActivity : Activity() {
         ephemeralCredentials = EphemeralCredentials(payload.username, payload.password)
         showBlocking(getString(R.string.status_login))
         transition(WebPocState.LOGIN_FILL)
-        webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+        if (!navigateOrLock(WebSecurityPolicy.LOGIN_URL)) return
         scheduleTimeout(LOGIN_TIMEOUT_MS, "LOGIN_PREP_TIMEOUT")
     }
 
@@ -462,7 +462,7 @@ class MainActivity : Activity() {
                         handler.postDelayed({
                             if (!destroyed && state == WebPocState.PREFLIGHT) {
                                 preflightDnsRetryStarted = true
-                                webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+                                navigateOrLock(WebSecurityPolicy.LOGIN_URL)
                             }
                         }, PREFLIGHT_DNS_RETRY_DELAY_MS)
                     }
@@ -531,6 +531,18 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun navigateOrLock(url: String): Boolean {
+        return try {
+            webView.loadUrl(url)
+            true
+        } catch (_: RuntimeException) {
+            if (!destroyed && !isTerminalState()) {
+                showLocked("WEB_NAVIGATION")
+            }
+            false
+        }
+    }
+
     private fun configureActions() {
         startButton.setOnClickListener { startLogin() }
         gate3ModeButton.setOnClickListener { setGate3SetupMode(true) }
@@ -546,13 +558,13 @@ class MainActivity : Activity() {
         workbookButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
                 resultSummaryDisplayed = false
-                webView.loadUrl(WebSecurityPolicy.WORKBOOK_URL)
+                navigateOrLock(WebSecurityPolicy.WORKBOOK_URL)
             }
         }
         diagnosticButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
                 resultSummaryDisplayed = false
-                webView.loadUrl(WebSecurityPolicy.DIAGNOSTIC_URL)
+                navigateOrLock(WebSecurityPolicy.DIAGNOSTIC_URL)
             }
         }
         resultConfirmButton.setOnClickListener {
@@ -579,7 +591,7 @@ class MainActivity : Activity() {
         preflightDnsRetryStarted = false
         transition(WebPocState.PREFLIGHT)
         showBlocking(getString(R.string.status_preparing))
-        webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+        if (!navigateOrLock(WebSecurityPolicy.LOGIN_URL)) return
         scheduleTimeout(PAGE_TIMEOUT_MS, "PREFLIGHT_TIMEOUT")
     }
 
@@ -590,7 +602,7 @@ class MainActivity : Activity() {
         logoutAttempt = 0
         transition(WebPocState.RECOVERY_REQUIRED)
         showBlocking(getString(R.string.status_logout))
-        webView.loadUrl(WebSecurityPolicy.COURSE_URL)
+        if (!navigateOrLock(WebSecurityPolicy.COURSE_URL)) return
         scheduleTimeout(PAGE_TIMEOUT_MS, "RECOVERY_TIMEOUT")
     }
 
@@ -611,7 +623,7 @@ class MainActivity : Activity() {
         setupPanel.visibility = View.GONE
         showBlocking(getString(R.string.status_login))
         transition(WebPocState.LOGIN_FILL)
-        webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+        if (!navigateOrLock(WebSecurityPolicy.LOGIN_URL)) return
         scheduleTimeout(LOGIN_TIMEOUT_MS, "LOGIN_PREP_TIMEOUT")
     }
 
@@ -713,7 +725,7 @@ class MainActivity : Activity() {
         ephemeralCredentials = attempt.credentials
         showGate3Progress()
         transition(WebPocState.LOGIN_FILL)
-        webView.loadUrl(WebSecurityPolicy.LOGIN_URL)
+        if (!navigateOrLock(WebSecurityPolicy.LOGIN_URL)) return
         scheduleTimeout(LOGIN_TIMEOUT_MS, "LOGIN_PREP_TIMEOUT")
     }
 
@@ -911,7 +923,7 @@ class MainActivity : Activity() {
                 resultSummaryDisplayed = false
                 lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
                 showBlocking("학습지를 여는 중입니다")
-                webView.loadUrl(WebSecurityPolicy.WORKBOOK_URL)
+                navigateOrLock(WebSecurityPolicy.WORKBOOK_URL)
             }
         }
     }
@@ -949,7 +961,7 @@ class MainActivity : Activity() {
 
             if (result?.optString("version") == WebDomScripts.CONTRACT_VERSION) {
                 if (!result.optBoolean("ok")) {
-                    webView.loadUrl(lastAllowedStudentUrl)
+                    navigateOrLock(lastAllowedStudentUrl)
                     return@evaluate
                 }
                 val path = result.optString("path")
@@ -1019,7 +1031,7 @@ class MainActivity : Activity() {
     private fun startLogoutAttempt() {
         val generation = ++logoutAttemptGeneration
         transition(WebPocState.LOGOUT_NAVIGATE)
-        webView.loadUrl(WebSecurityPolicy.COURSE_URL)
+        if (!navigateOrLock(WebSecurityPolicy.COURSE_URL)) return
         scheduleTimeout(LOGOUT_TIMEOUT_MS, "LOGOUT_TIMEOUT") {
             retryLogoutOrLock("LOGOUT_TIMEOUT", generation)
         }

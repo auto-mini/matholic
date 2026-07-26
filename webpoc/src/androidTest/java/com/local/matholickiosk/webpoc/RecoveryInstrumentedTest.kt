@@ -216,6 +216,25 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun recoveryNavigationFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val replacement = ThrowingFirstLoadUrlWebView(activity)
+                replaceWebView(activity, replacement)
+                val beginRecovery = MainActivity::class.java.getDeclaredMethod(
+                    "beginRecovery",
+                ).apply { isAccessible = true }
+
+                assertTrue(runCatching { beginRecovery.invoke(activity) }.isSuccess)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_NAVIGATION", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
     fun rendererCrashRemovesUnusableWebViewAndFailsClosed() {
         writeState(WebPocState.IDLE)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
