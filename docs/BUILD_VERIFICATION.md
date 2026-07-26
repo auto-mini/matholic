@@ -918,3 +918,95 @@ Web POC의 secure session 진입은 credential bridge URI를 읽기 전에 호�
 - 실제 사이트의 자동 학습지 진입, 두 탭·경로 제한, 문제 입력 확대와
   오답 번호 전용 결과 회귀
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## RC07/RC06 secure-session 전송 계약 복구 — 2026-07-26
+
+### 재현한 통합 결함
+
+Kiosk는 explicit Web Activity intent의 `data`에 보호된 credential bridge
+`content://` URI를 넣었다. Android 13 일회용 에뮬레이터에서 실제 debug
+Kiosk Activity가 이 intent를 실행하면 Web Activity가 설치되어 있어도
+`ActivityNotFoundException`이 발생했다. recovery action은 data URI가 없어
+실행됐으므로 호출자 검증 이전의 secure 전송 계약 결함으로 좁혔다.
+
+- 수정 전 에뮬레이터 교차 앱 시험:
+  `PROBE_LAUNCH_ActivityNotFoundException`
+- A의 기존 RC06/RC05 조합은 사용자 부재 중 실제 QR을 촬영하지 않았으므로
+  이 결함의 실기 재현 여부를 주장하지 않는다.
+
+### 변경
+
+- 구현 커밋: `adf8545`
+- Kiosk는 1회용 handle ID만 explicit intent extra로 전달한다.
+- Web POC는 handle이 정확히 32자 Base64URL 형식인지 확인한 뒤 고정된
+  `com.local.matholickiosk.kiosk.credentials` authority의 URI를 내부 구성한다.
+- Web manifest에 secure와 recovery action 계약을 명시했다.
+- 기존 exact Kiosk package·same signer 호출자 검사는 credential handle을
+  읽기 전에 그대로 적용한다.
+- release에는 포함되지 않는 debug probe와 QEMU 전용 스크립트로 실제
+  Kiosk Activity→Web Activity 결과 반환을 검증한다. 스크립트는
+  `emulator-*` serial과 `ro.kernel.qemu=1`을 모두 요구한다.
+- 버전·릴리스 커밋: `f0fe25a`
+- Kiosk `0.6.0-rc07`/code 12, Web POC `0.4.0-rc06`/code 23
+
+### 자동 검증
+
+- handle 형식 신규 JVM 시험: 통과
+- debug Kiosk→Web secure 호출: 호출자 검사를 통과해
+  `CREDENTIAL_BRIDGE_EMPTY` 반환
+- 이어진 trusted Web recovery: `RESULT_OK`
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- JVM 단위시험: Probe 8, 잠긴 POC 1, Web POC 26, Kiosk 23;
+  총 58개, 실패·오류 0
+- Android 13 AOSP ATD 일회용 에뮬레이터:
+  - Web POC 전체 34개, 실패·오류·건너뜀 0, 152.422초
+  - Kiosk 전체 16개, 실패·오류·건너뜀 0, 18.496초
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- release Web manifest의 두 action 계약과 release Kiosk manifest에서 debug
+  probe Activity 제외: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc07-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `7B423D6AFC1ECB7F53805259F218DBDB0DC689E822F83E4637273BA76B8451E4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc06-release.apk`
+  - 크기: 3,081,400 bytes
+  - SHA-256:
+    `ECFA865715427B32D5308B92135A75D8652811AFB3813C63FE47D7B6AED55544`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc06`/code 11,
+  Web POC `0.4.0-rc05`/code 22
+- 정확한 serial·SM-P610 모델, 유일한 ADB `device`, 배터리 100%·USB 전원,
+  화면 `Dozing`, 설치 해시·signer·Device Owner·HOME·Lock Task를 확인
+- Web POC RC06, Kiosk RC07 순서로 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc07`/code 12,
+  Web POC `0.4.0-rc06`/code 23
+- Kiosk UID `10288`, firstInstallTime `2026-07-24 12:52:28`, dataDir:
+  설치 전후 동일
+- Web POC UID `10287`, firstInstallTime `2026-07-24 12:52:24`, dataDir:
+  설치 전후 동일
+- 설치된 두 base APK SHA-256과 signer는 보관본과 일치
+- Device Owner와 전용 HOME 유지
+- Kiosk 설치 직후 프로세스 교체로 Lock Task가 일시 `NONE`이었으나 화면을
+  깨우지 않는 명시적 HOME 시작으로 Kiosk 프로세스와 `LOCKED` 복구
+- 설치 전후 화면 `Dozing`, 배터리 100%·USB 전원 유지
+- 설치된 Web manifest에서 secure/recovery action 해석: 둘 다 MainActivity
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 종이 QR을 사용하는 RC07→RC06 secure session과 QR→Web→QR 왕복
+- 실제 사이트 자동 학습지 진입, 두 탭·경로 제한, 문제 입력 확대와 오답 번호
+  전용 결과
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`

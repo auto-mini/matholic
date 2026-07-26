@@ -5,25 +5,25 @@
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer와 더 높은 versionCode의 Kiosk RC06을 보존형 업데이트했고
-Web POC RC05도 보존형 업데이트했다. 이 조합은 자동검증과 비대면 설치 후
+같은 signer와 더 높은 versionCode의 Kiosk RC07을 보존형 업데이트했고
+Web POC RC06도 보존형 업데이트했다. 이 조합은 자동검증과 비대면 설치 후
 검사를 통과했지만 실제 관리자 화면·사이트·카메라·PDF·인쇄 실기는 아직
 수행하지 않았다.
 
-- 현재 A: Kiosk `0.6.0-rc06`/code 11, Web POC `0.4.0-rc05`/code 22
+- 현재 A: Kiosk `0.6.0-rc07`/code 12, Web POC `0.4.0-rc06`/code 23
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc06`/code 11, Web POC `0.4.0-rc05`/code 22
+  Kiosk `0.6.0-rc07`/code 12, Web POC `0.4.0-rc06`/code 23
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC06/Web POC RC05, 기존 Device Owner·전용
-  HOME·`LOCKED` 유지. Web RC05 업데이트 전후 화면은 계속 `Dozing`이었으며
-  현재 물리 UI 상태는 미확인
+- 현재 A: release signer의 Kiosk RC07/Web POC RC06, 기존 Device Owner·전용
+  HOME·`LOCKED` 유지. 업데이트 전후 화면은 계속 `Dozing`이었으며 현재
+  물리 UI 상태는 미확인
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
 - 두 번째 공장초기화·release 프로비저닝: **완료**
 - RC02 정상 왕복·비정상 Web 세션 자체 복구·재부팅 복구: **완료**
 - RC02 개발자 옵션·USB 디버깅 제거 및 ADB 없는 물리 실기: **완료**
 - RC02 실제 프린터 출력·종이 QR 왕복·120분 연속 운전: **완료**
-- RC06/RC05 실제 관리자 화면·사이트·카메라·PDF·인쇄 회귀: **미수행**
+- RC07/RC06 실제 관리자 화면·사이트·카메라·PDF·인쇄 회귀: **미수행**
 
 debug signer에서 release signer로의 전환은 공장초기화와 새 Device Owner 등록으로 완료했다. 앞으로 같은 release signer와 더 높은 versionCode의 APK는 앱 데이터와 Device Owner를 보존해 덮어쓸 수 있다.
 
