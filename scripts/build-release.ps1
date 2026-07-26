@@ -29,6 +29,56 @@ foreach ($path in @($javaRoot, $sdkRoot, $keystorePath, $credentialPath)) {
     }
 }
 
+function Get-ApkPayloadFingerprint([string]$ApkPath) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($ApkPath)
+    $records = [System.Collections.Generic.List[string]]::new()
+    try {
+        foreach (
+            $entry in $archive.Entries |
+                Where-Object { $_.FullName -ne 'META-INF/version-control-info.textproto' } |
+                Sort-Object FullName
+        ) {
+            $stream = $entry.Open()
+            $sha256 = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $digest = [Convert]::ToHexString($sha256.ComputeHash($stream))
+            } finally {
+                $sha256.Dispose()
+                $stream.Dispose()
+            }
+            [void]$records.Add("$($entry.FullName)`0$($entry.Length)`0$digest")
+        }
+    } finally {
+        $archive.Dispose()
+    }
+    $payload = [Text.Encoding]::UTF8.GetBytes([string]::Join("`n", $records))
+    $payloadSha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [Convert]::ToHexString($payloadSha256.ComputeHash($payload))
+    } finally {
+        [Array]::Clear($payload, 0, $payload.Length)
+        $payloadSha256.Dispose()
+    }
+}
+
+function Publish-VersionedArtifact(
+    [string]$Source,
+    [string]$Destination,
+    [string]$Label
+) {
+    if (-not (Test-Path -LiteralPath $Destination)) {
+        Copy-Item -LiteralPath $Source -Destination $Destination
+        return
+    }
+    $sourceFingerprint = Get-ApkPayloadFingerprint $Source
+    $destinationFingerprint = Get-ApkPayloadFingerprint $Destination
+    if ($sourceFingerprint -ne $destinationFingerprint) {
+        throw "$Label artifact already exists with different payload; bump its version before publishing"
+    }
+    Write-Host "$Label artifact payload is unchanged; preserving the existing versioned APK."
+}
+
 $credential = Import-Clixml -LiteralPath $credentialPath
 if ($credential -isnot [pscredential]) {
     throw "Invalid DPAPI signing credential: $credentialPath"
@@ -81,8 +131,14 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
-    Copy-Item -LiteralPath $kioskApk -Destination $kioskArtifact -Force
-    Copy-Item -LiteralPath $webPocApk -Destination $webPocArtifact -Force
+    Publish-VersionedArtifact $kioskApk $kioskArtifact 'Kiosk'
+    Publish-VersionedArtifact $webPocApk $webPocArtifact 'Web POC'
+    & (Join-Path $PSScriptRoot 'verify-release-apks.ps1') `
+        -KioskApk $kioskArtifact `
+        -WebPocApk $webPocArtifact
+    if ($LASTEXITCODE -ne 0) {
+        throw "Stored release APK verification failed with exit code $LASTEXITCODE"
+    }
     $checksumLines = @(
         "$((Get-FileHash -LiteralPath $kioskArtifact -Algorithm SHA256).Hash)  $([IO.Path]::GetFileName($kioskArtifact))",
         "$((Get-FileHash -LiteralPath $webPocArtifact -Algorithm SHA256).Hash)  $([IO.Path]::GetFileName($webPocArtifact))"
