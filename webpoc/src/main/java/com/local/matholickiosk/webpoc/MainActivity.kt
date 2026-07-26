@@ -394,8 +394,7 @@ class MainActivity : Activity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 if (url != null && url != "about:blank" && !WebSecurityPolicy.isAllowedTopLevelUrl(url)) {
-                    view?.stopLoading()
-                    showLocked("NAVIGATION_BLOCKED")
+                    stopLoadingAndLock(view, "NAVIGATION_BLOCKED")
                     return
                 }
                 if (
@@ -512,6 +511,15 @@ class MainActivity : Activity() {
                 return true
             }
         }
+    }
+
+    private fun stopLoadingAndLock(view: WebView?, reason: String) {
+        try {
+            view?.stopLoading()
+        } catch (_: RuntimeException) {
+            // A dead renderer must not prevent the fail-closed state transition.
+        }
+        showLocked(reason)
     }
 
     private fun configureActions() {
