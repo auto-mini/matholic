@@ -2609,3 +2609,89 @@ Web 정리 등으로 `refreshAdminData`가 학생 목록을 다시 읽는 동안
 - 실제 관리자 화면에서 DB 읽기 실패와 후속 재시도 안내를 확인하는 실기
 - 실제 QR→Web→QR 왕복과 정상 `QR_READY`
 - 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC19 반 소속 명단 조회 실패의 빈 명단 오인 차단 — 2026-07-26
+
+### 확인한 데이터 손실 위험
+
+반 Spinner 전환 뒤 `membershipStudentIds` 조회가 실패하면 기존 구현은
+`getOrDefault(emptySet())`로 예외를 빈 명단으로 바꿨다. 화면에는 실제 빈
+반과 같은 `소속 학생 없음`이 표시되고 반 학생 구성·반 삭제·보강 선택·수업
+시작이 활성화됐다. 교사가 반 학생 구성 창을 그대로 저장하면 기존 소속
+관계를 전부 지울 수 있는 상태였다.
+
+- 실제 A 데이터나 관리자 PIN을 사용하지 않고 합성 반과 일회용 Android 13
+  에뮬레이터만 사용
+- 회귀 JVM 시험을 먼저 추가했고 수정 전 `hasLoadFailure`와 `fail` 계약
+  부재로 Kotlin test 컴파일 실패
+- 현재 요청 실패와 이전 요청의 늦은 실패를 각각 시험해 최신 반 선택 보호
+- UI 계측시험에서 실패 안내와 반 구성·삭제·보강·수업 시작 비활성화를 확인
+
+### 변경
+
+- 구현·회귀시험 커밋: `74549c4`
+- Kiosk `0.6.0-rc19`/code 24와 릴리스 운영 경로 준비 커밋: `2cb6617`
+- `ClassRosterSelectionState`가 로딩·성공·실패를 구분하고 성공/재시도 시
+  실패 상태를 해제
+- 현재 반과 generation이 일치하는 실패만 적용해 늦은 이전 요청의 실패는
+  무시
+- 실패를 빈 명단으로 적용하지 않고 명시적인 오류와 관리자 화면 재진입
+  안내를 표시
+- 명단이 성공적으로 확인되기 전에는 반 구성·삭제·보강·수업 시작을
+  실패폐쇄
+
+### 자동 검증
+
+- 수정 전 신규 관리자 비동기 상태 JVM 시험: 계약 부재 컴파일 실패 재현
+- 수정 뒤 관리자 비동기 상태 대상 JVM 시험과 네 모듈 JVM 단위시험 총
+  80개, 실패·오류·건너뜀 0
+- Android 13 일회용 에뮬레이터 대상 UI 계측 1개와 Kiosk 전체 계측 24개,
+  실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 71개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc19-release.apk`
+  - 크기: 34,974,008 bytes
+  - SHA-256:
+    `13BAD1F3408B355B25A5CCC021B8EA6C9483F6E2B6CABA1EE7B64D29B524624F`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc18`/code 23,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시,
+  release signer, Device Owner·전용 HOME·`LOCKED`를 확인
+- Kiosk RC19만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc19`/code 24,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- 설치된 Kiosk와 RC19 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- 설치 시점 이후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 관리자 화면에서 반 소속 조회 실패와 후속 재시도 안내를 확인하는 실기
+- 실제 QR→Web→QR 왕복과 정상 `QR_READY`
+- 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀

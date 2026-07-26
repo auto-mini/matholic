@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc18`/code 23
+  - Kiosk `0.6.0-rc19`/code 24
   - Web POC `0.4.0-rc15`/code 32
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC18/RC15 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC19/RC15 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,11 +104,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc18-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc19-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `48E03E8CBD14016C337A9DC9548139B4BD0F49FC4149015255504F601E274CDE`
+    `13BAD1F3408B355B25A5CCC021B8EA6C9483F6E2B6CABA1EE7B64D29B524624F`
   - Web POC:
     `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -626,6 +626,29 @@
     일치 항목 0
   - 실제 관리자 화면의 DB 실패·재시도, QR→Web→QR 왕복과 카메라·PDF·인쇄
     실기는 사용자 복귀 뒤 수행
+- 반 소속 명단 조회 실패의 실패폐쇄 커밋 `74549c4`를 추가하고 Kiosk
+  RC19로 A에 설치했다.
+  - 기존 개별 반 조회는 DB 예외를 빈 `Set`으로 바꿔 실제 빈 반처럼 표시하고
+    반 학생 구성·삭제·보강·수업 시작을 활성화했으며, 교사가 그대로 저장하면
+    기존 소속 관계를 모두 지울 수 있었음
+  - 실패와 빈 명단을 별도 상태로 관리하고 현재 요청의 실패만 반영하며, 이전
+    요청의 늦은 실패는 현재 반 상태를 바꾸지 않도록 변경
+  - 실패 시 명시적 오류와 재시도 안내를 표시하고 반 구성·삭제·보강·수업
+    시작을 모두 차단
+  - 수정 전 신규 JVM 계약은 `hasLoadFailure`·`fail` 부재로 컴파일 실패,
+    수정 뒤 네 모듈 JVM 80개, Kiosk 전체 계측 24개, clean debug 204 tasks,
+    release JVM 71개와 release 158 tasks·APK 이중 검증 통과
+  - Kiosk RC19 준비 커밋 `2cb6617`
+  - Kiosk RC19 보관본 크기 34,974,008 bytes, SHA-256
+    `13BAD1F3408B355B25A5CCC021B8EA6C9483F6E2B6CABA1EE7B64D29B524624F`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    명시적 HOME 시작 뒤 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC15,
+    release signer, Device Owner, 전용 HOME, 화면 `Dozing` 유지; 설치된
+    base APK와 보관본 해시 일치, 설치 시점 이후 Matholic AndroidRuntime
+    일치 항목 0
+  - 실제 관리자 화면의 반 소속 조회 실패와 재시도, QR→Web→QR 왕복과
+    카메라·PDF·인쇄 실기는 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
