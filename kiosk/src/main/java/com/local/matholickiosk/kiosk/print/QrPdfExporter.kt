@@ -89,6 +89,14 @@ object QrPdfExporter {
         )
     }
 
+    internal fun scheduleSharedFileExpiry(
+        context: Context,
+        file: File,
+        delayMillis: Long = EXPORT_RETENTION_MS,
+    ) {
+        scheduleSharedFileCleanup(context, file, delayMillis)
+    }
+
     private fun cleanupExpired(directory: File) {
         val cutoff = System.currentTimeMillis() - EXPORT_RETENTION_MS
         directory.listFiles()

@@ -1273,6 +1273,7 @@ class MainActivity : ComponentActivity() {
         pendingSharedPdf = file
         suppressNextAdminStopRelock = true
         runCatching {
+            QrPdfExporter.scheduleSharedFileExpiry(this, file)
             startActivity(Intent.createChooser(share, "PDF를 PC로 보내거나 저장"))
         }.onSuccess {
             clearQrPreview("QR 카드 PDF를 전달해 화면 표시를 지웠습니다")

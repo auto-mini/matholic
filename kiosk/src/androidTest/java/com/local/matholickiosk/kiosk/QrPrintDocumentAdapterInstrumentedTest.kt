@@ -70,6 +70,30 @@ class QrPrintDocumentAdapterInstrumentedTest {
     }
 
     @Test
+    fun abandonedShareIsDeletedAfterItsMaximumLifetime() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val exportDirectory = File(context.cacheDir, "qr_exports").apply { mkdirs() }
+        val export = File(exportDirectory, "synthetic-expiry-${System.nanoTime()}.pdf")
+        export.writeText("synthetic non-QR fixture")
+
+        try {
+            QrPdfExporter.scheduleSharedFileExpiry(
+                context = context,
+                file = export,
+                delayMillis = 50L,
+            )
+
+            val deadline = System.currentTimeMillis() + 5_000L
+            while (export.exists() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(25L)
+            }
+            assertFalse(export.exists())
+        } finally {
+            export.delete()
+        }
+    }
+
+    @Test
     fun sharedPdfCleanupRefusesFilesOutsideTheExportDirectory() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val outsideExportDirectory = File(
