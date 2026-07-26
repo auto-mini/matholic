@@ -1498,3 +1498,86 @@ form을 노출하면 잔존값 정리와 새 자격정보 입력 대상이 될 �
 - 실제 공개 사이트의 로그인 문서가 루트 `/`와 허용 query 계약을 유지하는지
 - 실제 종이 QR을 사용하는 RC08→RC11 session과 QR→Web→QR 왕복
 - 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`
+
+---
+
+## Kiosk RC09 QR 카드 PDF 실물 좌표계 수정 — 2026-07-26
+
+### 재현한 과대 출력
+
+Android 공식 `PrintedPdfDocument` 구현은 page와 content rectangle을
+1인치당 72 PostScript point로 만든다. 기존 renderer는 이 좌표를
+`PrintAttributes.Resolution`의 300·600 DPI pixel로 해석해 카드와 QR을
+확대한 뒤 A4 content rectangle에 맞춰 다시 축소했다.
+
+- 공식 근거:
+  [Android PrintedPdfDocument source](https://android.googlesource.com/platform/frameworks/base/+/c80f952/core/java/android/print/pdf/PrintedPdfDocument.java#70)
+- 실제 생성 PDF 외곽선을 재는 계측시험과 point 계산시험을 먼저 보강
+- 수정 전 PDF 대상 계측 3개 중 2개 실패
+  - 계산 카드 폭: 65mm 기대, 541.7mm
+  - 생성 PDF 외곽선 폭: 65mm 기대, 약 172.5mm
+- 실제 프린터 작업이나 실제 QR을 생성하지 않고 합성 QR만 사용했다.
+
+### 변경
+
+- 구현·회귀시험 커밋: `c5acc5a`
+- Kiosk `0.6.0-rc09`/code 14와 릴리스 운영 경로 준비 커밋: `561baff`
+- 카드 65×90mm, QR 30×30mm, 여백·글자·테두리를 모두
+  72 PostScript point/inch로 변환한다.
+- 프린터의 수평·수직 DPI는 PDF 물리 좌표에 사용하지 않는다.
+- 인쇄 가능 영역이 카드보다 작으면 크기를 임의 축소하지 않고
+  `65×90mm`가 포함된 오류로 실패한다.
+
+### 자동 검증
+
+- 수정 뒤 PDF/공유 대상 계측 4개, 실패·오류·건너뜀 0
+  - 65×90mm 카드와 30×30mm QR point 계산
+  - 600×300 비대칭 printer resolution으로 생성한 PDF 외곽선 65×90mm
+  - 작은 printable area의 무단 축소 거부
+  - PDF 1쪽·비트맵 폐기·공유 URI 권한
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 18개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 61개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc09-release.apk`
+  - 크기: 34,957,624 bytes
+  - SHA-256:
+    `68DB8304B87528DDE006B86A27E9B282899069D3F3F74165718455F2640A967D`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,084,304 bytes
+  - SHA-256:
+    `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc08`/code 13,
+  Web POC `0.4.0-rc11`/code 28
+- 유일한 ADB `device`, 정확한 serial·SM-P610, USB 전원·배터리 100%,
+  화면 `Dozing`, 설치 해시·UID·firstInstallTime·dataDir, release signer,
+  Device Owner·전용 HOME·Lock Task를 확인
+- Kiosk RC09만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc09`/code 14,
+  Web POC `0.4.0-rc11`/code 28
+- 두 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 보관본 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB·100% 유지
+- crash buffer의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A의 PDF 공유·PC 열기와 인쇄물 자 측정
+- 실제 종이 QR의 30×30mm 인식과 QR→Web→QR 왕복
+- 관리자 PIN 입력 뒤 현재 물리 UI와 정상 `QR_READY`

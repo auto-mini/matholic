@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc08`/code 13
+  - Kiosk `0.6.0-rc09`/code 14
   - Web POC `0.4.0-rc11`/code 28
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 RC08/RC11 설치: 2026-07-26 `adb install -r`로 완료
+- A의 RC09/RC11 설치: 2026-07-26 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - 설치 직후 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나 화면을
     깨우지 않는 명시적 HOME 시작으로 Kiosk 실행과 `LOCKED`를 복구
@@ -102,11 +102,11 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc08-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc09-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc11-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `509919229E1230E6E7F28BEED46362D8EF67502A3ACF01E161F7DA4152B0E998`
+    `68DB8304B87528DDE006B86A27E9B282899069D3F3F74165718455F2640A967D`
   - Web POC:
     `2376DE8B4D68FCC9F40A9D3E2D0CC1D66743A3347ABB2731AB6769BEDC0CA37B`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
@@ -124,6 +124,7 @@
   - DOM origin 일치 보강 기준 Web 43개, 실패 0
   - 포털 `/course` 경로 제한 기준 Web 44개, 실패 0
   - 로그인 `/` 경로 제한 기준 Web 45개, 실패 0
+  - QR PDF 실물 좌표계 보강 기준 Kiosk 18개, 실패 0
 - 결과 페이지 선차폐, 비대칭 프린터 DPI와 SPA 인코딩 경로 차단 보강은
   RC04에 포함해 A에 설치했다. 실제 사이트·카메라·PDF·인쇄 실기는
   사용자 복귀 뒤 수행한다.
@@ -314,6 +315,25 @@
     crash 일치 항목 0
   - 실제 공개 사이트의 로그인 루트·query와 QR→Web→QR 왕복은 사용자 복귀
     뒤 수행
+- QR 카드 PDF 실물 좌표계 수정 커밋 `c5acc5a`를 추가하고 Kiosk RC09으로
+  A에 설치했다.
+  - Android `PrintedPdfDocument` 캔버스는 프린터 DPI가 아니라 72
+    PostScript point/inch인데 기존 renderer는 300·600 DPI를 좌표 단위로
+    사용해 카드와 QR을 과대 확대
+  - 수정 전 신규 계측 3개 중 2개 실패: 계산 카드 폭 541.7mm, 실제 PDF
+    외곽선 폭 약 172.5mm를 재현
+  - 모든 카드·QR·여백·텍스트 좌표를 72 point/inch로 변환하고, 인쇄 가능
+    영역이 65×90mm보다 작으면 조용히 축소하지 않고 명시적 오류로 거부
+  - 수정 뒤 PDF 대상 계측 4개와 Kiosk 전체 계측 18개, 전체 JVM 61개,
+    clean debug 204 tasks, release 158 tasks와 APK 이중 검증 통과
+  - Kiosk RC09 보관본 크기 34,957,624 bytes, SHA-256
+    `68DB8304B87528DDE006B86A27E9B282899069D3F3F74165718455F2640A967D`
+  - A 설치 직후 HOME 종료로 Lock Task가 `NONE`이었으나 화면을 깨우지 않는
+    전용 HOME 시작으로 `LOCKED` 복구
+  - A 설치 전후 Kiosk UID `10288`, firstInstallTime, dataDir, Web RC11,
+    release signer, Device Owner, HOME, 화면 `Dozing` 유지; crash 일치
+    항목 0
+  - 실제 인쇄물 자 측정·Quick Share·종이 QR 재인식은 사용자 복귀 뒤 수행
 - A 인쇄 읽기 전용 진단:
   - Android 내장 IPP 서비스는 설치·활성·바인딩 상태
   - 이전 QR 인쇄 작업 하나가 `STATE_STARTED`에서 취소 요청 중인 채 장시간
