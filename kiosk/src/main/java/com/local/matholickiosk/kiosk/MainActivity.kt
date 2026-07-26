@@ -56,6 +56,7 @@ import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
 import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
+import com.local.matholickiosk.kiosk.qr.clearSensitiveData
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -1583,7 +1584,14 @@ class MainActivity : ComponentActivity() {
 
     private fun handleQrDecision(decision: QrFrameDecision) {
         runOnUiThread {
-            if (!scannerVisible || destroyed) return@runOnUiThread
+            if (
+                !scannerVisible ||
+                destroyed ||
+                qrAnalyzer?.isEnabled() != true
+            ) {
+                decision.clearSensitiveData()
+                return@runOnUiThread
+            }
             qrAnalyzer?.setEnabled(false)
             when (decision) {
                 QrFrameDecision.Ignore -> qrAnalyzer?.setEnabled(true)

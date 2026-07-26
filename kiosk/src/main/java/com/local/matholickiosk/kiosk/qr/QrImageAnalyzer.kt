@@ -16,7 +16,7 @@ class QrImageAnalyzer(
     private val onDecision: (QrFrameDecision) -> Unit,
 ) : ImageAnalysis.Analyzer, Closeable {
     private val processing = AtomicBoolean(false)
-    private val enabled = AtomicBoolean(true)
+    private val deliveryGate = QrDecisionDeliveryGate()
     private val scanner: BarcodeScanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
@@ -24,12 +24,15 @@ class QrImageAnalyzer(
     )
 
     fun setEnabled(value: Boolean) {
-        enabled.set(value)
+        deliveryGate.setEnabled(value)
     }
+
+    fun isEnabled(): Boolean = deliveryGate.isEnabled()
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
-        if (!enabled.get() || !processing.compareAndSet(false, true)) {
+        val frameGeneration = deliveryGate.currentFrameGeneration()
+        if (frameGeneration == null || !processing.compareAndSet(false, true)) {
             imageProxy.close()
             return
         }
@@ -43,7 +46,13 @@ class QrImageAnalyzer(
         scanner.process(image)
             .addOnSuccessListener { barcodes ->
                 val decision = codec.decideFrame(barcodes.map { it.rawValue })
-                if (decision !is QrFrameDecision.Ignore) onDecision(decision)
+                if (decision !is QrFrameDecision.Ignore) {
+                    deliveryGate.deliverIfCurrent(
+                        frameGeneration,
+                        decision,
+                        onDecision,
+                    )
+                }
             }
             .addOnCompleteListener {
                 processing.set(false)
@@ -52,7 +61,7 @@ class QrImageAnalyzer(
     }
 
     override fun close() {
-        enabled.set(false)
+        deliveryGate.setEnabled(false)
         scanner.close()
     }
 }
