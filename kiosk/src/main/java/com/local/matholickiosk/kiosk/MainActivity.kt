@@ -1807,10 +1807,40 @@ class MainActivity : ComponentActivity() {
                             "INVALID_QR"
                         }
                     }
-                    ioExecutor.execute { studentRepository.recordQrRejection(reason) }
-                    resumeScannerAfterCooldown()
+                    recordQrRejection(reason)
                 }
                 is QrFrameDecision.Accept -> validateQr(decision.tokenHash)
+            }
+        }
+    }
+
+    private fun recordQrRejection(reason: String) {
+        try {
+            ioExecutor.execute {
+                val result = runCatching { studentRepository.recordQrRejection(reason) }
+                runOnUiThread {
+                    if (!scannerVisible || destroyed) return@runOnUiThread
+                    result.fold(
+                        onSuccess = {
+                            resumeScannerAfterCooldown()
+                        },
+                        onFailure = {
+                            currentSession = null
+                            statusText.text = KioskState.LOCKED.name
+                            showAuthentication(enrollment = false)
+                            authError.text =
+                                "QR 거부 기록 중 오류가 발생했습니다. 관리자 PIN으로 상태를 확인하세요."
+                        },
+                    )
+                }
+            }
+        } catch (_: RuntimeException) {
+            if (!destroyed) {
+                currentSession = null
+                statusText.text = KioskState.LOCKED.name
+                showAuthentication(enrollment = false)
+                authError.text =
+                    "QR 거부 기록을 시작하지 못했습니다. 관리자 PIN으로 상태를 확인하세요."
             }
         }
     }

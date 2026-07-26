@@ -10,6 +10,9 @@ import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
+import com.local.matholickiosk.kiosk.qr.QrFrameDecision
+import com.local.matholickiosk.kiosk.qr.QrFrameRejection
+import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -593,6 +596,111 @@ class MainActivityInstrumentedTest {
                             .text
                             .toString(),
                     )
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
+    fun failedQrRejectionAuditDoesNotResumeScanner() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("가상반-거부기록오류")
+        val registered = repository.registerStudent(
+            displayNameExact = "가상학생-거부기록오류",
+            username = "synthetic-rejection-user".toCharArray(),
+            password = "synthetic-rejection-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                    activity.findViewById<View>(R.id.auth_submit).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+                }
+                val activeSession = repository.startSession(classId)
+                val currentSessionField = MainActivity::class.java
+                    .getDeclaredField("currentSession")
+                    .apply { isAccessible = true }
+                val scannerVisibleField = MainActivity::class.java
+                    .getDeclaredField("scannerVisible")
+                    .apply { isAccessible = true }
+                val analyzerField = MainActivity::class.java
+                    .getDeclaredField("qrAnalyzer")
+                    .apply { isAccessible = true }
+                val repositoryField = MainActivity::class.java
+                    .getDeclaredField("studentRepository")
+                    .apply { isAccessible = true }
+                val decisionMethod = MainActivity::class.java
+                    .getDeclaredMethod("handleQrDecision", QrFrameDecision::class.java)
+                    .apply { isAccessible = true }
+                val analyzer = QrImageAnalyzer(onDecision = {})
+                    .apply { setEnabled(true) }
+
+                scenario.onActivity { activity ->
+                    currentSessionField.set(activity, activeSession)
+                    scannerVisibleField.setBoolean(activity, true)
+                    analyzerField.set(activity, analyzer)
+                    activity.findViewById<View>(R.id.admin_panel).visibility = View.GONE
+                    activity.findViewById<View>(R.id.scanner_panel).visibility = View.VISIBLE
+                    activity.findViewById<android.widget.TextView>(R.id.status_text).text = "QR_READY"
+                }
+
+                lateinit var originalRepository: StudentRepository
+                try {
+                    scenario.onActivity { activity ->
+                        originalRepository = repositoryField.get(activity) as StudentRepository
+                        repositoryField.set(activity, null)
+                        decisionMethod.invoke(
+                            activity,
+                            QrFrameDecision.Reject(QrFrameRejection.INVALID_QR),
+                        )
+                    }
+
+                    waitUntil(scenario, timeoutMillis = 3_000) { activity ->
+                        activity.findViewById<android.widget.TextView>(R.id.auth_error)
+                            .text
+                            .toString()
+                            .contains("QR 거부 기록 중 오류가 발생했습니다")
+                    }
+                    Thread.sleep(2_000)
+                    scenario.onActivity { activity ->
+                        assertEquals(
+                            "LOCKED",
+                            activity.findViewById<android.widget.TextView>(R.id.status_text)
+                                .text
+                                .toString(),
+                        )
+                        assertEquals(
+                            View.VISIBLE,
+                            activity.findViewById<View>(R.id.auth_panel).visibility,
+                        )
+                        assertEquals(
+                            View.GONE,
+                            activity.findViewById<View>(R.id.scanner_panel).visibility,
+                        )
+                    }
+                } finally {
+                    scenario.onActivity { activity ->
+                        repositoryField.set(activity, originalRepository)
+                    }
                 }
             }
         } finally {
