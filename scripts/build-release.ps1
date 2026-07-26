@@ -29,6 +29,10 @@ foreach ($path in @($javaRoot, $sdkRoot, $keystorePath, $credentialPath)) {
     }
 }
 
+function ConvertTo-Hex([byte[]]$Bytes) {
+    return [System.BitConverter]::ToString($Bytes).Replace('-', '')
+}
+
 function Get-ApkPayloadFingerprint([string]$ApkPath) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($ApkPath)
@@ -42,7 +46,7 @@ function Get-ApkPayloadFingerprint([string]$ApkPath) {
             $stream = $entry.Open()
             $sha256 = [System.Security.Cryptography.SHA256]::Create()
             try {
-                $digest = [Convert]::ToHexString($sha256.ComputeHash($stream))
+                $digest = ConvertTo-Hex ($sha256.ComputeHash($stream))
             } finally {
                 $sha256.Dispose()
                 $stream.Dispose()
@@ -55,7 +59,7 @@ function Get-ApkPayloadFingerprint([string]$ApkPath) {
     $payload = [Text.Encoding]::UTF8.GetBytes([string]::Join("`n", $records))
     $payloadSha256 = [System.Security.Cryptography.SHA256]::Create()
     try {
-        return [Convert]::ToHexString($payloadSha256.ComputeHash($payload))
+        return ConvertTo-Hex ($payloadSha256.ComputeHash($payload))
     } finally {
         [Array]::Clear($payload, 0, $payload.Length)
         $payloadSha256.Dispose()
