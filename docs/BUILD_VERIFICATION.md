@@ -3217,3 +3217,90 @@ Web을 실행하지 않고 `PRELOGIN_CHECK`를 `QR_READY`로 되돌린다. 기�
 - 실제 A에서 감사기록 저장 실패와 관리자 PIN 복구를 확인하는 고의 실패주입
 - 실제 잘못된 QR·복수 QR의 정상 거부와 scanner cooldown
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Kiosk RC26 QR 분석기 프레임 오류 복구 — 2026-07-26
+
+### 재현한 프레임 누수와 분석 중단
+
+`QrImageAnalyzer`는 processing 소유권을 얻은 뒤 Android 이미지 조회,
+`InputImage` 생성과 ML Kit 처리 시작을 예외 경계 밖에서 수행했다. 이 중
+하나가 동기 예외를 내면 processing 플래그를 해제하지 않고 `ImageProxy`도
+닫지 않아 이후 프레임을 계속 거부하며, 미처리 예외가 카메라 분석 executor로
+전파될 수 있었다. 프레임 닫기 자체의 예외도 그대로 전파됐다.
+
+- 실제 A 카메라·실제 QR을 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 이미지 조회 시 의도적으로 예외를 내고
+  `close()` 횟수를 세는 합성 `ImageProxy`를 사용
+- 수정 전 첫 `analyze` 호출이 `IllegalStateException`을 그대로 전파해 시험
+  실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `4609e2f`
+- Kiosk `0.6.0-rc26`/code 31과 릴리스 운영 경로 준비 커밋: `60b8304`
+- 프레임마다 독립적인 일회성 완료 경계를 두어 동기 준비 예외, 비동기 ML
+  결과 성공·실패와 프레임 close 예외에서 processing 플래그와 프레임
+  소유권을 정확히 한 번 해제
+- ML Kit task는 하나의 완료 callback에서 성공 결과만 해석하고 실패 frame은
+  다음 frame을 막지 않음
+- 분석 비활성·다른 frame 처리 중에 들어온 frame의 close 예외도 분석
+  executor를 종료시키지 않음
+
+### 자동 검증
+
+- 수정 전 신규 계측시험: 합성 이미지 조회 예외 전파 재현
+- 수정 뒤 대상 계측시험: 연속 실패 frame 2개가 각각 한 번 닫히고 두 번째
+  frame도 처리됨을 확인
+- Android 13 일회용 에뮬레이터 Kiosk 전체 계측 31개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc15-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 3,085,840 bytes
+  - SHA-256:
+    `3BBFFACA2AB6F9A48FFC4F5D34E9559B2B87053CEF1BDF54E844D46169C9993B`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc25`/code 30,
+  Web POC `0.4.0-rc15`/code 32
+- 유일한 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Kiosk RC26만 `adb install -r`: 성공
+- 설치 직후 HOME 프로세스 종료로 Lock Task `NONE`; 화면을 깨우지 않는
+  명시적 HOME 시작 3초 뒤 `LOCKED` 복구
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc15`/code 32
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Kiosk base APK SHA-256과 RC26 보관본 일치
+- 설치된 Kiosk와 RC26 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 후 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A 카메라의 이미지 조회·ML Kit 처리 오류와 자동 frame 복구
+- 실제 전면·후면 QR 인식과 camera 전환
+- 실제 QR→Web→QR 왕복과 관리자 PIN·PDF 공유·실물 인쇄 회귀
