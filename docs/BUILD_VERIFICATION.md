@@ -3463,3 +3463,83 @@ WebView renderer 종료나 lifecycle 경계에서 `evaluateJavascript` 호출 �
 - 실제 A에서 Web callback 오류와 Kiosk 관리자 복구를 확인하는 고의
   실패주입
 - 실제 QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·실물 인쇄 회귀
+
+---
+
+## Web POC RC18 renderer 정리 오류 격리 — 2026-07-26
+
+### 재현한 실패폐쇄 중단
+
+renderer 종료 callback은 사용할 수 없는 WebView 참조를 해제한 뒤 뷰에서
+제거하고 파기하지만, 제거·파기 자체의 예외를 처리하지 않았다. 이 예외가
+전파되면 바로 다음 `WEB_PROCESS_GONE` 잠금 전환에 도달하지 못했다.
+
+- 실제 A renderer나 사이트를 사용하지 않음
+- Android 13 일회용 에뮬레이터에서 `destroy()`가 예외를 내는 합성
+  WebView를 renderer 종료 callback에 전달
+- 수정 전 `IllegalStateException: synthetic destroy failure`가 callback
+  밖으로 전파되고 잠금 상태가 저장되지 않아 대상 계측시험 실패
+
+### 변경
+
+- 구현·회귀시험 커밋: `868705f`
+- Web POC `0.4.0-rc18`/code 35와 릴리스 운영 경로 준비 커밋: `43dd12d`
+- Activity의 WebView 참조를 먼저 해제
+- 뷰 계층 제거와 WebView 파기를 독립 예외 경계로 분리해 어느 정리 단계의
+  오류도 renderer 실패폐쇄 상태 전환을 막지 않게 함
+
+### 자동 검증
+
+- 수정 전 신규 계측시험: 합성 WebView 파기 예외 전파와 잠금 미전환 재현
+- 수정 뒤 대상 계측시험: 예외가 빠져나오지 않고 WebView 참조가 제거되며
+  `LOCKED`, 이유 `WEB_PROCESS_GONE` 저장 확인
+- Android 13 일회용 에뮬레이터 Web POC 전체 계측 49개,
+  실패·오류·건너뜀 0
+- 네 모듈 JVM 단위시험 총 84개, 실패·오류·건너뜀 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 75개, 실패·오류·건너뜀 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·signer 1·두 앱 signer 일치·Debug signer 거부와
+  zipalign: 통과
+- build APK와 저장 artifact 쌍의 이중 검증: 통과
+
+### 릴리스 APK
+
+- Kiosk: `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
+  - 기존 payload 검증본 보존
+  - 크기: 34,974,012 bytes
+  - SHA-256:
+    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+- Web POC: `artifacts/matholic-webpoc-0.4.0-rc18-release.apk`
+  - 크기: 3,086,020 bytes
+  - SHA-256:
+    `5A05BB0AD7ADFEBB2F203E9AE109C4AD2B0B496B2AC3FA756D7259D4596EC433`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 업데이트와 설치 후 검사
+
+- 설치 전 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc17`/code 34
+- 물리 ADB `device`, 정확한 serial·SM-P610, 배터리 100%·USB 전원,
+  UID·firstInstallTime·dataDir, 설치본·신규 artifact 해시와 release signer,
+  Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0을
+  확인
+- Web POC RC18만 `adb install -r`: 성공
+- 설치 후 A: Kiosk `0.6.0-rc26`/code 31,
+  Web POC `0.4.0-rc18`/code 35
+- 두 package UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir 유지
+- 설치된 Web POC base APK SHA-256과 RC18 보관본 일치
+- 설치된 Web POC와 RC18 artifact의 signer SHA-256 일치
+- Device Owner·전용 HOME·`LOCKED`, 화면 `Dozing`, USB 화면 유지 설정 0
+  유지
+- 설치 뒤 최근 5분 AndroidRuntime 로그의 Matholic package 일치 항목: 0
+
+### 미검증
+
+- 실제 A에서 renderer 정리 오류와 Kiosk 관리자 복구를 확인하는 고의
+  실패주입
+- 실제 renderer 종료 복구·QR→Web→QR 왕복과 관리자 PIN·카메라·PDF 공유·
+  실물 인쇄 회귀
