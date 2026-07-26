@@ -1823,9 +1823,11 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onFailure = {
-                        scannerMessage.text = "채점기가 잠겼습니다\n선생님 확인이 필요합니다"
+                        currentSession = null
                         statusText.text = KioskState.LOCKED.name
-                        resumeScannerAfterCooldown()
+                        showAuthentication(enrollment = false)
+                        authError.text =
+                            "QR 확인 중 오류가 발생했습니다. 관리자 PIN으로 상태를 확인하세요."
                     },
                 )
             }

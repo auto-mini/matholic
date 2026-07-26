@@ -441,6 +441,95 @@ class MainActivityInstrumentedTest {
         database.clearAllTables()
     }
 
+    @Test
+    fun failedQrValidationDoesNotResumeScannerAfterCooldown() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("가상반-검증실패")
+        val registered = repository.registerStudent(
+            displayNameExact = "가상학생-검증실패",
+            username = "synthetic-validation-user".toCharArray(),
+            password = "synthetic-validation-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            }
+            scenario.onActivity { activity ->
+                activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                    .setText("654321")
+                activity.findViewById<View>(R.id.auth_submit).performClick()
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+            }
+            val activeSession = repository.startSession(classId)
+            val currentSessionField = MainActivity::class.java
+                .getDeclaredField("currentSession")
+                .apply { isAccessible = true }
+            val showScannerMethod = MainActivity::class.java
+                .getDeclaredMethod("showScanner")
+                .apply { isAccessible = true }
+            scenario.onActivity { activity ->
+                currentSessionField.set(activity, activeSession)
+                showScannerMethod.invoke(activity)
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.scanner_panel).visibility == View.VISIBLE &&
+                    activity.findViewById<android.widget.TextView>(R.id.status_text)
+                        .text
+                        .toString() == "QR_READY"
+            }
+
+            val repositoryField = MainActivity::class.java
+                .getDeclaredField("studentRepository")
+                .apply { isAccessible = true }
+            val validateMethod = MainActivity::class.java
+                .getDeclaredMethod("validateQr", ByteArray::class.java)
+                .apply { isAccessible = true }
+            lateinit var originalRepository: StudentRepository
+            try {
+                scenario.onActivity { activity ->
+                    originalRepository = repositoryField.get(activity) as StudentRepository
+                    repositoryField.set(activity, null)
+                    validateMethod.invoke(activity, ByteArray(32) { 0x5A })
+                }
+
+                waitUntil(scenario, timeoutMillis = 3_000) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.auth_error)
+                        .text
+                        .toString()
+                        .contains("QR 확인 중 오류가 발생했습니다")
+                }
+                Thread.sleep(2_000)
+                scenario.onActivity { activity ->
+                    assertEquals(
+                        "LOCKED",
+                        activity.findViewById<android.widget.TextView>(R.id.status_text)
+                            .text
+                            .toString(),
+                    )
+                    assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
+                    assertEquals(View.GONE, activity.findViewById<View>(R.id.scanner_panel).visibility)
+                }
+            } finally {
+                scenario.onActivity { activity ->
+                    repositoryField.set(activity, originalRepository)
+                }
+            }
+        }
+        database.clearAllTables()
+    }
+
     private fun waitUntil(
         scenario: ActivityScenario<MainActivity>,
         timeoutMillis: Long = 15_000,
