@@ -1,6 +1,7 @@
 package com.local.matholickiosk.kiosk
 
 import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
+import com.local.matholickiosk.kiosk.domain.RefreshableSelectionState
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -128,6 +129,59 @@ class AdminUiAsyncStateTest {
         assertEquals("class-a", state.selectedClassId)
         assertEquals(setOf("student-a-current"), state.membershipStudentIds)
         assertFalse(state.isLoading)
+    }
+
+    @Test
+    fun studentRefreshCannotReplaceANewerAvailableSelection() {
+        val state = RefreshableSelectionState()
+        state.resolve("student-a")
+        val refreshSelection = state.snapshotSelection()
+        state.select("student-b")
+
+        assertEquals(
+            "student-b",
+            state.resolveRefresh(
+                snapshot = refreshSelection,
+                preferredId = "student-a",
+                availableIds = listOf("student-a", "student-b"),
+            ),
+        )
+        assertEquals("student-b", state.selectedId)
+    }
+
+    @Test
+    fun studentRefreshUsesExplicitPreferenceWithoutANewerSelection() {
+        val state = RefreshableSelectionState()
+        state.resolve("student-a")
+        val refreshSelection = state.snapshotSelection()
+
+        assertEquals(
+            "student-new",
+            state.resolveRefresh(
+                snapshot = refreshSelection,
+                preferredId = "student-new",
+                availableIds = listOf("student-a", "student-new"),
+            ),
+        )
+        assertEquals("student-new", state.selectedId)
+    }
+
+    @Test
+    fun studentRefreshFallsBackWhenTheNewerSelectionWasRemoved() {
+        val state = RefreshableSelectionState()
+        state.resolve("student-a")
+        val refreshSelection = state.snapshotSelection()
+        state.select("student-removed")
+
+        assertEquals(
+            "student-a",
+            state.resolveRefresh(
+                snapshot = refreshSelection,
+                preferredId = "student-a",
+                availableIds = listOf("student-a"),
+            ),
+        )
+        assertEquals("student-a", state.selectedId)
     }
 
     @Test

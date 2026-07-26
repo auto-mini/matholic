@@ -77,6 +77,51 @@ internal class ClassRosterSelectionState {
     }
 }
 
+internal class RefreshableSelectionState {
+    class SelectionSnapshot internal constructor(
+        internal val revision: Long,
+    )
+
+    var selectedId: String? = null
+        private set
+
+    private var selectionRevision: Long = 0
+
+    fun select(id: String?): Boolean {
+        if (id == selectedId) return false
+        selectionRevision += 1
+        selectedId = id
+        return true
+    }
+
+    fun resolve(id: String?) {
+        if (id != selectedId) {
+            selectionRevision += 1
+        }
+        selectedId = id
+    }
+
+    fun snapshotSelection(): SelectionSnapshot =
+        SelectionSnapshot(selectionRevision)
+
+    fun resolveRefresh(
+        snapshot: SelectionSnapshot,
+        preferredId: String?,
+        availableIds: List<String>,
+    ): String? {
+        val newerSelectionIsAvailable = snapshot.revision != selectionRevision &&
+            selectedId?.let(availableIds::contains) == true
+        if (newerSelectionIsAvailable) {
+            return selectedId
+        }
+        val resolvedId = preferredId
+            ?.takeIf(availableIds::contains)
+            ?: availableIds.firstOrNull()
+        resolve(resolvedId)
+        return resolvedId
+    }
+}
+
 internal class SingleFlightGate {
     var isActive: Boolean = false
         private set

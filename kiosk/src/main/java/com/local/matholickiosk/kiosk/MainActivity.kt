@@ -48,6 +48,7 @@ import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
 import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.KioskState
+import com.local.matholickiosk.kiosk.domain.RefreshableSelectionState
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -109,12 +110,14 @@ class MainActivity : ComponentActivity() {
     private var classes: List<Choice> = emptyList()
     private var students: List<StudentChoice> = emptyList()
     private val classRosterState = ClassRosterSelectionState()
+    private val studentSelectionState = RefreshableSelectionState()
     private val webRecoveryGate = SingleFlightGate()
     private val studentMutationGate = SingleFlightGate()
     private var issuedQrPreview: QrPreview? = null
     private var currentSession: ActiveSessionEntity? = null
     private var pendingTemporaryStudentIds: Set<String> = emptySet()
     private var suppressClassSelectionCallback = false
+    private var suppressStudentSelectionCallback = false
     private var cameraProvider: ProcessCameraProvider? = null
     private var qrAnalyzer: QrImageAnalyzer? = null
     private var scannerVisible = false
@@ -353,6 +356,24 @@ class MainActivity : ComponentActivity() {
                 updateClassRosterUi()
             }
         }
+        studentSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long,
+            ) {
+                if (!suppressStudentSelectionCallback) {
+                    studentSelectionState.select(students.getOrNull(position)?.id)
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                if (!suppressStudentSelectionCallback) {
+                    studentSelectionState.select(null)
+                }
+            }
+        }
     }
 
     private fun configureBackNavigation() {
@@ -530,10 +551,11 @@ class MainActivity : ComponentActivity() {
     private fun refreshAdminData(
         message: String? = null,
         preferredClassId: String? = classes.getOrNull(classSpinner.selectedItemPosition)?.id,
-        preferredStudentId: String? = students.getOrNull(studentSpinner.selectedItemPosition)?.id,
+        preferredStudentId: String? = studentSelectionState.selectedId,
         completeStudentMutationAfterLoad: Boolean = false,
     ) {
         val classSelectionSnapshot = classRosterState.snapshotSelection()
+        val studentSelectionSnapshot = studentSelectionState.snapshotSelection()
         ioExecutor.execute {
             val loadedClasses = studentRepository.listClasses()
                 .map { Choice(it.classId, it.className) }
@@ -566,18 +588,25 @@ class MainActivity : ComponentActivity() {
                     forceLoadedSelection = session != null,
                 )
                 val displayedClassId = classRosterState.selectedClassId
+                val displayedStudentId = studentSelectionState.resolveRefresh(
+                    snapshot = studentSelectionSnapshot,
+                    preferredId = preferredStudentId,
+                    availableIds = loadedStudents.map(StudentChoice::id),
+                )
                 pendingTemporaryStudentIds = pendingTemporaryStudentIds
                     .intersect(students.mapTo(mutableSetOf(), StudentChoice::id))
                 suppressClassSelectionCallback = true
+                suppressStudentSelectionCallback = true
                 classSpinner.adapter = choiceAdapter(classes, "먼저 반을 생성하세요")
                 studentSpinner.adapter = studentChoiceAdapter(students, "등록 학생이 없습니다")
                 classes.indexOfFirst { it.id == displayedClassId }
                     .takeIf { it >= 0 }
                     ?.let(classSpinner::setSelection)
-                students.indexOfFirst { it.id == preferredStudentId }
+                students.indexOfFirst { it.id == displayedStudentId }
                     .takeIf { it >= 0 }
                     ?.let(studentSpinner::setSelection)
                 suppressClassSelectionCallback = false
+                suppressStudentSelectionCallback = false
                 if (completeStudentMutationAfterLoad) studentMutationGate.finish()
                 updateSessionAdminControls(session)
                 updateStudentManagementControls()
