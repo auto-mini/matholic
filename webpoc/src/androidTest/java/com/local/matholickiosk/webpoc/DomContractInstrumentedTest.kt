@@ -52,6 +52,58 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testLoginFingerprintRejectsUnsafeAuthEndpointDetails() {
+        listOf(
+            "https://auth.matholic.com:444/token/signin",
+            "https://user:pass@auth.matholic.com/token/signin",
+            "https://auth.matholic.com/token/signin?alternate=true",
+            "https://auth.matholic.com/token/signin#alternate",
+        ).forEach { action ->
+            withFixture(
+                "https://login.matholic.com/",
+                loginFixture(action),
+            ) { webView ->
+                val result = evaluate(webView, WebDomScripts.sanitizeLoginAndFingerprint)
+                assertFalse(action, result.getBoolean("ok"))
+                assertFalse(action, result.getBoolean("actionOk"))
+                assertFalse(action, result.getBoolean("usernameEmpty"))
+                assertFalse(action, result.getBoolean("passwordEmpty"))
+            }
+        }
+    }
+
+    @Test
+    fun testLoginSubmitNeverPopulatesCredentialsForUnsafeAuthEndpoint() {
+        withFixture(
+            "https://login.matholic.com/",
+            loginFixture(
+                "https://auth.matholic.com:444/token/signin",
+                preventSubmit = true,
+            ),
+        ) { webView ->
+            assertFalse(
+                evaluate(webView, WebDomScripts.login("virtual-user", "virtual-pass"))
+                    .getBoolean("ok"),
+            )
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  submitted: document.body.dataset.submitted === 'yes',
+                  usernameUnchanged:
+                    document.querySelector('input[name="username"]').value === 'residual-user',
+                  passwordUnchanged:
+                    document.querySelector('input[name="password"]').value === 'residual-pass'
+                }))()
+                """.trimIndent(),
+            )
+            assertFalse(proof.getBoolean("submitted"))
+            assertTrue(proof.getBoolean("usernameUnchanged"))
+            assertTrue(proof.getBoolean("passwordUnchanged"))
+        }
+    }
+
+    @Test
     fun testLoginSubmitUsesSemanticFormControls() {
         withFixture(
             "https://login.matholic.com/",

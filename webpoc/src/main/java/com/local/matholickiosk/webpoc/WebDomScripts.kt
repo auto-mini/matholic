@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-25.1"
+    const val CONTRACT_VERSION = "web-2026-07-26.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -16,14 +16,25 @@ object WebDomScripts {
           const buttons = Array.from(document.querySelectorAll('button[type="submit"]'));
           const form = forms.length === 1 ? forms[0] : null;
           let actionOk = false;
+          let pageOriginOk = false;
           try {
             const action = new URL(form ? form.action : '', location.href);
             actionOk = action.protocol === 'https:' &&
               action.hostname === 'auth.matholic.com' &&
-              action.pathname === '/token/signin';
+              action.port === '' &&
+              action.username === '' &&
+              action.password === '' &&
+              action.pathname === '/token/signin' &&
+              action.search === '' &&
+              action.hash === '';
+            const page = new URL(location.href);
+            pageOriginOk = page.protocol === 'https:' &&
+              page.hostname === 'login.matholic.com' &&
+              page.port === '' &&
+              page.username === '' &&
+              page.password === '';
           } catch (_) {}
-          const contractOk = location.protocol === 'https:' &&
-            location.hostname === 'login.matholic.com' &&
+          const contractOk = pageOriginOk &&
             usernames.length === 1 && passwords.length === 1 &&
             checkboxes.length === 1 && buttons.length === 1 && actionOk;
           if (contractOk) {
@@ -62,13 +73,25 @@ object WebDomScripts {
               const buttons = Array.from(document.querySelectorAll('button[type="submit"]'));
               const forms = Array.from(document.querySelectorAll('form'));
               let actionOk = false;
+              let pageOriginOk = false;
               try {
                 const action = new URL(forms.length === 1 ? forms[0].action : '', location.href);
                 actionOk = action.protocol === 'https:' &&
                   action.hostname === 'auth.matholic.com' &&
-                  action.pathname === '/token/signin';
+                  action.port === '' &&
+                  action.username === '' &&
+                  action.password === '' &&
+                  action.pathname === '/token/signin' &&
+                  action.search === '' &&
+                  action.hash === '';
+                const page = new URL(location.href);
+                pageOriginOk = page.protocol === 'https:' &&
+                  page.hostname === 'login.matholic.com' &&
+                  page.port === '' &&
+                  page.username === '' &&
+                  page.password === '';
               } catch (_) {}
-              const ok = location.hostname === 'login.matholic.com' &&
+              const ok = pageOriginOk &&
                 usernames.length === 1 && passwords.length === 1 &&
                 checkboxes.length === 1 && buttons.length === 1 &&
                 forms.length === 1 && actionOk;
