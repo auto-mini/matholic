@@ -182,8 +182,7 @@ class MainActivity : Activity() {
     }
 
     private fun isSecureKioskLaunch(candidate: Intent?): Boolean =
-        candidate?.action == ACTION_START_SECURE_SESSION &&
-            candidate.data?.authority == CREDENTIAL_BRIDGE_AUTHORITY
+        candidate?.action == ACTION_START_SECURE_SESSION
 
     private fun isAdminRecoveryLaunch(candidate: Intent?): Boolean =
         candidate?.action == ACTION_RECOVER_WEB_SESSION
@@ -229,10 +228,17 @@ class MainActivity : Activity() {
             showLocked("WEB_SESSION_NOT_CLEAN")
             return
         }
-        val uri = launchIntent.data ?: run {
+        val handleId = launchIntent.getStringExtra(EXTRA_CREDENTIAL_HANDLE)
+        if (!CredentialBridgeLaunchPolicy.isValidHandleId(handleId)) {
             showLocked("CREDENTIAL_BRIDGE_URI")
             return
         }
+        val uri = Uri.Builder()
+            .scheme("content")
+            .authority(CREDENTIAL_BRIDGE_AUTHORITY)
+            .appendPath("v1")
+            .appendPath(checkNotNull(handleId))
+            .build()
         val payload = runCatching {
             contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst() || cursor.count != 1) return@use null
@@ -1496,6 +1502,8 @@ class MainActivity : Activity() {
         const val TRUSTED_KIOSK_PACKAGE = "com.local.matholickiosk.kiosk"
         const val CREDENTIAL_BRIDGE_AUTHORITY =
             "com.local.matholickiosk.kiosk.credentials"
+        const val EXTRA_CREDENTIAL_HANDLE =
+            "com.local.matholickiosk.extra.CREDENTIAL_HANDLE"
         const val COLUMN_EXPECTED_NAME = "expected_name"
         const val COLUMN_USERNAME = "username"
         const val COLUMN_PASSWORD = "password"

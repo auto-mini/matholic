@@ -1672,7 +1672,10 @@ class MainActivity : ComponentActivity() {
                                     "com.local.matholickiosk.webpoc.MainActivity",
                                 ),
                             )
-                            .setData(handle.uri)
+                            .putExtra(
+                                CredentialBridgeContract.EXTRA_CREDENTIAL_HANDLE,
+                                handle.id,
+                            )
                         runCatching { webSessionLauncher.launch(intent) }
                             .onFailure {
                                 OneTimeCredentialBroker.revoke(handle.id)
