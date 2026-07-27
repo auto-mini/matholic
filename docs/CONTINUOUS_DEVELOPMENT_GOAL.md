@@ -96,7 +96,7 @@
   - Kiosk `0.6.0-rc32`/code 37
   - Web POC `0.4.0-rc35`/code 52
 - ADB: 2026-07-27 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC31/Web POC RC33 설치: 2026-07-27
+- A의 Kiosk RC32/Web POC RC35 설치: 2026-07-27
   `adb install -r --no-streaming`으로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
@@ -116,7 +116,7 @@
     `0C253C2A916F2F2EB494914BEE5CF10E61F74CD53A89C28BA0A19C0ED85B20C5`
   - Web POC:
     `D8B653C51F7B6917B98D8794A89A2710AB98030077507A1C44A27F9AF4BFA496`
-- 최신 전체 자동 회귀: Android 13 Web 계측 68개·Kiosk 33개, Web JVM
+- 최신 전체 자동 회귀: Android 13 Web 계측 68개·Kiosk 34개, Web JVM
   45개·Kiosk JVM 48개, release 158 tasks와 APK 이중 검증 통과
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
