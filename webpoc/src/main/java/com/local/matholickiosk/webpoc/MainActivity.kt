@@ -462,7 +462,7 @@ class MainActivity : Activity() {
                     )
                 ) return
                 when {
-                    WebSecurityPolicy.isLoginUrl(finishedUrl) -> handleLoginPage()
+                    WebSecurityPolicy.isLoginUrl(finishedUrl) -> handleLoginPage(finishedUrl)
                     WebSecurityPolicy.isLearningHostUrl(finishedUrl) -> handlePortalPage(finishedUrl)
                 }
             }
@@ -906,8 +906,14 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun handleLoginPage() {
+    private fun handleLoginPage(finishedUrl: String) {
         val purpose = state
+        if (LoginCleanupPolicy.shouldCanonicalizeBeforeFingerprint(purpose, finishedUrl)) {
+            showBlocking(getString(R.string.status_logout))
+            if (!navigateOrLock(WebSecurityPolicy.LOGIN_URL)) return
+            scheduleTimeout(PAGE_TIMEOUT_MS, "LOGIN_CANONICALIZE_TIMEOUT")
+            return
+        }
         val expectedState = when (purpose) {
             WebPocState.LOGIN_FILL -> WebPocState.LOGIN_FILL
             WebPocState.LOGOUT_NAVIGATE,

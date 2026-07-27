@@ -63,6 +63,20 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun recoveryCanonicalizesRejectedLoginRedirectAndReturnsIdle() {
+        writeState(WebPocState.RECOVERY_REQUIRED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+            scenario.onUiInitialized { activity ->
+                assertEquals(
+                    WebSecurityPolicy.LOGIN_URL,
+                    activity.findViewById<WebView>(R.id.web_view).url,
+                )
+            }
+        }
+    }
+
+    @Test
     fun explicitLockDoesNotAutoResume() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use {

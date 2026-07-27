@@ -38,6 +38,8 @@ class WebSecurityPolicyTest {
     fun `login recognition accepts only the root document without fragments`() {
         assertTrue(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/"))
         assertTrue(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/?from=logout"))
+        assertTrue(WebSecurityPolicy.isCanonicalLoginUrl("https://login.matholic.com/"))
+        assertFalse(WebSecurityPolicy.isCanonicalLoginUrl("https://login.matholic.com/?from=logout"))
 
         assertFalse(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/course"))
         assertFalse(WebSecurityPolicy.isLoginUrl("https://login.matholic.com/#/alternate"))

@@ -32,6 +32,9 @@ object WebSecurityPolicy {
         return uri.rawPath == "/" && uri.rawFragment == null
     }
 
+    fun isCanonicalLoginUrl(value: String?): Boolean =
+        value == LOGIN_URL
+
     fun isPortalUrl(value: String?): Boolean {
         if (hostOf(value) != "im.matholic.com") return false
         val uri = URI(value)
