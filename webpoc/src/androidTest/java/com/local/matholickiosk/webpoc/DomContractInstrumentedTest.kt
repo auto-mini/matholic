@@ -331,6 +331,107 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceHidesGlobalChromeAndUnwantedAnswerControls() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="global-line">
+                <a href="/course">학습실</a>
+                <button>학습활동</button>
+                <a href="/userInfo">개인정보</a>
+                <a href="/userAccessLog">로그인 정보</a>
+              </div>
+              <main id="problem">
+                <button id="report">오류신고</button>
+                <button id="paper">문제지</button>
+                <button id="handwriting">답안필기입력</button>
+                <div id="answer-modes">
+                  <button id="input-menu"
+                    onclick="document.getElementById('mode-menu').style.display='block'">입력기</button>
+                  <ul id="mode-menu" style="display:none">
+                    <li id="basic">기본</li>
+                    <li id="math" onclick="this.dataset.clicked='yes'">수식</li>
+                  </ul>
+                </div>
+                <aside id="video-panel">
+                  <p>문제가 어렵나요? 이 문제의 대표 유형 해설 강의를 들어보세요!</p>
+                  <iframe></iframe>
+                </aside>
+                <button id="submit">답안 제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  globalHidden: getComputedStyle(document.getElementById('global-line')).display === 'none',
+                  problemVisible: getComputedStyle(document.getElementById('problem')).display !== 'none',
+                  reportHidden: getComputedStyle(document.getElementById('report')).display === 'none',
+                  paperHidden: getComputedStyle(document.getElementById('paper')).display === 'none',
+                  handwritingHidden:
+                    getComputedStyle(document.getElementById('handwriting')).display === 'none',
+                  basicHidden: getComputedStyle(document.getElementById('basic')).display === 'none',
+                  mathClicked: document.getElementById('math').dataset.clicked === 'yes',
+                  inputMenuHidden:
+                    getComputedStyle(document.getElementById('input-menu')).display === 'none',
+                  videoHidden: getComputedStyle(document.getElementById('video-panel')).display === 'none',
+                  submitSpacing: document.getElementById('submit').style.marginBottom
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("globalHidden"))
+            assertTrue(proof.getBoolean("problemVisible"))
+            assertTrue(proof.getBoolean("reportHidden"))
+            assertTrue(proof.getBoolean("paperHidden"))
+            assertTrue(proof.getBoolean("handwritingHidden"))
+            assertTrue(proof.getBoolean("basicHidden"))
+            assertTrue(proof.getBoolean("mathClicked"))
+            assertTrue(proof.getBoolean("inputMenuHidden"))
+            assertTrue(proof.getBoolean("videoHidden"))
+            assertEquals("19px", proof.getString("submitSpacing"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceScrollsReviewAndHidesSolutionUpload() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main style="height:2000px">
+                <h2>전체답안</h2>
+                <section id="upload"><button>풀이 업로드</button></section>
+                <button id="final-submit">답안 제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  scrollMarked:
+                    document.documentElement.dataset.matholicKioskReviewScrolled === 'true',
+                  uploadHidden:
+                    getComputedStyle(document.querySelector('#upload button')).display === 'none',
+                  submitFixed:
+                    document.getElementById('final-submit').style.position === 'fixed'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("scrollMarked"))
+            assertTrue(proof.getBoolean("uploadHidden"))
+            assertTrue(proof.getBoolean("submitFixed"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceShieldsAnalysisBeforeNativeSummary() {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",
@@ -364,6 +465,51 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("shieldPresent"))
             assertTrue(proof.getBoolean("shieldCoversViewport"))
             assertTrue(proof.getBoolean("sensitiveContentStillBehindShield"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceHydratesLazyResultCardsBehindShield() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>1번 문제</h3></section>
+              <section class="ant-alert-success"><h3>2번 문제</h3></section>
+              <div style="height:2400px"></div>
+              <script>
+                window.addEventListener('scroll', () => {
+                  if (window.scrollY < 300 || document.getElementById('lazy-three')) return;
+                  const card = document.createElement('section');
+                  card.id = 'lazy-three';
+                  card.className = 'ant-alert-error';
+                  card.innerHTML = '<h3>3번 문제</h3>';
+                  document.body.appendChild(card);
+                });
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            repeat(8) {
+                assertTrue(
+                    evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"),
+                )
+                Thread.sleep(100)
+            }
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  shieldPresent: !!document.getElementById('matholic-kiosk-result-shield'),
+                  lazyCardLoaded: !!document.getElementById('lazy-three'),
+                  movedDown: (document.scrollingElement || document.documentElement).scrollTop > 0
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("shieldPresent"))
+            assertTrue(proof.getBoolean("lazyCardLoaded"))
+            assertTrue(proof.getBoolean("movedDown"))
         }
     }
 
@@ -474,6 +620,60 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentSectionNavigationUsesUniqueExactSpaLink() {
+        withFixture(
+            "https://im.matholic.com/workbook",
+            """
+            <!doctype html><html><body data-target="">
+              <a href="/workbook">학습지</a>
+              <a href="/diagnostic"
+                 onclick="event.preventDefault();document.body.dataset.target='diagnostic'">
+                진단평가
+              </a>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(
+                webView,
+                WebDomScripts.navigateStudentSection(StudentWebPolicy.DIAGNOSTIC_PATH),
+            )
+            assertTrue(result.getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                "(() => JSON.stringify({ target: document.body.dataset.target }))()",
+            )
+            assertEquals("diagnostic", proof.getString("target"))
+        }
+    }
+
+    @Test
+    fun testStudentSectionNavigationRejectsAmbiguousAndUnsafeLinks() {
+        withFixture(
+            "https://im.matholic.com/workbook",
+            """
+            <!doctype html><html><body>
+              <a href="/diagnostic">진단평가 1</a>
+              <a href="/diagnostic">진단평가 2</a>
+              <a href="https://user:pass@im.matholic.com/workbook">변형 학습지</a>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertFalse(
+                evaluate(
+                    webView,
+                    WebDomScripts.navigateStudentSection(StudentWebPolicy.DIAGNOSTIC_PATH),
+                ).getBoolean("ok"),
+            )
+            assertFalse(
+                evaluate(
+                    webView,
+                    WebDomScripts.navigateStudentSection(StudentWebPolicy.WORKBOOK_PATH),
+                ).getBoolean("ok"),
+            )
+        }
+    }
+
+    @Test
     fun testWrongAnswerSummaryRejectsFragmentSelectedSpaView() {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual#/analysis",
@@ -493,19 +693,90 @@ class DomContractInstrumentedTest {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",
             """
-            <!doctype html><html><body>
+            <!doctype html><html data-matholic-kiosk-result-hydrated="true"><body>
               <h2>종합분석</h2>
-              <section class="ant-alert-error"><h3>12번 문제</h3><p>풀이와 정답</p></section>
-              <section class="ant-alert-success"><h3>2번 문제</h3><p>풀이와 정답</p></section>
-              <section class="ant-alert-error"><h3>3번 문제</h3><p>풀이와 정답</p></section>
+              <section class="ant-alert-success"><h3>1번 문제</h3></section>
+              <section class="ant-alert-success"><h3>2번 문제</h3></section>
+              <section class="ant-alert-error"><h3>3번 문제</h3></section>
+              <section class="ant-alert-success"><h3>4번 문제</h3></section>
+              <section class="ant-alert-success"><h3>5번 문제</h3></section>
+              <section class="ant-alert-success"><h3>6번 문제</h3></section>
+              <section class="ant-alert-success"><h3>7번 문제</h3></section>
+              <section class="ant-alert-success"><h3>8번 문제</h3></section>
+              <section class="ant-alert-success"><h3>9번 문제</h3></section>
+              <section class="ant-alert-success"><h3>10번 문제</h3></section>
+              <section class="ant-alert-success"><h3>11번 문제</h3></section>
+              <section class="ant-alert-error"><h3>12번 문제</h3></section>
             </body></html>
             """.trimIndent(),
         ) { webView ->
             val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
             assertTrue(result.getBoolean("ok"))
             assertEquals(2, result.getInt("errorCardCount"))
+            assertEquals(12, result.getInt("totalProblems"))
             assertEquals(3, result.getJSONArray("wrongNumbers").getInt(0))
             assertEquals(12, result.getJSONArray("wrongNumbers").getInt(1))
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryFailsClosedForOnlyCurrentlyRenderedProblem() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>5번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertFalse(result.getBoolean("ok"))
+            assertTrue(result.getBoolean("analysisFound"))
+            assertEquals("INCOMPLETE_RESULT", result.getString("reason"))
+            assertEquals(5, result.getInt("totalProblems"))
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryUsesHiddenCardsButRequiresCompleteSequence() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html data-matholic-kiosk-result-hydrated="true"><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-error"><h3>1번 문제</h3></section>
+              <section class="ant-alert-error" style="display:none"><h3>2번 문제</h3></section>
+              <section class="ant-alert-success" style="display:none"><h3>3번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(3, result.getInt("totalProblems"))
+            assertEquals(1, result.getInt("visibleCardCount"))
+            assertEquals(2, result.getJSONArray("wrongNumbers").length())
+        }
+    }
+
+    @Test
+    fun testWrongAnswerSummaryIncludesUnknownAndExcludedProblemsInCompletenessProof() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html data-matholic-kiosk-result-hydrated="true"><body>
+              <h2>종합분석</h2>
+              <section class="ant-alert-success"><h3>1번 문제</h3></section>
+              <section><div><h3>2번 문제</h3><span>모름</span></div></section>
+              <section><div><h3>3번 문제</h3><span>제외</span></div></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(3, result.getInt("totalProblems"))
+            assertEquals(1, result.getJSONArray("wrongNumbers").length())
+            assertEquals(2, result.getJSONArray("wrongNumbers").getInt(0))
         }
     }
 
@@ -514,7 +785,7 @@ class DomContractInstrumentedTest {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",
             """
-            <!doctype html><html><body>
+            <!doctype html><html data-matholic-kiosk-result-hydrated="true"><body>
               <h2>종합분석</h2>
               <section class="ant-alert-success"><h3>1번 문제</h3></section>
               <section class="ant-alert-success"><h3>2번 문제</h3></section>

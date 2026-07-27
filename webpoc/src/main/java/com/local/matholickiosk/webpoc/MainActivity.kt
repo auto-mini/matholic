@@ -2,6 +2,7 @@ package com.local.matholickiosk.webpoc
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -18,6 +19,7 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
+import android.webkit.JsResult
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.SafeBrowsingResponse
 import android.webkit.SslErrorHandler
@@ -98,7 +100,10 @@ class MainActivity : Activity() {
     private var adminRecoveryResultDelivered = false
     private var activeExperienceGeneration = 0
     private var resultSummaryDisplayed = false
+    private var resultExtractionFailures = 0
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
+    private var activeJavaScriptDialog: AlertDialog? = null
+    private var activeJavaScriptDialogResult: JsResult? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -369,6 +374,30 @@ class MainActivity : Activity() {
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean = true
 
+            override fun onJsAlert(
+                view: WebView?,
+                url: String?,
+                message: String?,
+                result: JsResult?,
+            ): Boolean = showStudentJavaScriptDialog(
+                sourceUrl = url,
+                message = message,
+                result = result,
+                isConfirmation = false,
+            )
+
+            override fun onJsConfirm(
+                view: WebView?,
+                url: String?,
+                message: String?,
+                result: JsResult?,
+            ): Boolean = showStudentJavaScriptDialog(
+                sourceUrl = url,
+                message = message,
+                result = result,
+                isConfirmation = true,
+            )
+
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String?,
                 callback: android.webkit.GeolocationPermissions.Callback?,
@@ -507,6 +536,55 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showStudentJavaScriptDialog(
+        sourceUrl: String?,
+        message: String?,
+        result: JsResult?,
+        isConfirmation: Boolean,
+    ): Boolean {
+        if (
+            result == null ||
+            !JavaScriptDialogPolicy.canReplaceBrowserDialog(state, sourceUrl, message)
+        ) {
+            return false
+        }
+        if (activeJavaScriptDialog != null || activeJavaScriptDialogResult != null) {
+            result.cancel()
+            return true
+        }
+
+        var settled = false
+        fun settle(confirmed: Boolean) {
+            if (settled) return
+            settled = true
+            if (confirmed) result.confirm() else result.cancel()
+            activeJavaScriptDialogResult = null
+        }
+
+        val builder = AlertDialog.Builder(this)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok) { _, _ -> settle(true) }
+            .setOnCancelListener { settle(false) }
+        if (isConfirmation) {
+            builder.setNegativeButton(android.R.string.cancel) { _, _ -> settle(false) }
+        }
+        val dialog = builder.create()
+        dialog.setOnDismissListener {
+            settle(false)
+            if (activeJavaScriptDialog === dialog) activeJavaScriptDialog = null
+        }
+        activeJavaScriptDialog = dialog
+        activeJavaScriptDialogResult = result
+        try {
+            dialog.show()
+        } catch (_: RuntimeException) {
+            activeJavaScriptDialog = null
+            settle(false)
+            showLocked("JS_DIALOG")
+        }
+        return true
+    }
+
     private fun rejectWebContentAndLock(reason: String, reject: () -> Unit) {
         try {
             reject()
@@ -584,13 +662,19 @@ class MainActivity : Activity() {
         workbookButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
                 resultSummaryDisplayed = false
-                navigateOrLock(WebSecurityPolicy.WORKBOOK_URL)
+                navigateStudentSection(
+                    StudentWebPolicy.WORKBOOK_PATH,
+                    WebSecurityPolicy.WORKBOOK_URL,
+                )
             }
         }
         diagnosticButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
                 resultSummaryDisplayed = false
-                navigateOrLock(WebSecurityPolicy.DIAGNOSTIC_URL)
+                navigateStudentSection(
+                    StudentWebPolicy.DIAGNOSTIC_PATH,
+                    WebSecurityPolicy.DIAGNOSTIC_URL,
+                )
             }
         }
         resultConfirmButton.setOnClickListener {
@@ -602,6 +686,18 @@ class MainActivity : Activity() {
             }
         }
         recoveryButton.setOnClickListener { restartForRecovery() }
+    }
+
+    private fun navigateStudentSection(targetPath: String, fallbackUrl: String) {
+        evaluate(WebDomScripts.navigateStudentSection(targetPath)) { result ->
+            if (state != WebPocState.ACTIVE) return@evaluate
+            if (
+                result?.optBoolean("ok") != true ||
+                result.optString("version") != WebDomScripts.CONTRACT_VERSION
+            ) {
+                navigateOrLock(fallbackUrl)
+            }
+        }
     }
 
     private fun registerBackHandler() {
@@ -967,6 +1063,7 @@ class MainActivity : Activity() {
 
     private fun startStudentExperienceMonitor() {
         val generation = ++activeExperienceGeneration
+        resultExtractionFailures = 0
         pollStudentExperience(generation)
     }
 
@@ -1018,6 +1115,13 @@ class MainActivity : Activity() {
                     }.distinct().sorted()
                     showResultSummary(wrong)
                 } else {
+                    if (summary?.optBoolean("analysisFound") == true) {
+                        resultExtractionFailures += 1
+                        if (resultExtractionFailures >= RESULT_EXTRACTION_RETRIES) {
+                            showResultSummaryUnavailable()
+                            return@evaluate
+                        }
+                    }
                     handler.postDelayed(
                         { pollStudentExperience(generation) },
                         STUDENT_EXPERIENCE_POLL_MS,
@@ -1028,14 +1132,30 @@ class MainActivity : Activity() {
     }
 
     private fun showResultSummary(wrongNumbers: List<Int>) {
+        showResultPanel(
+            message = if (wrongNumbers.isEmpty()) {
+                "틀린 문제 없음"
+            } else {
+                "틀린 문제: " + wrongNumbers.joinToString(", ") { "${it}번" }
+            },
+            confirmLabel = "확인하고 채점 끝내기",
+        )
+    }
+
+    private fun showResultSummaryUnavailable() {
+        showResultPanel(
+            message = "결과를 정확히 확인하지 못했습니다\n" +
+                "선생님에게 알려주세요\n\n상태 코드: RESULT_INCOMPLETE",
+            confirmLabel = "선생님 확인 후 채점 끝내기",
+        )
+    }
+
+    private fun showResultPanel(message: String, confirmLabel: String) {
         if (state != WebPocState.ACTIVE || resultSummaryDisplayed) return
         resultSummaryDisplayed = true
         activeExperienceGeneration += 1
-        wrongAnswerSummary.text = if (wrongNumbers.isEmpty()) {
-            "틀린 문제 없음"
-        } else {
-            "틀린 문제: " + wrongNumbers.joinToString(", ") { "${it}번" }
-        }
+        wrongAnswerSummary.text = message
+        resultConfirmButton.text = confirmLabel
         webView.visibility = View.INVISIBLE
         studentNavBar.visibility = View.GONE
         finishButton.visibility = View.GONE
@@ -1666,6 +1786,14 @@ class MainActivity : Activity() {
         destroyed = true
         cancelTimeout()
         try {
+            val activeDialog = activeJavaScriptDialog
+            if (activeDialog != null) {
+                activeDialog.dismiss()
+            } else {
+                activeJavaScriptDialogResult?.cancel()
+                activeJavaScriptDialogResult = null
+            }
+            activeJavaScriptDialog = null
             if (uiInitialized) {
                 gate3Session?.let {
                     persistGate3Outcome(GATE3_STATUS_ABORTED, it.completedCycles)
@@ -1748,6 +1876,7 @@ class MainActivity : Activity() {
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
+        const val RESULT_EXTRACTION_RETRIES = 40
         const val STUDENT_NAV_HEIGHT_DP = 64
         const val PORTAL_PROBE_RETRIES = 8
         const val MAX_LOGOUT_RETRIES = 1

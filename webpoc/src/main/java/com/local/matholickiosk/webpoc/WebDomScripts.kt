@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-26.4"
+    const val CONTRACT_VERSION = "web-2026-07-27.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -336,6 +336,62 @@ object WebDomScripts {
               element.style.setProperty(name, value, 'important');
             }
           };
+          const hide = element => {
+            if (!element || element === document.body || element === document.documentElement) {
+              return false;
+            }
+            important(element, 'display', 'none');
+            element.setAttribute('aria-hidden', 'true');
+            return true;
+          };
+          const hrefPath = element => {
+            if (!element || !element.matches('a[href]')) return '';
+            try {
+              const target = new URL(element.href, location.href);
+              return target.origin === page.origin ? target.pathname : '';
+            } catch (_) {
+              return '';
+            }
+          };
+          const chromeTexts = new Set([
+            '학습실', '학습활동', '매뉴얼', '개인정보',
+            '내 교재', '로그인 정보', '로그인정보', '로그아웃'
+          ]);
+          const chromePaths = new Set([
+            '/course', '/userInfo', '/userAccessLog'
+          ]);
+          const isChromeSignal = element =>
+            chromeTexts.has(normalize(element.textContent)) ||
+            chromePaths.has(hrefPath(element));
+          const chromeSignals = Array.from(
+            document.querySelectorAll('a[href],button,[role="button"]')
+          ).filter(isChromeSignal);
+          let hiddenChrome = 0;
+          const hiddenChromeShells = new Set();
+          chromeSignals.forEach(signal => {
+            let candidate = signal.closest(
+              'header,nav,[role="banner"],[role="navigation"]'
+            );
+            let ancestor = signal;
+            while (!candidate && ancestor && ancestor.parentElement) {
+              ancestor = ancestor.parentElement;
+              if (ancestor === document.body || ancestor === document.documentElement) break;
+              const signalCount = Array.from(
+                ancestor.querySelectorAll('a[href],button,[role="button"]')
+              ).filter(isChromeSignal).length;
+              if (
+                signalCount >= 3 &&
+                !ancestor.querySelector('main,[role="main"]')
+              ) {
+                candidate = ancestor;
+                break;
+              }
+            }
+            if (candidate && !hiddenChromeShells.has(candidate) && hide(candidate)) {
+              hiddenChromeShells.add(candidate);
+              hiddenChrome += 1;
+            }
+          });
 
           let style = document.getElementById('matholic-kiosk-student-style');
           if (!style) {
@@ -346,24 +402,33 @@ object WebDomScripts {
           style.textContent = isLearning ? `
             html, body { min-height: 100% !important; }
             header, [role="banner"] { display: none !important; }
+            *, *::before, *::after { box-sizing: border-box !important; }
             body {
               box-sizing: border-box !important;
+              max-width: 100vw !important;
+              overflow-x: hidden !important;
               padding-top: 36px !important;
               padding-bottom: 0 !important;
             }
             main { padding-top: 24px !important; }
             button, [role="button"] {
-              min-width: 52px !important;
               min-height: 52px !important;
-              padding: 10px 16px !important;
+              max-width: 100% !important;
+              padding: 10px 10px !important;
               font-size: 18px !important;
               line-height: 1.25 !important;
               touch-action: manipulation !important;
             }
             input, textarea, [contenteditable="true"] {
               min-height: 48px !important;
+              min-width: 0 !important;
+              max-width: 100% !important;
               font-size: 18px !important;
               touch-action: manipulation !important;
+            }
+            input[placeholder*="주관식 답"] {
+              width: 220px !important;
+              max-width: 100% !important;
             }
           ` : `
             header, nav, [role="navigation"] {
@@ -373,6 +438,8 @@ object WebDomScripts {
           `;
 
           let enhancedButtons = 0;
+          let hiddenControls = 0;
+          let mathModeSelections = 0;
           if (isLearning) {
             const exactButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
@@ -383,6 +450,21 @@ object WebDomScripts {
                 important(button, 'min-width', '190px');
                 important(button, 'min-height', '60px');
                 important(button, 'font-size', '20px');
+                important(button, 'margin-bottom', '19px');
+                let actionLine = button.parentElement;
+                for (let depth = 0; actionLine && depth < 4; depth += 1) {
+                  const texts = Array.from(
+                    actionLine.querySelectorAll('button,[role="button"]')
+                  ).map(control => normalize(control.textContent));
+                  if (
+                    texts.includes('문제지') &&
+                    (texts.includes('답안제출') || texts.includes('답안 제출'))
+                  ) {
+                    important(actionLine, 'margin-bottom', '19px');
+                    break;
+                  }
+                  actionLine = actionLine.parentElement;
+                }
                 enhancedButtons += 1;
               } else if (text === '모름') {
                 important(button, 'min-width', '104px');
@@ -395,10 +477,130 @@ object WebDomScripts {
               }
             });
 
+            const hideExactControls = texts => {
+              const expected = new Set(texts);
+              Array.from(document.querySelectorAll(
+                'button,a,[role="button"],label,span,div'
+              )).forEach(element => {
+                if (!expected.has(normalize(element.textContent))) return;
+                const nestedMatch = Array.from(
+                  element.querySelectorAll('button,a,[role="button"]')
+                ).find(child => expected.has(normalize(child.textContent)));
+                if (nestedMatch && nestedMatch !== element) return;
+                const control = element.closest('button,a,[role="button"]') || element;
+                if (hide(control)) hiddenControls += 1;
+              });
+            };
+            hideExactControls([
+              '오류신고', '오류 신고', '문제지',
+              '답안필기입력', '답안 필기 입력'
+            ]);
+            Array.from(document.querySelectorAll(
+              '[title*="답안 필기"],[aria-label*="답안 필기"],[aria-describedby]'
+            )).forEach(element => {
+              const describedBy = element.getAttribute('aria-describedby');
+              const described = describedBy ? document.getElementById(describedBy) : null;
+              if (
+                normalize(element.getAttribute('title')).includes('답안 필기') ||
+                normalize(element.getAttribute('aria-label')).includes('답안 필기') ||
+                normalize(described ? described.textContent : '').includes('답안 필기')
+              ) {
+                const control = element.closest('button,[role="button"]') || element;
+                if (hide(control)) hiddenControls += 1;
+              }
+            });
+
+            const explanationMessage = Array.from(
+              document.querySelectorAll('p,span,div')
+            ).find(element =>
+              normalize(element.textContent).startsWith('문제가 어렵나요?') &&
+              normalize(element.textContent).includes('해설 강의를 들어보세요') &&
+              !Array.from(element.children).some(child =>
+                normalize(child.textContent).startsWith('문제가 어렵나요?') &&
+                normalize(child.textContent).includes('해설 강의를 들어보세요')
+              )
+            );
+            if (explanationMessage) {
+              let explanationPanel = explanationMessage.closest(
+                'aside,[role="complementary"]'
+              );
+              let ancestor = explanationMessage;
+              while (!explanationPanel && ancestor && ancestor.parentElement) {
+                ancestor = ancestor.parentElement;
+                if (ancestor === document.body || ancestor.matches('main,[role="main"]')) break;
+                if (ancestor.querySelector('video,iframe')) explanationPanel = ancestor;
+              }
+              if (explanationPanel) {
+                if (hide(explanationPanel)) hiddenControls += 1;
+              } else if (hide(explanationMessage)) {
+                hiddenControls += 1;
+              }
+            }
+
+            const inputMenuButtons = Array.from(
+              document.querySelectorAll('button,[role="button"]')
+            ).filter(element =>
+              visible(element) && normalize(element.textContent) === '입력기'
+            );
+            inputMenuButtons.forEach(button => {
+              const answerScope = button.closest('[id^="answer-input-form-"]') ||
+                button.parentElement;
+              const alreadyMath = !!answerScope?.querySelector(
+                '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
+              );
+              if (alreadyMath) {
+                if (hide(button)) hiddenControls += 1;
+              } else if (button.dataset.matholicKioskMenuOpened !== 'true') {
+                button.dataset.matholicKioskMenuOpened = 'true';
+                button.click();
+              }
+            });
+
+            const answerModeButtons = Array.from(
+              document.querySelectorAll(
+                'button,[role="button"],li,[role="menuitem"]'
+              )
+            ).filter(element => {
+              const text = normalize(element.textContent);
+              return text === '기본' || text === '분수' || text === '수식';
+            });
+            const mathButton = answerModeButtons.find(
+              element => visible(element) && normalize(element.textContent) === '수식'
+            );
+            if (mathButton && visible(mathButton)) {
+              const selected = mathButton.getAttribute('aria-pressed') === 'true' ||
+                mathButton.getAttribute('aria-selected') === 'true' ||
+                mathButton.getAttribute('data-state') === 'active' ||
+                /(?:^|\s)(?:active|selected|checked)(?:\s|${'$'})/i.test(mathButton.className || '');
+              if (!selected && mathButton.dataset.matholicKioskActivated !== 'true') {
+                mathButton.dataset.matholicKioskActivated = 'true';
+                mathButton.click();
+                mathModeSelections += 1;
+                inputMenuButtons.forEach(button => {
+                  if (hide(button)) hiddenControls += 1;
+                });
+              }
+            }
+            answerModeButtons
+              .filter(element => {
+                const text = normalize(element.textContent);
+                return text === '기본' || text === '분수';
+              })
+              .forEach(element => {
+                if (hide(element)) hiddenControls += 1;
+              });
+
             const reviewHeading = Array.from(
               document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
             ).find(element => visible(element) && normalize(element.textContent) === '전체답안');
             if (reviewHeading) {
+              if (document.documentElement.dataset.matholicKioskReviewScrolled !== 'true') {
+                document.documentElement.dataset.matholicKioskReviewScrolled = 'true';
+                const scrollingElement = reviewHeading.closest(
+                  '.ant-modal-body,.ant-drawer-body'
+                ) || document.scrollingElement || document.documentElement;
+                scrollingElement.scrollTo(0, scrollingElement.scrollHeight);
+              }
               const scope = reviewHeading.closest(
                 'main,section,[role="dialog"],.ant-modal,.ant-drawer'
               ) || document.body;
@@ -415,6 +617,21 @@ object WebDomScripts {
                 important(finalButton, 'z-index', '2147483000');
                 important(finalButton, 'box-shadow', '0 6px 18px rgba(0,0,0,.35)');
               }
+              const uploadSignals = Array.from(
+                scope.querySelectorAll('button,a,[role="button"],label,span,div')
+              ).filter(element => {
+                const text = normalize(element.textContent);
+                return text === '풀이과정' || text === '풀이 과정' ||
+                  text === '풀이 업로드' ||
+                  text === '풀이과정 업로드';
+              });
+              uploadSignals.forEach(signal => {
+                const control = signal.closest('button,a,[role="button"]');
+                const uploadContainer = signal.closest(
+                  'label,section,[role="group"],.ant-upload'
+                );
+                if (hide(control || uploadContainer || signal)) hiddenControls += 1;
+              });
             }
 
             const protectAnalysisDetails = () => {
@@ -426,8 +643,35 @@ object WebDomScripts {
               const resultCards = document.querySelectorAll(
                 '.ant-alert-error,.ant-alert-success'
               );
-              if (!analysisHeading || resultCards.length === 0 ||
-                  document.getElementById('matholic-kiosk-result-shield')) return;
+              if (!analysisHeading) return;
+              const scrollingElement = document.scrollingElement || document.documentElement;
+              const maxScroll = Math.max(
+                0,
+                scrollingElement.scrollHeight - window.innerHeight
+              );
+              const currentScroll = scrollingElement.scrollTop;
+              const previousMax = Number(
+                document.documentElement.dataset.matholicKioskResultMaxScroll || '-1'
+              );
+              let stableBottomReads = Number(
+                document.documentElement.dataset.matholicKioskResultBottomReads || '0'
+              );
+              if (currentScroll >= maxScroll - 2 && maxScroll === previousMax) {
+                stableBottomReads += 1;
+              } else {
+                stableBottomReads = 0;
+              }
+              document.documentElement.dataset.matholicKioskResultMaxScroll =
+                String(maxScroll);
+              document.documentElement.dataset.matholicKioskResultBottomReads =
+                String(stableBottomReads);
+              if (stableBottomReads < 2) {
+                const step = Math.max(400, Math.floor(window.innerHeight * 0.75));
+                scrollingElement.scrollTo(0, Math.min(maxScroll, currentScroll + step));
+              } else {
+                document.documentElement.dataset.matholicKioskResultHydrated = 'true';
+              }
+              if (document.getElementById('matholic-kiosk-result-shield')) return;
               const shield = document.createElement('div');
               shield.id = 'matholic-kiosk-result-shield';
               shield.textContent = '채점 결과를 정리하고 있습니다';
@@ -487,10 +731,52 @@ object WebDomScripts {
             version, ok: true, path,
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning,
-            enhancedButtons
+            enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
+            resultHydrated:
+              document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });
         })()
         """.trimIndent()
+
+    fun navigateStudentSection(targetPath: String): String {
+        require(targetPath == "/workbook" || targetPath == "/diagnostic")
+        return """
+            (() => {
+              const version = '${CONTRACT_VERSION}';
+              let page = null;
+              try { page = new URL(location.href); } catch (_) {}
+              if (
+                page === null ||
+                page.protocol !== 'https:' ||
+                page.hostname !== 'im.matholic.com' ||
+                page.port !== '' ||
+                page.username !== '' ||
+                page.password !== '' ||
+                page.hash !== ''
+              ) return JSON.stringify({ version, ok: false, count: 0 });
+              const candidates = Array.from(document.querySelectorAll('a[href]')).filter(anchor => {
+                try {
+                  const target = new URL(anchor.href, location.href);
+                  return target.protocol === 'https:' &&
+                    target.hostname === 'im.matholic.com' &&
+                    target.port === '' &&
+                    target.username === '' &&
+                    target.password === '' &&
+                    target.pathname === '$targetPath' &&
+                    target.search === '' &&
+                    target.hash === '';
+                } catch (_) {
+                  return false;
+                }
+              });
+              if (candidates.length !== 1) {
+                return JSON.stringify({ version, ok: false, count: candidates.length });
+              }
+              candidates[0].click();
+              return JSON.stringify({ version, ok: true, count: 1 });
+            })()
+        """.trimIndent()
+    }
 
     val wrongAnswerSummary: String =
         """
@@ -518,7 +804,9 @@ object WebDomScripts {
           };
           const base = {
             version, ok: false, path: rawPath, wrongNumbers: [],
-            errorCardCount: 0, successCardCount: 0
+            errorCardCount: 0, successCardCount: 0,
+            visibleCardCount: 0, totalProblems: 0,
+            analysisFound: false, reason: 'NOT_RESULT'
           };
           if (
             page === null ||
@@ -539,33 +827,109 @@ object WebDomScripts {
 
           const errorCards = Array.from(
             document.querySelectorAll('.ant-alert-error')
-          ).filter(visible);
+          );
           const successCards = Array.from(
             document.querySelectorAll('.ant-alert-success')
-          ).filter(visible);
-          if (errorCards.length + successCards.length === 0) return JSON.stringify(base);
+          );
+          const resultBase = {
+            ...base,
+            analysisFound: true,
+            reason: 'INCOMPLETE_RESULT',
+            errorCardCount: errorCards.length,
+            successCardCount: successCards.length,
+            visibleCardCount: [...errorCards, ...successCards].filter(visible).length
+          };
+          if (errorCards.length + successCards.length === 0) {
+            const neutralResultHeadings = Array.from(
+              document.querySelectorAll('h3,[role="heading"]')
+            ).filter(heading => {
+              const text = normalize(heading.parentElement?.textContent);
+              return text.includes('모름') || text.includes('제외');
+            });
+            if (neutralResultHeadings.length === 0) return JSON.stringify(resultBase);
+          }
+          const scrollingElement = document.scrollingElement || document.documentElement;
+          const hydrationComplete =
+            document.documentElement.dataset.matholicKioskResultHydrated === 'true' ||
+            scrollingElement.scrollHeight <= window.innerHeight + 2;
+          if (!hydrationComplete) {
+            return JSON.stringify({ ...resultBase, reason: 'HYDRATING_RESULT' });
+          }
 
-          const wrongNumbers = [];
-          for (const card of errorCards) {
+          const classifications = new Map();
+          const parseCard = (card, wrong) => {
             const heading = Array.from(
               card.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
-            ).find(visible);
+            )[0];
             const match = normalize(heading ? heading.textContent : '').match(/(?:^|\D)(\d{1,3})(?:\D|${'$'})/);
             const number = match ? Number(match[1]) : NaN;
             if (!Number.isInteger(number) || number < 1 || number > 999) {
-              return JSON.stringify({
-                ...base,
-                errorCardCount: errorCards.length,
-                successCardCount: successCards.length
-              });
+              return false;
             }
-            if (!wrongNumbers.includes(number)) wrongNumbers.push(number);
+            if (classifications.has(number) && classifications.get(number) !== wrong) {
+              return false;
+            }
+            classifications.set(number, wrong);
+            return true;
+          };
+          for (const card of errorCards) {
+            if (!parseCard(card, true)) return JSON.stringify(resultBase);
           }
+          for (const card of successCards) {
+            if (!parseCard(card, false)) return JSON.stringify(resultBase);
+          }
+          const classifiedHeadings = new Set(
+            [...errorCards, ...successCards].flatMap(card =>
+              Array.from(card.querySelectorAll(
+                'h1,h2,h3,h4,h5,h6,[role="heading"]'
+              ))
+            )
+          );
+          const neutralHeadings = Array.from(
+            document.querySelectorAll('h3,[role="heading"]')
+          ).filter(heading => !classifiedHeadings.has(heading));
+          for (const heading of neutralHeadings) {
+            const match = normalize(heading.textContent).match(/(?:^|\D)(\d{1,3})(?:\D|${'$'})/);
+            const number = match ? Number(match[1]) : NaN;
+            if (!Number.isInteger(number) || number < 1 || number > 999) continue;
+            let card = heading.parentElement;
+            let state = null;
+            for (let depth = 0; card && depth < 6; depth += 1) {
+              const cardText = normalize(card.textContent);
+              const headingCount = card.querySelectorAll('h3,[role="heading"]').length;
+              if (headingCount === 1 && cardText.includes('모름')) {
+                state = true;
+                break;
+              }
+              if (headingCount === 1 && cardText.includes('제외')) {
+                state = false;
+                break;
+              }
+              card = card.parentElement;
+            }
+            if (state === null) continue;
+            if (classifications.has(number) && classifications.get(number) !== state) {
+              return JSON.stringify(resultBase);
+            }
+            classifications.set(number, state);
+          }
+
+          const allNumbers = Array.from(classifications.keys()).sort((a, b) => a - b);
+          const totalProblems = allNumbers.length > 0 ? allNumbers[allNumbers.length - 1] : 0;
+          const completeSequence = totalProblems >= 2 &&
+            allNumbers.length === totalProblems &&
+            allNumbers.every((number, index) => number === index + 1);
+          if (!completeSequence) {
+            return JSON.stringify({ ...resultBase, totalProblems });
+          }
+          const wrongNumbers = allNumbers.filter(number => classifications.get(number));
           wrongNumbers.sort((a, b) => a - b);
           return JSON.stringify({
-            version, ok: true, path, wrongNumbers,
+            version, ok: true, path, wrongNumbers, totalProblems,
             errorCardCount: errorCards.length,
-            successCardCount: successCards.length
+            successCardCount: successCards.length,
+            visibleCardCount: resultBase.visibleCardCount,
+            analysisFound: true, reason: 'VERIFIED_COMPLETE'
           });
         })()
         """.trimIndent()
