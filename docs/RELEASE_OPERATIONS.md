@@ -5,19 +5,20 @@
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer와 더 높은 versionCode의 Kiosk RC28과 Web POC RC30을 보존형
+같은 signer와 더 높은 versionCode의 Kiosk RC29와 Web POC RC31을 보존형
 업데이트했다. 이 조합은 자동검증과 설치 후 무결성 검사를 통과했다.
 RC27/RC29 실물 회귀에서 기존 데이터·반 소속 QR 차단·관리자 뒤로가기와
 자동 학습지 진입은 통과했다. RC28/RC30의 최신 학생 Web·결과·QR 위치 안내
 실기는 진행 전이다.
 
-- 현재 A: Kiosk `0.6.0-rc28`/code 33, Web POC `0.4.0-rc30`/code 47
+- 현재 A: Kiosk `0.6.0-rc29`/code 34, Web POC `0.4.0-rc31`/code 48
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc28`/code 33, Web POC `0.4.0-rc30`/code 47
+  Kiosk `0.6.0-rc29`/code 34, Web POC `0.4.0-rc31`/code 48
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC28/Web POC RC30, 기존 Device Owner·전용
+- 현재 A: release signer의 Kiosk RC29/Web POC RC31, 기존 Device Owner·전용
   HOME·`LOCKED`, 앱 UID·firstInstallTime·dataDir와 카메라 권한 유지
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
+- 두 번째 오프라인 release 키 복구본: **별도 SanDisk USB에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
 - 두 번째 공장초기화·release 프로비저닝: **완료**
 - RC02 정상 왕복·비정상 Web 세션 자체 복구·재부팅 복구: **완료**
@@ -74,6 +75,14 @@ ADB가 허용된 개인 Android 폰을 복구 매체로 쓸 수도 있다.
 - marker signer·release APK signer: 일치
 
 폰은 임시 휴대 복구본으로 인정하지만 유일한 장기 백업으로 보지 않는다. production 운영이 안정된 뒤 별도 USB 또는 오프라인 매체 한 부를 추가한다.
+
+2026-07-27 별도 SanDisk USB의
+`MatholicKioskSigningBackup/matholic-kiosk-release.p12`에 두 번째 복구본을
+추가하고 PC 원본과 SHA-256
+`81B543E21DB56707A122125BC1A99E47C17462DF2ED091BA7E1CF83E3391B111`
+일치를 확인했다. USB에는 암호화된 PKCS12 키만 복사했고 복구 비밀번호와
+Windows DPAPI 자격정보는 복사하지 않았다. 기존 Android 폰 복구 marker는
+변경하지 않았다.
 
 ## Release 빌드
 

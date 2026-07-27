@@ -90,9 +90,9 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc28`/code 33
-  - Web POC `0.4.0-rc30`/code 47
-- ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
+  - Kiosk `0.6.0-rc29`/code 34
+  - Web POC `0.4.0-rc31`/code 48
+- ADB: 2026-07-27 현재 기존 PC 승인이 유지된 `device` 상태
 - A의 Kiosk RC27/Web POC RC29 설치: 2026-07-27 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
@@ -104,13 +104,13 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc28-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc30-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc29-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc31-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `8A638F8D9494079165E908644092F8B8A35EE00F41F5055B64709F833C37446C`
+    `56B84978035389E903F3CE4C9982A2F672B97166B6ED5A35EC8F017A643C0761`
   - Web POC:
-    `8D688F201B81614D127F9F01DF9C38A7636CF6491CC05FA3CEEDC72BF9E59B1C`
+    `75D6830EB4BA37E9F05BD139E9CB55782554C9BFA653E524B5ED84EB3F26FA36`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -1281,4 +1281,29 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
   `LOCKED` 유지, 설치된 base APK와 artifact SHA-256 일치, 설치 뒤
   Matholic crash buffer 일치 항목 0
 - 최신 학생 Web 사용성·전체 결과·QR 위치 안내 실물 재검증은 사용자 수행
+  대기
+
+## Goal 종료 후 역방향 가로 회전·USB 키 백업 후속 — 2026-07-27
+
+- Kiosk와 Web POC의 고정 가로 선언을 `sensorLandscape`로 변경해 세로는
+  계속 금지하고 0°↔180° 두 가로 방향만 센서 회전하도록 함
+- Kiosk·Web manifest 계측시험을 각각 추가하고 Android 13 에뮬레이터에서
+  Web 65개, Kiosk 32개 전체 계측시험 통과
+- release 검증에서 두 APK의 `sensorLandscape` 선언도 필수 확인
+- 회전 구현 커밋 `12508a7`, Kiosk RC29/Web POC RC31 준비 커밋
+  `d2cfb26`
+- release 단위시험·lint·두 APK assemble 158 tasks, APK build/stored
+  이중 검증과 체크섬 대조 통과
+- A에 Kiosk `0.6.0-rc29`/code 34, Web POC `0.4.0-rc31`/code 48을 같은
+  release signer로 `adb install -r` 보존형 설치
+- UID `10288`/`10287`, firstInstallTime·dataDir·카메라 권한,
+  Device Owner·전용 HOME·`LOCKED` 유지, 설치 뒤 AndroidRuntime 오류 0
+- 앱 업데이트에 따른 실패폐쇄로 A는 `RECOVERY_REQUIRED` 관리자 PIN 화면에
+  남김. 사용자가 기존 수업 안전 종료·세션 정리 후 QR 대기로 복구해야 함
+- 별도 SanDisk USB
+  `MatholicKioskSigningBackup/matholic-kiosk-release.p12`에 release 키
+  두 번째 오프라인 복구본을 추가하고 원본 SHA-256 일치 확인
+- USB에는 암호화된 PKCS12 키만 복사. 복구 비밀번호와 Windows DPAPI
+  자격정보는 복사하지 않았고 기존 Android 폰 marker도 보존
+- A의 실제 180° 물리 회전과 QR→Web 전환 중 방향 유지 실기는 사용자 확인
   대기

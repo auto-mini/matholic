@@ -16,7 +16,8 @@
 - Web POC 식별자 잔류: 공식 웹은 저장 checkbox가 해제되어도 로그아웃 뒤 이전 아이디를 다시 채운다. `webpoc`은 모든 로그인 페이지 로드에서 두 입력값을 비우고 checkbox를 해제한 뒤 재검증하지만, 이 동작이 실패하면 다음 학생 입력을 허용하지 않는다.
 - WebView 임시 저장: 인증 중 access/refresh token이 공식 학습 웹의 WebView 저장소에 존재할 수 있다. 정상 로그아웃 뒤 Cookie/WebStorage/form data를 삭제하며, 민감 상태에서 재시작하면 안전 로그아웃·정리를 우선한다.
 - Gate 5 alpha: A 한 대에서 Device Owner 잠금, QR→Web→QR 왕복과 재부팅 복구를 통과했다. 다른 제조사·Android 버전, 실제 학생 파일럿과 장시간 무인 운전 결과는 없다.
-- Gate 5 패키징: 별도 release signer의 RC02 APK를 공장초기화한 A에 Device Owner로 배포했고 Android 폰 복구본도 확인했다. 폰 외 추가 오프라인 키 백업, 서명키 회전과 원격 업데이트 채널은 완료하지 않았다.
+- Gate 5 패키징: 별도 release signer의 RC02 APK를 공장초기화한 A에 Device Owner로 배포했고 Android 폰과 별도 SanDisk USB의 PKCS12 키 복구본을 원본 SHA-256과 대조했다. 복구 비밀번호와 Windows DPAPI 자격정보는 USB에 넣지 않았다. 서명키 회전과 원격 업데이트 채널은 완료하지 않았다.
+- 화면 회전: RC29/RC31은 세로 방향을 금지하면서 두 가로 방향을 센서로 선택한다. manifest·계측·release APK 선언 검증은 통과했지만 A를 물리적으로 180도 뒤집는 최종 실기는 사용자 확인 전이다.
 - USB 디버깅: A의 개발자 옵션과 USB 디버깅을 끄고 ADB에서 기기가 사라진 것을 확인한 뒤, 케이블을 분리해 물리 재부팅·자동 실행·복구와 잠금 경계를 재검증했다. 향후 USB 업데이트를 위해 디버깅을 다시 켜면 작업 직후 반드시 다시 끈다.
 - Device Owner 복구: 관리자 PIN 분실이나 Device Owner 제거는 공장초기화가 필요하며 앱 DB, Keystore 키, 자격정보와 기존 QR을 복구하지 않는다.
 - 관리자 PIN 지연은 앱 private DB의 wall clock 기준이다. 잠금 중 설정 진입은 차단하지만, 관리자 잠금 해제나 승인된 ADB를 가진 주체의 시각 변경·앱 데이터 삭제까지 방어하지 않는다.

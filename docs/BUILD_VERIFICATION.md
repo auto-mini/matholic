@@ -4491,3 +4491,48 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 수식 기본 전환·주관식 잘림·제출 간격·전체답안 자동 이동·확인창 머리말 제거
 - 25문제 전부 오답 및 정답·오답·모름 혼합 결과의 전체 번호 정확성
 - 학습지↔진단평가 SPA 우선 전환 체감 속도와 안전 fallback
+
+---
+
+## Kiosk RC29 / Web POC RC31 역방향 가로 회전 — 2026-07-27
+
+### 변경
+
+- Kiosk QR·관리자 화면과 Web 학생 화면 모두 `landscape` 고정 대신
+  `sensorLandscape`를 사용
+- 세로 방향은 계속 허용하지 않고 케이블 위치에 따라 두 가로 방향을
+  0°↔180°로 전환
+- release APK 검증에 두 앱의 `sensorLandscape` 선언 확인을 추가
+
+### 자동 검증
+
+- Android 13 에뮬레이터 전체 계측:
+  - Web POC 65개, 실패·오류 0
+  - Kiosk 32개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: 158 tasks 통과
+- release applicationId·versionName·권한·`debuggable=false`, v2 단일
+  signer·두 앱 signer 일치·Debug signer 거부·zipalign·회전 선언과
+  build/stored APK 이중 검증 통과
+- 보관 체크섬 재계산·대조 통과
+
+### 릴리스 APK와 A 보존형 설치
+
+- Kiosk `0.6.0-rc29`/code 34
+  - SHA-256:
+    `56B84978035389E903F3CE4C9982A2F672B97166B6ED5A35EC8F017A643C0761`
+- Web POC `0.4.0-rc31`/code 48
+  - SHA-256:
+    `75D6830EB4BA37E9F05BD139E9CB55782554C9BFA653E524B5ED84EB3F26FA36`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- 두 앱 `adb install -r`: 성공
+- UID `10288`/`10287`, firstInstallTime, dataDir와 카메라 권한 유지
+- Device Owner·전용 HOME·`LOCKED` 유지
+- 설치 직후 최근 5분 Matholic AndroidRuntime 오류 일치 항목 0
+- 업데이트 뒤 실패폐쇄 상태는 `RECOVERY_REQUIRED`; 관리자 PIN과 기존
+  수업 안전 종료·세션 정리가 필요한 정상 복구 경계
+
+### 미검증
+
+- A를 실제로 180° 뒤집었을 때 QR 대기·Web 문제 화면 모두 반대 가로
+  방향으로 전환되는지
