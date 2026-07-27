@@ -143,10 +143,29 @@ class QrPrintDocumentAdapterInstrumentedTest {
         val card = QrPrintCardRenderer.cardSizePoints()
         val qr = QrPrintCardRenderer.qrSizePoints()
 
-        assertEquals(65f, card.width / 72f * 25.4f, 0.01f)
-        assertEquals(90f, card.height / 72f * 25.4f, 0.01f)
+        assertEquals(55f, card.width / 72f * 25.4f, 0.01f)
+        assertEquals(80f, card.height / 72f * 25.4f, 0.01f)
         assertEquals(30f, qr.width / 72f * 25.4f, 0.01f)
         assertEquals(30f, qr.height / 72f * 25.4f, 0.01f)
+    }
+
+    @Test
+    fun qrIsLoweredAndFullNameIsPlacedBelowIt() {
+        val layout = QrPrintCardRenderer.layout(Rect(0, 0, 1_000, 1_000))
+        val pointsToMillimeters = 25.4f / 72f
+
+        assertEquals(
+            28f,
+            (layout.qr.top - layout.card.top) * pointsToMillimeters,
+            0.01f,
+        )
+        assertEquals(30f, layout.qr.width() * pointsToMillimeters, 0.01f)
+        assertTrue(layout.nameBaseline > layout.qr.bottom)
+        assertEquals(
+            68f,
+            (layout.nameBaseline - layout.card.top) * pointsToMillimeters,
+            0.01f,
+        )
     }
 
     @Test
@@ -164,7 +183,7 @@ class QrPrintDocumentAdapterInstrumentedTest {
             }.exceptionOrNull()
 
             assertTrue(failure is IllegalArgumentException)
-            assertTrue(failure?.message?.contains("65×90mm") == true)
+            assertTrue(failure?.message?.contains("55×80mm") == true)
         } finally {
             output.recycle()
             qr.recycle()
@@ -257,8 +276,8 @@ class QrPrintDocumentAdapterInstrumentedTest {
                                 (maxDarkX - minDarkX + 1) / 72f * 25.4f
                             val renderedHeightMm =
                                 (maxDarkY - minDarkY + 1) / 72f * 25.4f
-                            assertEquals(65f, renderedWidthMm, 1.5f)
-                            assertEquals(90f, renderedHeightMm, 1.5f)
+                            assertEquals(55f, renderedWidthMm, 1.5f)
+                            assertEquals(80f, renderedHeightMm, 1.5f)
                         } finally {
                             preview.recycle()
                         }
