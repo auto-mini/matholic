@@ -24,8 +24,8 @@ android {
         applicationId = "com.local.matholickiosk.kiosk"
         minSdk = 33
         targetSdk = 37
-        versionCode = 31
-        versionName = "0.6.0-rc26"
+        versionCode = 32
+        versionName = "0.6.0-rc27"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
