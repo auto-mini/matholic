@@ -24,6 +24,21 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MainActivityInstrumentedTest {
     @Test
+    fun scannerInstructionReferencesPhysicalLensWithoutScreenTarget() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val instruction = activity
+                    .findViewById<android.widget.TextView>(R.id.scanner_lens_instruction)
+                    .text
+                    .toString()
+                assertTrue(instruction.contains("카메라 렌즈"))
+                assertFalse(instruction.contains("목표 영역"))
+                assertFalse(instruction.contains("가운데"))
+            }
+        }
+    }
+
+    @Test
     fun adminPinUnlocksUiAndWindowRemainsSecure() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)

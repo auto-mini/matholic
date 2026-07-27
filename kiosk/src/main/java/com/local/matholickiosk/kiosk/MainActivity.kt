@@ -1697,7 +1697,7 @@ class MainActivity : ComponentActivity() {
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
         scannerVisible = true
-        scannerMessage.text = "QR카드를 카메라에 보여주세요"
+        scannerMessage.text = "선택한 카메라 렌즈를 향해 QR카드를 보여주세요"
         statusText.text = KioskState.QR_READY.name
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterDedicatedMode()
@@ -2033,7 +2033,7 @@ class MainActivity : ComponentActivity() {
     private fun resumeScannerAfterCooldown() {
         mainHandler.postDelayed({
             if (!scannerVisible || destroyed) return@postDelayed
-            scannerMessage.text = "QR카드를 카메라에 보여주세요"
+            scannerMessage.text = "선택한 카메라 렌즈를 향해 QR카드를 보여주세요"
             statusText.text = KioskState.QR_READY.name
             qrAnalyzer?.setEnabled(true)
         }, SCAN_COOLDOWN_MS)
