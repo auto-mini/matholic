@@ -37,10 +37,10 @@ object QrPositionGuide {
         val normalizedX = centerX / imageWidth
         val normalizedY = centerY / imageHeight
 
-        if (normalizedX < CENTER_MIN) return QrFrameGuidance.MOVE_RIGHT
-        if (normalizedX > CENTER_MAX) return QrFrameGuidance.MOVE_LEFT
-        if (normalizedY < CENTER_MIN) return QrFrameGuidance.MOVE_DOWN
-        if (normalizedY > CENTER_MAX) return QrFrameGuidance.MOVE_UP
+        if (normalizedX < HORIZONTAL_CENTER_MIN) return QrFrameGuidance.MOVE_RIGHT
+        if (normalizedX > HORIZONTAL_CENTER_MAX) return QrFrameGuidance.MOVE_LEFT
+        if (normalizedY < VERTICAL_CENTER_MIN) return QrFrameGuidance.MOVE_DOWN
+        if (normalizedY > VERTICAL_CENTER_MAX) return QrFrameGuidance.MOVE_UP
 
         val widthRatio = (bounds.right - bounds.left).toFloat() / imageWidth
         val heightRatio = (bounds.bottom - bounds.top).toFloat() / imageHeight
@@ -51,8 +51,10 @@ object QrPositionGuide {
         return QrFrameGuidance.CENTERED
     }
 
-    private const val CENTER_MIN = 0.35f
-    private const val CENTER_MAX = 0.65f
+    private const val HORIZONTAL_CENTER_MIN = 0.30f
+    private const val HORIZONTAL_CENTER_MAX = 0.70f
+    private const val VERTICAL_CENTER_MIN = 0.35f
+    private const val VERTICAL_CENTER_MAX = 0.65f
     private const val MIN_SIZE_RATIO = 0.18f
     private const val MAX_SIZE_RATIO = 0.72f
 }

@@ -56,6 +56,19 @@ class QrPositionGuideTest {
     }
 
     @Test
+    fun `slight horizontal offset stays inside the wider acceptance band`() {
+        assertEquals(
+            QrFrameGuidance.CENTERED,
+            QrPositionGuide.classify(
+                QrFrameBounds(220, 280, 420, 520),
+                imageWidth = 1_000,
+                imageHeight = 800,
+                mirrorHorizontally = false,
+            ),
+        )
+    }
+
+    @Test
     fun `centered QR reports distance before acceptance`() {
         assertEquals(
             QrFrameGuidance.MOVE_CLOSER,

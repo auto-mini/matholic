@@ -369,12 +369,18 @@
                     android:layout_height="match_parent"
                     android:background="#102A43">
 
-                    <View
+                    <TextView
                         android:layout_width="260dp"
                         android:layout_height="260dp"
                         android:layout_gravity="center"
                         android:background="@drawable/qr_scan_target"
-                        android:contentDescription="QR 카드를 맞추는 위치" />
+                        android:contentDescription="카메라 화면이 아닌 QR 판독 목표 안내"
+                        android:gravity="center"
+                        android:padding="28dp"
+                        android:text="QR 판독 목표 영역&#10;(카메라 화면 아님)&#10;&#10;아래 방향 안내대로&#10;실제 카드를 움직이세요"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -382,7 +388,7 @@
                         android:layout_gravity="center_horizontal|top"
                         android:layout_marginTop="52dp"
                         android:gravity="center"
-                        android:text="카메라 영상은 표시하거나 저장하지 않습니다&#10;매쓰홀릭 QR이 사각형 안에 오도록 아래 안내를 따라주세요"
+                        android:text="카메라 영상은 표시하거나 저장하지 않습니다&#10;가운데 표시는 카메라 화면이 아니며, 아래 방향 안내가 실제 판독 기준입니다"
                         android:textColor="#D9E2EC"
                         android:textSize="18sp" />
                 </FrameLayout>
