@@ -401,12 +401,8 @@ class MainActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (
-                        ::adminPanel.isInitialized &&
-                        adminPanel.visibility == View.VISIBLE
-                    ) {
-                        showAuthentication(enrollment = false)
-                    }
+                    // The administrator can deliberately leave Lock Task to use Recents, but
+                    // system Back must not discard the current admin form or reopen PIN entry.
                 }
             },
         )

@@ -20,14 +20,15 @@ class WebSecurityPolicyTest {
     }
 
     @Test
-    fun `portal recognition accepts only the course document without fragments`() {
+    fun `portal recognition accepts authenticated shell routes without fragments`() {
         assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/course"))
         assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/course?from=login"))
+        assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/"))
+        assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/userInfo"))
+        assertTrue(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/workbook"))
 
-        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/"))
-        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/userInfo"))
-        assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/workbook"))
         assertFalse(WebSecurityPolicy.isPortalUrl("https://im.matholic.com/course#/userInfo"))
+        assertFalse(WebSecurityPolicy.isPortalUrl("https://login.matholic.com/course"))
 
         assertTrue(WebSecurityPolicy.isLearningHostUrl("https://im.matholic.com/workbook"))
         assertFalse(WebSecurityPolicy.isLearningHostUrl("https://login.matholic.com/course"))

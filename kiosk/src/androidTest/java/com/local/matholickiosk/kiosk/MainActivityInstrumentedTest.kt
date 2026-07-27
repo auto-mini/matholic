@@ -52,8 +52,9 @@ class MainActivityInstrumentedTest {
             scenario.onActivity {
                 it.onBackPressedDispatcher.onBackPressed()
             }
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            scenario.onActivity { activity ->
+                assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.admin_panel).visibility)
+                assertEquals(View.GONE, activity.findViewById<View>(R.id.auth_panel).visibility)
             }
         }
         database.clearAllTables()

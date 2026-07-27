@@ -150,7 +150,6 @@ object WebDomScripts {
           }
           const actualName = trigger ? (trigger.innerText || '').normalize('NFKC').trim().replace(/\s+/g, ' ') : '';
           const ok = exactImOrigin(page) &&
-            page.pathname === '/course' &&
             page.hash === '' &&
             userInfo.length === 1 && accessLog.length === 1 &&
             course.length >= 1 && !!submenu && !!wrapper && !!trigger && actualName.length > 0;
@@ -180,7 +179,7 @@ object WebDomScripts {
             } catch (_) { return ''; }
           };
           const page = new URL(location.href);
-          if (!exactImOrigin(page) || page.pathname !== '/course' || page.hash !== '') {
+          if (!exactImOrigin(page) || page.hash !== '') {
             return JSON.stringify({ version: '${CONTRACT_VERSION}', ok: false });
           }
           const userInfo = anchors.filter(el => pathOf(el) === '/userInfo');
@@ -225,7 +224,7 @@ object WebDomScripts {
             } catch (_) { return ''; }
           };
           const page = new URL(location.href);
-          if (!exactImOrigin(page) || page.pathname !== '/course' || page.hash !== '') {
+          if (!exactImOrigin(page) || page.hash !== '') {
             return JSON.stringify({
               version: '${CONTRACT_VERSION}', ok: false, count: -1,
               exactAllCount: -1, visibleExactCount: -1, leafExactCount: -1,

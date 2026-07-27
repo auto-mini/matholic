@@ -205,11 +205,11 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testPortalActionsRejectNonCourseDocument() {
+    fun testPortalActionsAcceptSemanticShellAtAlternatePath() {
         withFixture("https://im.matholic.com/userInfo", portalFixture()) { webView ->
-            assertFalse(evaluate(webView, WebDomScripts.portalFingerprint).getBoolean("ok"))
-            assertFalse(evaluate(webView, WebDomScripts.openAccountMenu).getBoolean("ok"))
-            assertFalse(evaluate(webView, WebDomScripts.clickLogout).getBoolean("ok"))
+            assertTrue(evaluate(webView, WebDomScripts.portalFingerprint).getBoolean("ok"))
+            assertTrue(evaluate(webView, WebDomScripts.openAccountMenu).getBoolean("ok"))
+            assertTrue(evaluate(webView, WebDomScripts.clickLogout).getBoolean("ok"))
         }
     }
 
