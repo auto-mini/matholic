@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc26`/code 31
-  - Web POC `0.4.0-rc28`/code 45
+  - Kiosk `0.6.0-rc27`/code 32
+  - Web POC `0.4.0-rc29`/code 46
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC26/Web POC RC28 설치: 2026-07-26 `adb install -r`로 완료
+- A의 Kiosk RC27/Web POC RC29 설치: 2026-07-27 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
@@ -104,13 +104,13 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc26-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc28-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc27-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc29-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `B8F69578B94F733BAA91788702D9F71B329BBB2A35493CCC016C96DA1B3112C4`
+    `8A638F8D9494079165E908644092F8B8A35EE00F41F5055B64709F833C37446C`
   - Web POC:
-    `19A6D31C92483E890FE9A2CA91909AFDFA17C58DA2FFC48A383ECF52917B7520`
+    `8D688F201B81614D127F9F01DF9C38A7636CF6491CC05FA3CEEDC72BF9E59B1C`
 - RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
   release 158 tasks와 서명 검증은 통과했다.
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -1237,3 +1237,22 @@ force-push하지 않는다.
   경합 시험은 미검증으로 남긴다.
 - 다시 작업할 때는 이 기록을 기준으로 새 사용자 지시와 안전 경계를 먼저
   확인한다.
+
+## Goal 종료 후 실물 회귀 후속 — 2026-07-27
+
+Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
+
+- 기존 학생·반 목록 보존: 통과
+- 반에 소속되지 않은 학생 QR 로그인 차단: 통과
+- 관리자 화면의 시스템 뒤로가기가 PIN 화면으로 전환되는 문제 재현
+- 기존 학생 로그인 뒤 자동 학습지 진입 전에 `PORTAL_ROUTE` 잠금 재현
+- 관리자 뒤로가기를 소비하고, 고정 `/course`보다 정확한 Matholic 출처·
+  계정 메뉴 구조·학생 이름의 의미 계약으로 포털을 검증하도록 `55cc1ac`에서
+  수정
+- Kiosk RC27/Web POC RC29 릴리스 준비 커밋 `a552aa6`
+- Kiosk 31개·Web 56개 전체 계측, 네 모듈 JVM 94개, clean debug 204 tasks,
+  release JVM 85개와 release 158 tasks·APK 이중 검증 통과
+- A에 두 앱을 같은 signer의 상위 versionCode로 보존형 설치
+- UID·firstInstallTime·dataDir, Device Owner·전용 HOME·`LOCKED` 유지,
+  설치본과 보관본 해시 일치, 설치 시각 이후 AndroidRuntime 오류 0
+- 관리자 뒤로가기와 자동 학습지 진입 수정 결과는 사용자 재검증 대기

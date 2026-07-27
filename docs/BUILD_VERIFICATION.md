@@ -4353,3 +4353,68 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 실제 A에서 accept·작업 제출과 프록시 종료를 고의로 경합시키는 실패시험
 - 실제 QR→Web→QR 왕복과 관리자 PIN·사이트·카메라·PDF 공유·실물 인쇄
   회귀
+
+---
+
+## Kiosk RC27 / Web POC RC29 실물 회귀 결함 수정 — 2026-07-27
+
+### 실물 재현
+
+- 기존 학생·반 목록 보존: 통과
+- 반에 소속되지 않은 학생 QR의 로그인 차단: 통과
+- 관리자 화면에서 시스템 뒤로가기를 누르면 PIN 입력 화면으로 전환: 재현
+- 기존 학생 로그인 뒤 자동 학습지 진입 전에
+  `채점기가 잠겼습니다 PORTAL_ROUTE`: 재현
+- `PORTAL_ROUTE`는 로그인 뒤 정확한 `im.matholic.com`에 도착했지만 기존
+  정책이 `/course` 문서만 포털로 인정해, 실제 로그인 완료 경로를 DOM
+  확인 전에 거부한 것이 원인
+
+### 변경
+
+- 구현·회귀시험 커밋: `55cc1ac`
+- 릴리스 준비 커밋: `a552aa6`
+- 관리자 화면의 시스템 뒤로가기는 항상 소비하고 현재 입력·화면을 유지
+- 로그인 완료 포털은 정확한 `im.matholic.com` HTTPS 출처와 fragment 없음,
+  개인정보·로그인정보·학습실 링크, 계정 메뉴 구조와 실제 학생 전체 이름의
+  의미 계약이 모두 일치해야 인정
+- 주소 범위를 임의의 외부 사이트로 넓히지 않았고 비표준 port·userinfo·
+  fragment·교차 출처 링크·모호한 계정/로그아웃 구조는 계속 거부
+
+### 자동 검증
+
+- 수정 전 Web 정책 시험에서 `/course` 외 의미 포털 계약 실패 재현
+- 수정 뒤 Web 포털 정책 JVM 시험 7개 통과
+- 실제 WebView DOM 계약 계측 26개 통과
+- 관리자 PIN 해제 뒤 시스템 뒤로가기 계측 1개 통과
+- Android 13 일회용 에뮬레이터 전체 Kiosk 31개, Web 56개 통과
+- 네 모듈 JVM 단위시험 총 94개, 실패·오류 0
+- 네 모듈 clean debug 회귀: `BUILD SUCCESSFUL`, 204 tasks
+- release Kiosk/Web JVM 보고서 85개, 실패·오류 0
+- release 단위시험·lint·두 APK assemble: `BUILD SUCCESSFUL`, 158 tasks
+- release applicationId·versionName·권한·`debuggable=false`, v2 단일
+  signer·두 앱 signer 일치·Debug signer 거부·zipalign과 build/stored APK
+  이중 검증: 통과
+
+### 릴리스 APK와 A 보존형 설치
+
+- Kiosk `0.6.0-rc27`/code 32
+  - 크기: 34,974,008 bytes
+  - SHA-256:
+    `8A638F8D9494079165E908644092F8B8A35EE00F41F5055B64709F833C37446C`
+- Web POC `0.4.0-rc29`/code 46
+  - 크기: 3,101,512 bytes
+  - SHA-256:
+    `8D688F201B81614D127F9F01DF9C38A7636CF6491CC05FA3CEEDC72BF9E59B1C`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- 두 앱 `adb install -r`: 성공
+- UID `10288`/`10287`, firstInstallTime와 dataDir 유지
+- 설치본 base APK와 보관 artifact 해시 일치
+- Device Owner·전용 HOME·`LOCKED`, USB 화면 유지 설정 0 유지
+- 설치 시각 이후 AndroidRuntime 오류 일치 항목: 0
+
+### 재검증 대기
+
+- 관리자 화면에서 뒤로가기 뒤 현재 화면·입력 유지
+- 기존 학생 QR 로그인 뒤 `PORTAL_ROUTE` 없이 학습지 자동 진입
+- 이후 학습지↔진단평가, 문제 입력·제출·오답 번호·QR 복귀 회귀
