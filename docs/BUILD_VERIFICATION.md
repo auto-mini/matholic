@@ -4536,3 +4536,96 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 
 - A를 실제로 180° 뒤집었을 때 QR 대기·Web 문제 화면 모두 반대 가로
   방향으로 전환되는지
+
+---
+
+## Kiosk RC30 / Web POC RC32 실물 회귀 결함 보강 — 2026-07-27
+
+### RC29/RC31 실물 결과
+
+- 통과:
+  - QR·Web 화면의 두 가로 방향 회전
+  - Matholic 최상단·계정 메뉴 비표시
+  - 오류신고·해설 문구 비표시
+  - 제출 줄과 문제 이동 영역 간격
+  - 수식 입력기 자동 전환과 모드 변경 숨김
+  - 미입력 확인창의 사이트 주소 머리말 제거
+- 실패 재현:
+  - 학습지→진단평가 전환 때 전체 로딩 차단 화면과 긴 지연
+  - 문제 화면의 동영상 패널 잔류
+  - 요청하지 않은 분수 선택 제거
+  - 답안칸을 누르기 전 필기 입력 제어 잔류
+  - 전체답안 내부 자동 이동과 풀이 업로드 제거 실패
+  - QR 목표 사각형의 역할이 불명확하고 좌우 안내가 과민
+  - 25문항에서 `RESULT_INCOMPLETE`
+
+### 원인과 변경
+
+- 학습지 페이지에 반응형 레이아웃용 동일 `/diagnostic` 링크가 여러 개 있어
+  기존 “정확히 하나” 조건이 실패하고 전체 문서 로딩 fallback을 탔다. 동일
+  HTTPS origin·정확한 고정 경로 계약을 모두 만족한 후보 중 의미·가시성이
+  가장 높은 링크를 클릭하도록 수정했다.
+- 공개 Matholic 자산의 실제 DOM을 읽기 전용으로 확인했다. 동영상은
+  `video`/`iframe`이 아니라 `문항 동영상`·`대표 유형 동영상` alt를 가진
+  이미지 패널이고, 필기 입력은 주관식 input suffix 첫 제어이며, 전체답안은
+  Ant modal title/body 내부 스크롤 구조였다.
+- 동영상 이미지 패널과 필기 suffix 제어를 구조로 숨기고, 분수는 복원하며
+  `기본` 선택만 숨긴다.
+- 실제 전체답안 모달의 내부 스크롤을 끝으로 이동하고 풀이과정·업로드
+  컨테이너를 숨긴다.
+- 종합분석의 가장 가까운 내부 스크롤 컨테이너를 점진 이동한다. 카드 수와
+  최대 스크롤이 네 번 연속 안정된 뒤에만 수집 완료로 판정한다.
+- 결과 표의 `문항수`를 기대값으로 읽고, 1..N 분류 수가 일치해야만 결과를
+  표시한다. 진행 중 상태는 별도 60초 한도를 사용하고 최종 실패에는
+  `확인된 문항: X/N`을 표시한다.
+- QR 중앙 사각형에 “카메라 화면이 아닌 판독 목표 영역”임을 명시하고,
+  좌우 중앙 허용 범위를 30%~70%로 넓혔다. 상하는 35%~65%를 유지한다.
+
+### 자동 검증과 릴리스
+
+- 관련 Web DOM 계측 36개: 실패·오류 0
+- 25문항 내부 스크롤 fixture에서 25개 전체 지연 생성, 기대 문항수와
+  분류 수 일치 확인
+- Android 13 에뮬레이터 전체 계측:
+  - Web POC 67개, 실패·오류 0
+  - Kiosk 32개, 실패·오류 0
+- Web JVM 45개, Kiosk JVM 48개: 실패·오류 0
+- debug 단위시험·두 APK assemble: 84 tasks, 통과
+- release 단위시험·lint·두 APK assemble: 158 tasks, 통과
+- build/stored APK의 applicationId·versionName·권한·
+  `debuggable=false`·`sensorLandscape`, v2 단일 동일 release signer,
+  Debug signer 거부와 zipalign 이중 검증: 통과
+- 구현 커밋:
+  - `1679a5d` Web 제어·전환·25문항 수집
+  - `c74b993` QR 안내·좌우 허용 범위
+  - `68fed79` Kiosk RC30/Web POC RC32 준비
+
+### APK와 A 보존형 설치
+
+- Kiosk `0.6.0-rc30`/code 35
+  - 크기: 34,990,520 bytes
+  - SHA-256:
+    `33BFC1BD52E2CDAA8A4CF3DA7256A92C51C690FB38B0B95D851FA3516C9DF005`
+- Web POC `0.4.0-rc32`/code 49
+  - 크기: 3,128,208 bytes
+  - SHA-256:
+    `2ACF12895A3AD77C6C2D4F30CC20F9D8D1CD905383811949B35B66997383E425`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- Web POC, Kiosk 순으로 `adb install -r --no-streaming`: 성공
+- 설치 전후 UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`와 dataDir 유지
+- 설치된 두 base APK의 크기·SHA-256이 보관 artifact와 일치
+- Device Owner·전용 HOME·두 앱 allowlist·`LOCKED` 유지
+- 설치 시각 이후 두 앱의 `FATAL EXCEPTION`/process crash 일치 항목 0
+- 업데이트에 따른 정상 실패폐쇄 상태: `RECOVERY_REQUIRED`
+
+### 재검증 대기
+
+- 관리자 PIN으로 현재 수업·Web 세션을 안전 정리하고 QR 대기로 복구
+- 기존 학생·반 목록 UI 보존
+- 학습지→진단평가 SPA 전환 속도와 차단 화면 비표시
+- 문제 동영상·입력 전 필기 제어 비표시와 분수 입력 유지
+- 전체답안 자동 이동·풀이 업로드 비표시
+- 실제 25문항 오답 목록 완전성
+- QR 목표 영역 설명과 좌우 안내 체감

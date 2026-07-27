@@ -90,29 +90,29 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc29`/code 34
-  - Web POC `0.4.0-rc31`/code 48
+  - Kiosk `0.6.0-rc30`/code 35
+  - Web POC `0.4.0-rc32`/code 49
 - ADB: 2026-07-27 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC27/Web POC RC29 설치: 2026-07-27 `adb install -r`로 완료
+- A의 Kiosk RC30/Web POC RC32 설치: 2026-07-27
+  `adb install -r --no-streaming`으로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
     화면을 깨우지 않는 명시적 HOME 시작으로 `LOCKED`를 복구
   - RC11 설치 후 최종 `LOCKED`·전용 HOME은 독립 확인했으나 설치 스크립트
     최종 출력 오타로 설치 직후 일시 상태는 기록되지 않음
   - release signer, Device Owner와 전용 HOME 유지
-  - 설치 전후 화면은 `Dozing`을 유지했고 관리자 PIN을 입력하지 않아 현재
-    물리 UI는 미확인
-  - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
+  - 현재 화면은 업데이트 실패폐쇄의 `RECOVERY_REQUIRED`; 관리자 PIN 복구
+    전이므로 기존 학생·반 목록 UI와 최신 실제 사이트 동작은 미확인
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc29-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc31-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc30-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc32-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `56B84978035389E903F3CE4C9982A2F672B97166B6ED5A35EC8F017A643C0761`
+    `33BFC1BD52E2CDAA8A4CF3DA7256A92C51C690FB38B0B95D851FA3516C9DF005`
   - Web POC:
-    `75D6830EB4BA37E9F05BD139E9CB55782554C9BFA653E524B5ED84EB3F26FA36`
-- RC06 전체 debug 회귀 204 tasks, JVM 시험 57개, debug lint·APK,
-  release 158 tasks와 서명 검증은 통과했다.
+    `2ACF12895A3AD77C6C2D4F30CC20F9D8D1CD905383811949B35B66997383E425`
+- 최신 전체 자동 회귀: Android 13 Web 계측 67개·Kiosk 32개, Web JVM
+  45개·Kiosk JVM 48개, release 158 tasks와 APK 이중 검증 통과
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
   - RC04 기준 Web 33개, Kiosk 11개, 실패 0
@@ -1307,3 +1307,30 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
   자격정보는 복사하지 않았고 기존 Android 폰 marker도 보존
 - A의 실제 180° 물리 회전과 QR→Web 전환 중 방향 유지 실기는 사용자 확인
   대기
+
+## Goal 종료 후 RC30/RC32 실물 결함 보강 — 2026-07-27
+
+- 사용자 실물 확인에서 QR·Web 180° 회전, 최상단·계정 메뉴 숨김,
+  오류신고·해설 문구 숨김, 제출 간격, 수식 자동 전환과 확인창 주소 머리말
+  제거는 통과
+- 학습지→진단평가 지연, 동영상·필기·풀이 업로드 잔류, 전체답안 자동 이동
+  실패, 분수 오삭제, QR 목표 안내 불명확과 25문항 `RESULT_INCOMPLETE` 재현
+- 분수 오삭제는 사용자 요구가 아니었으며 기존 구현 판단 오류로 확인하고
+  RC32에서 복원
+- 공개 Matholic 자산의 실제 구조를 읽기 전용으로 확인해 동일 SPA 링크,
+  이미지형 동영상 패널, input suffix 필기 제어, Ant 전체답안 modal과 내부
+  결과 스크롤에 맞춰 수정
+- 25문항 결과는 표의 `문항수`와 실제 1..N 분류가 모두 일치하고 내부
+  스크롤·카드 수가 안정된 뒤에만 확정
+- 구현 커밋 `1679a5d`, QR 안내 커밋 `c74b993`, RC30/RC32 준비 커밋
+  `68fed79`를 원격 `codex/rc03-usability`에 푸시
+- 관련 Web DOM 계측 36개와 Android 13 에뮬레이터 전체 Web 67개·Kiosk
+  32개, Web JVM 45개, Kiosk JVM 48개, debug assemble 84 tasks,
+  release 158 tasks와 APK 이중 검증 통과
+- A에 Kiosk `0.6.0-rc30`/code 35와 Web POC `0.4.0-rc32`/code 49를 같은
+  release signer로 보존형 설치
+- UID·firstInstallTime·dataDir, Device Owner·전용 HOME·두 앱 allowlist·
+  `LOCKED` 유지, 설치된 base APK와 artifact 해시 일치, 설치 뒤 두 앱의
+  `FATAL EXCEPTION`/process crash 일치 항목 0
+- A는 업데이트 실패폐쇄의 `RECOVERY_REQUIRED` 상태이며 관리자 PIN 복구와
+  최신 Web·QR 수정 실물 재검증 대기
