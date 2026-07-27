@@ -75,12 +75,14 @@ class MainActivity : Activity() {
     private lateinit var resultSummaryPanel: FrameLayout
     private lateinit var wrongAnswerSummary: TextView
     private lateinit var resultConfirmButton: Button
+    private lateinit var studentNameBadge: TextView
 
     private val handler = Handler(Looper.getMainLooper())
     private val preferences by lazy { getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE) }
 
     private var state = WebPocState.IDLE
     private var expectedDisplayName: String? = null
+    private var activeStudentDisplayName: String? = null
     private var ephemeralCredentials: EphemeralCredentials? = null
     private var timeoutGeneration = 0
     private var logoutAttempt = 0
@@ -270,6 +272,7 @@ class MainActivity : Activity() {
             return
         }
         expectedDisplayName = payload.expectedDisplayName
+        activeStudentDisplayName = payload.expectedDisplayName
         ephemeralCredentials = EphemeralCredentials(payload.username, payload.password)
         showBlocking(getString(R.string.status_login))
         transition(WebPocState.LOGIN_FILL)
@@ -309,6 +312,7 @@ class MainActivity : Activity() {
         resultSummaryPanel = findViewById(R.id.result_summary_panel)
         wrongAnswerSummary = findViewById(R.id.wrong_answer_summary)
         resultConfirmButton = findViewById(R.id.result_confirm_button)
+        studentNameBadge = findViewById(R.id.student_name_badge)
     }
 
     private fun configureSensitiveInputs() {
@@ -748,6 +752,7 @@ class MainActivity : Activity() {
         }
 
         expectedDisplayName = expected
+        activeStudentDisplayName = expected
         ephemeralCredentials = EphemeralCredentials(username, password)
         clearSetupFields()
         setupPanel.visibility = View.GONE
@@ -852,6 +857,7 @@ class MainActivity : Activity() {
         }
         val attempt = session.nextAttempt()
         expectedDisplayName = attempt.expectedDisplayName
+        activeStudentDisplayName = attempt.expectedDisplayName
         ephemeralCredentials = attempt.credentials
         showGate3Progress()
         transition(WebPocState.LOGIN_FILL)
@@ -1212,6 +1218,7 @@ class MainActivity : Activity() {
         finishButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
         resultSummaryPanel.visibility = View.VISIBLE
+        updateStudentNameBadge()
         hideSystemNavigation()
     }
 
@@ -1559,6 +1566,7 @@ class MainActivity : Activity() {
         finishButton.visibility = View.VISIBLE
         gate3AbortButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
+        updateStudentNameBadge()
         updateStudentChrome(WebSecurityPolicy.pathOf(url))
         hideSystemNavigation()
     }
@@ -1580,6 +1588,7 @@ class MainActivity : Activity() {
         recoveryButton.visibility = View.GONE
         gate3AbortButton.visibility = if (gate3Session != null) View.VISIBLE else View.GONE
         blockerMessage.text = message
+        updateStudentNameBadge()
     }
 
     private fun prepareStudentContentReveal(targetPath: String?, message: String) {
@@ -1597,6 +1606,7 @@ class MainActivity : Activity() {
         recoveryButton.visibility = View.GONE
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = message
+        updateStudentNameBadge()
         scheduleTimeout(PAGE_TIMEOUT_MS, "STUDENT_PAGE_TIMEOUT")
     }
 
@@ -1676,12 +1686,19 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun updateStudentNameBadge() {
+        val displayName = activeStudentDisplayName?.trim().orEmpty()
+        studentNameBadge.text = displayName
+        studentNameBadge.visibility = if (displayName.isEmpty()) View.GONE else View.VISIBLE
+    }
+
     private fun hideStudentExperienceLayers() {
         activeExperienceGeneration += 1
         resultSummaryDisplayed = false
         studentContentRevealPending = false
         studentContentRevealPasses = 0
         pendingStudentRevealPath = null
+        studentNameBadge.visibility = View.GONE
         studentNavBar.visibility = View.GONE
         resultSummaryPanel.visibility = View.GONE
         webViewReference?.let { activeWebView ->
@@ -1833,6 +1850,7 @@ class MainActivity : Activity() {
     private fun wipeAttemptSecrets() {
         wipeCredentialOnly()
         expectedDisplayName = null
+        activeStudentDisplayName = null
         clearSetupFields()
     }
 

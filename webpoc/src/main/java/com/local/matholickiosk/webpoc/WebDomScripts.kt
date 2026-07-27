@@ -567,6 +567,82 @@ object WebDomScripts {
             };
             hiddenControls += hideDirectMathHandwriting();
 
+            const hideLateStudentContent = () => {
+              let hidden = 0;
+              const exactHiddenTexts = new Set([
+                '오류신고', '오류 신고', '문제지',
+                '답안필기입력', '답안 필기 입력',
+                '유형동영상', '유형 동영상', '문항 동영상', '대표 유형 동영상',
+                '풀이과정', '풀이 과정', '풀이 업로드', '풀이과정 업로드'
+              ]);
+              Array.from(document.querySelectorAll(
+                'button,a,[role="button"],label,span,div'
+              )).forEach(element => {
+                if (!exactHiddenTexts.has(normalize(element.textContent))) return;
+                const nestedMatch = Array.from(
+                  element.querySelectorAll('button,a,[role="button"]')
+                ).find(child => exactHiddenTexts.has(normalize(child.textContent)));
+                if (nestedMatch && nestedMatch !== element) return;
+                const control = element.closest('button,a,[role="button"]') || element;
+                if (hide(control)) hidden += 1;
+              });
+
+              Array.from(document.querySelectorAll(
+                '[title*="답안 필기"],[aria-label*="답안 필기"],[aria-describedby]'
+              )).forEach(element => {
+                const describedBy = element.getAttribute('aria-describedby');
+                const described = describedBy ? document.getElementById(describedBy) : null;
+                if (
+                  normalize(element.getAttribute('title')).includes('답안 필기') ||
+                  normalize(element.getAttribute('aria-label')).includes('답안 필기') ||
+                  normalize(described ? described.textContent : '').includes('답안 필기')
+                ) {
+                  const control = element.closest('button,[role="button"]') || element;
+                  if (hide(control)) hidden += 1;
+                }
+              });
+              Array.from(document.querySelectorAll(
+                'input[placeholder*="주관식 답"]'
+              )).forEach(input => {
+                const wrapper = input.closest('.ant-input-affix-wrapper') ||
+                  input.parentElement;
+                const handwritingControl = wrapper
+                  ?.querySelector('.ant-input-suffix')
+                  ?.firstElementChild;
+                if (handwritingControl && hide(handwritingControl)) hidden += 1;
+              });
+
+              Array.from(document.querySelectorAll(
+                'img[alt="문항 동영상"],img[alt="대표 유형 동영상"]'
+              )).forEach(image => {
+                let videoPanel = image.parentElement;
+                let ancestor = image.parentElement;
+                for (let depth = 0; ancestor && depth < 5; depth += 1) {
+                  const text = normalize(ancestor.textContent);
+                  if (
+                    text.includes('문제가 어렵나요?') &&
+                    text.includes('해설 강의를 들어보세요')
+                  ) {
+                    videoPanel = ancestor;
+                    break;
+                  }
+                  ancestor = ancestor.parentElement;
+                }
+                if (hide(videoPanel || image)) hidden += 1;
+              });
+
+              Array.from(document.querySelectorAll(
+                '.ant-tooltip,.ant-popover,[role="tooltip"],' +
+                '[class*="tooltip"],[class*="popover"]'
+              )).forEach(overlay => {
+                if (normalize(overlay.textContent) === '수식' && hide(overlay)) {
+                  hidden += 1;
+                }
+              });
+              return hidden;
+            };
+            hiddenControls += hideLateStudentContent();
+
             const explanationMessage = Array.from(
               document.querySelectorAll('p,span,div')
             ).find(element =>
@@ -842,6 +918,7 @@ object WebDomScripts {
               }
             };
             const maintainLateStudentControls = () => {
+              hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
               protectAnalysisDetails();
             };

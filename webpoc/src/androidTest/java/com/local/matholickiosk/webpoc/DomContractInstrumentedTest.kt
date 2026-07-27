@@ -441,6 +441,8 @@ class DomContractInstrumentedTest {
                 (() => {
                   const late = document.createElement('div');
                   late.innerHTML = `
+                    <button id="late-report">오류신고</button>
+                    <div id="late-math-tooltip" class="ant-tooltip" role="tooltip">수식</div>
                     <div>
                       <button>루트</button>
                       <button>분수</button>
@@ -463,11 +465,17 @@ class DomContractInstrumentedTest {
                 """
                 (() => JSON.stringify({
                   hidden:
-                    getComputedStyle(document.getElementById('late-direct-handwriting')).display === 'none'
+                    getComputedStyle(document.getElementById('late-direct-handwriting')).display === 'none',
+                  reportHidden:
+                    getComputedStyle(document.getElementById('late-report')).display === 'none',
+                  mathTooltipHidden:
+                    getComputedStyle(document.getElementById('late-math-tooltip')).display === 'none'
                 }))()
                 """.trimIndent(),
             )
             assertTrue(lateProof.getBoolean("hidden"))
+            assertTrue(lateProof.getBoolean("reportHidden"))
+            assertTrue(lateProof.getBoolean("mathTooltipHidden"))
         }
     }
 

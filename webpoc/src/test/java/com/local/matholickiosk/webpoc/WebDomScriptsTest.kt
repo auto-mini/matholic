@@ -46,6 +46,9 @@ class WebDomScriptsTest {
         assertTrue(script.contains("전체답안"))
         assertFalse(script.contains("getBoundingClientRect"))
         assertFalse(script.contains("elementFromPoint"))
+        assertTrue(script.contains("MutationObserver"))
+        assertTrue(script.contains(".ant-tooltip"))
+        assertTrue(script.contains("hideLateStudentContent"))
     }
 
     @Test
