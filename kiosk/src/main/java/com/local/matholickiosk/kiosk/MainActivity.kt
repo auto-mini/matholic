@@ -126,6 +126,7 @@ class MainActivity : ComponentActivity() {
     private var preferredCameraFacing = CameraFacing.FRONT
     private var activeCameraFacing = CameraFacing.FRONT
     private var cameraBindGeneration = 0
+    private var qrGuidanceGeneration = 0
     private var destroyed = false
     private var pendingCredentialBridgeId: String? = null
     private var relockAdminOnStart = false
@@ -1391,7 +1392,8 @@ class MainActivity : ComponentActivity() {
         AlertDialog.Builder(this)
             .setTitle("QR 카드 PDF 공유·저장")
             .setMessage(
-                "65×90mm 세로 카드에 30×30mm QR과 학생 전체 이름을 넣습니다.\n" +
+                "55×80mm 세로 카드에 30×30mm QR과 학생 전체 이름을 넣습니다.\n" +
+                    "학생 이름은 QR 아래에 표시됩니다.\n" +
                     "PDF에는 로그인 가능한 QR이 포함되므로 신뢰하는 PC나 저장 위치만 선택하세요.",
             )
             .setNegativeButton("취소", null)
@@ -1697,6 +1699,7 @@ class MainActivity : ComponentActivity() {
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
         scannerVisible = true
+        qrGuidanceGeneration += 1
         scannerMessage.text = "선택한 카메라 렌즈를 향해 QR카드를 보여주세요"
         statusText.text = KioskState.QR_READY.name
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1794,7 +1797,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 return@runOnUiThread
             }
-            scannerMessage.text = when (guidance) {
+            val message = when (guidance) {
                 QrFrameGuidance.MOVE_LEFT ->
                     "QR이 오른쪽에 있습니다\n카드를 왼쪽으로 옮겨주세요"
                 QrFrameGuidance.MOVE_RIGHT ->
@@ -1810,6 +1813,19 @@ class MainActivity : ComponentActivity() {
                 QrFrameGuidance.CENTERED ->
                     "QR 위치가 맞습니다\n카드를 잠시 그대로 유지해주세요"
             }
+            val generation = ++qrGuidanceGeneration
+            scannerMessage.text = message
+            mainHandler.postDelayed({
+                if (
+                    generation == qrGuidanceGeneration &&
+                    scannerVisible &&
+                    !destroyed &&
+                    qrAnalyzer?.isEnabled() == true &&
+                    statusText.text == KioskState.QR_READY.name
+                ) {
+                    scannerMessage.text = ""
+                }
+            }, QR_GUIDANCE_STALE_MS)
         }
     }
 
@@ -1824,6 +1840,7 @@ class MainActivity : ComponentActivity() {
                 return@runOnUiThread
             }
             qrAnalyzer?.setEnabled(false)
+            qrGuidanceGeneration += 1
             when (decision) {
                 QrFrameDecision.Ignore -> qrAnalyzer?.setEnabled(true)
                 is QrFrameDecision.Reject -> {
@@ -1876,6 +1893,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun validateQr(tokenHash: ByteArray) {
+        qrGuidanceGeneration += 1
         scannerMessage.text = "확인되었습니다"
         statusText.text = KioskState.QR_VALIDATING.name
         executeSensitive(
@@ -1890,7 +1908,8 @@ class MainActivity : ComponentActivity() {
                             scannerMessage.text = "현재 수업에서 사용할 수 없는 카드입니다\n선생님에게 문의하세요"
                             resumeScannerAfterCooldown()
                         } else {
-                            scannerMessage.text = "확인되었습니다\n로그인 중입니다"
+                            scannerMessage.text =
+                                "${student.displayNameExact}\n확인되었습니다 · 로그인 중입니다"
                             launchSecureWebSession(student)
                         }
                     },
@@ -2033,6 +2052,7 @@ class MainActivity : ComponentActivity() {
     private fun resumeScannerAfterCooldown() {
         mainHandler.postDelayed({
             if (!scannerVisible || destroyed) return@postDelayed
+            qrGuidanceGeneration += 1
             scannerMessage.text = "선택한 카메라 렌즈를 향해 QR카드를 보여주세요"
             statusText.text = KioskState.QR_READY.name
             qrAnalyzer?.setEnabled(true)
@@ -2247,6 +2267,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
+        private const val QR_GUIDANCE_STALE_MS = 900L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
     }

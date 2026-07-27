@@ -154,6 +154,6 @@ class QrImageAnalyzer(
     }
 
     private companion object {
-        const val GUIDANCE_REPEAT_NANOS = 1_500_000_000L
+        const val GUIDANCE_REPEAT_NANOS = 400_000_000L
     }
 }
