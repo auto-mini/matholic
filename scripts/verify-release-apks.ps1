@@ -4,8 +4,8 @@ param(
     [string]$KioskApk,
     [Parameter(Mandatory = $true)]
     [string]$WebPocApk,
-    [string]$ExpectedKioskVersion = '0.6.0-rc28',
-    [string]$ExpectedWebPocVersion = '0.4.0-rc30'
+    [string]$ExpectedKioskVersion = '0.6.0-rc29',
+    [string]$ExpectedWebPocVersion = '0.4.0-rc31'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,6 +64,7 @@ function Assert-ApkManifest(
     $packageName = ((& $apkanalyzer manifest application-id $ApkPath) -join '').Trim()
     $versionName = ((& $apkanalyzer manifest version-name $ApkPath) -join '').Trim()
     $debuggable = ((& $apkanalyzer manifest debuggable $ApkPath) -join '').Trim()
+    $manifest = (& $apkanalyzer manifest print $ApkPath) -join "`n"
     $permissions = @(& $apkanalyzer manifest permissions $ApkPath)
     if ($packageName -ne $ExpectedPackage) {
         throw "Unexpected applicationId in ${ApkPath}: $packageName"
@@ -73,6 +74,9 @@ function Assert-ApkManifest(
     }
     if ($debuggable -ne 'false') {
         throw "Release APK must not be debuggable: $ApkPath"
+    }
+    if ($manifest -notmatch 'android:screenOrientation=\"6\"') {
+        throw "Release APK must allow sensor-based landscape and reverse landscape: $ApkPath"
     }
     foreach ($permission in $RequiredPermissions) {
         if ($permission -notin $permissions) {
