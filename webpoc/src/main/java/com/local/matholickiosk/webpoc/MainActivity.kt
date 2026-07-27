@@ -102,6 +102,9 @@ class MainActivity : Activity() {
     private var resultSummaryDisplayed = false
     private var resultExtractionFailures = 0
     private var resultHydrationPolls = 0
+    private var studentContentRevealPending = false
+    private var studentContentRevealPasses = 0
+    private var pendingStudentRevealPath: String? = null
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
@@ -690,6 +693,10 @@ class MainActivity : Activity() {
     }
 
     private fun navigateStudentSection(targetPath: String, fallbackUrl: String) {
+        prepareStudentContentReveal(
+            targetPath = targetPath,
+            message = "학습 화면을 안전하게 준비 중입니다",
+        )
         evaluate(WebDomScripts.navigateStudentSection(targetPath)) { result ->
             if (state != WebPocState.ACTIVE) return@evaluate
             if (
@@ -1058,7 +1065,10 @@ class MainActivity : Activity() {
         }
         cancelTimeout()
         lastAllowedStudentUrl = url
-        showActive(url)
+        prepareStudentContentReveal(
+            targetPath = WebSecurityPolicy.pathOf(url),
+            message = "학습 화면을 안전하게 준비 중입니다",
+        )
         startStudentExperienceMonitor()
     }
 
@@ -1091,6 +1101,22 @@ class MainActivity : Activity() {
                 }
                 val path = result.optString("path")
                 updateStudentChrome(path)
+                if (studentContentRevealPending) {
+                    if (studentPathMatchesRevealTarget(path, pendingStudentRevealPath)) {
+                        studentContentRevealPasses += 1
+                        if (studentContentRevealPasses >= STUDENT_REVEAL_STABLE_PASSES) {
+                            val activeUrl = webView.url
+                                ?.takeIf(WebSecurityPolicy::isAllowedStudentUrl)
+                            if (activeUrl == null) {
+                                showLocked("STUDENT_REVEAL_URL")
+                                return@evaluate
+                            }
+                            showActive(activeUrl)
+                        }
+                    } else {
+                        studentContentRevealPasses = 0
+                    }
+                }
                 webView.url
                     ?.takeIf(WebSecurityPolicy::isAllowedStudentUrl)
                     ?.let { lastAllowedStudentUrl = it }
@@ -1516,6 +1542,10 @@ class MainActivity : Activity() {
     }
 
     private fun showActive(url: String) {
+        cancelTimeout()
+        studentContentRevealPending = false
+        studentContentRevealPasses = 0
+        pendingStudentRevealPath = null
         blocker.visibility = View.GONE
         setupPanel.visibility = View.GONE
         resultSummaryPanel.visibility = View.GONE
@@ -1530,6 +1560,9 @@ class MainActivity : Activity() {
     private fun showBlocking(message: String) {
         activeExperienceGeneration += 1
         resultSummaryDisplayed = false
+        studentContentRevealPending = false
+        studentContentRevealPasses = 0
+        pendingStudentRevealPath = null
         webView.visibility = View.INVISIBLE
         studentNavBar.visibility = View.GONE
         resultSummaryPanel.visibility = View.GONE
@@ -1541,6 +1574,29 @@ class MainActivity : Activity() {
         recoveryButton.visibility = View.GONE
         gate3AbortButton.visibility = if (gate3Session != null) View.VISIBLE else View.GONE
         blockerMessage.text = message
+    }
+
+    private fun prepareStudentContentReveal(targetPath: String?, message: String) {
+        studentContentRevealPending = true
+        studentContentRevealPasses = 0
+        pendingStudentRevealPath = targetPath
+        webView.visibility = View.INVISIBLE
+        studentNavBar.visibility = View.GONE
+        resultSummaryPanel.visibility = View.GONE
+        setupPanel.visibility = View.GONE
+        finishButton.visibility = View.GONE
+        statusBadge.visibility = View.GONE
+        blocker.visibility = View.VISIBLE
+        progress.visibility = View.VISIBLE
+        recoveryButton.visibility = View.GONE
+        gate3AbortButton.visibility = View.GONE
+        blockerMessage.text = message
+        scheduleTimeout(PAGE_TIMEOUT_MS, "STUDENT_PAGE_TIMEOUT")
+    }
+
+    private fun studentPathMatchesRevealTarget(path: String?, targetPath: String?): Boolean {
+        if (path.isNullOrBlank() || targetPath.isNullOrBlank()) return false
+        return path == targetPath || path.startsWith("$targetPath/")
     }
 
     private fun showLocked(reason: String) {
@@ -1617,6 +1673,9 @@ class MainActivity : Activity() {
     private fun hideStudentExperienceLayers() {
         activeExperienceGeneration += 1
         resultSummaryDisplayed = false
+        studentContentRevealPending = false
+        studentContentRevealPasses = 0
+        pendingStudentRevealPath = null
         studentNavBar.visibility = View.GONE
         resultSummaryPanel.visibility = View.GONE
         webViewReference?.let { activeWebView ->
@@ -1895,6 +1954,7 @@ class MainActivity : Activity() {
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
+        const val STUDENT_REVEAL_STABLE_PASSES = 2
         const val RESULT_EXTRACTION_RETRIES = 40
         const val RESULT_HYDRATION_RETRIES = 120
         const val STUDENT_NAV_HEIGHT_DP = 64

@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-27.2"
+    const val CONTRACT_VERSION = "web-2026-07-27.3"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -430,6 +430,9 @@ object WebDomScripts {
               width: 220px !important;
               max-width: 100% !important;
             }
+            .mq-editable-field ~ div[style*="position: absolute"] > button {
+              display: none !important;
+            }
           ` : `
             header, nav, [role="navigation"] {
               display: none !important;
@@ -520,6 +523,49 @@ object WebDomScripts {
                 hiddenControls += 1;
               }
             });
+            const hideDirectMathHandwriting = () => {
+              let hidden = 0;
+              const toolbarLabels = new Set(['루트', '분수', '파이']);
+              const toolbarButtons = Array.from(
+                document.querySelectorAll('button,[role="button"]')
+              ).filter(button => toolbarLabels.has(normalize(button.textContent)));
+              toolbarButtons.forEach(toolbarButton => {
+                let scope = toolbarButton.parentElement;
+                for (let depth = 0; scope && depth < 6; depth += 1) {
+                  if (scope === document.body || scope === document.documentElement) break;
+                  const labels = new Set(
+                    Array.from(scope.querySelectorAll('button,[role="button"]'))
+                      .map(button => normalize(button.textContent))
+                      .filter(text => toolbarLabels.has(text))
+                  );
+                  const directCandidates = Array.from(scope.querySelectorAll(
+                    'div[style*="position: absolute"] > button'
+                  )).filter(button => {
+                    const containerStyle = button.parentElement?.style;
+                    return (
+                      normalize(button.textContent) === '' &&
+                      containerStyle?.position === 'absolute' &&
+                      Number.parseFloat(containerStyle.top) === 8 &&
+                      Number.parseFloat(containerStyle.right) === 8
+                    );
+                  });
+                  if (
+                    [...toolbarLabels].every(label => labels.has(label)) &&
+                    directCandidates.length > 0
+                  ) {
+                    directCandidates.forEach(button => {
+                      if (hide(button)) {
+                        hidden += 1;
+                      }
+                    });
+                    break;
+                  }
+                  scope = scope.parentElement;
+                }
+              });
+              return hidden;
+            };
+            hiddenControls += hideDirectMathHandwriting();
 
             const explanationMessage = Array.from(
               document.querySelectorAll('p,span,div')
@@ -795,9 +841,13 @@ object WebDomScripts {
                 document.documentElement.dataset.matholicKioskResultHydrated = 'true';
               }
             };
-            protectAnalysisDetails();
+            const maintainLateStudentControls = () => {
+              hiddenControls += hideDirectMathHandwriting();
+              protectAnalysisDetails();
+            };
+            maintainLateStudentControls();
             if (!window.__matholicKioskExperienceObserver && document.body) {
-              const observer = new MutationObserver(protectAnalysisDetails);
+              const observer = new MutationObserver(maintainLateStudentControls);
               observer.observe(document.body, { childList: true, subtree: true });
               window.__matholicKioskExperienceObserver = observer;
             }

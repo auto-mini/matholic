@@ -362,6 +362,19 @@ class DomContractInstrumentedTest {
                     <li id="math" onclick="this.dataset.clicked='yes'">수식</li>
                   </ul>
                 </div>
+                <div id="math-entry">
+                  <div>
+                    <button>루트</button>
+                    <button>분수</button>
+                    <button>파이</button>
+                  </div>
+                  <div style="position: relative">
+                    <span></span>
+                    <div style="position: absolute; top: 8px; right: 8px">
+                      <button id="direct-handwriting"><svg></svg></button>
+                    </div>
+                  </div>
+                </div>
                 <aside id="video-panel">
                   <p>문제가 어렵나요? 이 문제의 대표 유형 해설 강의를 들어보세요!</p>
                   <iframe></iframe>
@@ -397,6 +410,8 @@ class DomContractInstrumentedTest {
                   mathClicked: document.getElementById('math').dataset.clicked === 'yes',
                   inputMenuHidden:
                     getComputedStyle(document.getElementById('input-menu')).display === 'none',
+                  directHandwritingHidden:
+                    getComputedStyle(document.getElementById('direct-handwriting')).display === 'none',
                   videoHidden: getComputedStyle(document.getElementById('video-panel')).display === 'none',
                   imageVideoHidden:
                     getComputedStyle(document.getElementById('video-image-panel')).display === 'none',
@@ -415,9 +430,44 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("fractionVisible"))
             assertTrue(proof.getBoolean("mathClicked"))
             assertTrue(proof.getBoolean("inputMenuHidden"))
+            assertTrue(proof.getBoolean("directHandwritingHidden"))
             assertTrue(proof.getBoolean("videoHidden"))
             assertTrue(proof.getBoolean("imageVideoHidden"))
             assertEquals("19px", proof.getString("submitSpacing"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const late = document.createElement('div');
+                  late.innerHTML = `
+                    <div>
+                      <button>루트</button>
+                      <button>분수</button>
+                      <button>파이</button>
+                    </div>
+                    <div style="position: relative">
+                      <span></span>
+                      <div style="position: absolute; top: 8px; right: 8px">
+                        <button id="late-direct-handwriting"><svg></svg></button>
+                      </div>
+                    </div>`;
+                  document.getElementById('problem').appendChild(late);
+                  return JSON.stringify({ appended: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(100)
+            val lateProof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  hidden:
+                    getComputedStyle(document.getElementById('late-direct-handwriting')).display === 'none'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(lateProof.getBoolean("hidden"))
         }
     }
 
