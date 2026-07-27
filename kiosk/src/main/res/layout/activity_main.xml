@@ -381,7 +381,8 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal|top"
                         android:layout_marginTop="52dp"
-                        android:text="카메라 영상은 표시하거나 저장하지 않습니다"
+                        android:gravity="center"
+                        android:text="카메라 영상은 표시하거나 저장하지 않습니다&#10;매쓰홀릭 QR이 사각형 안에 오도록 아래 안내를 따라주세요"
                         android:textColor="#D9E2EC"
                         android:textSize="18sp" />
                 </FrameLayout>

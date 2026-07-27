@@ -55,6 +55,7 @@ import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
+import com.local.matholickiosk.kiosk.qr.QrFrameGuidance
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
 import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
@@ -1735,8 +1736,12 @@ class MainActivity : ComponentActivity() {
                 activeCameraFacing = facing
                 preferredCameraFacing = facing
                 updateCameraSwitchLabel()
-                val analyzer = qrAnalyzer ?: QrImageAnalyzer(onDecision = ::handleQrDecision)
+                val analyzer = qrAnalyzer ?: QrImageAnalyzer(
+                    onDecision = ::handleQrDecision,
+                    onGuidance = ::handleQrGuidance,
+                )
                     .also { qrAnalyzer = it }
+                analyzer.setFrontFacing(facing == CameraFacing.FRONT)
                 analyzer.setEnabled(true)
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -1776,6 +1781,35 @@ class MainActivity : ComponentActivity() {
             "후면으로"
         } else {
             "전면으로"
+        }
+    }
+
+    private fun handleQrGuidance(guidance: QrFrameGuidance) {
+        runOnUiThread {
+            if (
+                !scannerVisible ||
+                destroyed ||
+                qrAnalyzer?.isEnabled() != true ||
+                statusText.text != KioskState.QR_READY.name
+            ) {
+                return@runOnUiThread
+            }
+            scannerMessage.text = when (guidance) {
+                QrFrameGuidance.MOVE_LEFT ->
+                    "QR이 오른쪽에 있습니다\n카드를 왼쪽으로 옮겨주세요"
+                QrFrameGuidance.MOVE_RIGHT ->
+                    "QR이 왼쪽에 있습니다\n카드를 오른쪽으로 옮겨주세요"
+                QrFrameGuidance.MOVE_UP ->
+                    "QR이 아래쪽에 있습니다\n카드를 위로 올려주세요"
+                QrFrameGuidance.MOVE_DOWN ->
+                    "QR이 위쪽에 있습니다\n카드를 아래로 내려주세요"
+                QrFrameGuidance.MOVE_CLOSER ->
+                    "QR이 너무 작게 보입니다\n카드를 렌즈에 가까이 해주세요"
+                QrFrameGuidance.MOVE_FARTHER ->
+                    "QR이 너무 크게 보입니다\n카드를 렌즈에서 조금 떼어주세요"
+                QrFrameGuidance.CENTERED ->
+                    "QR 위치가 맞습니다\n카드를 잠시 그대로 유지해주세요"
+            }
         }
     }
 

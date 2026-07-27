@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class QrImageAnalyzer(
     private val codec: QrTokenCodec = QrTokenCodec(),
     private val onDecision: (QrFrameDecision) -> Unit,
+    private val onGuidance: (QrFrameGuidance) -> Unit = {},
 ) : ImageAnalysis.Analyzer, Closeable {
     private val processing = AtomicBoolean(false)
     private val deliveryGate = QrDecisionDeliveryGate()
@@ -22,12 +23,22 @@ class QrImageAnalyzer(
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
             .build(),
     )
+    @Volatile
+    private var frontFacing = false
+    private var lastGuidance: QrFrameGuidance? = null
+    private var lastGuidanceAtNanos = 0L
 
     fun setEnabled(value: Boolean) {
+        if (!value) lastGuidance = null
         deliveryGate.setEnabled(value)
     }
 
     fun isEnabled(): Boolean = deliveryGate.isEnabled()
+
+    fun setFrontFacing(value: Boolean) {
+        frontFacing = value
+        lastGuidance = null
+    }
 
     @androidx.annotation.OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
@@ -55,7 +66,28 @@ class QrImageAnalyzer(
                 .addOnCompleteListener { task ->
                     try {
                         if (task.isSuccessful) {
-                            val decision = codec.decideFrame(task.result.map { it.rawValue })
+                            val barcodes = task.result
+                            var matholicQrDetected = false
+                            var matholicGuidance: QrFrameGuidance? = null
+                            if (barcodes.size == 1) {
+                                val barcode = barcodes[0]
+                                if (barcode.rawValue?.startsWith("MQR1:") == true) {
+                                    matholicQrDetected = true
+                                    matholicGuidance = deliverGuidance(
+                                        barcode,
+                                        imageProxy.width,
+                                        imageProxy.height,
+                                        imageProxy.imageInfo.rotationDegrees,
+                                    )
+                                }
+                            }
+                            if (
+                                matholicQrDetected &&
+                                matholicGuidance != QrFrameGuidance.CENTERED
+                            ) {
+                                return@addOnCompleteListener
+                            }
+                            val decision = codec.decideFrame(barcodes.map { it.rawValue })
                             if (decision !is QrFrameDecision.Ignore) {
                                 deliveryGate.deliverIfCurrent(
                                     frameGeneration,
@@ -80,11 +112,48 @@ class QrImageAnalyzer(
         scanner.close()
     }
 
+    private fun deliverGuidance(
+        barcode: Barcode,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        rotationDegrees: Int,
+    ): QrFrameGuidance? {
+        val boundingBox = barcode.boundingBox ?: return null
+        val rotated = rotationDegrees == 90 || rotationDegrees == 270
+        val imageWidth = if (rotated) sourceHeight else sourceWidth
+        val imageHeight = if (rotated) sourceWidth else sourceHeight
+        val guidance = QrPositionGuide.classify(
+            bounds = QrFrameBounds(
+                left = boundingBox.left,
+                top = boundingBox.top,
+                right = boundingBox.right,
+                bottom = boundingBox.bottom,
+            ),
+            imageWidth = imageWidth,
+            imageHeight = imageHeight,
+            mirrorHorizontally = frontFacing,
+        )
+        val now = System.nanoTime()
+        if (
+            guidance != lastGuidance ||
+            now - lastGuidanceAtNanos >= GUIDANCE_REPEAT_NANOS
+        ) {
+            lastGuidance = guidance
+            lastGuidanceAtNanos = now
+            onGuidance(guidance)
+        }
+        return guidance
+    }
+
     private fun closeFrame(imageProxy: ImageProxy) {
         try {
             imageProxy.close()
         } catch (_: Exception) {
             // CameraX owns the frame; a close failure must not terminate the analyzer thread.
         }
+    }
+
+    private companion object {
+        const val GUIDANCE_REPEAT_NANOS = 1_500_000_000L
     }
 }
