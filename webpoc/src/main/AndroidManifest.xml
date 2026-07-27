@@ -21,7 +21,7 @@
             android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="landscape"
+            android:screenOrientation="sensorLandscape"
             android:stateNotNeeded="true"
             tools:ignore="DiscouragedApi">
             <intent-filter>

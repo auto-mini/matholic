@@ -4,6 +4,7 @@ import android.app.admin.DeviceAdminReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -15,6 +16,17 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class Gate5ManifestInstrumentedTest {
+    @Test
+    fun mainActivityAllowsBothLandscapeOrientationsOnly() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val activity = context.packageManager.getActivityInfo(
+            ComponentName(context, MainActivity::class.java),
+            0,
+        )
+
+        assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, activity.screenOrientation)
+    }
+
     @Test
     fun deviceAdminReceiverAndDedicatedHomeAreDeclared() {
         val context = ApplicationProvider.getApplicationContext<Context>()
