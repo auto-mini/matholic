@@ -4716,4 +4716,9 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - UID `10287`, firstInstallTime `2026-07-24 12:52:24`, Device Owner와
   전용 HOME 유지
 - 설치된 base APK SHA-256이 artifact와 일치
-- Kiosk 안전 종료 실제 재시도 결과는 대기
+- 실물 재검증:
+  - 기존 실패 상태의 안전 종료→수업 재시작→QR 화면: 통과
+  - 같은 미등록 아이디 로그인 실패 재현→안전 종료→수업 안전 시작 가능:
+    통과
+- 검증 직후 독립 UI 확인: `ADMIN_IDLE`, `선택한 반 수업 안전 시작`,
+  활성 수업 없음. 따라서 최종 상태를 `QR_READY`로 기록하지 않음

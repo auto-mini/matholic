@@ -101,8 +101,8 @@
   - RC11 설치 후 최종 `LOCKED`·전용 HOME은 독립 확인했으나 설치 스크립트
     최종 출력 오타로 설치 직후 일시 상태는 기록되지 않음
   - release signer, Device Owner와 전용 HOME 유지
-  - 현재 화면은 잘못된 학생 로그인 실패 뒤 Kiosk `LOCKED` 관리자 화면.
-    Web RC34 설치 후 안전 종료 재검증 대기
+  - 현재 화면은 두 번째 잘못된 학생 로그인 시험의 안전 종료를 마친
+    Kiosk `ADMIN_IDLE` 관리자 화면. 활성 수업 없음
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc31-release.apk`
   - `artifacts/matholic-webpoc-0.4.0-rc34-release.apk`
@@ -1379,4 +1379,9 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
 - Web POC `0.4.0-rc34`/code 51만 A에 보존형 설치. UID
   `10287`, firstInstallTime, Device Owner와 전용 HOME 유지, 설치 APK
   SHA-256과 artifact 일치
-- 실제 Kiosk 안전 종료 재시도 결과 대기
+- 실물 재검증:
+  - 기존 실패 상태에서 안전 종료→수업 재시작→QR 화면: 통과
+  - 같은 미등록 아이디 실패 재현→안전 종료→수업 안전 시작 가능 상태:
+    통과
+  - 독립 ADB 확인 최종 상태는 `ADMIN_IDLE`, 활성 수업 없음. 운영 재개 시
+    선택한 반 수업 안전 시작 필요
