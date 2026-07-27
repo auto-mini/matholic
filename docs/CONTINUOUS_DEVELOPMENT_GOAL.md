@@ -91,7 +91,7 @@
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
   - Kiosk `0.6.0-rc31`/code 36
-  - Web POC `0.4.0-rc33`/code 50
+  - Web POC `0.4.0-rc34`/code 51
 - ADB: 2026-07-27 현재 기존 PC 승인이 유지된 `device` 상태
 - A의 Kiosk RC31/Web POC RC33 설치: 2026-07-27
   `adb install -r --no-streaming`으로 완료
@@ -101,17 +101,17 @@
   - RC11 설치 후 최종 `LOCKED`·전용 HOME은 독립 확인했으나 설치 스크립트
     최종 출력 오타로 설치 직후 일시 상태는 기록되지 않음
   - release signer, Device Owner와 전용 HOME 유지
-  - 현재 화면은 업데이트 실패폐쇄의 `RECOVERY_REQUIRED`; 관리자 PIN 복구
-    전이므로 기존 학생·반 목록 UI와 최신 실제 사이트 동작은 미확인
+  - 현재 화면은 잘못된 학생 로그인 실패 뒤 Kiosk `LOCKED` 관리자 화면.
+    Web RC34 설치 후 안전 종료 재검증 대기
 - 내부 보관 현재 검증 묶음:
   - `artifacts/matholic-kiosk-0.6.0-rc31-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc33-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc34-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `C5CBB48D5B5EA6D5A29EDF35C110FB68D9B96CD37F652F4D5DADA45B3045AC1E`
   - Web POC:
-    `D8AFB0F4D7FD79202D572D0F38617DF9FF650D355C9A5347CEAA22D3480CCCBC`
-- 최신 전체 자동 회귀: Android 13 Web 계측 67개·Kiosk 33개, Web JVM
+    `798C59546E49EA320ADA7F47EF85E0ABBCC39FE5B1BAEAB04BC4879DFF981331`
+- 최신 전체 자동 회귀: Android 13 Web 계측 68개·Kiosk 33개, Web JVM
   45개·Kiosk JVM 48개, release 158 tasks와 APK 이중 검증 통과
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
@@ -1360,3 +1360,23 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
   유지, 설치된 base APK와 artifact SHA-256 일치
 - A는 업데이트 실패폐쇄의 `RECOVERY_REQUIRED` 관리자 PIN 화면이며,
   안전 복구와 최신 Web 화면 실물 확인 대기
+
+## Goal 종료 후 Web RC34 로그인 실패 안전 종료 후속 — 2026-07-27
+
+- 매쓰홀릭 미등록 아이디 QR 로그인 실패 뒤 안전 종료가
+  `LOGIN_FINGERPRINT_U1_P1_C1_B1_F1_A0_E11_R0_V1`로 거부되는 실물
+  결함을 확인
+- 플래그상 로그인 구조·빈 입력·체크박스·계약 버전은 정상이었고, 공식
+  로그인 실패 리디렉션이 폼 action에 안전한 `url=`을 붙여 기존 `A0`
+  검사를 유발
+- 전송 주소 허용 범위를 넓히지 않고, 로그아웃·복구 상태에서만 공식 기본
+  로그인 URL을 다시 열어 오류·복귀 매개변수를 제거한 뒤 기존 strict
+  fingerprint와 Web 데이터 정리를 수행하도록 수정
+- 실제 공개 로그인 실패 리디렉션을 사용하는 신규 계측시험과 Web 전체
+  계측 68개 통과
+- 구현 커밋 `bde7842`, Web RC34 준비 커밋 `331ca9a`를 원격
+  `codex/rc03-usability`에 푸시
+- Web POC `0.4.0-rc34`/code 51만 A에 보존형 설치. UID
+  `10287`, firstInstallTime, Device Owner와 전용 HOME 유지, 설치 APK
+  SHA-256과 artifact 일치
+- 실제 Kiosk 안전 종료 재시도 결과 대기

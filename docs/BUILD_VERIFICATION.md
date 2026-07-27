@@ -4678,3 +4678,42 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - QR 중앙 목표 사각형 비표시
 - QR 로그인 뒤 학생 화면 공개 시 숨김 대상이 먼저 보이지 않는지
 - 답안 입력칸을 누르기 전부터 파란 직접 입력 버튼이 보이지 않는지
+
+---
+
+## Web POC RC34 미등록 로그인 실패 안전 종료 — 2026-07-27
+
+### 재현과 원인
+
+- 미등록 아이디 QR 로그인 실패 뒤 관리자 안전 종료가
+  `LOGIN_FINGERPRINT_U1_P1_C1_B1_F1_A0_E11_R0_V1`로 실패
+- `U/P/C/B/F=1`, `E11`, `R0`, `V1`은 로그인 입력 구조와 빈 값,
+  체크박스·계약 버전이 정상임을 뜻하며 `A0`만 실패
+- 공식 로그인 JavaScript는 실패 리디렉션의 `url` 값을
+  `https://auth.matholic.com/token/signin?url=...` action에 보존한다.
+  기존 복구기는 이 정상 실패 페이지를 정리용 기본 로그인 페이지로
+  canonicalize하기 전에 action query를 거부했다.
+
+### 변경과 검증
+
+- 로그아웃·복구 상태에서 query가 있는 공식 로그인 루트가 완료되면
+  `https://login.matholic.com/`을 새로 열어 query를 제거한다.
+- canonical 페이지에서 기존 action origin/path, 입력 구조, 빈 값과
+  체크박스 검증을 그대로 수행한다. 일반 로그인 상태에는 적용하지 않는다.
+- 실제 공개 실패 리디렉션→canonical 로그인→`IDLE` 복구 계측: 통과
+- Web JVM·debug APK·AndroidTest APK: 통과
+- Android 13 Web 전체 계측 68개: 실패·오류 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증: 통과
+
+### Web RC34와 A 설치
+
+- Web POC `0.4.0-rc34`/code 51, 3,132,564 bytes
+- SHA-256:
+  `798C59546E49EA320ADA7F47EF85E0ABBCC39FE5B1BAEAB04BC4879DFF981331`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- A에 Web POC만 `adb install -r --no-streaming`: 성공
+- UID `10287`, firstInstallTime `2026-07-24 12:52:24`, Device Owner와
+  전용 HOME 유지
+- 설치된 base APK SHA-256이 artifact와 일치
+- Kiosk 안전 종료 실제 재시도 결과는 대기
