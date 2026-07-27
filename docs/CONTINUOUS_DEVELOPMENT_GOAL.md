@@ -90,10 +90,10 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc30`/code 35
-  - Web POC `0.4.0-rc32`/code 49
+  - Kiosk `0.6.0-rc31`/code 36
+  - Web POC `0.4.0-rc33`/code 50
 - ADB: 2026-07-27 현재 기존 PC 승인이 유지된 `device` 상태
-- A의 Kiosk RC30/Web POC RC32 설치: 2026-07-27
+- A의 Kiosk RC31/Web POC RC33 설치: 2026-07-27
   `adb install -r --no-streaming`으로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
   - RC10 설치에서는 앱 프로세스 종료로 Lock Task가 일시 `NONE`이었으나
@@ -104,14 +104,14 @@
   - 현재 화면은 업데이트 실패폐쇄의 `RECOVERY_REQUIRED`; 관리자 PIN 복구
     전이므로 기존 학생·반 목록 UI와 최신 실제 사이트 동작은 미확인
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc30-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc32-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc31-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc33-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `33BFC1BD52E2CDAA8A4CF3DA7256A92C51C690FB38B0B95D851FA3516C9DF005`
+    `C5CBB48D5B5EA6D5A29EDF35C110FB68D9B96CD37F652F4D5DADA45B3045AC1E`
   - Web POC:
-    `2ACF12895A3AD77C6C2D4F30CC20F9D8D1CD905383811949B35B66997383E425`
-- 최신 전체 자동 회귀: Android 13 Web 계측 67개·Kiosk 32개, Web JVM
+    `D8AFB0F4D7FD79202D572D0F38617DF9FF650D355C9A5347CEAA22D3480CCCBC`
+- 최신 전체 자동 회귀: Android 13 Web 계측 67개·Kiosk 33개, Web JVM
   45개·Kiosk JVM 48개, release 158 tasks와 APK 이중 검증 통과
 - Android 13 일회용 에뮬레이터 계측시험:
   - RC03 A 설치 시점 기준 Web 30개, Kiosk 10개, 실패 0
@@ -1340,3 +1340,23 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
 - 화면 중앙 목표 영역은 물리 렌즈 위치와 무관한 잘못된 표현임을 확인하고
   `fed3fe5`에서 제거. 디버그 단위시험·APK·계측시험 소스 컴파일은 통과했고
   A 설치는 다음 수정 묶음까지 보류
+
+## Goal 종료 후 RC31/RC33 초기 노출·직접 입력 후속 — 2026-07-27
+
+- 학생 Web 화면에서 숨길 메뉴와 제어가 먼저 보인 뒤 사라지고, 파란색
+  직접 필기 입력 버튼은 눌러야 사라지는 실물 결함을 사용자에게서 확인
+- 학생 페이지와 학습지↔진단평가 전환 때 WebView를 먼저 가리고 DOM 계약이
+  목표 경로에서 두 번 연속 적용된 뒤에만 공개하도록 변경
+- 공개 Matholic 자산의 실제 수식 입력 DOM을 읽기 전용으로 확인해,
+  우측 상단 8px 위치에 지연 생성되는 빈 아이콘 버튼을 구조적으로 숨김
+- 늦게 생성되는 직접 입력 버튼도 `MutationObserver`가 즉시 숨기며, 루트·
+  분수·파이 도구는 유지
+- 구현 커밋 `de38b08`, RC31/RC33 준비 커밋 `606240c`, 중앙 QR 목표 제거
+  커밋 `fed3fe5`를 원격 `codex/rc03-usability`에 푸시
+- Android 13 에뮬레이터 Web 67개와 Kiosk 33개 전체 계측, release
+  단위시험·lint·두 APK assemble 158 tasks, APK 이중 검증 통과
+- A에 Kiosk `0.6.0-rc31`/code 36과 Web POC `0.4.0-rc33`/code 50을
+  보존형 설치. UID·firstInstallTime·Device Owner·전용 HOME·`LOCKED`
+  유지, 설치된 base APK와 artifact SHA-256 일치
+- A는 업데이트 실패폐쇄의 `RECOVERY_REQUIRED` 관리자 PIN 화면이며,
+  안전 복구와 최신 Web 화면 실물 확인 대기

@@ -4631,3 +4631,50 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 실제 사이트 25문항 오답 목록 완전성: 실물 통과
 - 화면 중앙 목표 영역은 물리 렌즈 위치와 무관해 오해를 만든다는 사용자
   지적을 반영해 `fed3fe5`에서 완전히 제거. 다음 Kiosk 배포에 포함 예정
+
+---
+
+## Kiosk RC31 / Web POC RC33 초기 노출·직접 입력 제거 — 2026-07-27
+
+### 결함과 수정
+
+- 숨김 대상인 Matholic 상단·문제 제어가 화면 공개 뒤 잠시 보이는 문제를
+  재현했다. 학생 페이지 및 고정 메뉴 전환은 WebView를 가린 상태로 DOM
+  계약을 적용하고 목표 경로에서 2회 연속 성공한 뒤에만 공개한다.
+- 파란 직접 필기 입력 버튼은 수식 입력 영역의 우측 상단에 늦게 생성되는
+  빈 아이콘 버튼이었다. 루트·분수·파이 도구 모음을 기준으로 해당 8px
+  절대 위치 버튼만 숨기고, 이후 생성되는 동일 버튼도 DOM 감시로 숨긴다.
+- QR 화면의 물리 렌즈 위치와 무관한 중앙 목표 사각형을 제거했다.
+
+### 자동 검증과 릴리스
+
+- Web POC Android 13 전체 계측 67개: 실패·오류 0
+- Kiosk Android 13 전체 계측 33개: 실패·오류 0
+- 늦게 추가한 직접 입력 버튼이 별도 재적용 없이 숨겨지는 회귀시험 포함
+- release 단위시험·lint·두 APK assemble 158 tasks: 통과
+- build/stored APK 버전·권한·`debuggable=false`·`sensorLandscape`,
+  v2 단일 동일 release signer, Debug signer 거부, zipalign 이중 검증: 통과
+- Kiosk `0.6.0-rc31`/code 36, 34,990,580 bytes
+  - SHA-256:
+    `C5CBB48D5B5EA6D5A29EDF35C110FB68D9B96CD37F652F4D5DADA45B3045AC1E`
+- Web POC `0.4.0-rc33`/code 50, 3,131,404 bytes
+  - SHA-256:
+    `D8AFB0F4D7FD79202D572D0F38617DF9FF650D355C9A5347CEAA22D3480CCCBC`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존형 설치
+
+- Web POC, Kiosk 순서로 `adb install -r --no-streaming`: 성공
+- UID `10287`/`10288`, firstInstallTime
+  `2026-07-24 12:52:24`/`2026-07-24 12:52:28` 유지
+- Device Owner·전용 HOME·`LOCKED` 유지
+- 설치된 두 base APK의 SHA-256이 보관 artifact와 일치
+- 현재 상태: 업데이트 실패폐쇄의 `RECOVERY_REQUIRED`
+
+### 실물 재검증 대기
+
+- 관리자 PIN 복구→현재 수업·Web 세션 안전 종료→수업 재시작→`QR_READY`
+- QR 중앙 목표 사각형 비표시
+- QR 로그인 뒤 학생 화면 공개 시 숨김 대상이 먼저 보이지 않는지
+- 답안 입력칸을 누르기 전부터 파란 직접 입력 버튼이 보이지 않는지
