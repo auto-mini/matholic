@@ -101,6 +101,7 @@ class MainActivity : Activity() {
     private var activeExperienceGeneration = 0
     private var resultSummaryDisplayed = false
     private var resultExtractionFailures = 0
+    private var resultHydrationPolls = 0
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
@@ -1064,6 +1065,7 @@ class MainActivity : Activity() {
     private fun startStudentExperienceMonitor() {
         val generation = ++activeExperienceGeneration
         resultExtractionFailures = 0
+        resultHydrationPolls = 0
         pollStudentExperience(generation)
     }
 
@@ -1116,10 +1118,18 @@ class MainActivity : Activity() {
                     showResultSummary(wrong)
                 } else {
                     if (summary?.optBoolean("analysisFound") == true) {
-                        resultExtractionFailures += 1
-                        if (resultExtractionFailures >= RESULT_EXTRACTION_RETRIES) {
-                            showResultSummaryUnavailable()
-                            return@evaluate
+                        if (summary.optString("reason") == "HYDRATING_RESULT") {
+                            resultHydrationPolls += 1
+                            if (resultHydrationPolls >= RESULT_HYDRATION_RETRIES) {
+                                showResultSummaryUnavailable(summary)
+                                return@evaluate
+                            }
+                        } else {
+                            resultExtractionFailures += 1
+                            if (resultExtractionFailures >= RESULT_EXTRACTION_RETRIES) {
+                                showResultSummaryUnavailable(summary)
+                                return@evaluate
+                            }
                         }
                     }
                     handler.postDelayed(
@@ -1142,10 +1152,19 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun showResultSummaryUnavailable() {
+    private fun showResultSummaryUnavailable(summary: JSONObject?) {
+        val expected = summary?.optInt("expectedProblems", 0) ?: 0
+        val classified = summary?.optInt("classifiedCount", 0) ?: 0
+        val progress = if (expected > 0) {
+            "\n확인된 문항: $classified/$expected"
+        } else {
+            ""
+        }
         showResultPanel(
             message = "결과를 정확히 확인하지 못했습니다\n" +
-                "선생님에게 알려주세요\n\n상태 코드: RESULT_INCOMPLETE",
+                "선생님에게 알려주세요" +
+                progress +
+                "\n\n상태 코드: RESULT_INCOMPLETE",
             confirmLabel = "선생님 확인 후 채점 끝내기",
         )
     }
@@ -1877,6 +1896,7 @@ class MainActivity : Activity() {
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
         const val RESULT_EXTRACTION_RETRIES = 40
+        const val RESULT_HYDRATION_RETRIES = 120
         const val STUDENT_NAV_HEIGHT_DP = 64
         const val PORTAL_PROBE_RETRIES = 8
         const val MAX_LOGOUT_RETRIES = 1

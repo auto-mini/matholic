@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-27.1"
+    const val CONTRACT_VERSION = "web-2026-07-27.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -509,6 +509,17 @@ object WebDomScripts {
                 if (hide(control)) hiddenControls += 1;
               }
             });
+            Array.from(document.querySelectorAll(
+              'input[placeholder*="주관식 답"]'
+            )).forEach(input => {
+              const wrapper = input.closest('.ant-input-affix-wrapper') ||
+                input.parentElement;
+              const suffix = wrapper?.querySelector('.ant-input-suffix');
+              const handwritingControl = suffix?.firstElementChild;
+              if (handwritingControl && hide(handwritingControl)) {
+                hiddenControls += 1;
+              }
+            });
 
             const explanationMessage = Array.from(
               document.querySelectorAll('p,span,div')
@@ -536,6 +547,27 @@ object WebDomScripts {
                 hiddenControls += 1;
               }
             }
+            Array.from(document.querySelectorAll(
+              'img[alt="문항 동영상"],img[alt="대표 유형 동영상"]'
+            )).forEach(image => {
+              let videoPanel = image.parentElement;
+              let ancestor = image.parentElement;
+              for (let depth = 0; ancestor && depth < 5; depth += 1) {
+                const text = normalize(ancestor.textContent);
+                if (
+                  text.includes('문제가 어렵나요?') &&
+                  text.includes('해설 강의를 들어보세요')
+                ) {
+                  videoPanel = ancestor;
+                  break;
+                }
+                ancestor = ancestor.parentElement;
+              }
+              if (hide(videoPanel || image)) hiddenControls += 1;
+            });
+            hideExactControls([
+              '유형동영상', '유형 동영상', '문항 동영상', '대표 유형 동영상'
+            ]);
 
             const inputMenuButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
@@ -584,26 +616,40 @@ object WebDomScripts {
             answerModeButtons
               .filter(element => {
                 const text = normalize(element.textContent);
-                return text === '기본' || text === '분수';
+                return text === '기본';
               })
               .forEach(element => {
                 if (hide(element)) hiddenControls += 1;
               });
 
             const reviewHeading = Array.from(
-              document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]')
+              document.querySelectorAll(
+                '.ant-modal-title,.ant-drawer-title,' +
+                'h1,h2,h3,h4,h5,h6,[role="heading"]'
+              )
             ).find(element => visible(element) && normalize(element.textContent) === '전체답안');
             if (reviewHeading) {
-              if (document.documentElement.dataset.matholicKioskReviewScrolled !== 'true') {
-                document.documentElement.dataset.matholicKioskReviewScrolled = 'true';
-                const scrollingElement = reviewHeading.closest(
-                  '.ant-modal-body,.ant-drawer-body'
-                ) || document.scrollingElement || document.documentElement;
-                scrollingElement.scrollTo(0, scrollingElement.scrollHeight);
-              }
               const scope = reviewHeading.closest(
                 'main,section,[role="dialog"],.ant-modal,.ant-drawer'
               ) || document.body;
+              const scrollCandidates = Array.from(scope.querySelectorAll(
+                '.ant-modal-body,.ant-drawer-body,[style*="overflow"]'
+              ));
+              const scrollingElement = scrollCandidates.find(element =>
+                element.scrollHeight > element.clientHeight + 2
+              ) || document.scrollingElement || document.documentElement;
+              const maxReviewScroll = Math.max(
+                0,
+                scrollingElement.scrollHeight - scrollingElement.clientHeight
+              );
+              if (scrollingElement.scrollTop < maxReviewScroll - 2) {
+                scrollingElement.scrollTop = scrollingElement.scrollHeight;
+                if (typeof scrollingElement.scrollTo === 'function') {
+                  scrollingElement.scrollTo(0, scrollingElement.scrollHeight);
+                }
+              } else {
+                document.documentElement.dataset.matholicKioskReviewScrolled = 'true';
+              }
               const finalButton = Array.from(
                 scope.querySelectorAll('button,[role="button"]')
               ).filter(visible).find(button => {
@@ -618,7 +664,9 @@ object WebDomScripts {
                 important(finalButton, 'box-shadow', '0 6px 18px rgba(0,0,0,.35)');
               }
               const uploadSignals = Array.from(
-                scope.querySelectorAll('button,a,[role="button"],label,span,div')
+                scope.querySelectorAll(
+                  'h1,h2,h3,h4,h5,h6,button,a,[role="button"],label,span,div'
+                )
               ).filter(element => {
                 const text = normalize(element.textContent);
                 return text === '풀이과정' || text === '풀이 과정' ||
@@ -627,9 +675,23 @@ object WebDomScripts {
               });
               uploadSignals.forEach(signal => {
                 const control = signal.closest('button,a,[role="button"]');
-                const uploadContainer = signal.closest(
-                  'label,section,[role="group"],.ant-upload'
+                let uploadContainer = signal.closest(
+                  '.ant-upload-wrapper,label,section,[role="group"],.ant-upload'
                 );
+                let ancestor = signal.parentElement;
+                for (let depth = 0; !uploadContainer && ancestor && depth < 5; depth += 1) {
+                  if (ancestor === scope || ancestor.matches('.ant-modal-body,.ant-drawer-body')) {
+                    break;
+                  }
+                  const hasUpload = !!ancestor.querySelector(
+                    '.ant-upload,.ant-upload-wrapper,[class*="upload"]'
+                  ) || normalize(ancestor.textContent).includes('풀이 업로드');
+                  if (hasUpload) {
+                    uploadContainer = ancestor;
+                    break;
+                  }
+                  ancestor = ancestor.parentElement;
+                }
                 if (hide(control || uploadContainer || signal)) hiddenControls += 1;
               });
             }
@@ -640,49 +702,98 @@ object WebDomScripts {
               ).find(element =>
                 visible(element) && normalize(element.textContent) === '종합분석'
               );
-              const resultCards = document.querySelectorAll(
-                '.ant-alert-error,.ant-alert-success'
-              );
               if (!analysisHeading) return;
-              const scrollingElement = document.scrollingElement || document.documentElement;
+              if (!document.getElementById('matholic-kiosk-result-shield')) {
+                const shield = document.createElement('div');
+                shield.id = 'matholic-kiosk-result-shield';
+                shield.textContent = '채점 결과를 정리하고 있습니다';
+                shield.setAttribute('aria-live', 'polite');
+                shield.style.cssText = [
+                  'position:fixed', 'inset:0', 'z-index:2147483646',
+                  'display:flex', 'align-items:center', 'justify-content:center',
+                  'background:#102A43', 'color:white', 'font-size:28px',
+                  'font-weight:700'
+                ].join(';');
+                document.documentElement.appendChild(shield);
+              }
+
+              const lastStep = Number(
+                document.documentElement.dataset.matholicKioskResultLastStep || '0'
+              );
+              const now = Date.now();
+              if (now - lastStep < 350) return;
+              document.documentElement.dataset.matholicKioskResultLastStep = String(now);
+
+              let scrollingElement = analysisHeading.parentElement;
+              while (
+                scrollingElement &&
+                scrollingElement !== document.body &&
+                scrollingElement !== document.documentElement
+              ) {
+                const style = getComputedStyle(scrollingElement);
+                if (
+                  /(auto|scroll)/.test(style.overflowY || '') &&
+                  scrollingElement.scrollHeight > scrollingElement.clientHeight + 2
+                ) {
+                  break;
+                }
+                scrollingElement = scrollingElement.parentElement;
+              }
+              if (
+                !scrollingElement ||
+                scrollingElement === document.body ||
+                scrollingElement === document.documentElement
+              ) {
+                scrollingElement = document.scrollingElement || document.documentElement;
+              }
+              const viewportHeight = scrollingElement === document.scrollingElement ||
+                scrollingElement === document.documentElement ?
+                window.innerHeight : scrollingElement.clientHeight;
               const maxScroll = Math.max(
                 0,
-                scrollingElement.scrollHeight - window.innerHeight
+                scrollingElement.scrollHeight - viewportHeight
               );
               const currentScroll = scrollingElement.scrollTop;
               const previousMax = Number(
                 document.documentElement.dataset.matholicKioskResultMaxScroll || '-1'
               );
+              const resultCardCount = document.querySelectorAll(
+                '.ant-alert-error,.ant-alert-success'
+              ).length;
+              const previousCardCount = Number(
+                document.documentElement.dataset.matholicKioskResultCardCount || '-1'
+              );
               let stableBottomReads = Number(
                 document.documentElement.dataset.matholicKioskResultBottomReads || '0'
               );
-              if (currentScroll >= maxScroll - 2 && maxScroll === previousMax) {
+              if (
+                currentScroll >= maxScroll - 2 &&
+                maxScroll === previousMax &&
+                resultCardCount === previousCardCount
+              ) {
                 stableBottomReads += 1;
               } else {
                 stableBottomReads = 0;
               }
               document.documentElement.dataset.matholicKioskResultMaxScroll =
                 String(maxScroll);
+              document.documentElement.dataset.matholicKioskResultCardCount =
+                String(resultCardCount);
               document.documentElement.dataset.matholicKioskResultBottomReads =
                 String(stableBottomReads);
-              if (stableBottomReads < 2) {
-                const step = Math.max(400, Math.floor(window.innerHeight * 0.75));
-                scrollingElement.scrollTo(0, Math.min(maxScroll, currentScroll + step));
-              } else {
+              if (currentScroll < maxScroll - 2) {
+                const step = Math.max(
+                  240,
+                  Math.min(720, Math.floor(viewportHeight * 0.85))
+                );
+                const nextScroll = Math.min(maxScroll, currentScroll + step);
+                scrollingElement.scrollTop = nextScroll;
+                if (typeof scrollingElement.scrollTo === 'function') {
+                  scrollingElement.scrollTo(0, nextScroll);
+                }
+              } else if (stableBottomReads >= 4) {
                 document.documentElement.dataset.matholicKioskResultHydrated = 'true';
               }
-              if (document.getElementById('matholic-kiosk-result-shield')) return;
-              const shield = document.createElement('div');
-              shield.id = 'matholic-kiosk-result-shield';
-              shield.textContent = '채점 결과를 정리하고 있습니다';
-              shield.setAttribute('aria-live', 'polite');
-              shield.style.cssText = [
-                'position:fixed', 'inset:0', 'z-index:2147483646',
-                'display:flex', 'align-items:center', 'justify-content:center',
-                'background:#102A43', 'color:white', 'font-size:28px',
-                'font-weight:700'
-              ].join(';');
-              document.documentElement.appendChild(shield);
             };
             protectAnalysisDetails();
             if (!window.__matholicKioskExperienceObserver && document.body) {
@@ -754,6 +865,13 @@ object WebDomScripts {
                 page.password !== '' ||
                 page.hash !== ''
               ) return JSON.stringify({ version, ok: false, count: 0 });
+              const normalize = value =>
+                (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+              const visible = element => {
+                const style = getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  (element.offsetWidth > 0 || element.offsetHeight > 0);
+              };
               const candidates = Array.from(document.querySelectorAll('a[href]')).filter(anchor => {
                 try {
                   const target = new URL(anchor.href, location.href);
@@ -769,11 +887,20 @@ object WebDomScripts {
                   return false;
                 }
               });
-              if (candidates.length !== 1) {
-                return JSON.stringify({ version, ok: false, count: candidates.length });
+              if (candidates.length === 0) {
+                return JSON.stringify({ version, ok: false, count: 0 });
               }
-              candidates[0].click();
-              return JSON.stringify({ version, ok: true, count: 1 });
+              const targetLabel = '$targetPath' === '/workbook' ? '학습지' : '진단평가';
+              const semantic = candidates.filter(anchor =>
+                normalize(anchor.textContent).startsWith(targetLabel)
+              );
+              const preferred = semantic.find(visible) || semantic[0] ||
+                candidates.find(visible) || candidates[0];
+              preferred.click();
+              return JSON.stringify({
+                version, ok: true, count: candidates.length,
+                semanticCount: semantic.length
+              });
             })()
         """.trimIndent()
     }
@@ -802,10 +929,33 @@ object WebDomScripts {
             return style.display !== 'none' && style.visibility !== 'hidden' &&
               (element.offsetWidth > 0 || element.offsetHeight > 0);
           };
+          const expectedProblems = (() => {
+            const tables = Array.from(document.querySelectorAll('table'));
+            for (const table of tables) {
+              const headers = Array.from(table.querySelectorAll('thead th'));
+              const problemCountIndex = headers.findIndex(header =>
+                normalize(header.textContent) === '문항수'
+              );
+              if (problemCountIndex < 0) continue;
+              const rows = Array.from(table.querySelectorAll('tbody tr'));
+              for (const row of rows) {
+                const cells = Array.from(row.querySelectorAll('td'));
+                const match = normalize(
+                  cells[problemCountIndex]?.textContent
+                ).match(/\d{1,3}/);
+                const count = match ? Number(match[0]) : 0;
+                if (Number.isInteger(count) && count > 0 && count <= 999) {
+                  return count;
+                }
+              }
+            }
+            return 0;
+          })();
           const base = {
             version, ok: false, path: rawPath, wrongNumbers: [],
             errorCardCount: 0, successCardCount: 0,
             visibleCardCount: 0, totalProblems: 0,
+            expectedProblems, classifiedCount: 0,
             analysisFound: false, reason: 'NOT_RESULT'
           };
           if (
@@ -918,9 +1068,14 @@ object WebDomScripts {
           const totalProblems = allNumbers.length > 0 ? allNumbers[allNumbers.length - 1] : 0;
           const completeSequence = totalProblems >= 2 &&
             allNumbers.length === totalProblems &&
-            allNumbers.every((number, index) => number === index + 1);
+            allNumbers.every((number, index) => number === index + 1) &&
+            (expectedProblems === 0 || totalProblems === expectedProblems);
           if (!completeSequence) {
-            return JSON.stringify({ ...resultBase, totalProblems });
+            return JSON.stringify({
+              ...resultBase,
+              totalProblems,
+              classifiedCount: allNumbers.length
+            });
           }
           const wrongNumbers = allNumbers.filter(number => classifications.get(number));
           wrongNumbers.sort((a, b) => a - b);
@@ -929,6 +1084,8 @@ object WebDomScripts {
             errorCardCount: errorCards.length,
             successCardCount: successCards.length,
             visibleCardCount: resultBase.visibleCardCount,
+            expectedProblems,
+            classifiedCount: allNumbers.length,
             analysisFound: true, reason: 'VERIFIED_COMPLETE'
           });
         })()
