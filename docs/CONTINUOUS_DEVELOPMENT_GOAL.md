@@ -35,8 +35,11 @@
 
 ### QR 카드·인쇄
 
-7. 카드 실물 크기는 `65×90mm` 세로형이다.
-8. 카드 안 순수 QR 크기는 정확히 `30×30mm`이고 학생 전체 이름을 유지한다.
+7. 카드 케이스는 `65×90mm` 세로형이고, 삽입 종이는 상하좌우 5mm 여유를 둔
+   `55×80mm`이다.
+8. 카드 안 순수 QR 크기는 정확히 `30×30mm`이고 QR을 기존보다 약 10mm
+   아래로 내린다. 학생 전체 이름은 QR 아래에 표시하고 `매쓰홀릭 채점 QR`
+   문구는 표시하지 않는다.
 9. 마스킹 표시명 기능과 입력 UI는 제거한다. 기존 DB 열은 무중단 호환을 위해
    내부에 남길 수 있지만 사용자 기능으로 사용하지 않는다.
 10. Android 직접 인쇄가 실패하는 원인을 가능한 범위에서 조사한다.
@@ -90,8 +93,8 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc31`/code 36
-  - Web POC `0.4.0-rc34`/code 51
+  - Kiosk `0.6.0-rc32`/code 37
+  - Web POC `0.4.0-rc35`/code 52
 - ADB: 2026-07-27 현재 기존 PC 승인이 유지된 `device` 상태
 - A의 Kiosk RC31/Web POC RC33 설치: 2026-07-27
   `adb install -r --no-streaming`으로 완료
@@ -101,16 +104,18 @@
   - RC11 설치 후 최종 `LOCKED`·전용 HOME은 독립 확인했으나 설치 스크립트
     최종 출력 오타로 설치 직후 일시 상태는 기록되지 않음
   - release signer, Device Owner와 전용 HOME 유지
-  - 현재 화면은 두 번째 잘못된 학생 로그인 시험의 안전 종료를 마친
-    Kiosk `ADMIN_IDLE` 관리자 화면. 활성 수업 없음
+  - RC32/RC35 설치 전 상태는 잘못된 학생 로그인 시험의 안전 종료를 마친
+    Kiosk `ADMIN_IDLE`, 활성 수업 없음
+  - RC32/RC35 보존형 설치 뒤 화면은 꺼진 상태에서 전용 HOME과 `LOCKED`
+    복구를 확인. 다음 화면 점등 시 업데이트 실패폐쇄 복구와 실물 시험 필요
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc31-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc34-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc32-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc35-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
-    `C5CBB48D5B5EA6D5A29EDF35C110FB68D9B96CD37F652F4D5DADA45B3045AC1E`
+    `0C253C2A916F2F2EB494914BEE5CF10E61F74CD53A89C28BA0A19C0ED85B20C5`
   - Web POC:
-    `798C59546E49EA320ADA7F47EF85E0ABBCC39FE5B1BAEAB04BC4879DFF981331`
+    `D8B653C51F7B6917B98D8794A89A2710AB98030077507A1C44A27F9AF4BFA496`
 - 최신 전체 자동 회귀: Android 13 Web 계측 68개·Kiosk 33개, Web JVM
   45개·Kiosk JVM 48개, release 158 tasks와 APK 이중 검증 통과
 - Android 13 일회용 에뮬레이터 계측시험:
@@ -1385,3 +1390,42 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
     통과
   - 독립 ADB 확인 최종 상태는 `ADMIN_IDLE`, 활성 수업 없음. 운영 재개 시
     선택한 반 수업 안전 시작 필요
+
+## Goal 종료 후 Kiosk RC32/Web RC35 이름·안내·인쇄 후속 — 2026-07-27
+
+- QR 승인 직후 Kiosk에 학생 전체 이름과 로그인 중 상태를 함께 표시
+- Web의 로그인 차폐 화면부터 학습지·진단평가·문제 화면까지 네이티브 학생
+  이름 배지를 유지하고 로그아웃·복구 때 즉시 제거
+- QR 위치 안내를 0.4초 간격으로 갱신하고 새 QR 감지가 0.9초 동안 없으면
+  이전 방향 문구를 지워 화면에 남지 않도록 변경
+- 늦게 생성되는 사이트 상단 메뉴, 오류신고·문제지·필기·동영상·풀이 업로드
+  제어를 `MutationObserver`에서 다시 숨기고, 수식 자동 선택 뒤 약 3초
+  잔존하던 Ant `수식` tooltip/popover도 생성 즉시 숨김
+- 카드 삽입 종이를 `55×80mm`, QR을 정확히 `30×30mm`, QR 상단을 카드
+  상단에서 `28mm`, 이름 기준선을 `68mm`로 고정
+- 학생 전체 이름은 QR 아래로 이동하고 `매쓰홀릭 채점 QR` 인쇄 문구 제거
+- Android가 직접 생성한 A4 PDF를
+  `output/pdf/matholic-qr-card-55x80-preview.pdf`로 꺼내 Poppler로 PNG
+  렌더링해 외곽선·QR·이름 정렬과 잘림 없음 확인
+- 구현 커밋:
+  - Web 이름과 늦은 제어 제거 `e44fd08`
+  - QR 이름·안내 만료 `42f45d8`
+  - 55×80mm 카드 레이아웃 `3dc2fe1`
+  - 늦은 상단 메뉴 제거 `ef74681`
+  - RC32/RC35 버전 준비 `8a97bdf`
+- Android 13 에뮬레이터 전체 계측 Web 68개·Kiosk 34개, 실패 0
+- 전체 debug 단위시험·lint·assemble 204 tasks, release 158 tasks와 APK
+  이중 검증 통과
+- A에 Kiosk `0.6.0-rc32`/code 37과 Web POC `0.4.0-rc35`/code 52를
+  `adb install -r --no-streaming`으로 보존형 설치
+- 설치 전후 UID `10288`/`10287`, firstInstallTime, Device Owner, 전용 HOME
+  유지. 설치 APK와 보관 artifact SHA-256 일치, 설치 뒤 두 앱 관련
+  `FATAL EXCEPTION` 없음
+- 앱 업데이트로 잠시 `LockTask NONE`이 된 뒤 화면을 깨우지 않는 HOME
+  시작으로 `LOCKED` 복구. 화면은 꺼진 상태
+- 미검증 실물 항목:
+  - 관리자 PIN 복구 뒤 기존 반·학생 보존
+  - 학생 이름이 QR 승인→로그인→Web 전 구간에 표시되는지
+  - QR을 렌즈 밖으로 빼면 0.9초 안에 방향 안내가 사라지는지
+  - 문제·전체답안 전환에서 사이트 UI와 `수식` 도움말이 보이지 않는지
+  - 새 55×80mm PDF 실물 인쇄 크기와 PVC 케이스 삽입·QR 재인식
