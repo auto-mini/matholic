@@ -4418,3 +4418,76 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 관리자 화면에서 뒤로가기 뒤 현재 화면·입력 유지
 - 기존 학생 QR 로그인 뒤 `PORTAL_ROUTE` 없이 학습지 자동 진입
 - 이후 학습지↔진단평가, 문제 입력·제출·오답 번호·QR 복귀 회귀
+
+---
+
+## Kiosk RC28 / Web POC RC30 학생 사용성·결과 완전성 보강 — 2026-07-27
+
+### 실물 재현과 원인
+
+- RC27/RC29에서 관리자 뒤로가기 현재 화면·입력 유지와 기존 학생의 자동
+  학습지 진입은 사용자 실물 재검증 통과
+- Matholic 최상단 메뉴와 학생 계정 메뉴, 문제지·오류신고·동영상·
+  답안필기·풀이 업로드가 학생 화면에 남고, 주관식 입력기와 제출 화면이
+  불편한 문제 재현
+- 25문제를 모두 틀렸는데 `5번` 하나만 표시한 결과 오류 재현
+- 공개 배포된 2026-07-08 Matholic JavaScript를 자격정보 없이 읽기 전용으로
+  확인한 결과, 결과 화면은 5번째 이후 문제를 IntersectionObserver로
+  스크롤 시점에 지연 생성함. 기존 구현은 현재 생성된 alert 카드만 전체로
+  오인
+
+### 변경
+
+- 학생 상단 메뉴의 의미 링크 묶음을 숨기고 학습지·진단평가 앱 버튼만 유지
+- 두 페이지 전환은 정확히 하나인 공식 내부 링크를 우선 클릭해 SPA 전환하고,
+  계약 불일치 시 기존 안전한 전체 로딩으로 대체
+- 문제지·오류신고·해설 동영상과 문구·답안 필기 입력·풀이 업로드를 숨김
+- 입력기 메뉴를 수식으로 전환하고 기본·분수 선택과 입력기 변경 버튼을 숨김
+- 주관식 입력 폭·공통 box sizing을 보정하고 제출 동작 줄에 19px 간격 추가
+- 전체답안 모달을 내부 끝까지 자동 이동하고 최종 제출 버튼을 계속 노출
+- 허용 학생 문서의 JavaScript alert/confirm을 주소 머리말 없는 앱 확인창으로
+  대체
+- 결과 상세를 먼저 차폐한 채 페이지를 위에서 아래로 순차 이동해 지연 카드를
+  모두 생성한 뒤, 1번부터 마지막 번호까지 완전한 정답·오답·모름·제외
+  분류가 있을 때만 오답 목록 표시. 불완전하면 거짓 목록 대신
+  `RESULT_INCOMPLETE`
+- QR 이미지는 계속 표시·저장하지 않고 QR 형식·`MQR1:` 접두 경계를 유지.
+  QR 경계 좌표로 중앙·크기·상하좌우를 안내하고 중앙 판독 범위일 때만 인증
+  결정을 전달
+
+### 자동 검증
+
+- Web DOM 계약 34개와 최종 전체 Web 계측 64개 통과
+- Kiosk 전체 계측 31개 통과
+- 네 모듈 JVM 시험 101개, 실패·오류 0
+- clean debug 단위시험·lint·APK: 204 tasks 통과
+- release 단위시험·lint·두 APK assemble: 158 tasks 통과
+- release applicationId·versionName·versionCode·권한·`debuggable=false`,
+  APK Signature Scheme v2·두 앱 동일 release signer·Debug signer 거부,
+  zipalign과 build/stored APK 이중 검증 통과
+
+### 릴리스 APK와 A 보존형 설치
+
+- Kiosk `0.6.0-rc28`/code 33
+  - SHA-256:
+    `DFA76863C027A8D31E951FE972943E0A12982E0C4FFC0280E346705DD8E1CB7B`
+- Web POC `0.4.0-rc30`/code 47
+  - SHA-256:
+    `571D4C3DAEA56469A28ACC4D6840089ACDFD28B1B2B11D2A5D2434106FE4A80C`
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- A는 SM-P610·Android 13·배터리 100%·USB 전원·ADB `device` 확인 후 두 앱
+  `adb install -r` 성공
+- UID `10288`/`10287`, firstInstallTime
+  `2026-07-24 12:52:28`/`2026-07-24 12:52:24`, dataDir와 카메라 권한 유지
+- 설치된 두 base APK SHA-256과 보관 artifact 일치
+- Device Owner·전용 HOME·`LOCKED` 유지, 설치 뒤 Matholic crash buffer
+  일치 항목 0
+
+### 실물 재검증 대기
+
+- QR 위치 방향·거리 안내와 전면 카메라 좌우 방향
+- 최상단 메뉴와 문제지·오류신고·동영상·답안필기·풀이 업로드 비표시
+- 수식 기본 전환·주관식 잘림·제출 간격·전체답안 자동 이동·확인창 머리말 제거
+- 25문제 전부 오답 및 정답·오답·모름 혼합 결과의 전체 번호 정확성
+- 학습지↔진단평가 SPA 우선 전환 체감 속도와 안전 fallback

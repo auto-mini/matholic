@@ -1,30 +1,30 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24, 갱신일: 2026-07-26 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-07-27 (Asia/Seoul)
 
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer와 더 높은 versionCode의 Kiosk RC27과 Web POC RC29를 보존형
-업데이트했다. 이 조합은 자동검증과 비대면 설치 후 검사를 통과했다.
-2026-07-27 실물 회귀에서 기존 학생·반 보존과 반 소속 QR 차단은 통과했고,
-관리자 뒤로가기와 자동 학습지 진입 수정본 재검증은 진행 중이다.
+같은 signer와 더 높은 versionCode의 Kiosk RC28과 Web POC RC30을 보존형
+업데이트했다. 이 조합은 자동검증과 설치 후 무결성 검사를 통과했다.
+RC27/RC29 실물 회귀에서 기존 데이터·반 소속 QR 차단·관리자 뒤로가기와
+자동 학습지 진입은 통과했다. RC28/RC30의 최신 학생 Web·결과·QR 위치 안내
+실기는 진행 전이다.
 
-- 현재 A: Kiosk `0.6.0-rc27`/code 32, Web POC `0.4.0-rc29`/code 46
+- 현재 A: Kiosk `0.6.0-rc28`/code 33, Web POC `0.4.0-rc30`/code 47
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc27`/code 32, Web POC `0.4.0-rc29`/code 46
+  Kiosk `0.6.0-rc28`/code 33, Web POC `0.4.0-rc30`/code 47
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC27/Web POC RC29, 기존 Device Owner·전용
-  HOME·`LOCKED` 유지. 업데이트 전후 화면은 계속 `Dozing`이었으며 현재
-  물리 UI 상태는 미확인
+- 현재 A: release signer의 Kiosk RC28/Web POC RC30, 기존 Device Owner·전용
+  HOME·`LOCKED`, 앱 UID·firstInstallTime·dataDir와 카메라 권한 유지
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
 - 두 번째 공장초기화·release 프로비저닝: **완료**
 - RC02 정상 왕복·비정상 Web 세션 자체 복구·재부팅 복구: **완료**
 - RC02 개발자 옵션·USB 디버깅 제거 및 ADB 없는 물리 실기: **완료**
 - RC02 실제 프린터 출력·종이 QR 왕복·120분 연속 운전: **완료**
-- RC27/RC29 관리자 뒤로가기·자동 학습지 진입 재검증: **진행 중**
-- RC27/RC29 문제 입력·결과·카메라·PDF·인쇄 회귀: **미수행**
+- RC27/RC29 관리자 뒤로가기·자동 학습지 진입 재검증: **통과**
+- RC28/RC30 학생 Web·오답 전체 목록·QR 위치 안내 회귀: **미수행**
 
 debug signer에서 release signer로의 전환은 공장초기화와 새 Device Owner 등록으로 완료했다. 앞으로 같은 release signer와 더 높은 versionCode의 APK는 앱 데이터와 Device Owner를 보존해 덮어쓸 수 있다.
 

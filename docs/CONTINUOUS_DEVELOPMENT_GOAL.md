@@ -90,8 +90,8 @@
 - A Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - A 설치본:
-  - Kiosk `0.6.0-rc27`/code 32
-  - Web POC `0.4.0-rc29`/code 46
+  - Kiosk `0.6.0-rc28`/code 33
+  - Web POC `0.4.0-rc30`/code 47
 - ADB: 2026-07-26 현재 기존 PC 승인이 유지된 `device` 상태
 - A의 Kiosk RC27/Web POC RC29 설치: 2026-07-27 `adb install -r`로 완료
   - 설치 전후 package UID `10288`/`10287`, firstInstallTime, dataDir 유지
@@ -104,8 +104,8 @@
     물리 UI는 미확인
   - 설치 직후 Matholic 관련 치명적 AndroidRuntime 예외 없음
 - 내부 보관 현재 검증 묶음:
-  - `artifacts/matholic-kiosk-0.6.0-rc27-release.apk`
-  - `artifacts/matholic-webpoc-0.4.0-rc29-release.apk`
+  - `artifacts/matholic-kiosk-0.6.0-rc28-release.apk`
+  - `artifacts/matholic-webpoc-0.4.0-rc30-release.apk`
 - A 설치 APK SHA-256:
   - Kiosk:
     `8A638F8D9494079165E908644092F8B8A35EE00F41F5055B64709F833C37446C`
@@ -1256,3 +1256,29 @@ Goal 종료 뒤 사용자가 직접 RC26/RC28 실물 회귀를 시작했다.
 - UID·firstInstallTime·dataDir, Device Owner·전용 HOME·`LOCKED` 유지,
   설치본과 보관본 해시 일치, 설치 시각 이후 AndroidRuntime 오류 0
 - 관리자 뒤로가기와 자동 학습지 진입 수정 결과는 사용자 재검증 대기
+
+## Goal 종료 후 학생 사용성·결과·QR 후속 — 2026-07-27
+
+- RC27/RC29 사용자 실물 확인:
+  - 관리자 뒤로가기 뒤 현재 화면·입력 유지: 통과
+  - 기존 학생 QR 로그인 뒤 `PORTAL_ROUTE` 없이 학습지 자동 진입: 통과
+- 학생이 확인한 상단 Matholic 메뉴 노출, 문제 화면의 불필요한 기능,
+  수식 입력기·제출 화면 불편, 확인창 주소 머리말과 오답 목록 오류를
+  `40a5667`에서 보강
+- 공개 Matholic JavaScript를 자격정보 없이 읽기 전용으로 확인해 결과
+  5번째 이후가 스크롤할 때 지연 생성되는 구조를 확인
+- 풀이·정답 차폐 뒤 결과 페이지를 순차 이동해 모든 번호의 완전성을 증명한
+  경우만 오답 목록을 표시하고 불완전하면 `RESULT_INCOMPLETE`
+- 전면·후면 카메라 영상은 표시·저장하지 않은 채 매쓰홀릭 QR 경계 좌표로
+  중앙·거리·상하좌우를 안내하고 중앙 판독 범위만 인증하는 변경을
+  `88c2536`에 추가
+- Kiosk RC28/Web POC RC30 준비 커밋 `9eb83f6`
+- Web 전체 계측 64개, Kiosk 전체 계측 31개, 네 모듈 JVM 101개,
+  clean debug 204 tasks, release 158 tasks와 APK 이중 검증 통과
+- A에 두 앱을 같은 release signer의 상위 versionCode로 `adb install -r`
+  보존형 설치
+- UID·firstInstallTime·dataDir·카메라 권한, Device Owner·전용 HOME·
+  `LOCKED` 유지, 설치된 base APK와 artifact SHA-256 일치, 설치 뒤
+  Matholic crash buffer 일치 항목 0
+- 최신 학생 Web 사용성·전체 결과·QR 위치 안내 실물 재검증은 사용자 수행
+  대기
