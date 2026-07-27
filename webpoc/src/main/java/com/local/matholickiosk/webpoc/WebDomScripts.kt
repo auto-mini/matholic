@@ -363,35 +363,40 @@ object WebDomScripts {
           const isChromeSignal = element =>
             chromeTexts.has(normalize(element.textContent)) ||
             chromePaths.has(hrefPath(element));
-          const chromeSignals = Array.from(
-            document.querySelectorAll('a[href],button,[role="button"]')
-          ).filter(isChromeSignal);
           let hiddenChrome = 0;
           const hiddenChromeShells = new Set();
-          chromeSignals.forEach(signal => {
-            let candidate = signal.closest(
-              'header,nav,[role="banner"],[role="navigation"]'
-            );
-            let ancestor = signal;
-            while (!candidate && ancestor && ancestor.parentElement) {
-              ancestor = ancestor.parentElement;
-              if (ancestor === document.body || ancestor === document.documentElement) break;
-              const signalCount = Array.from(
-                ancestor.querySelectorAll('a[href],button,[role="button"]')
-              ).filter(isChromeSignal).length;
-              if (
-                signalCount >= 3 &&
-                !ancestor.querySelector('main,[role="main"]')
-              ) {
-                candidate = ancestor;
-                break;
+          const hideStudentChrome = () => {
+            let hidden = 0;
+            const chromeSignals = Array.from(
+              document.querySelectorAll('a[href],button,[role="button"]')
+            ).filter(isChromeSignal);
+            chromeSignals.forEach(signal => {
+              let candidate = signal.closest(
+                'header,nav,[role="banner"],[role="navigation"]'
+              );
+              let ancestor = signal;
+              while (!candidate && ancestor && ancestor.parentElement) {
+                ancestor = ancestor.parentElement;
+                if (ancestor === document.body || ancestor === document.documentElement) break;
+                const signalCount = Array.from(
+                  ancestor.querySelectorAll('a[href],button,[role="button"]')
+                ).filter(isChromeSignal).length;
+                if (
+                  signalCount >= 3 &&
+                  !ancestor.querySelector('main,[role="main"]')
+                ) {
+                  candidate = ancestor;
+                  break;
+                }
               }
-            }
-            if (candidate && !hiddenChromeShells.has(candidate) && hide(candidate)) {
-              hiddenChromeShells.add(candidate);
-              hiddenChrome += 1;
-            }
-          });
+              if (candidate && !hiddenChromeShells.has(candidate) && hide(candidate)) {
+                hiddenChromeShells.add(candidate);
+                hidden += 1;
+              }
+            });
+            return hidden;
+          };
+          hiddenChrome += hideStudentChrome();
 
           let style = document.getElementById('matholic-kiosk-student-style');
           if (!style) {
@@ -918,6 +923,7 @@ object WebDomScripts {
               }
             };
             const maintainLateStudentControls = () => {
+              hiddenChrome += hideStudentChrome();
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
               protectAnalysisDetails();

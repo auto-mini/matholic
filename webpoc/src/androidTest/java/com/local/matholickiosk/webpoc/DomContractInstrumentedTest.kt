@@ -439,6 +439,14 @@ class DomContractInstrumentedTest {
                 webView,
                 """
                 (() => {
+                  const lateChrome = document.createElement('div');
+                  lateChrome.id = 'late-global-line';
+                  lateChrome.innerHTML = `
+                    <a href="/course">학습실</a>
+                    <button>학습활동</button>
+                    <a href="/userInfo">개인정보</a>
+                    <a href="/userAccessLog">로그인 정보</a>`;
+                  document.body.insertBefore(lateChrome, document.getElementById('problem'));
                   const late = document.createElement('div');
                   late.innerHTML = `
                     <button id="late-report">오류신고</button>
@@ -469,13 +477,16 @@ class DomContractInstrumentedTest {
                   reportHidden:
                     getComputedStyle(document.getElementById('late-report')).display === 'none',
                   mathTooltipHidden:
-                    getComputedStyle(document.getElementById('late-math-tooltip')).display === 'none'
+                    getComputedStyle(document.getElementById('late-math-tooltip')).display === 'none',
+                  chromeHidden:
+                    getComputedStyle(document.getElementById('late-global-line')).display === 'none'
                 }))()
                 """.trimIndent(),
             )
             assertTrue(lateProof.getBoolean("hidden"))
             assertTrue(lateProof.getBoolean("reportHidden"))
             assertTrue(lateProof.getBoolean("mathTooltipHidden"))
+            assertTrue(lateProof.getBoolean("chromeHidden"))
         }
     }
 
