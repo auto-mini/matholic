@@ -9,6 +9,7 @@ enum class DedicatedDeviceMode {
 data class DedicatedDeviceStatus(
     val isDeviceOwner: Boolean,
     val isKioskPackagePermitted: Boolean,
+    val isWebPocUninstallBlocked: Boolean,
     val mode: DedicatedDeviceMode,
 )
 
@@ -28,10 +29,11 @@ object DedicatedDevicePolicy {
     ): String =
         when {
             !status.isDeviceOwner -> "전용기기 잠금 미설정"
+            !status.isKioskPackagePermitted || !status.isWebPocUninstallBlocked ->
+                "전용기기 정책 오류"
             administratorUnlocked && status.mode == DedicatedDeviceMode.NONE ->
                 "전용기기 · 관리자 잠금 해제"
             status.mode == DedicatedDeviceMode.LOCKED -> "전용기기 잠금 활성"
-            !status.isKioskPackagePermitted -> "전용기기 정책 오류"
             else -> "전용기기 잠금 준비 중"
         }
 }

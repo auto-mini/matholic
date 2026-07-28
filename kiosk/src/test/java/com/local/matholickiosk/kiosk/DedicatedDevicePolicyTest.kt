@@ -27,6 +27,7 @@ class DedicatedDevicePolicyTest {
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,
                     isKioskPackagePermitted = true,
+                    isWebPocUninstallBlocked = true,
                     mode = DedicatedDeviceMode.LOCKED,
                 ),
                 administratorUnlocked = false,
@@ -38,6 +39,7 @@ class DedicatedDevicePolicyTest {
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,
                     isKioskPackagePermitted = true,
+                    isWebPocUninstallBlocked = true,
                     mode = DedicatedDeviceMode.NONE,
                 ),
                 administratorUnlocked = true,
@@ -53,7 +55,24 @@ class DedicatedDevicePolicyTest {
                 DedicatedDeviceStatus(
                     isDeviceOwner = false,
                     isKioskPackagePermitted = false,
+                    isWebPocUninstallBlocked = false,
                     mode = DedicatedDeviceMode.NONE,
+                ),
+                administratorUnlocked = false,
+            ),
+        )
+    }
+
+    @Test
+    fun missingWebPocUninstallProtectionIsReportedAsPolicyError() {
+        assertEquals(
+            "전용기기 정책 오류",
+            DedicatedDevicePolicy.statusLabel(
+                DedicatedDeviceStatus(
+                    isDeviceOwner = true,
+                    isKioskPackagePermitted = true,
+                    isWebPocUninstallBlocked = false,
+                    mode = DedicatedDeviceMode.LOCKED,
                 ),
                 administratorUnlocked = false,
             ),

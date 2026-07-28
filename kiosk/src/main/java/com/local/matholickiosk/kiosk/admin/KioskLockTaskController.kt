@@ -36,6 +36,11 @@ class KioskLockTaskController(
             admin,
             DevicePolicyManager.LOCK_TASK_FEATURE_NONE,
         )
+        devicePolicyManager.setUninstallBlocked(
+            admin,
+            CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
+            true,
+        )
         check(devicePolicyManager.setKeyguardDisabled(admin, true)) {
             "Device keyguard could not be disabled"
         }
@@ -91,6 +96,11 @@ class KioskLockTaskController(
             isDeviceOwner = owner,
             isKioskPackagePermitted = owner &&
                 devicePolicyManager.isLockTaskPermitted(activity.packageName),
+            isWebPocUninstallBlocked = owner &&
+                devicePolicyManager.isUninstallBlocked(
+                    admin,
+                    CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
+                ),
             mode = currentMode(),
         )
     }
