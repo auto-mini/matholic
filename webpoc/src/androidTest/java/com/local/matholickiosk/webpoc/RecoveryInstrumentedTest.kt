@@ -10,6 +10,7 @@ import android.view.WindowManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.ValueCallback
+import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
@@ -25,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
@@ -660,6 +662,75 @@ class RecoveryInstrumentedTest {
                 ).forEach { id ->
                     assertTrue(activity.findViewById<EditText>(id).text.isNullOrEmpty())
                 }
+            }
+        }
+    }
+
+    @Test
+    fun completedResultOffersSameStudentContinuationButIncompleteResultDoesNot() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                MainActivity::class.java.getDeclaredMethod(
+                    "showResultSummary",
+                    List::class.java,
+                ).apply { isAccessible = true }
+                    .invoke(activity, listOf(1))
+
+                val continueButton = activity.findViewById<Button>(
+                    R.id.result_continue_button,
+                )
+                assertEquals(View.VISIBLE, continueButton.visibility)
+                assertEquals("다른 학습지 계속 채점", continueButton.text.toString())
+
+                MainActivity::class.java.getDeclaredField("resultSummaryDisplayed").apply {
+                    isAccessible = true
+                    setBoolean(activity, false)
+                }
+                MainActivity::class.java.getDeclaredMethod(
+                    "showResultSummaryUnavailable",
+                    JSONObject::class.java,
+                ).apply { isAccessible = true }
+                    .invoke(activity, JSONObject())
+
+                assertEquals(View.GONE, continueButton.visibility)
+
+                MainActivity::class.java.getDeclaredField("resultSummaryDisplayed").apply {
+                    isAccessible = true
+                    setBoolean(activity, false)
+                }
+                MainActivity::class.java.getDeclaredMethod(
+                    "showResultSummary",
+                    List::class.java,
+                ).apply { isAccessible = true }
+                    .invoke(activity, emptyList<Int>())
+                continueButton.performClick()
+
+                assertEquals(
+                    View.GONE,
+                    activity.findViewById<View>(R.id.result_summary_panel).visibility,
+                )
+                assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.blocker).visibility)
+                assertEquals(
+                    "학습 화면을 안전하게 준비 중입니다",
+                    activity.findViewById<android.widget.TextView>(
+                        R.id.blocker_message,
+                    ).text.toString(),
+                )
+                assertFalse(
+                    MainActivity::class.java.getDeclaredField(
+                        "resultSummaryDisplayed",
+                    ).apply { isAccessible = true }.getBoolean(activity),
+                )
+                assertFalse(
+                    MainActivity::class.java.getDeclaredField(
+                        "resultContinuationAllowed",
+                    ).apply { isAccessible = true }.getBoolean(activity),
+                )
             }
         }
     }

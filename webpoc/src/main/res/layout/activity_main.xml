@@ -105,14 +105,35 @@
                 android:textSize="28sp"
                 android:textStyle="bold" />
 
-            <Button
-                android:id="@+id/result_confirm_button"
-                android:layout_width="300dp"
-                android:layout_height="64dp"
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="30dp"
-                android:text="확인하고 채점 끝내기"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/result_continue_button"
+                    android:layout_width="300dp"
+                    android:layout_height="64dp"
+                    android:backgroundTint="#1565C0"
+                    android:text="다른 학습지 계속 채점"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/result_confirm_button"
+                    android:layout_width="300dp"
+                    android:layout_height="64dp"
+                    android:layout_marginStart="14dp"
+                    android:backgroundTint="#B71C1C"
+                    android:text="확인하고 채점 끝내기"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 

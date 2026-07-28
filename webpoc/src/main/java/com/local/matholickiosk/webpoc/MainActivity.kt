@@ -75,6 +75,7 @@ class MainActivity : Activity() {
     private lateinit var diagnosticButton: Button
     private lateinit var resultSummaryPanel: FrameLayout
     private lateinit var wrongAnswerSummary: TextView
+    private lateinit var resultContinueButton: Button
     private lateinit var resultConfirmButton: Button
     private lateinit var studentNameBadge: TextView
 
@@ -103,6 +104,7 @@ class MainActivity : Activity() {
     private var adminRecoveryResultDelivered = false
     private var activeExperienceGeneration = 0
     private var resultSummaryDisplayed = false
+    private var resultContinuationAllowed = false
     private var resultExtractionFailures = 0
     private var resultHydrationPolls = 0
     private var studentContentRevealPending = false
@@ -312,6 +314,7 @@ class MainActivity : Activity() {
         diagnosticButton = findViewById(R.id.diagnostic_button)
         resultSummaryPanel = findViewById(R.id.result_summary_panel)
         wrongAnswerSummary = findViewById(R.id.wrong_answer_summary)
+        resultContinueButton = findViewById(R.id.result_continue_button)
         resultConfirmButton = findViewById(R.id.result_confirm_button)
         studentNameBadge = findViewById(R.id.student_name_badge)
     }
@@ -339,6 +342,7 @@ class MainActivity : Activity() {
             gate3AbortButton,
             workbookButton,
             diagnosticButton,
+            resultContinueButton,
             resultConfirmButton,
             webView,
         ).forEach {
@@ -686,10 +690,27 @@ class MainActivity : Activity() {
                 )
             }
         }
+        resultContinueButton.setOnClickListener {
+            if (
+                state == WebPocState.ACTIVE &&
+                resultSummaryDisplayed &&
+                resultContinuationAllowed
+            ) {
+                resultSummaryDisplayed = false
+                resultContinuationAllowed = false
+                resultContinueButton.isEnabled = false
+                pendingLockReason = null
+                navigateStudentSection(
+                    StudentWebPolicy.WORKBOOK_PATH,
+                    WebSecurityPolicy.WORKBOOK_URL,
+                )
+            }
+        }
         resultConfirmButton.setOnClickListener {
             if (state == WebPocState.ACTIVE && resultSummaryDisplayed) {
                 resultSummaryPanel.visibility = View.GONE
                 resultSummaryDisplayed = false
+                resultContinuationAllowed = false
                 pendingLockReason = null
                 beginLogout()
             }
@@ -1216,6 +1237,7 @@ class MainActivity : Activity() {
                 "틀린 문제: " + wrongNumbers.joinToString(", ") { "${it}번" }
             },
             confirmLabel = "확인하고 채점 끝내기",
+            allowContinuation = true,
         )
     }
 
@@ -1233,14 +1255,22 @@ class MainActivity : Activity() {
                 progress +
                 "\n\n상태 코드: RESULT_INCOMPLETE",
             confirmLabel = "선생님 확인 후 채점 끝내기",
+            allowContinuation = false,
         )
     }
 
-    private fun showResultPanel(message: String, confirmLabel: String) {
+    private fun showResultPanel(
+        message: String,
+        confirmLabel: String,
+        allowContinuation: Boolean,
+    ) {
         if (state != WebPocState.ACTIVE || resultSummaryDisplayed) return
         resultSummaryDisplayed = true
+        resultContinuationAllowed = allowContinuation
         activeExperienceGeneration += 1
         wrongAnswerSummary.text = message
+        resultContinueButton.isEnabled = allowContinuation
+        resultContinueButton.visibility = if (allowContinuation) View.VISIBLE else View.GONE
         resultConfirmButton.text = confirmLabel
         webView.visibility = View.INVISIBLE
         studentNavBar.visibility = View.GONE
@@ -1724,6 +1754,7 @@ class MainActivity : Activity() {
     private fun hideStudentExperienceLayers() {
         activeExperienceGeneration += 1
         resultSummaryDisplayed = false
+        resultContinuationAllowed = false
         studentContentRevealPending = false
         studentContentRevealPasses = 0
         pendingStudentRevealPath = null
