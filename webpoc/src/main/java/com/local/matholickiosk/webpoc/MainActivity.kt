@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -714,8 +715,36 @@ class MainActivity : Activity() {
 
     private fun registerBackHandler() {
         onBackInvokedDispatcher.registerOnBackInvokedCallback(
-            android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
-        ) { hideSystemNavigation() }
+            android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+        ) { consumeSystemBack() }
+    }
+
+    private fun consumeSystemBack() {
+        hideSystemNavigation()
+    }
+
+    @SuppressLint("GestureBackNavigation")
+    @Deprecated("Back is deliberately consumed in the dedicated student Web surface")
+    override fun onBackPressed() {
+        consumeSystemBack()
+    }
+
+    @SuppressLint("GestureBackNavigation")
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            consumeSystemBack()
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    @SuppressLint("GestureBackNavigation")
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            consumeSystemBack()
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun prepareLoginPage() {

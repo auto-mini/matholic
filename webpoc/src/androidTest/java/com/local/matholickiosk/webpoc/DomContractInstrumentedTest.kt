@@ -613,8 +613,25 @@ class DomContractInstrumentedTest {
                 webView,
                 """
                 (() => {
-                  document.getElementById('math-editor')
-                    .classList.add('mq-editable-field');
+                  const editor = document.getElementById('math-editor');
+                  let latex = '';
+                  editor.innerHTML =
+                    '<span class="mq-textarea"><textarea></textarea></span>' +
+                    '<span class="mq-root-block"></span>';
+                  editor.fieldApi = {
+                    latex: value => {
+                      if (value !== undefined) latex = value;
+                      return latex;
+                    },
+                    write: value => { latex += value; },
+                    keystroke: key => {
+                      if (key === 'Backspace') latex = latex.slice(0, -1);
+                    }
+                  };
+                  window.MathQuill = {
+                    getInterface: () => element => element.fieldApi || null
+                  };
+                  editor.classList.add('mq-editable-field');
                   return JSON.stringify({ settled: true });
                 })()
                 """.trimIndent(),
@@ -638,6 +655,115 @@ class DomContractInstrumentedTest {
             )
             assertTrue(settledProof.getBoolean("fieldReady"))
             assertTrue(settledProof.getBoolean("inputEnabled"))
+        }
+    }
+
+    @Test
+    fun testStudentExperiencePrimesMathFieldSoFirstUserEditPersists() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="answer-input-form-0">
+                  <input id="basic-answer" placeholder="주관식 답은 여기에">
+                  <button id="input-menu"
+                    onclick="document.getElementById('mode-menu').style.display='block'">
+                    입력기
+                  </button>
+                </div>
+                <ul id="mode-menu" style="display:none">
+                  <li>기본</li>
+                  <li>분수</li>
+                  <li id="math-mode" onclick="mountMathField()">수식</li>
+                </ul>
+                <script>
+                  window.mathLatex = '';
+                  window.persistedLatex = null;
+                  window.ignoredMathEdits = 2;
+                  window.mathEditCount = 0;
+                  window.recordMathEdit = () => {
+                    window.mathEditCount += 1;
+                    if (window.ignoredMathEdits > 0) {
+                      window.ignoredMathEdits -= 1;
+                    } else {
+                      window.persistedLatex = window.mathLatex || null;
+                    }
+                  };
+                  window.mountMathField = () => {
+                    const scope = document.getElementById('answer-input-form-0');
+                    scope.innerHTML = `
+                      <div>
+                        <button>루트</button>
+                        <button>분수</button>
+                        <button>파이</button>
+                      </div>
+                      <span id="math-editor" class="mq-editable-field mq-math-mode">
+                        <span class="mq-textarea"><textarea></textarea></span>
+                        <span class="mq-root-block"></span>
+                      </span>
+                      <button id="settled-input-menu">입력기</button>`;
+                    const editor = document.getElementById('math-editor');
+                    editor.fieldApi = {
+                      latex: () => window.mathLatex,
+                      write: value => {
+                        window.mathLatex += value;
+                        window.recordMathEdit();
+                      },
+                      keystroke: key => {
+                        if (key === 'Backspace') {
+                          window.mathLatex = window.mathLatex.slice(0, -1);
+                        }
+                        window.recordMathEdit();
+                      }
+                    };
+                  };
+                  window.MathQuill = {
+                    getInterface: () => element => element.fieldApi || null
+                  };
+                  window.typeFirstStudentDigit = digit => {
+                    window.mathLatex += digit;
+                    window.recordMathEdit();
+                  };
+                </script>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            Thread.sleep(100)
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  window.typeFirstStudentDigit('7');
+                  const textarea = document.querySelector(
+                    '#answer-input-form-0 .mq-textarea textarea'
+                  );
+                  return JSON.stringify({
+                    latex: window.mathLatex,
+                    persisted: window.persistedLatex,
+                    ignoredEdits: window.ignoredMathEdits,
+                    editCount: window.mathEditCount,
+                    inputEnabled:
+                      getComputedStyle(document.getElementById('answer-input-form-0'))
+                        .pointerEvents !== 'none',
+                    stabilized:
+                      document.getElementById('answer-input-form-0')
+                        .dataset.matholicKioskMathStabilized === 'true',
+                    inputMode: textarea ? textarea.getAttribute('inputmode') : null
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("7", proof.getString("latex"))
+            assertEquals("7", proof.getString("persisted"))
+            assertEquals(0, proof.getInt("ignoredEdits"))
+            assertEquals(3, proof.getInt("editCount"))
+            assertTrue(proof.getBoolean("inputEnabled"))
+            assertTrue(proof.getBoolean("stabilized"))
+            assertEquals("decimal", proof.getString("inputMode"))
         }
     }
 

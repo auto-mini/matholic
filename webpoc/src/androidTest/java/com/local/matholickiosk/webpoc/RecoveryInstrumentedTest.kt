@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebSettings
@@ -15,6 +16,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -82,6 +84,39 @@ class RecoveryInstrumentedTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             TimeUnit.SECONDS.sleep(2)
             assertEquals(WebPocState.LOCKED, readState())
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun systemBackIsConsumedWithoutFinishingWebActivity() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                assertFalse(activity.isFinishing)
+                activity.onBackPressed()
+                assertFalse(activity.isFinishing)
+                assertTrue(
+                    activity.onKeyDown(
+                        KeyEvent.KEYCODE_BACK,
+                        KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK),
+                    ),
+                )
+                assertTrue(
+                    activity.onKeyUp(
+                        KeyEvent.KEYCODE_BACK,
+                        KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK),
+                    ),
+                )
+                assertFalse(activity.isFinishing)
+            }
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(
+                KeyEvent.KEYCODE_BACK,
+            )
+            scenario.onUiInitialized { activity ->
+                assertFalse(activity.isFinishing)
+                assertFalse(activity.isDestroyed)
+            }
         }
     }
 

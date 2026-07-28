@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.5"
+    const val CONTRACT_VERSION = "web-2026-07-28.6"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -743,9 +743,61 @@ object WebDomScripts {
               const mathEditorReady = scope => !!scope?.querySelector(
                 '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
               );
+              const prepareMathEditor = scope => {
+                const editor = scope?.querySelector('.mq-editable-field');
+                if (!editor) return false;
+                const textarea =
+                  editor.querySelector('textarea') ||
+                  scope.querySelector('.mq-textarea textarea');
+                if (textarea) {
+                  textarea.setAttribute('inputmode', 'decimal');
+                  textarea.setAttribute('enterkeyhint', 'done');
+                  textarea.setAttribute('autocomplete', 'off');
+                  textarea.setAttribute('autocapitalize', 'none');
+                  textarea.setAttribute('spellcheck', 'false');
+                }
+                if (
+                  scope.dataset.matholicKioskMathNeedsStabilization !== 'true'
+                ) return true;
+                if (
+                  scope.dataset.matholicKioskMathStabilized === 'true'
+                ) {
+                  delete scope.dataset.matholicKioskMathNeedsStabilization;
+                  return true;
+                }
+                try {
+                  const factory = window.MathQuill?.getInterface?.(2);
+                  const field = typeof factory === 'function' ?
+                    factory(editor) : null;
+                  if (
+                    !field ||
+                    typeof field.latex !== 'function' ||
+                    typeof field.write !== 'function' ||
+                    typeof field.keystroke !== 'function'
+                  ) return false;
+                  const originalLatex = field.latex();
+                  field.write('0');
+                  field.keystroke('Backspace');
+                  if (field.latex() !== originalLatex) {
+                    field.latex(originalLatex);
+                    return false;
+                  }
+                  scope.dataset.matholicKioskMathStabilized = 'true';
+                  delete scope.dataset.matholicKioskMathNeedsStabilization;
+                  return true;
+                } catch (_) {
+                  return false;
+                }
+              };
               const setMathInputBlocked = (scope, blocked) => {
                 if (!scope) return;
                 if (blocked) {
+                  if (
+                    scope.querySelector('input[placeholder*="주관식 답"]') &&
+                    scope.dataset.matholicKioskMathStabilized !== 'true'
+                  ) {
+                    scope.dataset.matholicKioskMathNeedsStabilization = 'true';
+                  }
                   if (scope.dataset.matholicKioskMathPending !== 'true') {
                     scope.dataset.matholicKioskPreviousPointerEvents =
                       scope.style.getPropertyValue('pointer-events');
@@ -799,8 +851,10 @@ object WebDomScripts {
                 if (answerScope) observedScopes.add(answerScope);
                 const componentMounted = mathComponentMounted(answerScope);
                 const editorReady = mathEditorReady(answerScope);
-                setMathInputBlocked(answerScope, !editorReady);
-                if (editorReady) {
+                const editorPrepared =
+                  editorReady && prepareMathEditor(answerScope);
+                setMathInputBlocked(answerScope, !editorPrepared);
+                if (editorPrepared) {
                   readyCount += 1;
                 } else {
                   pendingCount += 1;
@@ -820,8 +874,12 @@ object WebDomScripts {
               )).forEach(scope => {
                 if (observedScopes.has(scope)) return;
                 if (mathEditorReady(scope)) {
-                  setMathInputBlocked(scope, false);
-                  readyCount += 1;
+                  if (prepareMathEditor(scope)) {
+                    setMathInputBlocked(scope, false);
+                    readyCount += 1;
+                  } else {
+                    pendingCount += 1;
+                  }
                 }
               });
 
