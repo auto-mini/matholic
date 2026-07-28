@@ -1,22 +1,21 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24, 갱신일: 2026-07-27 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-07-28 (Asia/Seoul)
 
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer와 더 높은 versionCode의 Kiosk RC29와 Web POC RC31을 보존형
-업데이트했다. 이 조합은 자동검증과 설치 후 무결성 검사를 통과했다.
-RC27/RC29 실물 회귀에서 기존 데이터·반 소속 QR 차단·관리자 뒤로가기와
-자동 학습지 진입은 통과했다. RC28/RC30의 최신 학생 Web·결과·QR 위치 안내
-실기는 진행 전이다.
+같은 signer의 Kiosk RC34와 Web POC RC40을 설치했다. Kiosk DB, Device
+Owner와 전용 HOME은 보존됐고 두 설치본의 해시는 보관 artifact와 일치한다.
+RC40 주관식 첫 입력 보존 실기는 아직 진행 전이다.
 
-- 현재 A: Kiosk `0.6.0-rc29`/code 34, Web POC `0.4.0-rc31`/code 48
+- 현재 A: Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc40`/code 57
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc29`/code 34, Web POC `0.4.0-rc31`/code 48
+  Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc40`/code 57
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC29/Web POC RC31, 기존 Device Owner·전용
-  HOME·`LOCKED`, 앱 UID·firstInstallTime·dataDir와 카메라 권한 유지
+- 현재 A: release signer의 Kiosk RC34/Web POC RC40, 기존 Device Owner·전용
+  HOME·Kiosk UID·firstInstallTime·dataDir 유지
+- Kiosk RC34는 Device Owner 정책으로 Web POC 제거를 차단한다.
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
 - 두 번째 오프라인 release 키 복구본: **별도 SanDisk USB에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
@@ -106,6 +105,24 @@ Windows DPAPI 자격정보는 복사하지 않았다. 기존 Android 폰 복구 
 - `artifacts/RELEASE_SHA256SUMS.txt` 생성
 
 서명 환경이 없는 직접 release 빌드는 `Release signing is required`로 실패한다.
+
+## Android 계측시험 안전 경계
+
+A와 에뮬레이터가 동시에 연결된 PC에서 raw
+`:webpoc:connectedDebugAndroidTest`를 실행하지 않는다. debug 시험 APK는
+release Web POC와 applicationId가 같고 signer가 달라, 시험 도구의 설치·정리
+동작이 생산 앱에 영향을 줄 수 있다.
+
+Web POC 계측시험은 반드시 아래 에뮬레이터 전용 스크립트로 실행한다.
+
+```powershell
+.\scripts\test-webpoc-emulator.ps1
+```
+
+스크립트는 `emulator-` serial과 `ro.kernel.qemu=1`을 모두 확인하고
+`ANDROID_SERIAL`을 고정한다. 물리 serial을 주면 시험 전에 실패한다.
+Kiosk RC34는 이 절차상의 경계와 별도로 Device Owner의
+`setUninstallBlocked` 정책을 적용해 Web POC 제거를 차단한다.
 
 ## Release 프로비저닝
 

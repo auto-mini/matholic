@@ -4722,3 +4722,91 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
     통과
 - 검증 직후 독립 UI 확인: `ADMIN_IDLE`, `선택한 반 수업 안전 시작`,
   활성 수업 없음. 따라서 최종 상태를 `QR_READY`로 기록하지 않음
+
+---
+
+## Web POC RC40 주관식 최초 입력 보존 / Kiosk RC34 앱 제거 차단 — 2026-07-28
+
+### 선행 실물 결과와 결함
+
+- RC39 전체답안과 결과 흐름:
+  - 최초 자동 이동과 이후 사용자 스크롤 위치 유지: 통과
+  - 풀이·정답 비표시, 정확한 오답 번호만 표시: 통과
+  - 확인 후 자동 로그아웃, `QR_READY` 복귀, 오류 코드 없음: 통과
+- 이후 주관식에서 첫 입력이 보이지만 문제를 이동했다 돌아오면 사라지는
+  결함을 재현했다.
+- 숫자를 지우거나 3자리 이상 입력한 뒤 나타나는 회색 원형은 수식
+  입력기의 지우기 버튼이며, 이 상태부터 답이 보존됐다.
+
+### 원인과 수정
+
+- 2026-07-28 공개 Matholic 학습 자산을 읽기 전용으로 확인했다.
+- 공식 입력기 메뉴는 `수식`을 고르면 기존 `ONE` 입력 컴포넌트를 `EQ`
+  수식 컴포넌트로 교체한다. 자동 선택과 학생의 첫 입력이 겹치면 이전
+  컴포넌트의 값이 교체 과정에서 유실됐다.
+- 답안 모달이 나타나면 수식 컴포넌트와 MathQuill 편집기의
+  `.mq-editable-field`가 실제 준비될 때까지만 해당 답안 영역의 터치를
+  차단한다. 준비 완료 뒤 기존 pointer/접근성 상태를 복원한다.
+- 루트·분수·파이는 유지하고 기본 입력기와 직접 필기 입력만 계속 숨긴다.
+- 계약 버전을 `web-2026-07-28.5`로 올렸다.
+
+### 회귀시험과 릴리스
+
+- 새 회귀시험은 수정 전 `mathModePending` 계약 부재로 실패했고 수정 후 통과
+- 같은 회귀시험 연속 3회: 통과
+- Web DOM 계약 39개: 통과
+- Web 전체 Android 13 계측 71개: 실패·오류 0
+- Web/Kiosk 단위시험·lint·debug assemble: 통과
+- Kiosk 전체 Android 13 계측 34개: 실패·오류 0
+- release 단위시험·lint·두 APK assemble 158 tasks: 통과
+- applicationId·version·권한·`debuggable=false`, v2 단일 동일 release
+  signer, Debug signer 거부, zipalign과 저장 artifact 이중 검증: 통과
+- 구현 커밋:
+  - `a071f17` 수식 입력 준비 완료 전 입력 차단
+  - `168ae3f` Web POC RC40 준비
+
+### A 연결 계측 사고와 재발 방지
+
+- 12:50 에뮬레이터와 A가 동시에 연결된 상태에서 raw Gradle Web 계측 명령을
+  실행했다.
+- A의 release 앱에 debug 시험 앱 설치는 signer 불일치로 실패했지만 시험
+  도구 정리 단계가 12:50:20 Web POC를 제거했다. Android
+  `PACKAGE_REMOVED` 로그와 기존 UID `10287` 제거를 확인했다.
+- 영향:
+  - Kiosk의 반·학생·QR·수업 DB와 Keystore 자격정보는 별도 package라 보존
+  - Web POC의 WebView 로그인 세션과 앱 안전상태 SharedPreferences는 삭제
+  - Web POC는 자격증명을 지속 저장하지 않으므로 저장 자격증명 손실은 없음
+- 재발 방지:
+  - 물리 serial을 거부하고 Android emulator 여부를 이중 확인하는
+    `scripts/test-webpoc-emulator.ps1` 추가
+  - Kiosk Device Owner가 Web POC에 `setUninstallBlocked(..., true)` 적용
+  - 정책이 적용되지 않으면 Kiosk 상태에 `전용기기 정책 오류` 표시
+- 구현 커밋:
+  - `3c847d8` Web POC 제거 차단과 에뮬레이터 전용 시험 경로
+  - `1d366fe` Kiosk RC34 준비
+
+### APK와 A 설치
+
+- Kiosk `0.6.0-rc34`/code 39
+  - SHA-256:
+    `C27FB8D86628924172538D87451A3C292E0BCA2F8C88431C174DDB3C072A36D4`
+- Web POC `0.4.0-rc40`/code 57
+  - SHA-256:
+    `021C2DFFA3BAEFA1C27D4FB6859661B95958B64BF960C71358BA8A01388D1839`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- Web POC는 제거 사고 뒤 신규 설치되어 UID `10293`, firstInstallTime
+  `2026-07-28 13:12:16`으로 변경
+- Kiosk는 보존형 설치 성공. UID `10288`, firstInstallTime
+  `2026-07-24 12:52:28`, dataDir와 Kiosk DB 유지
+- 두 설치본 base APK SHA-256과 보관 artifact 일치
+- Device Owner·전용 HOME·`LOCKED` 유지, 정책 오류 표시 없음
+- 설치 시각 이후 AndroidRuntime 오류 0
+
+### 남은 실물 확인
+
+- 관리자 PIN→기존 수업/Web 상태 안전 종료→같은 반 수업 시작→`QR_READY`
+- 주관식 1자리 입력 직후 문제 이동·복귀 시 값 유지
+- 삭제 후 재입력, 3자리 이상, 여러 주관식 문제와 전체답안 동기화
+- 회색 지우기 버튼 출현 여부와 무관하게 입력값 유지
+- 최종 제출·오답 번호·자동 로그아웃·`QR_READY`
