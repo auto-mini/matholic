@@ -906,6 +906,86 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceAddsIdempotentMathCursorControls() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="answer-input-form-0">
+                  <div id="math-toolbar">
+                    <button>루트</button>
+                    <button>분수</button>
+                    <button>파이</button>
+                  </div>
+                  <span id="math-editor" class="mq-editable-field mq-math-mode">
+                    <span class="mq-textarea"><textarea></textarea></span>
+                    <span class="mq-root-block"></span>
+                  </span>
+                  <button id="input-menu">입력기</button>
+                </div>
+                <script>
+                  window.cursorKeys = [];
+                  window.cursorFocusCount = 0;
+                  const editor = document.getElementById('math-editor');
+                  let latex = '';
+                  editor.fieldApi = {
+                    latex: value => {
+                      if (value !== undefined) latex = value;
+                      return latex;
+                    },
+                    write: value => { latex += value; },
+                    keystroke: key => {
+                      if (key === 'Backspace') {
+                        latex = latex.slice(0, -1);
+                      } else {
+                        window.cursorKeys.push(key);
+                      }
+                    },
+                    focus: () => { window.cursorFocusCount += 1; }
+                  };
+                  window.MathQuill = {
+                    getInterface: () => element => element.fieldApi || null
+                  };
+                </script>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const buttons = Array.from(document.querySelectorAll(
+                    '.matholic-kiosk-math-nav button'
+                  ));
+                  buttons.forEach(button => button.click());
+                  return JSON.stringify({
+                    count: buttons.length,
+                    labels: buttons.map(button => button.textContent).join(''),
+                    keys: window.cursorKeys,
+                    focusCount: window.cursorFocusCount,
+                    navCount: document.querySelectorAll(
+                      '.matholic-kiosk-math-nav'
+                    ).length
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals(4, proof.getInt("count"))
+            assertEquals("←↑↓→", proof.getString("labels"))
+            assertEquals(1, proof.getInt("navCount"))
+            assertEquals(4, proof.getInt("focusCount"))
+            assertEquals("Left", proof.getJSONArray("keys").getString(0))
+            assertEquals("Up", proof.getJSONArray("keys").getString(1))
+            assertEquals("Down", proof.getJSONArray("keys").getString(2))
+            assertEquals("Right", proof.getJSONArray("keys").getString(3))
+        }
+    }
+
+    @Test
     fun testStudentExperienceScrollsReviewHidesUploadAndKeepsFinalSubmitInFlow() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

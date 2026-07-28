@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.8"
+    const val CONTRACT_VERSION = "web-2026-07-28.9"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -446,6 +446,20 @@ object WebDomScripts {
               display: none !important;
               pointer-events: none !important;
             }
+            .matholic-kiosk-math-nav {
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 8px !important;
+              margin: 6px 0 !important;
+            }
+            .matholic-kiosk-math-nav > button {
+              min-width: 58px !important;
+              min-height: 52px !important;
+              padding: 4px 10px !important;
+              font-size: 28px !important;
+              line-height: 1 !important;
+            }
           ` : `
             header, nav, [role="navigation"] {
               display: none !important;
@@ -747,6 +761,58 @@ object WebDomScripts {
               const mathEditorReady = scope => !!scope?.querySelector(
                 '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
               );
+              const ensureMathNavigation = scope => {
+                const editor = scope?.querySelector('.mq-editable-field');
+                if (!editor) return false;
+                if (scope.querySelector('.matholic-kiosk-math-nav')) return true;
+                const toolbarButtons = Array.from(
+                  scope.querySelectorAll('button,[role="button"]')
+                ).filter(button => toolbarLabels.has(normalize(button.textContent)));
+                const labels = new Set(
+                  toolbarButtons.map(button => normalize(button.textContent))
+                );
+                if (![...toolbarLabels].every(label => labels.has(label))) return false;
+                const toolbar = toolbarButtons[0]?.parentElement;
+                if (!toolbar?.parentElement) return false;
+                const navigation = document.createElement('div');
+                navigation.className = 'matholic-kiosk-math-nav';
+                navigation.setAttribute('role', 'group');
+                navigation.setAttribute('aria-label', '수식 커서 이동');
+                [
+                  ['←', 'Left', '커서 왼쪽'],
+                  ['↑', 'Up', '커서 위쪽'],
+                  ['↓', 'Down', '커서 아래쪽'],
+                  ['→', 'Right', '커서 오른쪽']
+                ].forEach(([symbol, key, label]) => {
+                  const button = document.createElement('button');
+                  button.type = 'button';
+                  button.textContent = symbol;
+                  button.setAttribute('aria-label', label);
+                  button.setAttribute('title', label);
+                  button.dataset.matholicKioskCursorKey = key;
+                  button.addEventListener('pointerdown', event => {
+                    event.preventDefault();
+                  });
+                  button.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    try {
+                      const currentEditor =
+                        scope.querySelector('.mq-editable-field');
+                      const factory = window.MathQuill?.getInterface?.(2);
+                      const field = currentEditor &&
+                        typeof factory === 'function' ?
+                        factory(currentEditor) : null;
+                      if (!field || typeof field.keystroke !== 'function') return;
+                      field.keystroke(key);
+                      field.focus?.();
+                    } catch (_) {}
+                  });
+                  navigation.appendChild(button);
+                });
+                toolbar.insertAdjacentElement('afterend', navigation);
+                return true;
+              };
               const prepareMathEditor = scope => {
                 const editor = scope?.querySelector('.mq-editable-field');
                 if (!editor) return false;
@@ -760,6 +826,7 @@ object WebDomScripts {
                   textarea.setAttribute('autocapitalize', 'none');
                   textarea.setAttribute('spellcheck', 'false');
                 }
+                if (!ensureMathNavigation(scope)) return false;
                 if (editor.dataset.matholicKioskMathStabilized === 'true') {
                   return true;
                 }
