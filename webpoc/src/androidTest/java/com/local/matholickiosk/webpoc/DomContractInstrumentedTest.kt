@@ -1619,6 +1619,31 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testWrongAnswerSummaryAcceptsOneProblemOnlyWhenScoreboardProvesOne() {
+        withFixture(
+            "https://im.matholic.com/learningV2/result/virtual",
+            """
+            <!doctype html><html data-matholic-kiosk-result-hydrated="true"><body>
+              <h2>종합분석</h2>
+              <table>
+                <thead><tr><th>문항수</th></tr></thead>
+                <tbody><tr><td>1</td></tr></tbody>
+              </table>
+              <section class="ant-alert-error"><h3>1번 문제</h3></section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.wrongAnswerSummary)
+            assertTrue(result.toString(), result.getBoolean("ok"))
+            assertEquals(1, result.getInt("totalProblems"))
+            assertEquals(1, result.getInt("expectedProblems"))
+            assertEquals(1, result.getInt("classifiedCount"))
+            assertEquals(1, result.getJSONArray("wrongNumbers").length())
+            assertEquals(1, result.getJSONArray("wrongNumbers").getInt(0))
+        }
+    }
+
+    @Test
     fun testWrongAnswerSummaryRejectsContiguousSubsetWhenScoreboardExpectsMore() {
         withFixture(
             "https://im.matholic.com/learningV2/result/virtual",

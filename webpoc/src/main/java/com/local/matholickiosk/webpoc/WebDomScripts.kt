@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.7"
+    const val CONTRACT_VERSION = "web-2026-07-28.8"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1541,7 +1541,10 @@ object WebDomScripts {
 
           const allNumbers = Array.from(classifications.keys()).sort((a, b) => a - b);
           const totalProblems = allNumbers.length > 0 ? allNumbers[allNumbers.length - 1] : 0;
-          const completeSequence = totalProblems >= 2 &&
+          const singleProblemProven =
+            totalProblems === 1 && expectedProblems === 1;
+          const completeSequence = totalProblems >= 1 &&
+            (totalProblems >= 2 || singleProblemProven) &&
             allNumbers.length === totalProblems &&
             allNumbers.every((number, index) => number === index + 1) &&
             (expectedProblems === 0 || totalProblems === expectedProblems);
