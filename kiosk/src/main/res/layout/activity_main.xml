@@ -354,7 +354,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:enabled="false"
-                        android:text="카드 크기 PDF 공유·저장" />
+                        android:text="카드 PDF Quick Share·저장" />
                 </LinearLayout>
             </LinearLayout>
 

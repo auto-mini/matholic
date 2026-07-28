@@ -139,6 +139,21 @@ class QrPrintDocumentAdapterInstrumentedTest {
     }
 
     @Test
+    fun quickShareTargetsSamsungShareLiveWithoutChangingPdfGrantContract() {
+        val uri = Uri.parse(
+            "content://com.local.matholickiosk.kiosk.files/qr_exports/synthetic-card.pdf",
+        )
+        val share = QrPdfShareIntentFactory.createQuickShare(uri, "가상학생 전체이름")
+
+        assertEquals(Intent.ACTION_SEND, share.action)
+        assertEquals("application/pdf", share.type)
+        assertEquals(QrPdfShareIntentFactory.SAMSUNG_QUICK_SHARE_PACKAGE, share.`package`)
+        assertEquals(uri, share.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java))
+        assertTrue(share.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertEquals(uri, share.clipData?.getItemAt(0)?.uri)
+    }
+
+    @Test
     fun physicalCardAndQrSizesUsePostScriptPointsIndependentOfPrinterDpi() {
         val card = QrPrintCardRenderer.cardSizePoints()
         val qr = QrPrintCardRenderer.qrSizePoints()

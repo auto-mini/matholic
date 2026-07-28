@@ -1390,18 +1390,23 @@ class MainActivity : ComponentActivity() {
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("QR 카드 PDF 공유·저장")
+            .setTitle("QR 카드 PDF 전송·저장")
             .setMessage(
                 "55×80mm 세로 카드에 30×30mm QR과 학생 전체 이름을 넣습니다.\n" +
                     "학생 이름은 QR 아래에 표시됩니다.\n" +
                     "PDF에는 로그인 가능한 QR이 포함되므로 신뢰하는 PC나 저장 위치만 선택하세요.",
             )
             .setNegativeButton("취소", null)
-            .setPositiveButton("PDF 만들기") { _, _ -> prepareQrPdfExport(preview) }
+            .setNeutralButton("다른 앱·저장") { _, _ ->
+                prepareQrPdfExport(preview, preferQuickShare = false)
+            }
+            .setPositiveButton("Quick Share") { _, _ ->
+                prepareQrPdfExport(preview, preferQuickShare = true)
+            }
             .show()
     }
 
-    private fun prepareQrPdfExport(preview: QrPreview) {
+    private fun prepareQrPdfExport(preview: QrPreview, preferQuickShare: Boolean) {
         if (issuedQrPreview !== preview || preview.bitmap.isRecycled) {
             adminMessage.text = "QR 미리보기가 만료되었습니다. 다시 발급하세요."
             return
@@ -1432,7 +1437,9 @@ class MainActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 result.fold(
-                    onSuccess = { file -> shareQrPdf(file, preview) },
+                    onSuccess = { file ->
+                        shareQrPdf(file, preview, preferQuickShare)
+                    },
                     onFailure = {
                         adminMessage.text = it.message ?: "QR 카드 PDF 생성 실패"
                     },
@@ -1441,14 +1448,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun shareQrPdf(file: File, preview: QrPreview) {
+    private fun shareQrPdf(
+        file: File,
+        preview: QrPreview,
+        preferQuickShare: Boolean,
+    ) {
         val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
         val share = QrPdfShareIntentFactory.create(uri, preview.exactName)
         pendingSharedPdf = file
         suppressNextAdminStopRelock = true
         runCatching {
             QrPdfExporter.scheduleSharedFileExpiry(this, file)
-            startActivity(Intent.createChooser(share, "PDF를 PC로 보내거나 저장"))
+            if (preferQuickShare) {
+                runCatching {
+                    startActivity(
+                        QrPdfShareIntentFactory.createQuickShare(
+                            uri,
+                            preview.exactName,
+                        ),
+                    )
+                }.getOrElse {
+                    startActivity(
+                        Intent.createChooser(share, "PDF를 PC로 보내거나 저장"),
+                    )
+                }
+            } else {
+                startActivity(Intent.createChooser(share, "PDF를 PC로 보내거나 저장"))
+            }
         }.onSuccess {
             clearQrPreview("QR 카드 PDF를 전달해 화면 표시를 지웠습니다")
         }.onFailure {

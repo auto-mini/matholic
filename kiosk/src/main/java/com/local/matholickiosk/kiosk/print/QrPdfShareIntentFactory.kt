@@ -13,6 +13,10 @@ object QrPdfShareIntentFactory {
             .apply { clipData = ClipData.newRawUri(CLIP_LABEL, uri) }
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
+    fun createQuickShare(uri: Uri, displayName: String): Intent =
+        create(uri, displayName).setPackage(SAMSUNG_QUICK_SHARE_PACKAGE)
+
     private const val PDF_MIME_TYPE = "application/pdf"
     private const val CLIP_LABEL = "매쓰홀릭 QR 카드 PDF"
+    internal const val SAMSUNG_QUICK_SHARE_PACKAGE = "com.samsung.android.app.sharelive"
 }
