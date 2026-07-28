@@ -969,6 +969,8 @@ class DomContractInstrumentedTest {
                     focusCount: window.cursorFocusCount,
                     parentIsBody: buttons[0]?.parentElement?.parentElement === document.body,
                     position: getComputedStyle(buttons[0]?.parentElement).position,
+                    left: parseFloat(getComputedStyle(buttons[0]?.parentElement).left),
+                    top: parseFloat(getComputedStyle(buttons[0]?.parentElement).top),
                     areas: buttons.map(button =>
                       button.dataset.matholicKioskGridArea
                     ),
@@ -985,6 +987,8 @@ class DomContractInstrumentedTest {
             assertEquals(4, proof.getInt("focusCount"))
             assertTrue(proof.getBoolean("parentIsBody"))
             assertEquals("fixed", proof.getString("position"))
+            assertTrue(proof.getDouble("left") in 110.0..111.0)
+            assertTrue(proof.getDouble("top") in 182.0..183.0)
             assertEquals("up", proof.getJSONArray("areas").getString(0))
             assertEquals("left", proof.getJSONArray("areas").getString(1))
             assertEquals("down", proof.getJSONArray("areas").getString(2))
