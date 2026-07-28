@@ -51,6 +51,8 @@ class WebDomScriptsTest {
         assertTrue(script.contains(".ant-modal-wrap"))
         assertTrue(script.contains("scrollIntoView"))
         assertTrue(script.contains("matholicKioskReviewScrollStableReads"))
+        assertTrue(script.contains("matholicKioskReviewScrollUserOverride"))
+        assertTrue(script.contains("touchstart"))
         assertTrue(script.contains("resetHiddenReviewScrollState"))
     }
 

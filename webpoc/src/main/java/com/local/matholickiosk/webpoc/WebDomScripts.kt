@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.3"
+    const val CONTRACT_VERSION = "web-2026-07-28.4"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -763,19 +763,57 @@ object WebDomScripts {
             hiddenControls += initialMathMode.hidden;
             mathModeSelections += initialMathMode.selectedCount;
 
+            const reviewHeadingSelector =
+              '.ant-modal-title,.ant-drawer-title,' +
+              'h1,h2,h3,h4,h5,h6,[role="heading"]';
+            const visibleReviewScopeContaining = target => {
+              if (!target || !target.closest) return null;
+              const headings = Array.from(
+                document.querySelectorAll(reviewHeadingSelector)
+              ).filter(element =>
+                visible(element) && normalize(element.textContent) === '전체답안'
+              );
+              for (const heading of headings) {
+                const scope = heading.closest(
+                  'main,section,[role="dialog"],.ant-modal,.ant-drawer'
+                ) || document.body;
+                if (scope.contains(target)) return scope;
+              }
+              return null;
+            };
+            if (!window.__matholicKioskReviewScrollIntentGuard) {
+              const stopReviewAutoScroll = event => {
+                const scope = visibleReviewScopeContaining(event.target);
+                if (!scope) return;
+                scope.dataset.matholicKioskReviewScrollUserOverride = 'true';
+                scope.dataset.matholicKioskReviewScrollComplete = 'true';
+                delete scope.dataset.matholicKioskReviewScrollGeometry;
+                delete scope.dataset.matholicKioskReviewScrollStableReads;
+                document.documentElement.dataset.matholicKioskReviewScrolled = 'true';
+              };
+              ['touchstart', 'pointerdown', 'wheel'].forEach(type => {
+                document.addEventListener(type, stopReviewAutoScroll, {
+                  capture: true,
+                  passive: true
+                });
+              });
+              window.__matholicKioskReviewScrollIntentGuard = true;
+            }
+
             const resetHiddenReviewScrollState = () => {
               const completedScopes = Array.from(document.querySelectorAll(
-                '[data-matholic-kiosk-review-scroll-complete="true"]'
+                '[data-matholic-kiosk-review-scroll-complete="true"],' +
+                '[data-matholic-kiosk-review-scroll-user-override="true"]'
               ));
               completedScopes.forEach(scope => {
                 const visibleReviewHeading = Array.from(scope.querySelectorAll(
-                  '.ant-modal-title,.ant-drawer-title,' +
-                  'h1,h2,h3,h4,h5,h6,[role="heading"]'
+                  reviewHeadingSelector
                 )).find(element =>
                   visible(element) && normalize(element.textContent) === '전체답안'
                 );
                 if (visible(scope) && visibleReviewHeading) return;
                 delete scope.dataset.matholicKioskReviewScrollComplete;
+                delete scope.dataset.matholicKioskReviewScrollUserOverride;
                 delete scope.dataset.matholicKioskReviewScrollGeometry;
                 delete scope.dataset.matholicKioskReviewScrollStableReads;
               });
@@ -788,10 +826,7 @@ object WebDomScripts {
             resetHiddenReviewScrollState();
 
             const reviewHeading = Array.from(
-              document.querySelectorAll(
-                '.ant-modal-title,.ant-drawer-title,' +
-                'h1,h2,h3,h4,h5,h6,[role="heading"]'
-              )
+              document.querySelectorAll(reviewHeadingSelector)
             ).find(element => visible(element) && normalize(element.textContent) === '전체답안');
             if (reviewHeading) {
               const scope = reviewHeading.closest(
@@ -852,7 +887,8 @@ object WebDomScripts {
               });
               if (
                 finalButton &&
-                scope.dataset.matholicKioskReviewScrollComplete !== 'true'
+                scope.dataset.matholicKioskReviewScrollComplete !== 'true' &&
+                scope.dataset.matholicKioskReviewScrollUserOverride !== 'true'
               ) {
                 const scrollRoots = [];
                 const addScrollRoot = element => {
