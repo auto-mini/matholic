@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.4"
+    const val CONTRACT_VERSION = "web-2026-07-28.5"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -452,6 +452,8 @@ object WebDomScripts {
           let enhancedButtons = 0;
           let hiddenControls = 0;
           let mathModeSelections = 0;
+          let mathModePending = 0;
+          let mathModeReady = 0;
           if (isLearning) {
             const exactButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
@@ -703,24 +705,123 @@ object WebDomScripts {
             const enforceMathAnswerMode = () => {
               let hidden = 0;
               let selectedCount = 0;
+              let pendingCount = 0;
+              let readyCount = 0;
+              const toolbarLabels = new Set(['루트', '분수', '파이']);
+              const answerScopeFor = button => {
+                const identified = button.closest('[id^="answer-input-form-"]');
+                if (identified) return identified;
+                let scope = button.parentElement;
+                const fallback = scope;
+                for (let depth = 0; scope && depth < 6; depth += 1) {
+                  if (scope === document.body || scope === document.documentElement) break;
+                  const labels = new Set(
+                    Array.from(scope.querySelectorAll('button,[role="button"]'))
+                      .map(element => normalize(element.textContent))
+                      .filter(text => toolbarLabels.has(text))
+                  );
+                  if (
+                    scope.querySelector('input[placeholder*="주관식 답"]') ||
+                    scope.querySelector(
+                      '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
+                    ) ||
+                    [...toolbarLabels].every(label => labels.has(label))
+                  ) return scope;
+                  scope = scope.parentElement;
+                }
+                return fallback;
+              };
+              const mathComponentMounted = scope => {
+                if (!scope) return false;
+                const labels = new Set(
+                  Array.from(scope.querySelectorAll('button,[role="button"]'))
+                    .map(element => normalize(element.textContent))
+                    .filter(text => toolbarLabels.has(text))
+                );
+                return [...toolbarLabels].every(label => labels.has(label));
+              };
+              const mathEditorReady = scope => !!scope?.querySelector(
+                '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
+              );
+              const setMathInputBlocked = (scope, blocked) => {
+                if (!scope) return;
+                if (blocked) {
+                  if (scope.dataset.matholicKioskMathPending !== 'true') {
+                    scope.dataset.matholicKioskPreviousPointerEvents =
+                      scope.style.getPropertyValue('pointer-events');
+                    scope.dataset.matholicKioskPreviousPointerPriority =
+                      scope.style.getPropertyPriority('pointer-events');
+                    scope.dataset.matholicKioskPreviousAriaBusy =
+                      scope.hasAttribute('aria-busy') ?
+                        scope.getAttribute('aria-busy') : '__missing__';
+                    scope.dataset.matholicKioskMathPending = 'true';
+                    scope.style.setProperty('pointer-events', 'none', 'important');
+                    scope.setAttribute('aria-busy', 'true');
+                  }
+                  if (scope.contains(document.activeElement)) {
+                    document.activeElement?.blur?.();
+                  }
+                  return;
+                }
+                if (scope.dataset.matholicKioskMathPending !== 'true') return;
+                const previousPointer =
+                  scope.dataset.matholicKioskPreviousPointerEvents || '';
+                const previousPriority =
+                  scope.dataset.matholicKioskPreviousPointerPriority || '';
+                if (previousPointer) {
+                  scope.style.setProperty(
+                    'pointer-events',
+                    previousPointer,
+                    previousPriority
+                  );
+                } else {
+                  scope.style.removeProperty('pointer-events');
+                }
+                const previousAriaBusy =
+                  scope.dataset.matholicKioskPreviousAriaBusy;
+                if (previousAriaBusy === '__missing__') {
+                  scope.removeAttribute('aria-busy');
+                } else if (previousAriaBusy !== undefined) {
+                  scope.setAttribute('aria-busy', previousAriaBusy);
+                }
+                delete scope.dataset.matholicKioskMathPending;
+                delete scope.dataset.matholicKioskPreviousPointerEvents;
+                delete scope.dataset.matholicKioskPreviousPointerPriority;
+                delete scope.dataset.matholicKioskPreviousAriaBusy;
+              };
               const inputMenuButtons = Array.from(
                 document.querySelectorAll('button,[role="button"]')
               ).filter(element => normalize(element.textContent) === '입력기');
+              const observedScopes = new Set();
               inputMenuButtons.forEach(button => {
                 const wasVisible = visible(button);
-                const answerScope = button.closest('[id^="answer-input-form-"]') ||
-                  button.parentElement;
-                const alreadyMath = !!answerScope?.querySelector(
-                  '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
-                );
+                const answerScope = answerScopeFor(button);
+                if (answerScope) observedScopes.add(answerScope);
+                const componentMounted = mathComponentMounted(answerScope);
+                const editorReady = mathEditorReady(answerScope);
+                setMathInputBlocked(answerScope, !editorReady);
+                if (editorReady) {
+                  readyCount += 1;
+                } else {
+                  pendingCount += 1;
+                }
                 if (hide(button)) hidden += 1;
                 if (
-                  !alreadyMath &&
+                  !componentMounted &&
                   wasVisible &&
                   button.dataset.matholicKioskMenuOpened !== 'true'
                 ) {
                   button.dataset.matholicKioskMenuOpened = 'true';
                   button.click();
+                }
+              });
+              Array.from(document.querySelectorAll(
+                '[data-matholic-kiosk-math-pending="true"]'
+              )).forEach(scope => {
+                if (observedScopes.has(scope)) return;
+                if (mathEditorReady(scope)) {
+                  setMathInputBlocked(scope, false);
+                  readyCount += 1;
                 }
               });
 
@@ -757,11 +858,13 @@ object WebDomScripts {
                 .forEach(element => {
                   if (hide(element)) hidden += 1;
                 });
-              return { hidden, selectedCount };
+              return { hidden, selectedCount, pendingCount, readyCount };
             };
             const initialMathMode = enforceMathAnswerMode();
             hiddenControls += initialMathMode.hidden;
             mathModeSelections += initialMathMode.selectedCount;
+            mathModePending += initialMathMode.pendingCount;
+            mathModeReady += initialMathMode.readyCount;
 
             const reviewHeadingSelector =
               '.ant-modal-title,.ant-drawer-title,' +
@@ -1107,6 +1210,8 @@ object WebDomScripts {
               const lateMathMode = enforceMathAnswerMode();
               hiddenControls += lateMathMode.hidden;
               mathModeSelections += lateMathMode.selectedCount;
+              mathModePending = lateMathMode.pendingCount;
+              mathModeReady = lateMathMode.readyCount;
               protectAnalysisDetails();
             };
             maintainLateStudentControls();
@@ -1163,6 +1268,7 @@ object WebDomScripts {
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
+            mathModePending, mathModeReady,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });

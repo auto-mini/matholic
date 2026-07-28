@@ -350,14 +350,14 @@ class DomContractInstrumentedTest {
                 <button id="report">오류신고</button>
                 <button id="paper">문제지</button>
                 <button id="handwriting">답안필기입력</button>
-                <div class="ant-input-affix-wrapper">
-                  <input id="short-answer" placeholder="주관식 답은 여기에">
-                  <span class="ant-input-suffix">
-                    <button id="handwriting-icon"><svg></svg></button>
-                    <button id="answer-help">도움말</button>
-                  </span>
-                </div>
                 <div id="answer-modes">
+                  <div class="ant-input-affix-wrapper">
+                    <input id="short-answer" placeholder="주관식 답은 여기에">
+                    <span class="ant-input-suffix">
+                      <button id="handwriting-icon"><svg></svg></button>
+                      <button id="answer-help">도움말</button>
+                    </span>
+                  </div>
                   <button id="input-menu"
                     onclick="document.getElementById('mode-menu').style.display='block'">입력기</button>
                   <ul id="mode-menu" style="display:none">
@@ -547,6 +547,97 @@ class DomContractInstrumentedTest {
             assertTrue(resurfacedProof.getBoolean("reportHidden"))
             assertTrue(resurfacedProof.getBoolean("mathTooltipHidden"))
             assertTrue(resurfacedProof.getBoolean("directHandwritingHidden"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceBlocksAnswerInputUntilMathFieldIsReady() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="answer-input-form-0">
+                  <input id="basic-answer" placeholder="주관식 답은 여기에">
+                  <button id="input-menu"
+                    onclick="document.getElementById('mode-menu').style.display='block'">
+                    입력기
+                  </button>
+                </div>
+                <ul id="mode-menu" style="display:none">
+                  <li>기본</li>
+                  <li>분수</li>
+                  <li id="math-mode" onclick="
+                    const scope = document.getElementById('answer-input-form-0');
+                    scope.innerHTML = `
+                      <div>
+                        <button>루트</button>
+                        <button>분수</button>
+                        <button>파이</button>
+                      </div>
+                      <span id='math-editor'></span>
+                      <button id='settled-input-menu'>입력기</button>`;
+                  ">수식</li>
+                </ul>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val initial = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertEquals(1, initial.getInt("mathModePending"))
+            assertEquals(0, initial.getInt("mathModeReady"))
+
+            val initialProof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  toolbarMounted: ['루트', '분수', '파이'].every(label =>
+                    Array.from(document.querySelectorAll(
+                      '#answer-input-form-0 button'
+                    )).some(button => button.textContent.trim() === label)
+                  ),
+                  fieldNotReady:
+                    !document.getElementById('math-editor')
+                      .classList.contains('mq-editable-field'),
+                  inputBlocked:
+                    getComputedStyle(document.getElementById('answer-input-form-0'))
+                      .pointerEvents === 'none'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(initialProof.getBoolean("toolbarMounted"))
+            assertTrue(initialProof.getBoolean("fieldNotReady"))
+            assertTrue(initialProof.getBoolean("inputBlocked"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('math-editor')
+                    .classList.add('mq-editable-field');
+                  return JSON.stringify({ settled: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(100)
+            val settled = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertEquals(0, settled.getInt("mathModePending"))
+            assertEquals(1, settled.getInt("mathModeReady"))
+            val settledProof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  fieldReady:
+                    document.getElementById('math-editor')
+                      .classList.contains('mq-editable-field'),
+                  inputEnabled:
+                    getComputedStyle(document.getElementById('answer-input-form-0'))
+                      .pointerEvents !== 'none'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(settledProof.getBoolean("fieldReady"))
+            assertTrue(settledProof.getBoolean("inputEnabled"))
         }
     }
 
