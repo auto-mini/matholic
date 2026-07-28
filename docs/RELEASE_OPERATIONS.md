@@ -5,15 +5,16 @@
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer의 Kiosk RC34와 Web POC RC40을 설치했다. Kiosk DB, Device
+같은 signer의 Kiosk RC34와 Web POC RC42를 설치했다. Kiosk DB, Device
 Owner와 전용 HOME은 보존됐고 두 설치본의 해시는 보관 artifact와 일치한다.
-RC40 주관식 첫 입력 보존 실기는 아직 진행 전이다.
+RC42에서 문제별 주관식 첫 입력 보존, 숫자 키패드, 뒤로가기 차단과 키보드
+표시 중 종료 버튼 겹침 방지 실기를 통과했다.
 
-- 현재 A: Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc40`/code 57
+- 현재 A: Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc42`/code 59
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc40`/code 57
+  Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc42`/code 59
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC34/Web POC RC40, 기존 Device Owner·전용
+- 현재 A: release signer의 Kiosk RC34/Web POC RC42, 기존 Device Owner·전용
   HOME·Kiosk UID·firstInstallTime·dataDir 유지
 - Kiosk RC34는 Device Owner 정책으로 Web POC 제거를 차단한다.
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
@@ -24,7 +25,9 @@ RC40 주관식 첫 입력 보존 실기는 아직 진행 전이다.
 - RC02 개발자 옵션·USB 디버깅 제거 및 ADB 없는 물리 실기: **완료**
 - RC02 실제 프린터 출력·종이 QR 왕복·120분 연속 운전: **완료**
 - RC27/RC29 관리자 뒤로가기·자동 학습지 진입 재검증: **통과**
-- RC28/RC30 학생 Web·오답 전체 목록·QR 위치 안내 회귀: **미수행**
+- RC42 문제별 주관식 입력·숫자 키패드·뒤로가기·키보드 겹침 실기: **통과**
+- 수식 답 저장 뒤 회색 삭제 제어가 숨겨질 때 약 0.2초 음영이 보일 수 있으나
+  기능·오입력 문제는 없고 사용자도 불편하지 않음을 확인
 
 debug signer에서 release signer로의 전환은 공장초기화와 새 Device Owner 등록으로 완료했다. 앞으로 같은 release signer와 더 높은 versionCode의 APK는 앱 데이터와 Device Owner를 보존해 덮어쓸 수 있다.
 
