@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.6"
+    const val CONTRACT_VERSION = "web-2026-07-28.7"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -442,6 +442,10 @@ object WebDomScripts {
             .mq-editable-field ~ div[style*="position: absolute"] > button {
               display: none !important;
             }
+            .mq-editable-field ~ button {
+              display: none !important;
+              pointer-events: none !important;
+            }
           ` : `
             header, nav, [role="navigation"] {
               display: none !important;
@@ -756,13 +760,7 @@ object WebDomScripts {
                   textarea.setAttribute('autocapitalize', 'none');
                   textarea.setAttribute('spellcheck', 'false');
                 }
-                if (
-                  scope.dataset.matholicKioskMathNeedsStabilization !== 'true'
-                ) return true;
-                if (
-                  scope.dataset.matholicKioskMathStabilized === 'true'
-                ) {
-                  delete scope.dataset.matholicKioskMathNeedsStabilization;
+                if (editor.dataset.matholicKioskMathStabilized === 'true') {
                   return true;
                 }
                 try {
@@ -782,8 +780,7 @@ object WebDomScripts {
                     field.latex(originalLatex);
                     return false;
                   }
-                  scope.dataset.matholicKioskMathStabilized = 'true';
-                  delete scope.dataset.matholicKioskMathNeedsStabilization;
+                  editor.dataset.matholicKioskMathStabilized = 'true';
                   return true;
                 } catch (_) {
                   return false;
@@ -792,12 +789,6 @@ object WebDomScripts {
               const setMathInputBlocked = (scope, blocked) => {
                 if (!scope) return;
                 if (blocked) {
-                  if (
-                    scope.querySelector('input[placeholder*="주관식 답"]') &&
-                    scope.dataset.matholicKioskMathStabilized !== 'true'
-                  ) {
-                    scope.dataset.matholicKioskMathNeedsStabilization = 'true';
-                  }
                   if (scope.dataset.matholicKioskMathPending !== 'true') {
                     scope.dataset.matholicKioskPreviousPointerEvents =
                       scope.style.getPropertyValue('pointer-events');

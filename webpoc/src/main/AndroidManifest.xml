@@ -24,6 +24,7 @@
             android:launchMode="singleTop"
             android:screenOrientation="sensorLandscape"
             android:stateNotNeeded="true"
+            android:windowSoftInputMode="adjustNothing"
             tools:ignore="DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

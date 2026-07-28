@@ -750,7 +750,7 @@ class DomContractInstrumentedTest {
                       getComputedStyle(document.getElementById('answer-input-form-0'))
                         .pointerEvents !== 'none',
                     stabilized:
-                      document.getElementById('answer-input-form-0')
+                      document.getElementById('math-editor')
                         .dataset.matholicKioskMathStabilized === 'true',
                     inputMode: textarea ? textarea.getAttribute('inputmode') : null
                   });
@@ -764,6 +764,144 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("inputEnabled"))
             assertTrue(proof.getBoolean("stabilized"))
             assertEquals("decimal", proof.getString("inputMode"))
+        }
+    }
+
+    @Test
+    fun testStudentExperiencePrimesEveryMountedMathFieldAndHidesClearControl() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="answer-input-form-0"></div>
+                <script>
+                  window.installMathField = () => {
+                    const scope = document.getElementById('answer-input-form-0');
+                    scope.innerHTML = `
+                      <div>
+                        <button>루트</button>
+                        <button>분수</button>
+                        <button>파이</button>
+                      </div>
+                      <div id="math-wrap" style="position:relative">
+                        <span id="math-editor" class="mq-editable-field mq-math-mode">
+                          <span class="mq-textarea"><textarea></textarea></span>
+                          <span class="mq-root-block"></span>
+                        </span>
+                      </div>
+                      <button id="input-menu">입력기</button>`;
+                    const editor = document.getElementById('math-editor');
+                    const state = {
+                      latex: '',
+                      persisted: null,
+                      ignoredEdits: 2,
+                      editCount: 0
+                    };
+                    const recordEdit = () => {
+                      state.editCount += 1;
+                      if (state.ignoredEdits > 0) {
+                        state.ignoredEdits -= 1;
+                        return;
+                      }
+                      state.persisted = state.latex || null;
+                      if (!document.getElementById('math-clear')) {
+                        const clear = document.createElement('button');
+                        clear.id = 'math-clear';
+                        clear.textContent = '×';
+                        clear.onclick = () => {
+                          state.latex = '';
+                          state.persisted = null;
+                        };
+                        document.getElementById('math-wrap').appendChild(clear);
+                      }
+                    };
+                    editor.fieldApi = {
+                      latex: value => {
+                        if (value !== undefined) state.latex = value;
+                        return state.latex;
+                      },
+                      write: value => {
+                        state.latex += value;
+                        recordEdit();
+                      },
+                      keystroke: key => {
+                        if (key === 'Backspace') {
+                          state.latex = state.latex.slice(0, -1);
+                        }
+                        recordEdit();
+                      }
+                    };
+                    window.currentMathState = state;
+                  };
+                  window.MathQuill = {
+                    getInterface: () => element => element.fieldApi || null
+                  };
+                  window.typeStudentDigit = digit => {
+                    const state = window.currentMathState;
+                    state.latex += digit;
+                    const field = document.getElementById('math-editor').fieldApi;
+                    field.write('');
+                  };
+                  window.installMathField();
+                </script>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            evaluate(
+                webView,
+                "window.typeStudentDigit('4'); JSON.stringify({typed:true})",
+            )
+            val first = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  latex: window.currentMathState.latex,
+                  persisted: window.currentMathState.persisted,
+                  ignoredEdits: window.currentMathState.ignoredEdits,
+                  editCount: window.currentMathState.editCount,
+                  clearDisplay: document.getElementById('math-clear') ?
+                    getComputedStyle(document.getElementById('math-clear')).display :
+                    'missing'
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("4", first.getString("latex"))
+            assertEquals("4", first.getString("persisted"))
+            assertEquals(0, first.getInt("ignoredEdits"))
+            assertEquals(3, first.getInt("editCount"))
+            assertEquals("none", first.getString("clearDisplay"))
+
+            evaluate(
+                webView,
+                "window.installMathField(); JSON.stringify({remounted:true})",
+            )
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            evaluate(
+                webView,
+                "window.typeStudentDigit('8'); JSON.stringify({typed:true})",
+            )
+            val remounted = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  latex: window.currentMathState.latex,
+                  persisted: window.currentMathState.persisted,
+                  ignoredEdits: window.currentMathState.ignoredEdits,
+                  editCount: window.currentMathState.editCount,
+                  stabilized:
+                    document.getElementById('math-editor')
+                      .dataset.matholicKioskMathStabilized === 'true'
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("8", remounted.getString("latex"))
+            assertEquals("8", remounted.getString("persisted"))
+            assertEquals(0, remounted.getInt("ignoredEdits"))
+            assertEquals(3, remounted.getInt("editCount"))
+            assertTrue(remounted.getBoolean("stabilized"))
         }
     }
 
