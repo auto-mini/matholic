@@ -967,6 +967,11 @@ class DomContractInstrumentedTest {
                     labels: buttons.map(button => button.textContent).join(''),
                     keys: window.cursorKeys,
                     focusCount: window.cursorFocusCount,
+                    parentIsBody: buttons[0]?.parentElement?.parentElement === document.body,
+                    position: getComputedStyle(buttons[0]?.parentElement).position,
+                    areas: buttons.map(button =>
+                      button.dataset.matholicKioskGridArea
+                    ),
                     navCount: document.querySelectorAll(
                       '.matholic-kiosk-math-nav'
                     ).length
@@ -975,11 +980,17 @@ class DomContractInstrumentedTest {
                 """.trimIndent(),
             )
             assertEquals(4, proof.getInt("count"))
-            assertEquals("←↑↓→", proof.getString("labels"))
+            assertEquals("↑←↓→", proof.getString("labels"))
             assertEquals(1, proof.getInt("navCount"))
             assertEquals(4, proof.getInt("focusCount"))
-            assertEquals("Left", proof.getJSONArray("keys").getString(0))
-            assertEquals("Up", proof.getJSONArray("keys").getString(1))
+            assertTrue(proof.getBoolean("parentIsBody"))
+            assertEquals("fixed", proof.getString("position"))
+            assertEquals("up", proof.getJSONArray("areas").getString(0))
+            assertEquals("left", proof.getJSONArray("areas").getString(1))
+            assertEquals("down", proof.getJSONArray("areas").getString(2))
+            assertEquals("right", proof.getJSONArray("areas").getString(3))
+            assertEquals("Up", proof.getJSONArray("keys").getString(0))
+            assertEquals("Left", proof.getJSONArray("keys").getString(1))
             assertEquals("Down", proof.getJSONArray("keys").getString(2))
             assertEquals("Right", proof.getJSONArray("keys").getString(3))
         }

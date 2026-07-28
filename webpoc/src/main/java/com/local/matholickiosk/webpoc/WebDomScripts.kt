@@ -447,16 +447,33 @@ object WebDomScripts {
               pointer-events: none !important;
             }
             .matholic-kiosk-math-nav {
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              gap: 8px !important;
-              margin: 6px 0 !important;
+              position: fixed !important;
+              left: 16px !important;
+              top: 88px !important;
+              z-index: 2147482500 !important;
+              display: grid !important;
+              grid-template-columns: repeat(3, 54px) !important;
+              grid-template-rows: repeat(2, 54px) !important;
+              grid-template-areas:
+                ". up ."
+                "left down right" !important;
+              gap: 6px !important;
+              width: 190px !important;
+              margin: 0 !important;
+              padding: 8px !important;
+              border: 1px solid rgba(16, 42, 67, 0.35) !important;
+              border-radius: 14px !important;
+              background: rgba(255, 255, 255, 0.96) !important;
+              box-shadow: 0 5px 18px rgba(16, 42, 67, 0.28) !important;
+              overflow: visible !important;
             }
             .matholic-kiosk-math-nav > button {
-              min-width: 58px !important;
-              min-height: 52px !important;
-              padding: 4px 10px !important;
+              width: 54px !important;
+              min-width: 54px !important;
+              max-width: 54px !important;
+              height: 54px !important;
+              min-height: 54px !important;
+              padding: 4px !important;
               font-size: 28px !important;
               line-height: 1 !important;
             }
@@ -764,7 +781,11 @@ object WebDomScripts {
               const ensureMathNavigation = scope => {
                 const editor = scope?.querySelector('.mq-editable-field');
                 if (!editor) return false;
-                if (scope.querySelector('.matholic-kiosk-math-nav')) return true;
+                const existing = document.querySelector('.matholic-kiosk-math-nav');
+                if (existing) {
+                  existing.matholicKioskScope = scope;
+                  return true;
+                }
                 const toolbarButtons = Array.from(
                   scope.querySelectorAll('button,[role="button"]')
                 ).filter(button => toolbarLabels.has(normalize(button.textContent)));
@@ -778,18 +799,21 @@ object WebDomScripts {
                 navigation.className = 'matholic-kiosk-math-nav';
                 navigation.setAttribute('role', 'group');
                 navigation.setAttribute('aria-label', '수식 커서 이동');
+                navigation.matholicKioskScope = scope;
                 [
-                  ['←', 'Left', '커서 왼쪽'],
-                  ['↑', 'Up', '커서 위쪽'],
-                  ['↓', 'Down', '커서 아래쪽'],
-                  ['→', 'Right', '커서 오른쪽']
-                ].forEach(([symbol, key, label]) => {
+                  ['↑', 'Up', '커서 위쪽', 'up'],
+                  ['←', 'Left', '커서 왼쪽', 'left'],
+                  ['↓', 'Down', '커서 아래쪽', 'down'],
+                  ['→', 'Right', '커서 오른쪽', 'right']
+                ].forEach(([symbol, key, label, area]) => {
                   const button = document.createElement('button');
                   button.type = 'button';
                   button.textContent = symbol;
                   button.setAttribute('aria-label', label);
                   button.setAttribute('title', label);
                   button.dataset.matholicKioskCursorKey = key;
+                  button.dataset.matholicKioskGridArea = area;
+                  button.style.setProperty('grid-area', area, 'important');
                   button.addEventListener('pointerdown', event => {
                     event.preventDefault();
                   });
@@ -797,8 +821,15 @@ object WebDomScripts {
                     event.preventDefault();
                     event.stopPropagation();
                     try {
-                      const currentEditor =
-                        scope.querySelector('.mq-editable-field');
+                      const focusedEditor = document.activeElement?.closest?.(
+                        '.mq-editable-field'
+                      );
+                      const currentEditor = focusedEditor ||
+                        navigation.matholicKioskScope?.querySelector(
+                          '.mq-editable-field'
+                        ) ||
+                        Array.from(document.querySelectorAll('.mq-editable-field'))
+                          .find(visible);
                       const factory = window.MathQuill?.getInterface?.(2);
                       const field = currentEditor &&
                         typeof factory === 'function' ?
@@ -810,7 +841,7 @@ object WebDomScripts {
                   });
                   navigation.appendChild(button);
                 });
-                toolbar.insertAdjacentElement('afterend', navigation);
+                document.body.appendChild(navigation);
                 return true;
               };
               const prepareMathEditor = scope => {
@@ -974,6 +1005,11 @@ object WebDomScripts {
                 .forEach(element => {
                   if (hide(element)) hidden += 1;
                 });
+              if (
+                !Array.from(document.querySelectorAll('.mq-editable-field')).some(visible)
+              ) {
+                document.querySelector('.matholic-kiosk-math-nav')?.remove();
+              }
               return { hidden, selectedCount, pendingCount, readyCount };
             };
             const initialMathMode = enforceMathAnswerMode();
