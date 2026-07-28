@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.2"
+    const val CONTRACT_VERSION = "web-2026-07-28.3"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -763,6 +763,30 @@ object WebDomScripts {
             hiddenControls += initialMathMode.hidden;
             mathModeSelections += initialMathMode.selectedCount;
 
+            const resetHiddenReviewScrollState = () => {
+              const completedScopes = Array.from(document.querySelectorAll(
+                '[data-matholic-kiosk-review-scroll-complete="true"]'
+              ));
+              completedScopes.forEach(scope => {
+                const visibleReviewHeading = Array.from(scope.querySelectorAll(
+                  '.ant-modal-title,.ant-drawer-title,' +
+                  'h1,h2,h3,h4,h5,h6,[role="heading"]'
+                )).find(element =>
+                  visible(element) && normalize(element.textContent) === '전체답안'
+                );
+                if (visible(scope) && visibleReviewHeading) return;
+                delete scope.dataset.matholicKioskReviewScrollComplete;
+                delete scope.dataset.matholicKioskReviewScrollGeometry;
+                delete scope.dataset.matholicKioskReviewScrollStableReads;
+              });
+              if (!document.querySelector(
+                '[data-matholic-kiosk-review-scroll-complete="true"]'
+              )) {
+                delete document.documentElement.dataset.matholicKioskReviewScrolled;
+              }
+            };
+            resetHiddenReviewScrollState();
+
             const reviewHeading = Array.from(
               document.querySelectorAll(
                 '.ant-modal-title,.ant-drawer-title,' +
@@ -773,24 +797,6 @@ object WebDomScripts {
               const scope = reviewHeading.closest(
                 'main,section,[role="dialog"],.ant-modal,.ant-drawer'
               ) || document.body;
-              const scrollCandidates = Array.from(scope.querySelectorAll(
-                '.ant-modal-body,.ant-drawer-body,[style*="overflow"]'
-              ));
-              const scrollingElement = scrollCandidates.find(element =>
-                element.scrollHeight > element.clientHeight + 2
-              ) || document.scrollingElement || document.documentElement;
-              const maxReviewScroll = Math.max(
-                0,
-                scrollingElement.scrollHeight - scrollingElement.clientHeight
-              );
-              if (scrollingElement.scrollTop < maxReviewScroll - 2) {
-                scrollingElement.scrollTop = scrollingElement.scrollHeight;
-                if (typeof scrollingElement.scrollTo === 'function') {
-                  scrollingElement.scrollTo(0, scrollingElement.scrollHeight);
-                }
-              } else {
-                document.documentElement.dataset.matholicKioskReviewScrolled = 'true';
-              }
               const finalButton = Array.from(
                 scope.querySelectorAll('button,[role="button"]')
               ).filter(visible).find(button => {
@@ -798,22 +804,6 @@ object WebDomScripts {
                 return text === '답안제출' || text === '답안 제출' || text === '완료하기';
               });
               if (finalButton) {
-                if (
-                  finalButton.dataset.matholicKioskReviewScrollRequested !== 'true'
-                ) {
-                  finalButton.dataset.matholicKioskReviewScrollRequested = 'true';
-                  try {
-                    finalButton.scrollIntoView({
-                      behavior: 'auto',
-                      block: 'end',
-                      inline: 'nearest'
-                    });
-                  } catch (_) {
-                    try {
-                      finalButton.scrollIntoView(false);
-                    } catch (_) {}
-                  }
-                }
                 const legacyFloatingStyle =
                   finalButton.style.getPropertyValue('position') === 'fixed' &&
                   finalButton.style.getPropertyPriority('position') === 'important' &&
@@ -860,6 +850,118 @@ object WebDomScripts {
                 }
                 if (hide(control || uploadContainer || signal)) hiddenControls += 1;
               });
+              if (
+                finalButton &&
+                scope.dataset.matholicKioskReviewScrollComplete !== 'true'
+              ) {
+                const scrollRoots = [];
+                const addScrollRoot = element => {
+                  if (!element || scrollRoots.includes(element)) return;
+                  const style = getComputedStyle(element);
+                  const overflowY = style.overflowY || style.overflow || '';
+                  const knownReviewRoot = element.matches(
+                    '.ant-modal-wrap,.ant-modal-body,.ant-drawer,' +
+                    '.ant-drawer-body,.ant-drawer-content-wrapper'
+                  );
+                  const documentRoot =
+                    element === document.scrollingElement ||
+                    element === document.documentElement ||
+                    element === document.body;
+                  if (
+                    element.scrollHeight > element.clientHeight + 2 &&
+                    (
+                      documentRoot ||
+                      knownReviewRoot ||
+                      /^(auto|scroll|overlay)$/.test(overflowY)
+                    )
+                  ) {
+                    scrollRoots.push(element);
+                  }
+                };
+                Array.from(scope.querySelectorAll(
+                  '.ant-modal-body,.ant-drawer-body,[style*="overflow"],[class*="scroll"]'
+                )).forEach(addScrollRoot);
+                let reviewAncestor = scope;
+                while (reviewAncestor && reviewAncestor !== document.body) {
+                  addScrollRoot(reviewAncestor);
+                  reviewAncestor = reviewAncestor.parentElement;
+                }
+                addScrollRoot(document.scrollingElement || document.documentElement);
+
+                scrollRoots.forEach(element => {
+                  const maxScroll = Math.max(
+                    0,
+                    element.scrollHeight - element.clientHeight
+                  );
+                  if (element.scrollTop < maxScroll - 2) {
+                    element.scrollTop = element.scrollHeight;
+                    if (typeof element.scrollTo === 'function') {
+                      try {
+                        element.scrollTo(0, element.scrollHeight);
+                      } catch (_) {}
+                    }
+                  }
+                });
+                try {
+                  finalButton.scrollIntoView({
+                    behavior: 'auto',
+                    block: 'end',
+                    inline: 'nearest'
+                  });
+                } catch (_) {
+                  try {
+                    finalButton.scrollIntoView(false);
+                  } catch (_) {}
+                }
+
+                const finalRect = finalButton.getBoundingClientRect();
+                let finalButtonVisible =
+                  finalRect.width > 0 &&
+                  finalRect.height > 0 &&
+                  finalRect.top >= -2 &&
+                  finalRect.bottom <= window.innerHeight + 2;
+                scrollRoots.forEach(element => {
+                  if (
+                    !finalButtonVisible ||
+                    element === document.body ||
+                    element === document.documentElement ||
+                    !element.contains(finalButton)
+                  ) return;
+                  const rootRect = element.getBoundingClientRect();
+                  finalButtonVisible =
+                    finalRect.top >= rootRect.top - 2 &&
+                    finalRect.bottom <= rootRect.bottom + 2;
+                });
+                const allRootsAtBottom = scrollRoots.every(element => {
+                  const maxScroll = Math.max(
+                    0,
+                    element.scrollHeight - element.clientHeight
+                  );
+                  return element.scrollTop >= maxScroll - 2;
+                });
+                const geometrySignature = [
+                  scope.scrollHeight,
+                  finalButton.offsetTop,
+                  ...scrollRoots.map(element =>
+                    `${'$'}{element.scrollHeight}:${'$'}{element.clientHeight}`
+                  )
+                ].join('|');
+                const previousSignature =
+                  scope.dataset.matholicKioskReviewScrollGeometry || '';
+                let stableReads = Number(
+                  scope.dataset.matholicKioskReviewScrollStableReads || '0'
+                );
+                stableReads = finalButtonVisible && allRootsAtBottom ?
+                  (previousSignature === geometrySignature ? stableReads + 1 : 1) : 0;
+                scope.dataset.matholicKioskReviewScrollGeometry = geometrySignature;
+                scope.dataset.matholicKioskReviewScrollStableReads = String(stableReads);
+                if (stableReads >= 2) {
+                  scope.dataset.matholicKioskReviewScrollComplete = 'true';
+                  document.documentElement.dataset.matholicKioskReviewScrolled = 'true';
+                } else {
+                  delete document.documentElement.dataset.matholicKioskReviewScrolled;
+                }
+              }
             }
 
             const protectAnalysisDetails = () => {
@@ -962,6 +1064,7 @@ object WebDomScripts {
               }
             };
             const maintainLateStudentControls = () => {
+              resetHiddenReviewScrollState();
               hiddenChrome += hideStudentChrome();
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();

@@ -44,11 +44,14 @@ class WebDomScriptsTest {
         assertTrue(script.contains("모름"))
         assertTrue(script.contains("다음 문제"))
         assertTrue(script.contains("전체답안"))
-        assertFalse(script.contains("getBoundingClientRect"))
         assertFalse(script.contains("elementFromPoint"))
         assertTrue(script.contains("MutationObserver"))
         assertTrue(script.contains(".ant-tooltip"))
         assertTrue(script.contains("hideLateStudentContent"))
+        assertTrue(script.contains(".ant-modal-wrap"))
+        assertTrue(script.contains("scrollIntoView"))
+        assertTrue(script.contains("matholicKioskReviewScrollStableReads"))
+        assertTrue(script.contains("resetHiddenReviewScrollState"))
     }
 
     @Test

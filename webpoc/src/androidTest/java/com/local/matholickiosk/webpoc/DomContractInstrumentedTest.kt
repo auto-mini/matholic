@@ -611,16 +611,171 @@ class DomContractInstrumentedTest {
                   submitWidth:
                     document.getElementById('final-submit').style.minWidth,
                   submitScrolledIntoView:
-                    document.body.dataset.finalSubmitScrolledIntoView === 'yes'
+                    document.body.dataset.finalSubmitScrolledIntoView === 'yes',
+                  stableReads:
+                    document.querySelector('.ant-modal').dataset
+                      .matholicKioskReviewScrollStableReads,
+                  scrollComplete:
+                    document.querySelector('.ant-modal').dataset
+                      .matholicKioskReviewScrollComplete,
+                  finalRect:
+                    document.getElementById('final-submit').getBoundingClientRect().toJSON(),
+                  viewportHeight: window.innerHeight
                 }))()
                 """.trimIndent(),
             )
-            assertTrue(proof.getBoolean("scrollMarked"))
-            assertTrue(proof.getBoolean("uploadHidden"))
-            assertTrue(proof.getBoolean("movedToBottom"))
-            assertTrue(proof.getBoolean("submitInFlow"))
+            assertTrue(proof.toString(), proof.getBoolean("scrollMarked"))
+            assertTrue(proof.toString(), proof.getBoolean("uploadHidden"))
+            assertTrue(proof.toString(), proof.getBoolean("movedToBottom"))
+            assertTrue(proof.toString(), proof.getBoolean("submitInFlow"))
             assertEquals("190px", proof.getString("submitWidth"))
             assertTrue(proof.getBoolean("submitScrolledIntoView"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceScrollsAntModalWrapAgainAfterLateReviewLayout() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="review-wrap" class="ant-modal-wrap"
+                   style="height:220px;overflow-y:auto;position:relative">
+                <div class="ant-modal" role="dialog">
+                  <div class="ant-modal-content">
+                    <div class="ant-modal-header">
+                      <div class="ant-modal-title">전체답안</div>
+                    </div>
+                    <div class="ant-modal-body">
+                      <div id="answers" style="height:900px"></div>
+                      <div id="upload">
+                        <h4>풀이 과정</h4>
+                        <div class="ant-upload-wrapper"><button>풀이 업로드</button></div>
+                      </div>
+                    </div>
+                    <div class="ant-modal-footer">
+                      <button id="final-submit">답안 제출</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const button = document.getElementById('final-submit');
+                  button.scrollIntoView = () => {
+                    document.body.dataset.reviewScrollRequests =
+                      String(Number(document.body.dataset.reviewScrollRequests || '0') + 1);
+                  };
+                  return JSON.stringify({ installed: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('answers').style.height = '1400px';
+                  document.getElementById('review-wrap').scrollTop = 0;
+                  return JSON.stringify({ changed: true });
+                })()
+                """.trimIndent(),
+            )
+            repeat(2) {
+                assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            }
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  wrapperMovedToBottom:
+                    document.getElementById('review-wrap').scrollTop > 0,
+                  scrollRequestCount:
+                    Number(document.body.dataset.reviewScrollRequests || '0'),
+                  scrollMarked:
+                    document.documentElement.dataset.matholicKioskReviewScrolled === 'true',
+                  uploadHidden:
+                    getComputedStyle(document.getElementById('upload')).display === 'none',
+                  submitInFlow:
+                    getComputedStyle(document.getElementById('final-submit')).position !== 'fixed'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("wrapperMovedToBottom"))
+            assertTrue(proof.getInt("scrollRequestCount") >= 2)
+            assertTrue(proof.getBoolean("scrollMarked"))
+            assertTrue(proof.getBoolean("uploadHidden"))
+            assertTrue(proof.getBoolean("submitInFlow"))
+            val requestsBeforeManualScroll = proof.getInt("scrollRequestCount")
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('review-wrap').scrollTop = 0;
+                  return JSON.stringify({ changed: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val afterManualScroll = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  wrapperScrollTop: document.getElementById('review-wrap').scrollTop,
+                  scrollRequestCount:
+                    Number(document.body.dataset.reviewScrollRequests || '0')
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals(0, afterManualScroll.getInt("wrapperScrollTop"))
+            assertEquals(
+                requestsBeforeManualScroll,
+                afterManualScroll.getInt("scrollRequestCount"),
+            )
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('review-wrap').style.display = 'none';
+                  return JSON.stringify({ hidden: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const wrapper = document.getElementById('review-wrap');
+                  wrapper.style.display = 'block';
+                  wrapper.scrollTop = 0;
+                  return JSON.stringify({ reopened: true });
+                })()
+                """.trimIndent(),
+            )
+            repeat(2) {
+                assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            }
+            val afterReopen = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  wrapperMovedToBottom:
+                    document.getElementById('review-wrap').scrollTop > 0,
+                  scrollRequestCount:
+                    Number(document.body.dataset.reviewScrollRequests || '0')
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(afterReopen.getBoolean("wrapperMovedToBottom"))
+            assertTrue(
+                afterReopen.getInt("scrollRequestCount") > requestsBeforeManualScroll,
+            )
         }
     }
 
