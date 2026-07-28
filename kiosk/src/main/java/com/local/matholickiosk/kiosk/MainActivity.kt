@@ -1909,8 +1909,14 @@ class MainActivity : ComponentActivity() {
                             resumeScannerAfterCooldown()
                         } else {
                             scannerMessage.text =
-                                "${student.displayNameExact}\n확인되었습니다 · 로그인 중입니다"
-                            launchSecureWebSession(student)
+                                "${student.displayNameExact}\nQR 인증이 완료되었습니다"
+                            mainHandler.postDelayed({
+                                if (!destroyed && scannerVisible) {
+                                    scannerMessage.text =
+                                        "${student.displayNameExact}\n로그인 중입니다"
+                                    launchSecureWebSession(student)
+                                }
+                            }, QR_ACCEPTED_DISPLAY_MS)
                         }
                     },
                     onFailure = {
@@ -2268,6 +2274,7 @@ class MainActivity : ComponentActivity() {
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val QR_GUIDANCE_STALE_MS = 900L
+        private const val QR_ACCEPTED_DISPLAY_MS = 900L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
     }
