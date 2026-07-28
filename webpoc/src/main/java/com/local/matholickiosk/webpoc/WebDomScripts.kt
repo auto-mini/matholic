@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.1"
+    const val CONTRACT_VERSION = "web-2026-07-28.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -814,11 +814,20 @@ object WebDomScripts {
                     } catch (_) {}
                   }
                 }
-                important(finalButton, 'position', 'fixed');
-                important(finalButton, 'right', '230px');
-                important(finalButton, 'bottom', '24px');
-                important(finalButton, 'z-index', '2147483000');
-                important(finalButton, 'box-shadow', '0 6px 18px rgba(0,0,0,.35)');
+                const legacyFloatingStyle =
+                  finalButton.style.getPropertyValue('position') === 'fixed' &&
+                  finalButton.style.getPropertyPriority('position') === 'important' &&
+                  finalButton.style.getPropertyValue('right') === '230px' &&
+                  finalButton.style.getPropertyPriority('right') === 'important' &&
+                  finalButton.style.getPropertyValue('bottom') === '24px' &&
+                  finalButton.style.getPropertyPriority('bottom') === 'important' &&
+                  finalButton.style.getPropertyValue('z-index') === '2147483000' &&
+                  finalButton.style.getPropertyPriority('z-index') === 'important';
+                if (legacyFloatingStyle) {
+                  [
+                    'position', 'right', 'bottom', 'z-index', 'box-shadow'
+                  ].forEach(name => finalButton.style.removeProperty(name));
+                }
               }
               const uploadSignals = Array.from(
                 scope.querySelectorAll(

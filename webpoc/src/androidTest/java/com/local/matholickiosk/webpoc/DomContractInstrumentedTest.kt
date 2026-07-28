@@ -318,7 +318,9 @@ class DomContractInstrumentedTest {
                   unknownWidth: document.getElementById('unknown').style.minWidth,
                   nextWidth: document.getElementById('next').style.minWidth,
                   submitWidth: document.getElementById('submit').style.minWidth,
-                  submitPosition: document.getElementById('submit').style.position
+                  submitPosition: document.getElementById('submit').style.position,
+                  submitRight: document.getElementById('submit').style.right,
+                  submitBottom: document.getElementById('submit').style.bottom
                 }))()
                 """.trimIndent(),
             )
@@ -326,7 +328,9 @@ class DomContractInstrumentedTest {
             assertEquals("104px", proof.getString("unknownWidth"))
             assertEquals("72px", proof.getString("nextWidth"))
             assertEquals("190px", proof.getString("submitWidth"))
-            assertEquals("fixed", proof.getString("submitPosition"))
+            assertEquals("", proof.getString("submitPosition"))
+            assertEquals("", proof.getString("submitRight"))
+            assertEquals("", proof.getString("submitBottom"))
         }
     }
 
@@ -547,7 +551,7 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperienceScrollsReviewAndHidesSolutionUpload() {
+    fun testStudentExperienceScrollsReviewHidesUploadAndKeepsFinalSubmitInFlow() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -564,7 +568,12 @@ class DomContractInstrumentedTest {
                   </div>
                 </div>
                 <div class="ant-modal-footer">
-                  <button id="final-submit">답안 제출</button>
+                  <button id="final-submit"
+                          style="position:fixed!important;right:230px!important;
+                                 bottom:24px!important;z-index:2147483000!important;
+                                 box-shadow:0 6px 18px rgba(0,0,0,.35)!important">
+                    답안 제출
+                  </button>
                 </div>
               </div>
             </body></html>
@@ -593,8 +602,14 @@ class DomContractInstrumentedTest {
                   uploadHidden:
                     getComputedStyle(document.getElementById('upload')).display === 'none',
                   movedToBottom: document.getElementById('review-scroll').scrollTop > 0,
-                  submitFixed:
-                    document.getElementById('final-submit').style.position === 'fixed',
+                  submitInFlow:
+                    document.getElementById('final-submit').style.position === '' &&
+                    document.getElementById('final-submit').style.right === '' &&
+                    document.getElementById('final-submit').style.bottom === '' &&
+                    document.getElementById('final-submit').style.zIndex === '' &&
+                    document.getElementById('final-submit').style.boxShadow === '',
+                  submitWidth:
+                    document.getElementById('final-submit').style.minWidth,
                   submitScrolledIntoView:
                     document.body.dataset.finalSubmitScrolledIntoView === 'yes'
                 }))()
@@ -603,7 +618,8 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("scrollMarked"))
             assertTrue(proof.getBoolean("uploadHidden"))
             assertTrue(proof.getBoolean("movedToBottom"))
-            assertTrue(proof.getBoolean("submitFixed"))
+            assertTrue(proof.getBoolean("submitInFlow"))
+            assertEquals("190px", proof.getString("submitWidth"))
             assertTrue(proof.getBoolean("submitScrolledIntoView"))
         }
     }
