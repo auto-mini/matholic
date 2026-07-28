@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-27.3"
+    const val CONTRACT_VERSION = "web-2026-07-28.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -341,7 +341,9 @@ object WebDomScripts {
               return false;
             }
             important(element, 'display', 'none');
-            element.setAttribute('aria-hidden', 'true');
+            if (element.getAttribute('aria-hidden') !== 'true') {
+              element.setAttribute('aria-hidden', 'true');
+            }
             return true;
           };
           const hrefPath = element => {
@@ -389,9 +391,11 @@ object WebDomScripts {
                   break;
                 }
               }
-              if (candidate && !hiddenChromeShells.has(candidate) && hide(candidate)) {
-                hiddenChromeShells.add(candidate);
-                hidden += 1;
+              if (candidate && hide(candidate)) {
+                if (!hiddenChromeShells.has(candidate)) {
+                  hiddenChromeShells.add(candidate);
+                  hidden += 1;
+                }
               }
             });
             return hidden;
@@ -696,58 +700,68 @@ object WebDomScripts {
               '유형동영상', '유형 동영상', '문항 동영상', '대표 유형 동영상'
             ]);
 
-            const inputMenuButtons = Array.from(
-              document.querySelectorAll('button,[role="button"]')
-            ).filter(element =>
-              visible(element) && normalize(element.textContent) === '입력기'
-            );
-            inputMenuButtons.forEach(button => {
-              const answerScope = button.closest('[id^="answer-input-form-"]') ||
-                button.parentElement;
-              const alreadyMath = !!answerScope?.querySelector(
-                '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
-              );
-              if (alreadyMath) {
-                if (hide(button)) hiddenControls += 1;
-              } else if (button.dataset.matholicKioskMenuOpened !== 'true') {
-                button.dataset.matholicKioskMenuOpened = 'true';
-                button.click();
-              }
-            });
-
-            const answerModeButtons = Array.from(
-              document.querySelectorAll(
-                'button,[role="button"],li,[role="menuitem"]'
-              )
-            ).filter(element => {
-              const text = normalize(element.textContent);
-              return text === '기본' || text === '분수' || text === '수식';
-            });
-            const mathButton = answerModeButtons.find(
-              element => visible(element) && normalize(element.textContent) === '수식'
-            );
-            if (mathButton && visible(mathButton)) {
-              const selected = mathButton.getAttribute('aria-pressed') === 'true' ||
-                mathButton.getAttribute('aria-selected') === 'true' ||
-                mathButton.getAttribute('data-state') === 'active' ||
-                /(?:^|\s)(?:active|selected|checked)(?:\s|${'$'})/i.test(mathButton.className || '');
-              if (!selected && mathButton.dataset.matholicKioskActivated !== 'true') {
-                mathButton.dataset.matholicKioskActivated = 'true';
-                mathButton.click();
-                mathModeSelections += 1;
-                inputMenuButtons.forEach(button => {
-                  if (hide(button)) hiddenControls += 1;
-                });
-              }
-            }
-            answerModeButtons
-              .filter(element => {
-                const text = normalize(element.textContent);
-                return text === '기본';
-              })
-              .forEach(element => {
-                if (hide(element)) hiddenControls += 1;
+            const enforceMathAnswerMode = () => {
+              let hidden = 0;
+              let selectedCount = 0;
+              const inputMenuButtons = Array.from(
+                document.querySelectorAll('button,[role="button"]')
+              ).filter(element => normalize(element.textContent) === '입력기');
+              inputMenuButtons.forEach(button => {
+                const wasVisible = visible(button);
+                const answerScope = button.closest('[id^="answer-input-form-"]') ||
+                  button.parentElement;
+                const alreadyMath = !!answerScope?.querySelector(
+                  '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
+                );
+                if (hide(button)) hidden += 1;
+                if (
+                  !alreadyMath &&
+                  wasVisible &&
+                  button.dataset.matholicKioskMenuOpened !== 'true'
+                ) {
+                  button.dataset.matholicKioskMenuOpened = 'true';
+                  button.click();
+                }
               });
+
+              const answerModeButtons = Array.from(
+                document.querySelectorAll(
+                  'button,[role="button"],li,[role="menuitem"]'
+                )
+              ).filter(element => {
+                const text = normalize(element.textContent);
+                return text === '기본' || text === '분수' || text === '수식';
+              });
+              answerModeButtons
+                .filter(element =>
+                  visible(element) && normalize(element.textContent) === '수식'
+                )
+                .forEach(mathButton => {
+                  const selected = mathButton.getAttribute('aria-pressed') === 'true' ||
+                    mathButton.getAttribute('aria-selected') === 'true' ||
+                    mathButton.getAttribute('data-state') === 'active' ||
+                    /(?:^|\s)(?:active|selected|checked)(?:\s|${'$'})/i.test(
+                      mathButton.className || ''
+                    );
+                  if (
+                    !selected &&
+                    mathButton.dataset.matholicKioskActivated !== 'true'
+                  ) {
+                    mathButton.dataset.matholicKioskActivated = 'true';
+                    mathButton.click();
+                    selectedCount += 1;
+                  }
+                });
+              answerModeButtons
+                .filter(element => normalize(element.textContent) === '기본')
+                .forEach(element => {
+                  if (hide(element)) hidden += 1;
+                });
+              return { hidden, selectedCount };
+            };
+            const initialMathMode = enforceMathAnswerMode();
+            hiddenControls += initialMathMode.hidden;
+            mathModeSelections += initialMathMode.selectedCount;
 
             const reviewHeading = Array.from(
               document.querySelectorAll(
@@ -784,6 +798,22 @@ object WebDomScripts {
                 return text === '답안제출' || text === '답안 제출' || text === '완료하기';
               });
               if (finalButton) {
+                if (
+                  finalButton.dataset.matholicKioskReviewScrollRequested !== 'true'
+                ) {
+                  finalButton.dataset.matholicKioskReviewScrollRequested = 'true';
+                  try {
+                    finalButton.scrollIntoView({
+                      behavior: 'auto',
+                      block: 'end',
+                      inline: 'nearest'
+                    });
+                  } catch (_) {
+                    try {
+                      finalButton.scrollIntoView(false);
+                    } catch (_) {}
+                  }
+                }
                 important(finalButton, 'position', 'fixed');
                 important(finalButton, 'right', '230px');
                 important(finalButton, 'bottom', '24px');
@@ -926,12 +956,21 @@ object WebDomScripts {
               hiddenChrome += hideStudentChrome();
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
+              const lateMathMode = enforceMathAnswerMode();
+              hiddenControls += lateMathMode.hidden;
+              mathModeSelections += lateMathMode.selectedCount;
               protectAnalysisDetails();
             };
             maintainLateStudentControls();
             if (!window.__matholicKioskExperienceObserver && document.body) {
               const observer = new MutationObserver(maintainLateStudentControls);
-              observer.observe(document.body, { childList: true, subtree: true });
+              observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+                attributeFilter: ['class', 'style', 'hidden']
+              });
               window.__matholicKioskExperienceObserver = observer;
             }
           }

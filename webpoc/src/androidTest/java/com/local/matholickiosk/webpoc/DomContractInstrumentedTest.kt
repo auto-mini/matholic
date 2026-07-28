@@ -451,6 +451,16 @@ class DomContractInstrumentedTest {
                   late.innerHTML = `
                     <button id="late-report">오류신고</button>
                     <div id="late-math-tooltip" class="ant-tooltip" role="tooltip">수식</div>
+                    <div id="answer-input-form-late">
+                      <button id="late-input-menu"
+                        onclick="document.getElementById('late-mode-menu').style.display='block'">입력기</button>
+                      <ul id="late-mode-menu" style="display:none">
+                        <li id="late-basic">기본</li>
+                        <li id="late-fraction">분수</li>
+                        <li id="late-math"
+                          onclick="this.dataset.clicked='yes'">수식</li>
+                      </ul>
+                    </div>
                     <div>
                       <button>루트</button>
                       <button>분수</button>
@@ -479,7 +489,15 @@ class DomContractInstrumentedTest {
                   mathTooltipHidden:
                     getComputedStyle(document.getElementById('late-math-tooltip')).display === 'none',
                   chromeHidden:
-                    getComputedStyle(document.getElementById('late-global-line')).display === 'none'
+                    getComputedStyle(document.getElementById('late-global-line')).display === 'none',
+                  inputMenuHidden:
+                    getComputedStyle(document.getElementById('late-input-menu')).display === 'none',
+                  mathClicked:
+                    document.getElementById('late-math').dataset.clicked === 'yes',
+                  basicHidden:
+                    getComputedStyle(document.getElementById('late-basic')).display === 'none',
+                  fractionVisible:
+                    getComputedStyle(document.getElementById('late-fraction')).display !== 'none'
                 }))()
                 """.trimIndent(),
             )
@@ -487,6 +505,44 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("reportHidden"))
             assertTrue(lateProof.getBoolean("mathTooltipHidden"))
             assertTrue(lateProof.getBoolean("chromeHidden"))
+            assertTrue(lateProof.getBoolean("inputMenuHidden"))
+            assertTrue(lateProof.getBoolean("mathClicked"))
+            assertTrue(lateProof.getBoolean("basicHidden"))
+            assertTrue(lateProof.getBoolean("fractionVisible"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  [
+                    document.getElementById('late-report'),
+                    document.getElementById('late-math-tooltip'),
+                    document.getElementById('late-direct-handwriting')
+                  ].forEach(element => {
+                    element.style.setProperty('display', 'block', 'important');
+                    element.removeAttribute('aria-hidden');
+                  });
+                  return JSON.stringify({ resurfaced: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(100)
+            val resurfacedProof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  reportHidden:
+                    getComputedStyle(document.getElementById('late-report')).display === 'none',
+                  mathTooltipHidden:
+                    getComputedStyle(document.getElementById('late-math-tooltip')).display === 'none',
+                  directHandwritingHidden:
+                    getComputedStyle(document.getElementById('late-direct-handwriting')).display === 'none'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(resurfacedProof.getBoolean("reportHidden"))
+            assertTrue(resurfacedProof.getBoolean("mathTooltipHidden"))
+            assertTrue(resurfacedProof.getBoolean("directHandwritingHidden"))
         }
     }
 
@@ -514,6 +570,17 @@ class DomContractInstrumentedTest {
             </body></html>
             """.trimIndent(),
         ) { webView ->
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('final-submit').scrollIntoView = () => {
+                    document.body.dataset.finalSubmitScrolledIntoView = 'yes';
+                  };
+                  return JSON.stringify({ installed: true });
+                })()
+                """.trimIndent(),
+            )
             repeat(2) {
                 assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
             }
@@ -527,7 +594,9 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('upload')).display === 'none',
                   movedToBottom: document.getElementById('review-scroll').scrollTop > 0,
                   submitFixed:
-                    document.getElementById('final-submit').style.position === 'fixed'
+                    document.getElementById('final-submit').style.position === 'fixed',
+                  submitScrolledIntoView:
+                    document.body.dataset.finalSubmitScrolledIntoView === 'yes'
                 }))()
                 """.trimIndent(),
             )
@@ -535,6 +604,7 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("uploadHidden"))
             assertTrue(proof.getBoolean("movedToBottom"))
             assertTrue(proof.getBoolean("submitFixed"))
+            assertTrue(proof.getBoolean("submitScrolledIntoView"))
         }
     }
 
