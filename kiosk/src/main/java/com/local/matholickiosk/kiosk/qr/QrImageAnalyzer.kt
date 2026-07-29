@@ -15,6 +15,7 @@ class QrImageAnalyzer(
     private val codec: QrTokenCodec = QrTokenCodec(),
     private val onDecision: (QrFrameDecision) -> Unit,
     private val onGuidance: (QrFrameGuidance) -> Unit = {},
+    private val onRawQr: (String) -> Boolean = { false },
 ) : ImageAnalysis.Analyzer, Closeable {
     private val processing = AtomicBoolean(false)
     private val deliveryGate = QrDecisionDeliveryGate()
@@ -71,6 +72,10 @@ class QrImageAnalyzer(
                             var matholicGuidance: QrFrameGuidance? = null
                             if (barcodes.size == 1) {
                                 val barcode = barcodes[0]
+                                val rawValue = barcode.rawValue
+                                if (rawValue != null && onRawQr(rawValue)) {
+                                    return@addOnCompleteListener
+                                }
                                 if (barcode.rawValue?.startsWith("MQR1:") == true) {
                                     matholicQrDetected = true
                                     matholicGuidance = deliverGuidance(

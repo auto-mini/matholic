@@ -355,6 +355,21 @@
                         android:layout_marginTop="8dp"
                         android:enabled="false"
                         android:text="카드 PDF Quick Share·저장" />
+
+                    <Button
+                        android:id="@+id/pair_pc_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:text="PC 무선 전송 페어링" />
+
+                    <Button
+                        android:id="@+id/send_pc_pdf_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:enabled="false"
+                        android:text="현재 카드 지정 PC로 보내기" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -384,6 +399,7 @@
                         android:textStyle="bold" />
 
                     <TextView
+                        android:id="@+id/scanner_instruction"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal|top"

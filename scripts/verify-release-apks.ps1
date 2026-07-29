@@ -105,8 +105,8 @@ try {
         -ApkPath $stagedKioskApk `
         -ExpectedPackage 'com.local.matholickiosk.kiosk' `
         -ExpectedVersion $ExpectedKioskVersion `
-        -RequiredPermissions @('android.permission.CAMERA') `
-        -ForbiddenPermissions @('android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE')
+        -RequiredPermissions @('android.permission.CAMERA', 'android.permission.INTERNET') `
+        -ForbiddenPermissions @('android.permission.ACCESS_NETWORK_STATE')
     Assert-ApkManifest `
         -ApkPath $stagedWebPocApk `
         -ExpectedPackage 'com.local.matholickiosk.webpoc' `

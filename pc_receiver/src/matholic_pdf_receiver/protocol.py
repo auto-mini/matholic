@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-import json
 import os
 import struct
 import time
@@ -87,41 +86,53 @@ def _b64url_decode(value: str) -> bytes:
 
 
 def encode_pairing(pairing: Pairing) -> str:
-    payload = {
-        "v": VERSION,
-        "id": _b64url_encode(pairing.receiver_id),
-        "key": _b64url_encode(pairing.secret),
-        "host": pairing.host,
-        "port": pairing.port,
-        "name": pairing.display_name,
-    }
-    compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    return PAIRING_PREFIX + _b64url_encode(compact)
+    try:
+        host = pairing.host.encode("ascii")
+        name = pairing.display_name.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ProtocolError("pairing host is invalid") from error
+    if not 1 <= len(host) <= 255 or not 1 <= len(name) <= 255:
+        raise ProtocolError("pairing text length is invalid")
+    payload = (
+        struct.pack(
+            ">B16s32sHB",
+            VERSION,
+            pairing.receiver_id,
+            pairing.secret,
+            pairing.port,
+            len(host),
+        )
+        + host
+        + struct.pack(">B", len(name))
+        + name
+    )
+    return PAIRING_PREFIX + _b64url_encode(payload)
 
 
 def decode_pairing(value: str) -> Pairing:
     if not value.startswith(PAIRING_PREFIX):
         raise ProtocolError("pairing prefix is invalid")
     raw = _b64url_decode(value[len(PAIRING_PREFIX) :])
-    try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ProtocolError("pairing payload is invalid") from error
-    if not isinstance(payload, dict) or payload.get("v") != VERSION:
+    fixed = struct.Struct(">B16s32sHB")
+    if len(raw) < fixed.size + 2:
+        raise ProtocolError("pairing payload is truncated")
+    version, receiver_id, secret, port, host_length = fixed.unpack(raw[: fixed.size])
+    if version != VERSION:
         raise ProtocolError("pairing version is invalid")
-    expected_keys = {"v", "id", "key", "host", "port", "name"}
-    if set(payload) != expected_keys:
-        raise ProtocolError("pairing fields are invalid")
-    if not isinstance(payload["port"], int):
-        raise ProtocolError("pairing port is invalid")
-    if not all(isinstance(payload[key], str) for key in ("id", "key", "host", "name")):
-        raise ProtocolError("pairing text field is invalid")
+    host_start = fixed.size
+    name_length_position = host_start + host_length
+    if host_length == 0 or name_length_position >= len(raw):
+        raise ProtocolError("pairing host length is invalid")
+    name_length = raw[name_length_position]
+    name_start = name_length_position + 1
+    if name_length == 0 or name_start + name_length != len(raw):
+        raise ProtocolError("pairing name length is invalid")
     return Pairing(
-        receiver_id=_b64url_decode(payload["id"]),
-        secret=_b64url_decode(payload["key"]),
-        host=payload["host"],
-        port=payload["port"],
-        display_name=payload["name"],
+        receiver_id=receiver_id,
+        secret=secret,
+        host=raw[host_start:name_length_position].decode("ascii"),
+        port=port,
+        display_name=raw[name_start:].decode("utf-8"),
     )
 
 

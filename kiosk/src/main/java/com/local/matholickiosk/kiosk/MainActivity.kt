@@ -61,6 +61,9 @@ import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.clearSensitiveData
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
+import com.local.matholickiosk.kiosk.transfer.PcPairingStore
+import com.local.matholickiosk.kiosk.transfer.PcPdfSender
+import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -95,9 +98,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var qrImage: ImageView
     private lateinit var printQrButton: Button
     private lateinit var exportQrPdfButton: Button
+    private lateinit var pairPcButton: Button
+    private lateinit var sendPcPdfButton: Button
     private lateinit var scannerPanel: FrameLayout
+    private lateinit var scannerInstruction: TextView
     private lateinit var scannerMessage: TextView
     private lateinit var switchCameraButton: Button
+    private lateinit var sessionAdminButton: Button
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -105,6 +112,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var authRepository: AdminAuthRepository
     private lateinit var studentRepository: StudentRepository
     private lateinit var lockTaskController: KioskLockTaskController
+    private lateinit var pcPairingStore: PcPairingStore
+    private val pcPdfSender = PcPdfSender()
 
     private var authEnrollmentMode = false
     private var authBusy = false
@@ -134,6 +143,9 @@ class MainActivity : ComponentActivity() {
     private var dedicatedDevicePolicyFailed = false
     private var pendingRecoveryAction: PendingRecoveryAction = PendingRecoveryAction.None
     private var pendingSharedPdf: File? = null
+    @Volatile
+    private var pcPairingMode = false
+    private var pairedPcDisplayName: String? = null
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -256,6 +268,7 @@ class MainActivity : ComponentActivity() {
             cipher = AndroidKeystoreCredentialCipher(),
             appVersion = applicationVersion(),
         )
+        pcPairingStore = PcPairingStore(this)
         QrPdfExporter.cleanupExpired(this)
         configureActions()
         loadInitialState()
@@ -291,9 +304,13 @@ class MainActivity : ComponentActivity() {
         qrImage = findViewById(R.id.qr_image)
         printQrButton = findViewById(R.id.print_qr_button)
         exportQrPdfButton = findViewById(R.id.export_qr_pdf_button)
+        pairPcButton = findViewById(R.id.pair_pc_button)
+        sendPcPdfButton = findViewById(R.id.send_pc_pdf_button)
         scannerPanel = findViewById(R.id.scanner_panel)
+        scannerInstruction = findViewById(R.id.scanner_instruction)
         scannerMessage = findViewById(R.id.scanner_message)
         switchCameraButton = findViewById(R.id.switch_camera_button)
+        sessionAdminButton = findViewById(R.id.session_admin_button)
     }
 
     private fun configureSensitiveViews() {
@@ -314,11 +331,13 @@ class MainActivity : ComponentActivity() {
             deactivateStudentButton,
             printQrButton,
             exportQrPdfButton,
+            pairPcButton,
+            sendPcPdfButton,
             addTemporaryButton,
             startSessionButton,
             resumeSessionButton,
             switchCameraButton,
-            findViewById<Button>(R.id.session_admin_button),
+            sessionAdminButton,
         ).forEach { it.filterTouchesWhenObscured = true }
         pinConfirmInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -348,12 +367,18 @@ class MainActivity : ComponentActivity() {
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
         printQrButton.setOnClickListener { confirmQrPrint() }
         exportQrPdfButton.setOnClickListener { confirmQrPdfExport() }
+        pairPcButton.setOnClickListener { startPcPairingScanner() }
+        sendPcPdfButton.setOnClickListener { confirmPcPdfTransfer() }
         addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
         startSessionButton.setOnClickListener { startOrEndSession() }
         resumeSessionButton.setOnClickListener { showScanner() }
         switchCameraButton.setOnClickListener { switchCamera() }
-        findViewById<Button>(R.id.session_admin_button).setOnClickListener {
-            requestSessionAdminAuthentication()
+        sessionAdminButton.setOnClickListener {
+            if (pcPairingMode) {
+                returnToAdminAfterPcPairing("PC 페어링을 취소했습니다.")
+            } else {
+                requestSessionAdminAuthentication()
+            }
         }
         classSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(
@@ -436,6 +461,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showInitialStateLoading() {
         stopCamera()
+        pcPairingMode = false
         initialStateLoadFailed = false
         authEnrollmentMode = false
         authPanel.visibility = View.VISIBLE
@@ -457,6 +483,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showInitialStateFailure() {
         stopCamera()
+        pcPairingMode = false
         initialStateLoadFailed = true
         authEnrollmentMode = false
         authPanel.visibility = View.VISIBLE
@@ -479,6 +506,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showAuthentication(enrollment: Boolean) {
         stopCamera()
+        pcPairingMode = false
         initialStateLoadFailed = false
         authEnrollmentMode = enrollment
         authPanel.visibility = View.VISIBLE
@@ -563,8 +591,11 @@ class MainActivity : ComponentActivity() {
         pinConfirmInput.isEnabled = !busy
     }
 
-    private fun showAdmin() {
+    private fun showAdmin(message: String? = null) {
         stopCamera()
+        pcPairingMode = false
+        scannerInstruction.text = STUDENT_SCANNER_INSTRUCTION
+        sessionAdminButton.text = "관리자"
         authPanel.visibility = View.GONE
         scannerPanel.visibility = View.GONE
         adminPanel.visibility = View.VISIBLE
@@ -576,7 +607,8 @@ class MainActivity : ComponentActivity() {
             LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS,
         )
         statusText.text = "ADMIN_LOADING"
-        refreshAdminData()
+        refreshAdminData(message)
+        refreshPcPairingState()
     }
 
     private fun configureDedicatedDevice() {
@@ -1485,6 +1517,88 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun confirmPcPdfTransfer() {
+        val preview = issuedQrPreview
+        val pcName = pairedPcDisplayName
+        if (preview == null || preview.bitmap.isRecycled) {
+            adminMessage.text = "먼저 QR을 발급하거나 재발급하세요."
+            sendPcPdfButton.isEnabled = false
+            return
+        }
+        if (pcName == null) {
+            adminMessage.text = "먼저 PC 수신기의 페어링 QR을 촬영하세요."
+            sendPcPdfButton.isEnabled = false
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("지정 PC로 카드 PDF 보내기")
+            .setMessage(
+                "$pcName PC의 전용 수신 폴더로 암호화해 전송합니다.\n" +
+                    "PDF에는 로그인 가능한 QR과 학생 전체 이름이 포함됩니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("PC로 보내기") { _, _ ->
+                preparePcPdfTransfer(preview)
+            }
+            .show()
+    }
+
+    private fun preparePcPdfTransfer(preview: QrPreview) {
+        if (issuedQrPreview !== preview || preview.bitmap.isRecycled) {
+            adminMessage.text = "QR 미리보기가 만료되었습니다. 다시 발급하세요."
+            return
+        }
+        val exportBitmap = runCatching {
+            requireNotNull(preview.bitmap.copy(Bitmap.Config.ARGB_8888, true))
+        }.getOrElse {
+            adminMessage.text = "PC 전송용 QR 복사 실패"
+            return
+        }
+        adminMessage.text = "지정 PC로 카드 PDF를 암호화해 보내는 중"
+        sendPcPdfButton.isEnabled = false
+        executeSensitive(
+            cleanup = { QrPdfExporter.releaseSensitiveBitmap(exportBitmap) },
+        ) {
+            var exportFile: File? = null
+            var pairing: PcReceiverPairing? = null
+            val result = runCatching {
+                studentRepository.recordQrExportRequested(preview.studentId)
+                exportFile = QrPdfExporter.consumeSensitiveBitmap(exportBitmap) { ownedBitmap ->
+                    QrPdfExporter.export(
+                        context = this,
+                        displayName = preview.exactName,
+                        qrBitmap = ownedBitmap,
+                    )
+                }
+                pairing = requireNotNull(pcPairingStore.load()) {
+                    "저장된 PC 페어링이 없습니다."
+                }
+                pcPdfSender.send(
+                    pairing = requireNotNull(pairing),
+                    pdfFile = requireNotNull(exportFile),
+                    filename = "${preview.exactName} QR.pdf",
+                )
+                requireNotNull(pairing).displayName
+            }
+            pairing?.clearSensitiveData()
+            exportFile?.delete()
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { pcName ->
+                        clearQrPreview("$pcName PC에 카드 PDF를 안전하게 저장했습니다")
+                    },
+                    onFailure = {
+                        sendPcPdfButton.isEnabled =
+                            pairedPcDisplayName != null && issuedQrPreview === preview
+                        adminMessage.text =
+                            it.message ?: "지정 PC로 카드 PDF를 보내지 못했습니다."
+                    },
+                )
+            }
+        }
+    }
+
     private fun showTemporaryStudentDialog() {
         val session = currentSession
         val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
@@ -1692,6 +1806,7 @@ class MainActivity : ComponentActivity() {
         qrCardName.text = preview.exactName
         printQrButton.isEnabled = true
         exportQrPdfButton.isEnabled = true
+        sendPcPdfButton.isEnabled = pairedPcDisplayName != null
     }
 
     private fun clearQrPreview(
@@ -1702,6 +1817,7 @@ class MainActivity : ComponentActivity() {
         issuedQrPreview = null
         printQrButton.isEnabled = false
         exportQrPdfButton.isEnabled = false
+        sendPcPdfButton.isEnabled = false
         qrCardName.text = cardMessage
     }
 
@@ -1714,6 +1830,113 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshPcPairingState() {
+        ioExecutor.execute {
+            val result = runCatching {
+                pcPairingStore.load()?.let { pairing ->
+                    try {
+                        pairing.displayName
+                    } finally {
+                        pairing.clearSensitiveData()
+                    }
+                }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { displayName ->
+                        pairedPcDisplayName = displayName
+                        pairPcButton.text = if (displayName == null) {
+                            "PC 무선 전송 페어링"
+                        } else {
+                            "지정 PC 다시 페어링 · $displayName"
+                        }
+                        sendPcPdfButton.isEnabled =
+                            displayName != null && issuedQrPreview != null
+                    },
+                    onFailure = {
+                        pairedPcDisplayName = null
+                        pairPcButton.text = "PC 무선 전송 페어링"
+                        sendPcPdfButton.isEnabled = false
+                        adminMessage.text =
+                            "저장된 PC 페어링을 확인하지 못했습니다. PC QR로 다시 페어링하세요."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun startPcPairingScanner() {
+        pcPairingMode = true
+        authPanel.visibility = View.GONE
+        adminPanel.visibility = View.GONE
+        scannerPanel.visibility = View.VISIBLE
+        scannerVisible = true
+        scannerInstruction.text =
+            "PC의 매쓰홀릭 PDF 수신기에 표시된\n페어링 QR을 카메라 렌즈에 보여주세요"
+        scannerMessage.text = "PC 페어링 QR을 기다리고 있습니다"
+        sessionAdminButton.text = "취소"
+        statusText.text = "PC_PAIRING"
+        enterDedicatedMode()
+        ensureCamera()
+    }
+
+    private fun handleRawQr(rawValue: String): Boolean {
+        if (!pcPairingMode) return false
+        if (!rawValue.startsWith(PcReceiverPairing.PREFIX)) {
+            runOnUiThread {
+                if (pcPairingMode && !destroyed) {
+                    scannerMessage.text = "PC 수신기에 표시된 페어링 QR이 아닙니다"
+                }
+            }
+            return true
+        }
+        qrAnalyzer?.setEnabled(false)
+        runOnUiThread {
+            if (pcPairingMode && !destroyed) {
+                scannerMessage.text = "지정 PC의 암호키를 안전하게 저장하고 있습니다"
+                savePcPairing(rawValue)
+            }
+        }
+        return true
+    }
+
+    private fun savePcPairing(rawValue: String) {
+        ioExecutor.execute {
+            val result = runCatching {
+                pcPairingStore.save(rawValue).let { pairing ->
+                    try {
+                        pairing.displayName
+                    } finally {
+                        pairing.clearSensitiveData()
+                    }
+                }
+            }
+            runOnUiThread {
+                if (destroyed || !pcPairingMode) return@runOnUiThread
+                result.fold(
+                    onSuccess = { displayName ->
+                        pairedPcDisplayName = displayName
+                        returnToAdminAfterPcPairing(
+                            "$displayName PC와 암호화 무선 전송을 페어링했습니다.",
+                        )
+                    },
+                    onFailure = {
+                        scannerMessage.text =
+                            "PC 페어링 QR을 확인하지 못했습니다. 다시 보여주세요"
+                        qrAnalyzer?.setEnabled(true)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun returnToAdminAfterPcPairing(message: String) {
+        pcPairingMode = false
+        scannerVisible = false
+        showAdmin(message)
+    }
+
     private fun showScanner() {
         val session = currentSession
         if (session?.sessionId == null || session.state != KioskState.QR_READY.name) {
@@ -1721,6 +1944,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         clearQrPreview()
+        pcPairingMode = false
+        scannerInstruction.text = STUDENT_SCANNER_INSTRUCTION
+        sessionAdminButton.text = "관리자"
         authPanel.visibility = View.GONE
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
@@ -1768,6 +1994,7 @@ class MainActivity : ComponentActivity() {
                 val analyzer = qrAnalyzer ?: QrImageAnalyzer(
                     onDecision = ::handleQrDecision,
                     onGuidance = ::handleQrGuidance,
+                    onRawQr = ::handleRawQr,
                 )
                     .also { qrAnalyzer = it }
                 analyzer.setFrontFacing(facing == CameraFacing.FRONT)
@@ -1863,6 +2090,12 @@ class MainActivity : ComponentActivity() {
                 qrAnalyzer?.isEnabled() != true
             ) {
                 decision.clearSensitiveData()
+                return@runOnUiThread
+            }
+            if (pcPairingMode) {
+                decision.clearSensitiveData()
+                scannerMessage.text = "PC 페어링 QR은 한 장만 보여주세요"
+                qrAnalyzer?.setEnabled(true)
                 return@runOnUiThread
             }
             qrAnalyzer?.setEnabled(false)
@@ -2297,6 +2530,9 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val STUDENT_SCANNER_INSTRUCTION =
+            "QR 카드를 선택한 카메라 렌즈를 향해 보여주세요\n\n" +
+                "화면 아래의 방향·거리 안내를 따라\n카드를 움직이세요"
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val QR_GUIDANCE_STALE_MS = 900L

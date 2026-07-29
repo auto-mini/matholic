@@ -58,4 +58,17 @@ class Gate5ManifestInstrumentedTest {
             },
         )
     }
+
+    @Test
+    fun kioskCanOnlyUseInternetForPairedOutboundTransfer() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val packageInfo = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_PERMISSIONS,
+        )
+        val permissions = packageInfo.requestedPermissions.orEmpty().toSet()
+
+        assertTrue("android.permission.INTERNET" in permissions)
+        assertTrue("android.permission.ACCESS_NETWORK_STATE" !in permissions)
+    }
 }

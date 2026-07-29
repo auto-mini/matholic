@@ -28,7 +28,13 @@ PDF = b"%PDF-1.4\nmatholic-test\n%%EOF\n"
 
 
 def test_pairing_round_trip() -> None:
-    assert decode_pairing(encode_pairing(PAIRING)) == PAIRING
+    encoded = encode_pairing(PAIRING)
+    assert encoded == (
+        "MATHOLIC-PC1:"
+        "AQARIjNEVWZ3iJmqu8zd7v8AAQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eH7wB"
+        "DzE5Mi4xNjguMjE5LjIyNAtNQVRIT0xJQy1QQw"
+    )
+    assert decode_pairing(encoded) == PAIRING
 
 
 def test_request_and_authenticated_ack_round_trip() -> None:
