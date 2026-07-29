@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F4F7FA">
@@ -10,6 +11,7 @@
         android:orientation="vertical">
 
         <LinearLayout
+            android:id="@+id/app_header"
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:background="#102A43"
@@ -390,64 +392,70 @@
                     android:layout_height="match_parent"
                     android:background="#102A43">
 
-                    <TextView
-                        android:id="@+id/scanner_lens_instruction"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:id="@+id/scanner_center_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center"
-                        android:contentDescription="QR 카메라 사용 안내"
                         android:gravity="center"
-                        android:maxWidth="700dp"
-                        android:padding="32dp"
-                        android:text="QR 카드를 선택한 카메라 렌즈를 향해 보여주세요&#10;&#10;화면 아래의 방향·거리 안내를 따라&#10;카드를 움직이세요"
-                        android:textColor="#FFFFFF"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
+                        android:orientation="vertical"
+                        android:paddingHorizontal="32dp">
 
-                    <TextView
-                        android:id="@+id/scanner_instruction"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center_horizontal|top"
-                        android:layout_marginTop="52dp"
-                        android:gravity="center"
-                        android:text="카메라 영상은 표시하거나 저장하지 않습니다&#10;화면에는 실제 카드 위치를 나타내는 목표 영역을 표시하지 않습니다"
-                        android:textColor="#D9E2EC"
-                        android:textSize="18sp" />
+                        <TextView
+                            android:id="@+id/scanner_lens_instruction"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:contentDescription="QR 카메라 사용 안내"
+                            android:gravity="center"
+                            android:maxWidth="700dp"
+                            android:text="QR 카드를 선택한 카메라 렌즈를 향해 보여주세요"
+                            android:textColor="#FFFFFF"
+                            android:textSize="24sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/scanner_message"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="28dp"
+                            android:gravity="center"
+                            android:minHeight="64dp"
+                            android:textColor="#D9EAF7"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
                 </FrameLayout>
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="bottom"
-                    android:background="#DD102A43"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="20dp"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="20dp">
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/scanner_message"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="QR카드를 카메라에 보여주세요"
-                        android:textColor="#FFFFFF"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
-
-                    <Button
+                    <ImageButton
                         android:id="@+id/switch_camera_button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
                         android:layout_marginEnd="12dp"
-                        android:contentDescription="카메라 전환"
-                        android:text="후면으로" />
+                        android:background="@drawable/scanner_icon_button_background"
+                        android:contentDescription="후면 카메라로 전환"
+                        android:padding="13dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_camera_switch"
+                        app:tint="#FFFFFF" />
 
-                    <Button
+                    <ImageButton
                         android:id="@+id/session_admin_button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="관리자" />
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:background="@drawable/scanner_icon_button_background"
+                        android:contentDescription="관리자 인증"
+                        android:padding="13dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_admin_panel_settings"
+                        app:tint="#FFFFFF" />
                 </LinearLayout>
             </FrameLayout>
         </FrameLayout>

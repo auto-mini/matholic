@@ -27,14 +27,108 @@ class MainActivityInstrumentedTest {
     fun scannerInstructionReferencesPhysicalLensWithoutScreenTarget() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
-                val instruction = activity
+                val instructionView = activity
                     .findViewById<android.widget.TextView>(R.id.scanner_lens_instruction)
-                    .text
-                    .toString()
+                val instruction = instructionView.text.toString()
                 assertTrue(instruction.contains("카메라 렌즈"))
                 assertFalse(instruction.contains("목표 영역"))
                 assertFalse(instruction.contains("가운데"))
+                assertFalse(instruction.contains("화면 아래"))
+                assertEquals(
+                    activity.findViewById<View>(R.id.scanner_center_content),
+                    activity.findViewById<View>(R.id.scanner_message).parent,
+                )
+                assertTrue(
+                    activity.findViewById<View>(R.id.switch_camera_button) is
+                        android.widget.ImageButton,
+                )
+                assertTrue(
+                    activity.findViewById<View>(R.id.session_admin_button) is
+                        android.widget.ImageButton,
+                )
             }
+        }
+    }
+
+    @Test
+    fun scannerHidesHeaderAndUsesAccessibleIconControls() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("가상반-스캐너화면")
+        val registered = repository.registerStudent(
+            displayNameExact = "가상학생-스캐너화면",
+            username = "synthetic-scanner-ui-user".toCharArray(),
+            password = "synthetic-scanner-ui-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                    activity.findViewById<View>(R.id.auth_submit).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+                }
+                val activeSession = repository.startSession(classId)
+                val currentSessionField = MainActivity::class.java
+                    .getDeclaredField("currentSession")
+                    .apply { isAccessible = true }
+                val showScannerMethod = MainActivity::class.java
+                    .getDeclaredMethod("showScanner")
+                    .apply { isAccessible = true }
+                val showAuthenticationMethod = MainActivity::class.java
+                    .getDeclaredMethod("showAuthentication", Boolean::class.javaPrimitiveType!!)
+                    .apply { isAccessible = true }
+
+                scenario.onActivity { activity ->
+                    currentSessionField.set(activity, activeSession)
+                    showScannerMethod.invoke(activity)
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.scanner_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    assertEquals(View.GONE, activity.findViewById<View>(R.id.app_header).visibility)
+                    assertEquals(
+                        "",
+                        activity.findViewById<android.widget.TextView>(R.id.scanner_message)
+                            .text
+                            .toString(),
+                    )
+                    assertEquals(
+                        "후면 카메라로 전환",
+                        activity.findViewById<View>(R.id.switch_camera_button)
+                            .contentDescription
+                            .toString(),
+                    )
+                    assertEquals(
+                        "관리자 인증",
+                        activity.findViewById<View>(R.id.session_admin_button)
+                            .contentDescription
+                            .toString(),
+                    )
+                    showAuthenticationMethod.invoke(activity, false)
+                    assertEquals(
+                        View.VISIBLE,
+                        activity.findViewById<View>(R.id.app_header).visibility,
+                    )
+                }
+            }
+        } finally {
+            database.clearAllTables()
         }
     }
 

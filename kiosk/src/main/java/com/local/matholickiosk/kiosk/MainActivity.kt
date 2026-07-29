@@ -23,6 +23,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Spinner
@@ -69,6 +70,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
+    private lateinit var appHeader: LinearLayout
     private lateinit var statusText: TextView
     private lateinit var deviceModeText: TextView
     private lateinit var authPanel: LinearLayout
@@ -103,8 +105,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var scannerPanel: FrameLayout
     private lateinit var scannerInstruction: TextView
     private lateinit var scannerMessage: TextView
-    private lateinit var switchCameraButton: Button
-    private lateinit var sessionAdminButton: Button
+    private lateinit var switchCameraButton: ImageButton
+    private lateinit var sessionAdminButton: ImageButton
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -275,6 +277,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun bindViews() {
+        appHeader = findViewById(R.id.app_header)
         statusText = findViewById(R.id.status_text)
         deviceModeText = findViewById(R.id.device_mode_text)
         authPanel = findViewById(R.id.auth_panel)
@@ -307,7 +310,7 @@ class MainActivity : ComponentActivity() {
         pairPcButton = findViewById(R.id.pair_pc_button)
         sendPcPdfButton = findViewById(R.id.send_pc_pdf_button)
         scannerPanel = findViewById(R.id.scanner_panel)
-        scannerInstruction = findViewById(R.id.scanner_instruction)
+        scannerInstruction = findViewById(R.id.scanner_lens_instruction)
         scannerMessage = findViewById(R.id.scanner_message)
         switchCameraButton = findViewById(R.id.switch_camera_button)
         sessionAdminButton = findViewById(R.id.session_admin_button)
@@ -509,6 +512,7 @@ class MainActivity : ComponentActivity() {
         pcPairingMode = false
         initialStateLoadFailed = false
         authEnrollmentMode = enrollment
+        appHeader.visibility = View.VISIBLE
         authPanel.visibility = View.VISIBLE
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.GONE
@@ -595,7 +599,8 @@ class MainActivity : ComponentActivity() {
         stopCamera()
         pcPairingMode = false
         scannerInstruction.text = STUDENT_SCANNER_INSTRUCTION
-        sessionAdminButton.text = "관리자"
+        setSessionControlMode(admin = true)
+        appHeader.visibility = View.VISIBLE
         authPanel.visibility = View.GONE
         scannerPanel.visibility = View.GONE
         adminPanel.visibility = View.VISIBLE
@@ -1868,6 +1873,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startPcPairingScanner() {
         pcPairingMode = true
+        appHeader.visibility = View.GONE
         authPanel.visibility = View.GONE
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
@@ -1875,7 +1881,7 @@ class MainActivity : ComponentActivity() {
         scannerInstruction.text =
             "PC의 매쓰홀릭 PDF 수신기에 표시된\n페어링 QR을 카메라 렌즈에 보여주세요"
         scannerMessage.text = "PC 페어링 QR을 기다리고 있습니다"
-        sessionAdminButton.text = "취소"
+        setSessionControlMode(admin = false)
         statusText.text = "PC_PAIRING"
         enterDedicatedMode()
         ensureCamera()
@@ -1946,13 +1952,14 @@ class MainActivity : ComponentActivity() {
         clearQrPreview()
         pcPairingMode = false
         scannerInstruction.text = STUDENT_SCANNER_INSTRUCTION
-        sessionAdminButton.text = "관리자"
+        setSessionControlMode(admin = true)
+        appHeader.visibility = View.GONE
         authPanel.visibility = View.GONE
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
         scannerVisible = true
         qrGuidanceGeneration += 1
-        scannerMessage.text = "선택한 카메라 렌즈를 향해 QR카드를 보여주세요"
+        scannerMessage.text = ""
         statusText.text = KioskState.QR_READY.name
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterDedicatedMode()
@@ -2033,11 +2040,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateCameraSwitchLabel() {
-        switchCameraButton.text = if (activeCameraFacing == CameraFacing.FRONT) {
-            "후면으로"
+        val label = if (activeCameraFacing == CameraFacing.FRONT) {
+            "후면 카메라로 전환"
         } else {
-            "전면으로"
+            "전면 카메라로 전환"
         }
+        switchCameraButton.contentDescription = label
+        switchCameraButton.tooltipText = label
+    }
+
+    private fun setSessionControlMode(admin: Boolean) {
+        val icon = if (admin) {
+            R.drawable.ic_admin_panel_settings
+        } else {
+            R.drawable.ic_close
+        }
+        val label = if (admin) "관리자 인증" else "PC 페어링 취소"
+        sessionAdminButton.setImageResource(icon)
+        sessionAdminButton.contentDescription = label
+        sessionAdminButton.tooltipText = label
     }
 
     private fun handleQrGuidance(guidance: QrFrameGuidance) {
@@ -2318,7 +2339,7 @@ class MainActivity : ComponentActivity() {
         mainHandler.postDelayed({
             if (!scannerVisible || destroyed) return@postDelayed
             qrGuidanceGeneration += 1
-            scannerMessage.text = "선택한 카메라 렌즈를 향해 QR카드를 보여주세요"
+            scannerMessage.text = ""
             statusText.text = KioskState.QR_READY.name
             qrAnalyzer?.setEnabled(true)
         }, SCAN_COOLDOWN_MS)
@@ -2531,8 +2552,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val STUDENT_SCANNER_INSTRUCTION =
-            "QR 카드를 선택한 카메라 렌즈를 향해 보여주세요\n\n" +
-                "화면 아래의 방향·거리 안내를 따라\n카드를 움직이세요"
+            "QR 카드를 선택한 카메라 렌즈를 향해 보여주세요"
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val QR_GUIDANCE_STALE_MS = 900L
