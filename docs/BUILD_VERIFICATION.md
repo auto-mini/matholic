@@ -4878,3 +4878,110 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 회색 제어가 숨겨질 때 약 0.2초 음영이 보이지만 불편하지 않고 기능 문제는
   없다는 사용자 확인을 받아 경미한 잔상으로 기록한다.
 - 실물 시험 종료 뒤 독립 ADB 확인: Kiosk `QR_READY`, 전용 HOME·`LOCKED`
+
+---
+
+## Web POC RC46 수식 방향 패드 최종 배치 — 2026-07-29
+
+- 수식 입력용 역 T자 방향 패드를 이전 기준에서 오른쪽 10mm, 아래 10mm 더
+  이동해 사이트의 `뒤로` 버튼, 문제와 답안 입력칸을 가리지 않게 했다.
+- 구현 커밋 `041aeb1`, Web POC RC46 준비 커밋 `ac98a54`.
+- Web POC `0.4.0-rc46`/code 63의 artifact/설치 APK SHA-256:
+  `F499459F0690536F9217294D36DB9D6BEA3460789CA7CB23820B40E19FB4A2CA`
+- A에 같은 signer로 보존형 설치했고 UID `10293`, firstInstallTime
+  `2026-07-28 13:12:16`, Device Owner·전용 HOME·`LOCKED`를 유지했다.
+- 사용자 실물 확인:
+  - 방향 패드가 `뒤로`, 문제와 입력칸을 가리지 않음: 통과
+  - 스크롤 없이 전체 패드 표시: 통과
+  - 루트·분수 등에서 네 방향 커서 이동: 통과
+
+## 지정 PC 암호화 PDF 전송과 Kiosk RC37 — 2026-07-29
+
+### 구현과 보안 경계
+
+- 인터넷·클라우드 계정·USB 연결 없이 같은 사설 Wi-Fi의 지정 PC로만 QR
+  카드 PDF를 보내는 Windows 수신기 `0.1.0`과 Kiosk 송신 기능을 추가했다.
+- 관리자 화면에서 PC 수신기의 페어링 QR을 물리적으로 한 번 촬영한다.
+  페어링 정보는 128비트 수신기 ID와 256비트 비밀키를 포함하며 A에서는
+  Android Keystore로 보호한다.
+- PDF와 학생 이름은 HKDF로 파생한 키의 AES-256-GCM으로 암호화·인증하고,
+  수신 확인 응답도 HMAC-SHA256으로 인증한다.
+- 5분을 벗어난 요청, 5MiB 초과 PDF, 위조 요청과 처리한 request ID의
+  재전송을 거부한다.
+- Windows 방화벽은 Private 프로필의 TCP 48129와 설치된 수신 EXE 한 개만
+  허용한다. 수신 파일은
+  `%USERPROFILE%\Downloads\Matholic QR Cards`에 저장한다.
+- Google Quick Share PC 앱은 비교 시험 뒤 계정·주변 공개 범위 면에서 이번
+  운영에 이점이 없어 제거했다. Android의 기존 일반 공유 경로는 비상
+  대안으로 남겼다.
+
+### 자동 검증
+
+- PC 수신기 Python 시험 7개: 통과
+- 패키징된 EXE import·시작 스모크 시험: 통과
+  - 첫 패키징에서 상대 import 오류를 실제 EXE 실행으로 발견
+  - `d225ed6`에서 수정하고 빌드가 이 스모크 시험을 필수로 수행하게 보강
+- 설치된 수신기를 대상으로 한 합성 암호화 전송 왕복·파일 저장 확인: 통과
+  - 시험용 PDF는 확인 뒤 정리
+- Kiosk JVM 단위시험: 통과
+- Android 13 에뮬레이터 Kiosk 전체 계측 38개: 실패·오류 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증: 통과
+- 주요 커밋:
+  - `0b0df69` 지정 PC 암호화 수신기
+  - `ba4ee4d` Python 생성 캐시 제외
+  - `474132b` Kiosk 페어링·전송 기능
+  - `f5fd36a` Kiosk RC36 준비
+  - `d225ed6` 패키징된 Windows 진입점 검증
+  - `c08dc80` 설치본 암호화 전송 스모크 시험
+  - `eda9987` 작은 화면에서도 PC 전송 제어가 보이도록 관리자 우측 패널
+    스크롤 보강
+
+### 배포본과 설치 상태
+
+- Kiosk `0.6.0-rc37`/code 42
+  - artifact/설치 APK SHA-256:
+    `8F7B59DEBCBC1A276A35A8A9606E187A13926FB3392F16916CB0BE54F2B2460B`
+- Web POC `0.4.0-rc46`/code 63
+  - artifact/설치 APK SHA-256:
+    `F499459F0690536F9217294D36DB9D6BEA3460789CA7CB23820B40E19FB4A2CA`
+- 두 Android APK의 release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- Windows 수신기 `0.1.0`
+  - 보관본과 설치본 SHA-256:
+    `EBAB8CE69F1AB29D1F80DC84B0BB2EF5806A0BAC037FC30E846C09B1144C9EAE`
+  - 설치 경로:
+    `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
+  - 자동 시작 바로가기와 Private 전용 방화벽 규칙 존재
+  - 수신 프로세스와 TCP 48129 수신 대기 확인
+- RC37 설치 전후 Kiosk UID `10288`, firstInstallTime
+  `2026-07-24 12:52:28`, Device Owner·전용 HOME·`LOCKED`를 유지했다.
+- RC37에서 관리자 우측 패널 스크롤 보강 후 `현재 카드 지정 PC로 보내기`와
+  `지정 PC 다시 페어링`이 실물 화면에 함께 보임을 확인했다.
+
+### 사용자 실물 종단간 검증
+
+- A에서 지정 PC `DESKTOP-D4AGJI7` 재페어링: 통과
+- A의 `지정 PC로 카드 PDF를 암호화해 보내는 중` 상태 표시: 통과
+- PC 수신기의
+  `20260729-112723_테스트 QR.pdf 저장 완료` 표시와 실제 파일 저장:
+  통과
+  - 파일 크기 616,701 bytes
+- 수신 PDF의 QR로 정상 로그인 → 문제 화면 → 채점 끝내기 →
+  Kiosk `QR_READY`: 통과
+- 재발급 전 기존 QR 무효화: 통과
+- 최종 독립 확인:
+  - A Kiosk `0.6.0-rc37`, Web POC `0.4.0-rc46`
+  - `QR_READY`, Device Owner·전용 HOME·`LOCKED`
+  - `RECOVERY_REQUIRED`와 채점기 잠금 표시 없음
+  - 최근 Matholic 관련 `FATAL EXCEPTION` 일치 항목 0
+  - PC 수신기 TCP 48129 대기 중
+
+### 미검증·남은 제한
+
+- Windows 자동 시작 바로가기 생성과 직접 실행은 확인했지만, PC를 실제로
+  다시 재부팅해 자동 시작되는지는 이번 작업에서 검증하지 않았다.
+- Windows 수신 EXE는 로컬 빌드의 무서명 실행 파일이다. 보관본과 설치본
+  SHA-256은 일치하지만 다른 PC에 새로 설치할 때 SmartScreen 경고가 나올
+  수 있다.
+- Android 직접 프린터 전송 문제는 사용자가 현재 운영에서 굳이 건드리지
+  않기로 결정해 이번 변경 범위에서 제외했다.

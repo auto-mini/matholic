@@ -1528,3 +1528,72 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   - 회색 제어가 숨겨질 때 약 0.2초 음영이 보이나 사용상 불편 없음
 - 실물 시험 종료 뒤 독립 ADB 확인 최종 상태: Kiosk `QR_READY`,
   Device Owner·전용 HOME·`LOCKED` 유지
+
+## 사용자 동석 Web RC46 수식 방향 패드 후속 — 2026-07-29
+
+- 역 T자 수식 방향 패드를 사용자 요청에 따라 최종적으로 오른쪽 10mm,
+  아래 10mm 더 이동했다.
+- 구현 커밋 `041aeb1`, Web POC RC46 준비 커밋 `ac98a54`.
+- A에 Web POC `0.4.0-rc46`/code 63을 동일 signer로 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `F499459F0690536F9217294D36DB9D6BEA3460789CA7CB23820B40E19FB4A2CA`
+- UID `10293`, firstInstallTime `2026-07-28 13:12:16`, Device Owner·전용
+  HOME·`LOCKED` 유지.
+- 사용자 실물 확인에서 `뒤로`, 문제와 입력칸을 가리지 않고 네 방향 커서
+  이동도 정상으로 통과했다.
+
+## 지정 PC 암호화 PDF 전송 완료 — 2026-07-29
+
+- 계정 로그인이나 주변 모두 공개가 필요한 Quick Share 대신, 같은 사설
+  Wi-Fi에서 물리 페어링한 지정 PC 한 대로만 카드 PDF를 보내는 로컬
+  수신기와 Kiosk 송신 기능을 구현했다.
+- PC 수신기 `0.1.0`:
+  - 128비트 receiver ID와 256비트 페어링 비밀키
+  - AES-256-GCM PDF 암호화·인증, HMAC-SHA256 응답 인증
+  - 5분 시간창, 5MiB 제한, request ID 재전송 차단
+  - Private 프로필 TCP 48129와 설치 EXE만 허용하는 Windows 방화벽
+  - 사용자 다운로드의 `Matholic QR Cards` 폴더에 저장
+- A에서는 페어링 비밀을 Android Keystore로 보호하며 인터넷·외부 서버를
+  사용하지 않는다.
+- 주요 커밋:
+  - `0b0df69` PC 수신기
+  - `ba4ee4d` Python 생성 캐시 제외
+  - `474132b` Kiosk 페어링·전송
+  - `f5fd36a` Kiosk RC36 준비
+  - `d225ed6` 패키징 EXE 진입점 오류 수정·스모크 검증
+  - `c08dc80` 설치본 암호화 왕복 검증
+  - `eda9987` 관리자 작은 화면의 PC 전송 제어 접근성 보강
+- 자동 검증:
+  - PC 수신기 시험 7개 통과
+  - 패키징된 EXE 스모크와 설치본 합성 암호화 왕복 통과
+  - Kiosk JVM 시험 통과
+  - Android 13 Kiosk 전체 계측 38개, 실패 0
+  - release 158 tasks와 APK 이중 검증 통과
+- A 설치:
+  - Kiosk `0.6.0-rc37`/code 42
+  - SHA-256
+    `8F7B59DEBCBC1A276A35A8A9606E187A13926FB3392F16916CB0BE54F2B2460B`
+  - UID `10288`, firstInstallTime `2026-07-24 12:52:28`, 기존 DB,
+    Device Owner·전용 HOME·`LOCKED` 유지
+- PC 설치:
+  - `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
+  - artifact/설치본 SHA-256
+    `EBAB8CE69F1AB29D1F80DC84B0BB2EF5806A0BAC037FC30E846C09B1144C9EAE`
+  - 자동 시작 바로가기, Private 방화벽 규칙, TCP 48129 대기 확인
+  - Google Quick Share PC 앱은 비교 뒤 제거
+- 사용자 실물 종단간 검증:
+  - A와 `DESKTOP-D4AGJI7` 재페어링: 통과
+  - A 암호화 전송 상태 표시: 통과
+  - PC의 `20260729-112723_테스트 QR.pdf` 저장: 통과
+  - 수신 PDF 신규 QR 로그인→문제 화면→채점 끝내기→`QR_READY`: 통과
+  - 이전 QR 무효화: 통과
+- 최종 독립 확인:
+  - A `QR_READY`, Device Owner·전용 HOME·`LOCKED`
+  - `RECOVERY_REQUIRED`·채점기 잠금 표시 없음
+  - 최근 Matholic 관련 fatal 일치 항목 0
+  - PC 수신기 실행·TCP 48129 대기
+- 미검증:
+  - 자동 시작 바로가기와 직접 실행은 확인했으나 PC 완전 재부팅 뒤 자동
+    실행은 이번 작업에서 시험하지 않았다.
+- 사용자가 직접 프린터 수정을 필수로 하지 않기로 결정했으므로 Android
+  직접 인쇄는 현재 운영 범위에서 보류하고 지정 PC 전송을 기본 경로로 삼는다.
