@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
+import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
@@ -31,6 +32,8 @@ class MainActivityInstrumentedTest {
                     .findViewById<android.widget.TextView>(R.id.scanner_lens_instruction)
                 val instruction = instructionView.text.toString()
                 assertTrue(instruction.contains("카메라 렌즈"))
+                assertTrue(instruction.contains("전면 카메라 렌즈"))
+                assertFalse(instruction.contains("선택한 카메라"))
                 assertFalse(instruction.contains("목표 영역"))
                 assertFalse(instruction.contains("가운데"))
                 assertFalse(instruction.contains("화면 아래"))
@@ -92,6 +95,12 @@ class MainActivityInstrumentedTest {
                 val showAuthenticationMethod = MainActivity::class.java
                     .getDeclaredMethod("showAuthentication", Boolean::class.javaPrimitiveType!!)
                     .apply { isAccessible = true }
+                val activeCameraFacingField = MainActivity::class.java
+                    .getDeclaredField("activeCameraFacing")
+                    .apply { isAccessible = true }
+                val updateCameraSwitchLabelMethod = MainActivity::class.java
+                    .getDeclaredMethod("updateCameraSwitchLabel")
+                    .apply { isAccessible = true }
 
                 scenario.onActivity { activity ->
                     currentSessionField.set(activity, activeSession)
@@ -117,6 +126,26 @@ class MainActivityInstrumentedTest {
                     assertEquals(
                         "관리자 인증",
                         activity.findViewById<View>(R.id.session_admin_button)
+                            .contentDescription
+                            .toString(),
+                    )
+                    assertEquals(
+                        "QR 카드를 전면 카메라 렌즈에 보여주세요",
+                        activity.findViewById<android.widget.TextView>(
+                            R.id.scanner_lens_instruction,
+                        ).text.toString(),
+                    )
+                    activeCameraFacingField.set(activity, CameraFacing.BACK)
+                    updateCameraSwitchLabelMethod.invoke(activity)
+                    assertEquals(
+                        "QR 카드를 후면 카메라 렌즈에 보여주세요",
+                        activity.findViewById<android.widget.TextView>(
+                            R.id.scanner_lens_instruction,
+                        ).text.toString(),
+                    )
+                    assertEquals(
+                        "전면 카메라로 전환",
+                        activity.findViewById<View>(R.id.switch_camera_button)
                             .contentDescription
                             .toString(),
                     )

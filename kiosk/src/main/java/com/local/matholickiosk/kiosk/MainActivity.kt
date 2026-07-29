@@ -598,7 +598,6 @@ class MainActivity : ComponentActivity() {
     private fun showAdmin(message: String? = null) {
         stopCamera()
         pcPairingMode = false
-        scannerInstruction.text = STUDENT_SCANNER_INSTRUCTION
         setSessionControlMode(admin = true)
         appHeader.visibility = View.VISIBLE
         authPanel.visibility = View.GONE
@@ -1878,8 +1877,7 @@ class MainActivity : ComponentActivity() {
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
         scannerVisible = true
-        scannerInstruction.text =
-            "PC의 매쓰홀릭 PDF 수신기에 표시된\n페어링 QR을 카메라 렌즈에 보여주세요"
+        updateCameraSwitchLabel()
         scannerMessage.text = "PC 페어링 QR을 기다리고 있습니다"
         setSessionControlMode(admin = false)
         statusText.text = "PC_PAIRING"
@@ -1951,8 +1949,8 @@ class MainActivity : ComponentActivity() {
         }
         clearQrPreview()
         pcPairingMode = false
-        scannerInstruction.text = STUDENT_SCANNER_INSTRUCTION
         setSessionControlMode(admin = true)
+        updateCameraSwitchLabel()
         appHeader.visibility = View.GONE
         authPanel.visibility = View.GONE
         adminPanel.visibility = View.GONE
@@ -2040,6 +2038,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateCameraSwitchLabel() {
+        val activeCameraLabel = if (activeCameraFacing == CameraFacing.FRONT) {
+            "전면"
+        } else {
+            "후면"
+        }
+        scannerInstruction.text = if (pcPairingMode) {
+            "PC의 매쓰홀릭 PDF 수신기에 표시된\n" +
+                "페어링 QR을 ${activeCameraLabel} 카메라 렌즈에 보여주세요"
+        } else {
+            "QR 카드를 ${activeCameraLabel} 카메라 렌즈에 보여주세요"
+        }
         val label = if (activeCameraFacing == CameraFacing.FRONT) {
             "후면 카메라로 전환"
         } else {
@@ -2551,8 +2560,6 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        private const val STUDENT_SCANNER_INSTRUCTION =
-            "QR 카드를 선택한 카메라 렌즈를 향해 보여주세요"
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val QR_GUIDANCE_STALE_MS = 900L

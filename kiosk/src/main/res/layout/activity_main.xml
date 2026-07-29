@@ -408,7 +408,7 @@
                             android:contentDescription="QR 카메라 사용 안내"
                             android:gravity="center"
                             android:maxWidth="700dp"
-                            android:text="QR 카드를 선택한 카메라 렌즈를 향해 보여주세요"
+                            android:text="QR 카드를 전면 카메라 렌즈에 보여주세요"
                             android:textColor="#FFFFFF"
                             android:textSize="24sp"
                             android:textStyle="bold" />
