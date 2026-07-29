@@ -23,10 +23,11 @@ $env:PYTHONPATH = (Resolve-Path '.\src').Path
 python -m pytest .\tests -q
 ```
 
-독립 실행 파일은 저장소 루트의 승인된 Python 환경에서 다음과 같이 빌드한다.
+독립 실행 파일은 OneDrive 밖의 임시 경로에서 만들고, import 스모크 검증 뒤
+`artifacts`에 보관한다.
 
 ```powershell
-python -m PyInstaller --clean --noconfirm .\MatholicPdfReceiver.spec
+.\build-receiver.ps1
 ```
 
 설치와 방화벽 변경은 관리자 권한 PowerShell에서 실행한다.

@@ -12,9 +12,9 @@ import pystray
 import qrcode
 from PIL import Image, ImageDraw, ImageTk
 
-from .config import ConfigStore, current_lan_ipv4
-from .protocol import encode_pairing
-from .server import ReceiveEvent, ReceiverState, ThreadedReceiverServer
+from matholic_pdf_receiver.config import ConfigStore, current_lan_ipv4
+from matholic_pdf_receiver.protocol import encode_pairing
+from matholic_pdf_receiver.server import ReceiveEvent, ReceiverState, ThreadedReceiverServer
 
 APP_TITLE = "매쓰홀릭 PDF 수신기"
 
@@ -185,11 +185,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Start minimized to the notification area",
     )
+    parser.add_argument(
+        "--smoke-check",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.smoke_check:
+        return
     try:
         application = ReceiverApplication(show_window=not args.background)
     except (OSError, RuntimeError, ValueError) as error:
