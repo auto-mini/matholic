@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-28.11"
+    const val CONTRACT_VERSION = "web-2026-07-29.12"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -448,8 +448,8 @@ object WebDomScripts {
             }
             .matholic-kiosk-math-nav {
               position: fixed !important;
-              left: calc(16px + 25mm) !important;
-              top: calc(88px + 25mm) !important;
+              left: calc(16px + 35mm) !important;
+              top: calc(88px + 35mm) !important;
               z-index: 2147482500 !important;
               display: grid !important;
               grid-template-columns: repeat(3, 54px) !important;
