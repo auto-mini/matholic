@@ -6,8 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ScrollView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.local.matholickiosk.kiosk.admin.KioskDeviceAdminReceiver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -70,5 +74,31 @@ class Gate5ManifestInstrumentedTest {
 
         assertTrue("android.permission.INTERNET" in permissions)
         assertTrue("android.permission.ACCESS_NETWORK_STATE" !in permissions)
+    }
+
+    @Test
+    fun pcTransferControlsRemainReachableInsideScrollableCardPanel() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var pairReachable = false
+        var sendReachable = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val root = LayoutInflater.from(context).inflate(R.layout.activity_main, null, false)
+            pairReachable = root.findViewById<View>(R.id.pair_pc_button)
+                .hasScrollViewAncestor()
+            sendReachable = root.findViewById<View>(R.id.send_pc_pdf_button)
+                .hasScrollViewAncestor()
+        }
+
+        assertTrue(pairReachable)
+        assertTrue(sendReachable)
+    }
+
+    private fun View.hasScrollViewAncestor(): Boolean {
+        var ancestor = parent
+        while (ancestor is View) {
+            if (ancestor is ScrollView) return true
+            ancestor = ancestor.parent
+        }
+        return false
     }
 }

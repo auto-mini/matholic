@@ -304,73 +304,79 @@
                     </LinearLayout>
                 </ScrollView>
 
-                <LinearLayout
+                <ScrollView
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_weight="0.8"
                     android:background="#FFFFFF"
-                    android:gravity="center_horizontal"
-                    android:orientation="vertical"
-                    android:padding="20dp">
+                    android:fillViewport="true">
 
-                    <TextView
-                        android:id="@+id/qr_card_name"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:text="발급한 QR은 이 화면에 한 번만 표시됩니다"
-                        android:textColor="#102A43"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical"
+                        android:padding="20dp">
 
-                    <ImageView
-                        android:id="@+id/qr_image"
-                        android:layout_width="360dp"
-                        android:layout_height="360dp"
-                        android:layout_marginTop="16dp"
-                        android:contentDescription="발급된 학생 QR"
-                        android:scaleType="fitCenter" />
+                        <TextView
+                            android:id="@+id/qr_card_name"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="발급한 QR은 이 화면에 한 번만 표시됩니다"
+                            android:textColor="#102A43"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:gravity="center"
-                        android:text="화면 캡처·클립보드는 차단됩니다. 현재 표시 QR만 신뢰하는 Android 인쇄 서비스 또는 PDF 공유 대상으로 보낼 수 있습니다."
-                        android:textColor="#627D98"
-                        android:textSize="14sp" />
+                        <ImageView
+                            android:id="@+id/qr_image"
+                            android:layout_width="360dp"
+                            android:layout_height="360dp"
+                            android:layout_marginTop="16dp"
+                            android:contentDescription="발급된 학생 QR"
+                            android:scaleType="fitCenter" />
 
-                    <Button
-                        android:id="@+id/print_qr_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:enabled="false"
-                        android:text="현재 표시 QR 인쇄" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center"
+                            android:text="화면 캡처·클립보드는 차단됩니다. 현재 표시 QR만 신뢰하는 Android 인쇄 서비스 또는 PDF 공유 대상으로 보낼 수 있습니다."
+                            android:textColor="#627D98"
+                            android:textSize="14sp" />
 
-                    <Button
-                        android:id="@+id/export_qr_pdf_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:enabled="false"
-                        android:text="카드 PDF Quick Share·저장" />
+                        <Button
+                            android:id="@+id/print_qr_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:enabled="false"
+                            android:text="현재 표시 QR 인쇄" />
 
-                    <Button
-                        android:id="@+id/pair_pc_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="PC 무선 전송 페어링" />
+                        <Button
+                            android:id="@+id/export_qr_pdf_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:enabled="false"
+                            android:text="카드 PDF Quick Share·저장" />
 
-                    <Button
-                        android:id="@+id/send_pc_pdf_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:enabled="false"
-                        android:text="현재 카드 지정 PC로 보내기" />
-                </LinearLayout>
+                        <Button
+                            android:id="@+id/pair_pc_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:text="PC 무선 전송 페어링" />
+
+                        <Button
+                            android:id="@+id/send_pc_pdf_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:enabled="false"
+                            android:text="현재 카드 지정 PC로 보내기" />
+                    </LinearLayout>
+                </ScrollView>
             </LinearLayout>
 
             <FrameLayout
