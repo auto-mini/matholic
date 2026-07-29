@@ -4992,3 +4992,24 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   수 있다.
 - Android 직접 프린터 전송 문제는 사용자가 현재 운영에서 굳이 건드리지
   않기로 결정해 이번 변경 범위에서 제외했다.
+
+---
+
+## Kiosk RC39 활성 카메라 안내와 QR 대기 화면 — 2026-07-29
+
+- QR 대기 화면의 상단 제목·잠금 상태·중복 안내를 제거하고 위치 안내를
+  중앙으로 통합했다. 카메라 전환과 관리자 진입은 아이콘으로 변경했다.
+- 실제 활성 렌즈에 따라 중앙 문구가 전면·후면 카메라 안내로 바뀌며,
+  PC 페어링 안내에도 같은 규칙을 적용했다.
+- Kiosk 단위시험·debug assemble·계측시험 소스 컴파일·lint: 통과
+- Android 13 Kiosk 전체 계측 39개: 실패·오류 0
+- release 단위시험·lint·두 APK assemble 158 tasks와 APK 이중 검증: 통과
+- Kiosk `0.6.0-rc39`/code 44를 A에 동일 signer로 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `7FC1163E4F2C7215351FDE6D833A0578074FADB2DF077B003B301DFA9CA2948A`
+- UID `10288`, firstInstallTime `2026-07-24 12:52:28`, dataDir, 카메라
+  권한, Device Owner와 전용 HOME 유지. 최종 Lock Task `LOCKED`,
+  재시작 뒤 관련 fatal 0건.
+- 사용자 실물 확인에서 전면·후면 안내 전환, 상단 중복 제거, 중앙 위치 안내,
+  우측 하단 카메라·관리자 아이콘을 모두 통과했다.
+- 검증 완료 후 자동시험용 에뮬레이터를 종료했다.
