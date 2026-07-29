@@ -4976,10 +4976,17 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   - 최근 Matholic 관련 `FATAL EXCEPTION` 일치 항목 0
   - PC 수신기 TCP 48129 대기 중
 
-### 미검증·남은 제한
+### PC 재부팅 자동 시작 실기
 
-- Windows 자동 시작 바로가기 생성과 직접 실행은 확인했지만, PC를 실제로
-  다시 재부팅해 자동 시작되는지는 이번 작업에서 검증하지 않았다.
+- PC 부팅 시각 `2026-07-29 11:50:42` 뒤 수신기가
+  `11:52:55`부터 자동 실행됐다.
+- 설치 경로의 수신 프로세스와 TCP 48129 `LISTEN`을 확인했고, 설치본
+  SHA-256도 보관본과 계속 일치했다.
+- 같은 시점 A는 Kiosk 전용 HOME, `LOCKED`, `QR_READY`를 유지했고
+  `RECOVERY_REQUIRED`와 최근 Matholic 관련 fatal 일치 항목은 없었다.
+
+### 남은 제한
+
 - Windows 수신 EXE는 로컬 빌드의 무서명 실행 파일이다. 보관본과 설치본
   SHA-256은 일치하지만 다른 PC에 새로 설치할 때 SmartScreen 경고가 나올
   수 있다.
