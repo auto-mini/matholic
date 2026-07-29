@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "matholic-pdf-receiver"
+version = "0.1.0"
+description = "Paired local-network PDF receiver for the Matholic grading kiosk"
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography==45.0.6",
+    "Pillow==11.3.0",
+    "pystray==0.19.5",
+    "qrcode==8.2",
+]
+
+[project.scripts]
+matholic-pdf-receiver = "matholic_pdf_receiver.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
