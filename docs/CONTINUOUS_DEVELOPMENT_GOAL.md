@@ -1900,3 +1900,28 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   전용 HOME과 두 앱 Lock Task allowlist를 유지했다.
 - 실제 학습지의 문제번호 배지 위치와 로그인/로그아웃 밝기는 사용자 실물
   재확인 대상으로 둔다.
+
+## Web POC RC60 실제 SVG 문제 이동 버튼 탐지 — 2026-07-30
+
+- A 실기에서 밝기 변경은 정상 적용됐지만 버튼과 문제번호는 변경되지 않았다.
+- 최신 공식 `Gi` 컴포넌트에서 이전·다음 버튼은 라벨 없이 SVG 아이콘만
+  자식으로 가진다는 사실을 확인했다.
+- RC59의 텍스트·title·aria-label 기반 탐지는 실제 버튼을 찾지 못했다.
+- 숫자 Ant Select의 현재 선택값과 전체 문제 수를 기준으로 직접 조상을
+  찾고, 그 앞뒤 형제 안의 표시 중인 버튼을 이전·다음으로 식별한다.
+- 기존 112×96px 확대, 좌상단 문제번호 배지와 직접 번호 선택 기능은
+  그대로 적용한다.
+- Web POC 버전은 `0.4.0-rc60`/code 77,
+  Web 계약은 `web-2026-07-30.12`이다.
+- 검증:
+  - 라벨 없는 SVG 버튼을 사용한 실제 구조 회귀시험 통과
+  - JVM 단위시험, debug AndroidTest compile, debug lint 통과
+  - Android 13 Web POC 전체 계측 91개 전부 통과
+  - release 단위시험·lint·두 APK assemble 158 tasks와 APK 이중 검증 통과
+- A에 보존형 설치했고 artifact와 설치 APK SHA-256은
+  `A4C23DFCBCECF7C6CE3076092F7F391CC770321B08CE6D632254D3B5DEA3F03F`
+  로 일치했다.
+- firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner,
+  Lock Task `LOCKED`와 두 앱 allowlist를 유지했다.
+- 실제 학습 페이지의 버튼·문제번호 표시는 사용자 실물 재확인 대상으로
+  둔다.

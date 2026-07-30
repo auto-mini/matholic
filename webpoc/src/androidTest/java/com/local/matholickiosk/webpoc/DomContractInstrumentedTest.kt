@@ -335,14 +335,14 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperienceMovesProblemSelectorAndEnlargesBothNavigationButtons() {
+    fun testStudentExperienceMovesProblemSelectorAndEnlargesUnlabelledIconButtons() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
             <!doctype html><html><head></head><body>
               <main>
                 <div id="problem-navigation" style="display:flex">
-                  <button id="previous">&lt;</button>
+                  <button id="previous"><svg><path d="M 8 4 L 2 8"></path></svg></button>
                   <div id="problem-number">
                     <div class="ant-select">
                       <div id="problem-selector" class="ant-select-selector"
@@ -353,7 +353,7 @@ class DomContractInstrumentedTest {
                     </div>
                     <span>/ 10</span>
                   </div>
-                  <button id="next">&gt;</button>
+                  <button id="next"><svg><path d="M 2 4 L 8 8"></path></svg></button>
                 </div>
               </main>
             </body></html>

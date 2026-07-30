@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.11"
+    const val CONTRACT_VERSION = "web-2026-07-30.12"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -673,7 +673,153 @@ object WebDomScripts {
               }
               return candidate?.parentElement === container ? candidate : null;
             };
+            const applyProblemNavigation = (
+              navigation,
+              previous,
+              next,
+              numberCluster,
+              selectorRoot
+            ) => {
+              if (
+                !navigation ||
+                !previous ||
+                !next ||
+                previous === next ||
+                !numberCluster ||
+                numberCluster.contains(previous) ||
+                numberCluster.contains(next)
+              ) return false;
+              navigation.dataset.matholicKioskProblemNavigation = 'true';
+              [
+                [previous, 'previous', '이전 문제'],
+                [next, 'next', '다음 문제']
+              ].forEach(([button, direction, label]) => {
+                button.dataset.matholicKioskProblemDirection = direction;
+                button.setAttribute('aria-label', label);
+                button.setAttribute('title', label);
+                important(button, 'width', '112px');
+                important(button, 'min-width', '112px');
+                important(button, 'max-width', '112px');
+                important(button, 'height', '96px');
+                important(button, 'min-height', '96px');
+                important(button, 'max-height', '96px');
+              });
+              numberCluster.classList.add(
+                'matholic-kiosk-problem-number'
+              );
+              numberCluster.setAttribute(
+                'aria-label',
+                '현재 문제 번호 선택'
+              );
+              const selectorSurface = numberCluster.querySelector(
+                '.ant-select-selector,[role="combobox"],select'
+              ) || selectorRoot;
+              selectorSurface.setAttribute(
+                'aria-label',
+                '이동할 문제 번호'
+              );
+              if (
+                numberCluster.dataset
+                  .matholicKioskProblemNumberBound !== 'true'
+              ) {
+                numberCluster.addEventListener('click', event => {
+                  if (
+                    event.target?.closest?.(
+                      '.ant-select-selector,[role="combobox"],select'
+                    )
+                  ) return;
+                  const target = numberCluster.querySelector(
+                    '.ant-select-selector,[role="combobox"],select'
+                  ) || selectorRoot;
+                  target.click();
+                });
+                numberCluster.dataset
+                  .matholicKioskProblemNumberBound = 'true';
+              }
+              const modalOpen = Array.from(
+                document.querySelectorAll(
+                  '.ant-modal-wrap,.ant-modal[role="dialog"]'
+                )
+              ).some(visible);
+              important(
+                numberCluster,
+                'visibility',
+                modalOpen ? 'hidden' : 'visible'
+              );
+              problemNavigationEnhancements = Math.max(
+                problemNavigationEnhancements,
+                3
+              );
+              return true;
+            };
+            const visibleButtonInside = element => {
+              if (!element) return null;
+              if (
+                element.matches('button,[role="button"]') &&
+                visible(element)
+              ) return element;
+              return Array.from(
+                element.querySelectorAll('button,[role="button"]')
+              ).find(visible) || null;
+            };
             const enhanceProblemNavigation = () => {
+              const selectorRoots = Array.from(
+                document.querySelectorAll(
+                  '.ant-select,select,[role="combobox"]'
+                )
+              ).filter(visible);
+              for (const selectorRoot of selectorRoots) {
+                const selectedItem = selectorRoot.querySelector(
+                  '.ant-select-selection-item'
+                );
+                const selectedText = normalize(
+                  selectedItem?.textContent ||
+                  selectorRoot.value ||
+                  selectorRoot.textContent
+                );
+                if (!/^\d+$/.test(selectedText)) continue;
+                let navigation = selectorRoot.parentElement;
+                for (
+                  let depth = 0;
+                  navigation &&
+                    navigation !== document.body &&
+                    navigation !== document.documentElement &&
+                    depth < 6;
+                  depth += 1
+                ) {
+                  const numberCluster = directChildInside(
+                    navigation,
+                    selectorRoot
+                  );
+                  const children = Array.from(navigation.children);
+                  const clusterIndex = children.indexOf(numberCluster);
+                  const numberTokens = normalize(
+                    numberCluster?.textContent
+                  ).match(/\d+/g) || [];
+                  if (clusterIndex > 0 && numberTokens.length >= 2) {
+                    const previous = children
+                      .slice(0, clusterIndex)
+                      .reverse()
+                      .map(visibleButtonInside)
+                      .find(Boolean);
+                    const next = children
+                      .slice(clusterIndex + 1)
+                      .map(visibleButtonInside)
+                      .find(Boolean);
+                    if (
+                      applyProblemNavigation(
+                        navigation,
+                        previous,
+                        next,
+                        numberCluster,
+                        selectorRoot
+                      )
+                    ) return;
+                  }
+                  navigation = navigation.parentElement;
+                }
+              }
+
               const controls = Array.from(
                 document.querySelectorAll('button,[role="button"]')
               ).filter(visible);
@@ -713,68 +859,15 @@ object WebDomScripts {
                       numberCluster !== previousChild &&
                       numberCluster !== nextChild
                     ) {
-                      navigation.dataset.matholicKioskProblemNavigation = 'true';
-                      [
-                        [previous, 'previous', '이전 문제'],
-                        [next, 'next', '다음 문제']
-                      ].forEach(([button, direction, label]) => {
-                        button.dataset.matholicKioskProblemDirection = direction;
-                        button.setAttribute('aria-label', label);
-                        button.setAttribute('title', label);
-                        important(button, 'width', '112px');
-                        important(button, 'min-width', '112px');
-                        important(button, 'max-width', '112px');
-                        important(button, 'height', '96px');
-                        important(button, 'min-height', '96px');
-                        important(button, 'max-height', '96px');
-                      });
-                      numberCluster.classList.add(
-                        'matholic-kiosk-problem-number'
-                      );
-                      numberCluster.setAttribute(
-                        'aria-label',
-                        '현재 문제 번호 선택'
-                      );
-                      const selectorSurface = numberCluster.querySelector(
-                        '.ant-select-selector,[role="combobox"],select'
-                      ) || selectorRoot;
-                      selectorSurface.setAttribute(
-                        'aria-label',
-                        '이동할 문제 번호'
-                      );
                       if (
-                        numberCluster.dataset
-                          .matholicKioskProblemNumberBound !== 'true'
-                      ) {
-                        numberCluster.addEventListener('click', event => {
-                          if (
-                            event.target?.closest?.(
-                              '.ant-select-selector,[role="combobox"],select'
-                            )
-                          ) return;
-                          const target = numberCluster.querySelector(
-                            '.ant-select-selector,[role="combobox"],select'
-                          ) || selectorRoot;
-                          target.click();
-                        });
-                        numberCluster.dataset
-                          .matholicKioskProblemNumberBound = 'true';
-                      }
-                      const modalOpen = Array.from(
-                        document.querySelectorAll(
-                          '.ant-modal-wrap,.ant-modal[role="dialog"]'
+                        applyProblemNavigation(
+                          navigation,
+                          previous,
+                          next,
+                          numberCluster,
+                          selectorRoot
                         )
-                      ).some(visible);
-                      important(
-                        numberCluster,
-                        'visibility',
-                        modalOpen ? 'hidden' : 'visible'
-                      );
-                      problemNavigationEnhancements = Math.max(
-                        problemNavigationEnhancements,
-                        3
-                      );
-                      return;
+                      ) return;
                     }
                   }
                   navigation = navigation.parentElement;

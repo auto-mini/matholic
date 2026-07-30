@@ -90,6 +90,8 @@ class WebDomScriptsTest {
         assertTrue(script.contains("width: 112px"))
         assertTrue(script.contains("height: 96px"))
         assertTrue(script.contains("현재 문제 번호 선택"))
+        assertTrue(script.contains(".ant-select-selection-item"))
+        assertTrue(script.contains("visibleButtonInside"))
     }
 
     @Test

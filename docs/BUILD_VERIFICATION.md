@@ -5297,6 +5297,49 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 실제 학습지에서 버튼 위치·문제번호 가시성·로그인/로그아웃 밝기 체감은
   사용자 실물 재확인 대상으로 둔다.
 
+## Web POC RC60 실제 SVG 문제 이동 버튼 탐지 — 2026-07-30
+
+### RC59 실기 실패와 원인
+
+- 밝기 80% 적용·복원은 A 실기에서 정상 확인됐다.
+- 문제 이동 버튼과 좌상단 번호 배지는 아무 변화가 없었다.
+- 최신 공식 자산
+  `/assets-260728/chunk-CNGK4PO3MhEoWkxF.js`의 `Gi` 컴포넌트를
+  확인했다.
+- 실제 이전·다음 Ant Button은 textContent, title과 aria-label이 모두
+  없고 SVG 아이콘만 자식으로 가진다.
+- RC59는 `<`, `>`, `이전 문제`, `다음 문제` 중 하나가 있어야 버튼으로
+  인식했으므로 실제 컴포넌트에서는 탐지가 0건이었다.
+
+### 수정
+
+- 표시 중인 숫자 `.ant-select-selection-item`을 먼저 찾는다.
+- 현재 번호와 전체 문제 수를 함께 가진 직접 조상에서 숫자 선택기 앞뒤의
+  형제 요소를 따라가, 내부의 표시 중인 SVG 버튼을 각각 이전·다음으로
+  식별한다.
+- 식별 후 기존과 동일하게 112×96px 버튼과 좌상단 문제번호 배지를
+  적용하며 aria-label도 이때 보강한다.
+- 라벨 기반 탐지는 하위 호환 fallback으로 유지한다.
+- Web 계약을 `web-2026-07-30.12`, 버전을
+  `0.4.0-rc60`/code 77로 올렸다.
+
+### 검증과 A 설치
+
+- 실제 구조와 같은 라벨 없는 SVG 버튼, 숫자 Ant Select, 전체 문제 수
+  fixture에서 양쪽 112×96px, 좌상단 번호 배지와 selector 열기: 통과
+- JVM 단위시험, debug AndroidTest compile, debug lint: 통과
+- Android 13 Web POC 전체 계측 91개: 실패·오류·생략 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc60`/code 77을 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `A4C23DFCBCECF7C6CE3076092F7F391CC770321B08CE6D632254D3B5DEA3F03F`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner, Lock Task `LOCKED`와 두 앱 allowlist를
+  보존했다.
+- 실제 학습 페이지의 버튼·문제번호 표시는 사용자 실물 재확인 대상으로
+  둔다.
+
 ## Web POC RC56 실패 편집기 React 답안 재연결 — 2026-07-30
 
 ### 사용자 재확인과 남은 원인
