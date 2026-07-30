@@ -18,6 +18,9 @@ RC03부터 학생 마스터 목록과 다중 반 소속, 학생을 보존하는 
 RC04·RC05와 이후 소스 검증은 [docs/BUILD_VERIFICATION.md](docs/BUILD_VERIFICATION.md)에
 구분해 기록한다.
 
+사용자가 채택·배제한 후속 편의성 개선안과 재추천 금지 범위는
+[docs/PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md)를 기준으로 한다.
+
 ## 확인된 대상
 
 - 기기: Samsung SM-P610, Android 13, One UI 5.1.1
