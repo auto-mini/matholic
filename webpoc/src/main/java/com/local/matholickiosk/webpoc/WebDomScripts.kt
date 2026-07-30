@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.5"
+    const val CONTRACT_VERSION = "web-2026-07-30.6"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -661,7 +661,14 @@ object WebDomScripts {
                   if (editor) targets.add(editor);
                 }
               );
-              Array.from(document.querySelectorAll('.mq-editable-field'))
+              Array.from(document.querySelectorAll(
+                '.mq-editable-field,.mq-math-mode'
+              ))
+                .forEach(editor => targets.add(editor));
+              Array.from(document.querySelectorAll('[class*="mathquill"]'))
+                .filter(editor =>
+                  editor.querySelector('.mq-root-block,.mq-textarea')
+                )
                 .forEach(editor => targets.add(editor));
 
               targets.forEach(target => {
@@ -875,7 +882,9 @@ object WebDomScripts {
               const hideMathClearControls = scope => {
                 let hiddenCount = 0;
                 Array.from(
-                  scope?.querySelectorAll('.mq-editable-field') || []
+                  scope?.querySelectorAll(
+                    '.mq-editable-field,.mq-math-mode'
+                  ) || []
                 ).forEach(editor => {
                   const parent = editor.parentElement;
                   if (!parent) return;

@@ -5255,6 +5255,43 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
   통과
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
+
+## Web POC RC54 textarea 전 MathQuill 중간 상태 — 2026-07-30
+
+### 사진으로 확인한 현상
+
+- 문제 4는 루트·분수·파이 도구가 보이지만 입력칸이 한 줄 높이로 접혀
+  있었고 회색 반원형 지우기 버튼이 아래로 겹쳤다.
+- 바로 아래 문제 5는 caret와 충분한 높이를 가진 정상 MathQuill 입력기였다.
+- 문제 4는 `.mq-math-mode` shell은 생성됐지만 내부 `.mq-textarea`가 아직
+  없는 초기화 중간 상태로 판단했다.
+
+### 수정과 검증
+
+- `.mq-textarea` 역추적에 의존하지 않고 모든 `.mq-math-mode`와
+  `.mq-editable-field`를 직접 주관식 터치 대상으로 수집한다.
+- textarea가 없는 shell도 `inline-block`, 최소 220×56px,
+  pointer-events auto를 적용한다.
+- 같은 중간 상태의 editor 뒤에 붙은 clear control도 제거 대상으로
+  확장한다.
+- 사진 상태와 같은 12×4px `.mq-math-mode`, textarea 없음, 겹친 clear
+  control fixture를 추가했다.
+- 신규 fixture가 실제 220×56px 이상으로 확장되고 clear control이
+  숨겨지는 것을 확인했다.
+- JVM 단위시험·debug assemble·계측 APK compile: 통과
+- Android 13 DOM 계약 계측시험 49개: 실패·오류 0
+- Web 계약은 `web-2026-07-30.6`, 버전은
+  `0.4.0-rc54`/code 71이다.
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc54`/code 71을 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `D8B6BC4F030594AFFAC41F6C21EAF258EB4274D8517C5A826A396159EB21B741`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
+- 설치 후 Kiosk가 전경으로 정상 복귀했고 설치 APK 해시가 artifact와
+  일치했다.
+- 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
 - A에 Web POC `0.4.0-rc52`/code 69을 보존형 설치했다.
 - artifact/설치 APK SHA-256:
   `A03F189545EAFC133821DC6EC54C3C94215AC01337E2CC1C5910C3266CAC1A34`

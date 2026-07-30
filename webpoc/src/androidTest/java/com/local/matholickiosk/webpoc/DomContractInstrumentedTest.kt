@@ -821,6 +821,68 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceExpandsPreTextareaMathShellAndHidesClearControl() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="answer-input-form-pretextarea">
+                <div>
+                  <button type="button">루트</button>
+                  <button type="button">분수</button>
+                  <button type="button">파이</button>
+                </div>
+                <div id="pretextarea-shell" style="position:relative">
+                  <span id="pretextarea-editor" class="mq-math-mode"
+                    style="display:inline;height:4px;min-height:0;width:12px">
+                    <span class="mq-root-block"></span>
+                  </span>
+                  <span id="pretextarea-clear" class="clear-control"
+                    style="position:absolute">
+                    <button type="button" aria-label="지우기"></button>
+                  </span>
+                </div>
+              </div>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const editor = document.getElementById('pretextarea-editor');
+                  const clear = document.querySelector(
+                    '#pretextarea-clear button'
+                  );
+                  const style = getComputedStyle(editor);
+                  const rect = editor.getBoundingClientRect();
+                  return JSON.stringify({
+                    hasTextarea: !!editor.querySelector('textarea'),
+                    display: style.display,
+                    actualWidth: rect.width,
+                    actualHeight: rect.height,
+                    pointerEvents: style.pointerEvents,
+                    marked:
+                      editor.dataset.matholicKioskSubjectiveTouchTarget ===
+                        'true',
+                    clearHidden: getComputedStyle(clear).display === 'none'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertFalse(proof.getBoolean("hasTextarea"))
+            assertEquals("inline-block", proof.getString("display"))
+            assertTrue(proof.getDouble("actualWidth") >= 220.0)
+            assertTrue(proof.getDouble("actualHeight") >= 56.0)
+            assertEquals("auto", proof.getString("pointerEvents"))
+            assertTrue(proof.getBoolean("marked"))
+            assertTrue(proof.getBoolean("clearHidden"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceInitializesSubjectiveEditorWhenScrolledIntoView() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

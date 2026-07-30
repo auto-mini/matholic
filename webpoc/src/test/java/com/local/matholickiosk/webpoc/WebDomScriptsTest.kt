@@ -70,6 +70,9 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholicKioskSubjectiveTouchTarget"))
         assertTrue(script.contains("matholicKioskSubjectiveTouchScope"))
         assertTrue(script.contains("important(target, 'display', 'inline-block')"))
+        assertTrue(script.contains(
+            "'.mq-editable-field,.mq-math-mode'",
+        ))
         assertTrue(script.contains("scheduleViewportMaintenance"))
         assertTrue(script.contains("'scroll',"))
     }

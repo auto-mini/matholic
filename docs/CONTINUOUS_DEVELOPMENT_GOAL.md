@@ -1749,3 +1749,23 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   - firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner와
     전용 HOME 유지
 - 실제 사이트의 문제 4 전체답안 칸은 사용자 실물 재확인 대상으로 둔다.
+
+## Web POC RC54 사진 재현형 MathQuill 중간 상태 — 2026-07-30
+
+- 사용자 사진에서 문제 4는 수식 도구만 초기화되고 입력칸은 한 줄 높이,
+  회색 지우기 버튼은 아래로 겹친 반면 문제 5는 정상 상태임을 확인했다.
+- 내부 `.mq-textarea`가 아직 없는 `.mq-math-mode`도 직접 찾아 최소
+  220×56px와 pointer interaction을 적용한다.
+- `.mq-editable-field`가 되기 전 shell 뒤에 붙은 clear control도 숨긴다.
+- 사진 상태를 그대로 모델링한 12×4px/textarea 없음/clear 겹침 fixture와
+  기존 전체 계약을 검증했다.
+- Android 13 DOM 계약 49개 전부 통과했다.
+- Web POC 버전은 `0.4.0-rc54`/code 71,
+  Web 계약은 `web-2026-07-30.6`이다.
+- release 158 tasks와 APK 이중 검증을 통과했다.
+- A에 Web POC `0.4.0-rc54`/code 71을 보존형 설치했다.
+  - APK SHA-256:
+    `D8B6BC4F030594AFFAC41F6C21EAF258EB4274D8517C5A826A396159EB21B741`
+  - firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner와
+    전용 HOME 유지
+- 동일 학습지 문제 4 전체답안 칸은 사용자 실물 재확인 대상으로 둔다.
