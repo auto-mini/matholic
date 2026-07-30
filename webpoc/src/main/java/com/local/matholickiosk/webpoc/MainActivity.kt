@@ -132,6 +132,7 @@ class MainActivity : Activity() {
         WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
     private var studentSessionBrightnessApplied = false
     private var keypadPreset = KEYPAD_PRESET_RIGHT
+    private var stateEnteredAtElapsedMs = SystemClock.elapsedRealtime()
     private var inactivityGeneration = 0
     private var networkCallbackRegistered = false
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -219,7 +220,11 @@ class MainActivity : Activity() {
             savedState == WebPocState.MAINTENANCE_REQUIRED -> {
                 showMaintenance("PREVIOUS_MAINTENANCE")
             }
-            savedState.requiresRecoveryAfterRestart() -> beginRecovery()
+            savedState.requiresRecoveryAfterRestart() -> {
+                DiagnosticEventPolicy.interruptedSession(savedState)
+                    ?.let { PrivateDiagnosticLog.event(this, it) }
+                beginRecovery()
+            }
             else -> prepareLoginPage()
         }
     }
@@ -710,6 +715,7 @@ class MainActivity : Activity() {
             }, PREFLIGHT_DNS_RETRY_DELAY_MS)
             if (scheduled) {
                 preflightDnsRetryScheduled = true
+                PrivateDiagnosticLog.event(this, "AUTO_RETRY:PREFLIGHT_DNS:1")
                 true
             } else {
                 showLocked("WEB_NAVIGATION")
@@ -1343,6 +1349,16 @@ class MainActivity : Activity() {
     private fun showResultSummaryUnavailable(summary: JSONObject?) {
         val expected = summary?.optInt("expectedProblems", 0) ?: 0
         val classified = summary?.optInt("classifiedCount", 0) ?: 0
+        PrivateDiagnosticLog.event(
+            this,
+            DiagnosticEventPolicy.resultIncomplete(
+                reason = summary?.optString("reason"),
+                expectedProblems = expected,
+                classifiedCount = classified,
+                hydrationPolls = resultHydrationPolls,
+                extractionFailures = resultExtractionFailures,
+            ),
+        )
         val progress = if (expected > 0) {
             "\n확인된 문항: $classified/$expected"
         } else {
@@ -1481,6 +1497,10 @@ class MainActivity : Activity() {
         cancelTimeout()
         if (logoutAttempt < MAX_LOGOUT_RETRIES) {
             logoutAttempt += 1
+            PrivateDiagnosticLog.event(
+                this,
+                "AUTO_RETRY:LOGOUT:${logoutAttempt.coerceIn(1, 9)}:$reason",
+            )
             startLogoutAttempt()
         } else {
             pendingLockReason = reason
@@ -1937,6 +1957,7 @@ class MainActivity : Activity() {
 
         recoveryRendererRecycleAttempted = true
         recoveryRendererRecyclePending = true
+        PrivateDiagnosticLog.event(this, "AUTO_RETRY:RENDERER_RECOVERY:1:$timeoutReason")
         cancelTimeout()
         if (view == null) {
             recoveryRendererRecyclePending = false
@@ -2094,7 +2115,16 @@ class MainActivity : Activity() {
 
     @SuppressLint("ApplySharedPref")
     private fun transition(next: WebPocState, reason: String? = null) {
+        val previous = state
+        val nowElapsedMs = SystemClock.elapsedRealtime()
+        val elapsedMs = (nowElapsedMs - stateEnteredAtElapsedMs).coerceAtLeast(0L)
+        DiagnosticEventPolicy.slowStage(previous, elapsedMs)
+            ?.let { PrivateDiagnosticLog.event(this, it) }
+        if (next == WebPocState.RECOVERY_REQUIRED && previous != next) {
+            PrivateDiagnosticLog.event(this, "RECOVERY_BEGIN:${previous.name}")
+        }
         state = next
+        stateEnteredAtElapsedMs = nowElapsedMs
         val editor = preferences.edit().putString(KEY_STATE, next.name)
         if (reason == null) editor.remove(KEY_REASON) else editor.putString(KEY_REASON, reason)
         if (!editor.commit()) {
@@ -2218,6 +2248,7 @@ class MainActivity : Activity() {
         val generation = ++timeoutGeneration
         handler.postDelayed({
             if (!destroyed && generation == timeoutGeneration) {
+                PrivateDiagnosticLog.event(this, "TIMEOUT:${state.name}:$reason")
                 if (action != null) action() else showLocked(reason)
             }
         }, milliseconds)
