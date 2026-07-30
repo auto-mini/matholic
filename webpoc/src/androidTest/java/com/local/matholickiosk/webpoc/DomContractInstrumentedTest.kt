@@ -447,6 +447,10 @@ class DomContractInstrumentedTest {
                   ));
                   const before = buttons[1].dataset.state;
                   document.getElementById('unknown').click();
+                  const unansweredButtons = Array.from(map.querySelectorAll(
+                    '.matholic-kiosk-problem-map-unanswered button'
+                  ));
+                  unansweredButtons[1].click();
                   return JSON.stringify({
                     mapCount: document.querySelectorAll(
                       '.matholic-kiosk-problem-map'
@@ -456,6 +460,9 @@ class DomContractInstrumentedTest {
                     before,
                     trackedUnknown:
                       window.__matholicKioskProblemStates[2],
+                    unansweredButtonCount: unansweredButtons.length,
+                    selectedAfterNextUnanswered:
+                      document.getElementById('problem-selector').value,
                     guideText: document.querySelector(
                       '.matholic-kiosk-answer-guide'
                     )?.textContent || '',
@@ -469,8 +476,10 @@ class DomContractInstrumentedTest {
             assertEquals("true", proof.getString("current"))
             assertEquals("answered", proof.getString("before"))
             assertEquals("unknown", proof.getString("trackedUnknown"))
+            assertEquals(2, proof.getInt("unansweredButtonCount"))
+            assertEquals("3", proof.getString("selectedAfterNextUnanswered"))
             assertTrue(proof.getString("guideText").contains("모름"))
-            assertEquals("true", proof.getString("open"))
+            assertEquals("false", proof.getString("open"))
         }
     }
 
@@ -1901,6 +1910,16 @@ class DomContractInstrumentedTest {
                    const answerBeforeConfirmedClear = editor.fieldApi.latex();
                    clearButton.click();
                    const answerAfterConfirmedClear = editor.fieldApi.latex();
+                   const undoButton = navigation.querySelector(
+                     '[data-matholic-kiosk-key-action="undo"]'
+                   );
+                   const redoButton = navigation.querySelector(
+                     '[data-matholic-kiosk-key-action="redo"]'
+                   );
+                   undoButton.click();
+                   const answerAfterUndo = editor.fieldApi.latex();
+                   redoButton.click();
+                   const answerAfterRedo = editor.fieldApi.latex();
                    document.body.dispatchEvent(
                      new Event('pointerdown', { bubbles: true })
                    );
@@ -1918,6 +1937,9 @@ class DomContractInstrumentedTest {
                      actionCount: navigation.querySelectorAll(
                        '.matholic-kiosk-keypad-actions button'
                      ).length,
+                     actionLabels: Array.from(navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-actions button'
+                     )).map(button => button.textContent),
                      headings: Array.from(navigation.querySelectorAll(
                        '.matholic-kiosk-keypad-heading'
                      )).map(heading => heading.textContent),
@@ -1952,17 +1974,21 @@ class DomContractInstrumentedTest {
                      clearArmed,
                      answerBeforeConfirmedClear,
                      answerAfterConfirmedClear,
+                     answerAfterUndo,
+                     answerAfterRedo,
                      hiddenAfterOutsideTouch:
                        getComputedStyle(navigation).display === 'none'
                    });
                 })()
                 """.trimIndent(),
             )
-            assertEquals(21, proof.getInt("count"))
+            assertEquals(23, proof.getInt("count"))
             assertEquals(12, proof.getInt("numericCount"))
             assertEquals(3, proof.getInt("structureCount"))
             assertEquals(4, proof.getInt("arrowCount"))
-            assertEquals(2, proof.getInt("actionCount"))
+            assertEquals(4, proof.getInt("actionCount"))
+            assertEquals("실행 취소", proof.getJSONArray("actionLabels").getString(0))
+            assertEquals("다시 실행", proof.getJSONArray("actionLabels").getString(1))
             assertEquals("숫자 · 소수점 · 부호", proof.getJSONArray("headings").getString(0))
             assertEquals("수식 구조", proof.getJSONArray("headings").getString(1))
             assertEquals("이동 · 수정", proof.getJSONArray("headings").getString(2))
@@ -1998,6 +2024,11 @@ class DomContractInstrumentedTest {
                 proof.getString("answerBeforeConfirmedClear"),
             )
             assertEquals("", proof.getString("answerAfterConfirmedClear"))
+            assertEquals(
+                proof.getString("answerBeforeConfirmedClear"),
+                proof.getString("answerAfterUndo"),
+            )
+            assertEquals("", proof.getString("answerAfterRedo"))
             assertTrue(proof.getBoolean("hiddenAfterOutsideTouch"))
         }
     }

@@ -32,6 +32,8 @@ object CredentialBridgeContract {
         "com.local.matholickiosk.action.RECOVER_WEB_SESSION"
     const val EXTRA_CREDENTIAL_HANDLE =
         "com.local.matholickiosk.extra.CREDENTIAL_HANDLE"
+    const val EXTRA_KEYPAD_PRESET =
+        "com.local.matholickiosk.extra.KEYPAD_PRESET"
     const val COLUMN_EXPECTED_NAME = "expected_name"
     const val COLUMN_USERNAME = "username"
     const val COLUMN_PASSWORD = "password"

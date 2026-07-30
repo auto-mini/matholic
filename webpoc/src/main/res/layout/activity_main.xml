@@ -398,4 +398,87 @@
         android:textStyle="bold"
         android:visibility="gone" />
 
+    <FrameLayout
+        android:id="@+id/idle_warning_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6102A43"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="560dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="#FFFFFFFF"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="36dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="10분 동안 입력이 없었습니다"
+                android:textColor="#102A43"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="답안은 그대로 유지됩니다. 계속하려면 아래 버튼을 누르세요."
+                android:textColor="#486581"
+                android:textSize="18sp" />
+
+            <Button
+                android:id="@+id/idle_continue_button"
+                android:layout_width="280dp"
+                android:layout_height="64dp"
+                android:layout_marginTop="24dp"
+                android:backgroundTint="#1565C0"
+                android:text="계속 채점"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/network_pause_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#F2102A43"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="36dp">
+
+            <ProgressBar
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:indeterminate="true" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center"
+                android:text="인터넷 연결 복구를 기다리는 중입니다\n답안은 그대로 유지됩니다"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
 </FrameLayout>

@@ -72,6 +72,9 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholic-kiosk-keypad-actions"))
         assertTrue(script.contains("숫자 · 소수점 · 부호"))
         assertTrue(script.contains("한 칸 삭제"))
+        assertTrue(script.contains("실행 취소"))
+        assertTrue(script.contains("다시 실행"))
+        assertTrue(script.contains("setInterval"))
         assertTrue(script.contains("다시 눌러 지움"))
         assertFalse(script.contains("window.confirm"))
         assertTrue(script.contains("matholicKioskKeypadActive"))
@@ -107,8 +110,16 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholic-kiosk-problem-map"))
         assertTrue(script.contains("matholicKioskProblemStates"))
         assertTrue(script.contains("답안 현황"))
+        assertTrue(script.contains("이전 미입력"))
+        assertTrue(script.contains("다음 미입력"))
+        assertTrue(script.contains("navigateToUnanswered"))
         assertTrue(script.contains("풀지 못한 문제는 빈칸으로 두지 말고"))
         assertTrue(script.contains("problemStateMapEnhancements"))
+        val leftPreset = WebDomScripts.applyStudentExperience("left")
+        assertTrue(leftPreset.contains("matholicKioskKeypadPreset"))
+        assertTrue(leftPreset.contains("'left'"))
+        val invalidPreset = WebDomScripts.applyStudentExperience("unexpected")
+        assertTrue(invalidPreset.contains("'right'"))
     }
 
     @Test

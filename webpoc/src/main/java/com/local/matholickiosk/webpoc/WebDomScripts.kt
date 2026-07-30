@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.13"
+    const val CONTRACT_VERSION = "web-2026-07-30.14"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -541,7 +541,7 @@ object WebDomScripts {
               display: block !important;
             }
             html[data-matholic-kiosk-keypad-active="true"] body {
-              padding-bottom: 452px !important;
+              padding-bottom: clamp(452px, 48vh, 506px) !important;
             }
             .matholic-kiosk-keypad-inner {
               display: grid !important;
@@ -551,6 +551,40 @@ object WebDomScripts {
               width: 100% !important;
               max-width: 1156px !important;
               margin: 0 auto !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="left"]
+              .matholic-kiosk-keypad-inner {
+              grid-template-columns:
+                minmax(0, 250fr) minmax(0, 350fr) minmax(0, 480fr) !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="left"]
+              .matholic-kiosk-keypad-edit {
+              order: 1 !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="left"]
+              .matholic-kiosk-keypad-structure {
+              order: 2 !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="left"]
+              .matholic-kiosk-keypad-numeric {
+              order: 3 !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="center"]
+              .matholic-kiosk-keypad-inner {
+              grid-template-columns:
+                minmax(0, 440fr) minmax(0, 280fr) minmax(0, 340fr) !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="center"]
+              .matholic-kiosk-keypad-numeric {
+              order: 1 !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="center"]
+              .matholic-kiosk-keypad-edit {
+              order: 2 !important;
+            }
+            html[data-matholic-kiosk-keypad-preset="center"]
+              .matholic-kiosk-keypad-structure {
+              order: 3 !important;
             }
             .matholic-kiosk-keypad-section {
               display: flex !important;
@@ -562,8 +596,8 @@ object WebDomScripts {
               align-items: center !important;
               justify-content: center !important;
               width: 100% !important;
-              height: 60px !important;
-              min-height: 60px !important;
+              height: clamp(52px, 7vh, 64px) !important;
+              min-height: clamp(52px, 7vh, 64px) !important;
               border-radius: 12px !important;
               font-size: 24px !important;
               font-weight: 800 !important;
@@ -592,15 +626,15 @@ object WebDomScripts {
             }
             .matholic-kiosk-keypad-numeric-grid {
               grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-              grid-template-rows: repeat(3, 88px) !important;
+              grid-template-rows: repeat(3, clamp(78px, 10vh, 94px)) !important;
             }
             .matholic-kiosk-keypad-structure-grid {
               grid-template-columns: minmax(0, 1fr) !important;
-              grid-template-rows: repeat(3, 88px) !important;
+              grid-template-rows: repeat(3, clamp(78px, 10vh, 94px)) !important;
             }
             .matholic-kiosk-keypad-edit-body {
               position: relative !important;
-              height: 296px !important;
+              height: clamp(312px, 36vh, 344px) !important;
               margin-top: 16px !important;
             }
             .matholic-kiosk-keypad-arrows {
@@ -622,9 +656,10 @@ object WebDomScripts {
               right: 0 !important;
               bottom: 0 !important;
               display: grid !important;
-              grid-template-columns: 116fr 122fr !important;
-              gap: 12px !important;
-              height: 88px !important;
+              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+              grid-template-rows: repeat(2, minmax(56px, 1fr)) !important;
+              gap: 10px !important;
+              height: 126px !important;
             }
             .matholic-kiosk-math-nav button {
               width: 100% !important;
@@ -663,7 +698,7 @@ object WebDomScripts {
               font-size: 40px !important;
             }
             .matholic-kiosk-keypad-actions > button {
-              font-size: 21px !important;
+              font-size: clamp(17px, 1.8vw, 21px) !important;
             }
             .matholic-kiosk-keypad-actions > button[
               data-matholic-kiosk-clear-armed="true"
@@ -822,6 +857,27 @@ object WebDomScripts {
             .matholic-kiosk-problem-map[data-open="true"]
               .matholic-kiosk-problem-map-legend {
               display: block !important;
+            }
+            .matholic-kiosk-problem-map-unanswered {
+              display: none !important;
+              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+              gap: 8px !important;
+              padding-top: 8px !important;
+            }
+            .matholic-kiosk-problem-map[data-open="true"]
+              .matholic-kiosk-problem-map-unanswered {
+              display: grid !important;
+            }
+            .matholic-kiosk-problem-map-unanswered > button {
+              min-height: clamp(52px, 7vh, 64px) !important;
+              padding: 8px !important;
+              border: 2px solid #1565c0 !important;
+              border-radius: 10px !important;
+              background: #eef7ff !important;
+              color: #173f6d !important;
+              font-size: 16px !important;
+              font-weight: 800 !important;
+              touch-action: manipulation !important;
             }
           ` : `
             header, nav, [role="navigation"] {
@@ -1191,6 +1247,29 @@ object WebDomScripts {
                 option?.click?.();
               }, 0);
             };
+            const navigateToUnanswered = direction => {
+              const selectedProblemNumber = readCurrentProblemNumber();
+              if (
+                !Number.isInteger(totalProblems) ||
+                totalProblems < 1 ||
+                !Number.isInteger(selectedProblemNumber) ||
+                selectedProblemNumber < 1
+              ) return;
+              for (let offset = 1; offset <= totalProblems; offset += 1) {
+                const zeroBased = (
+                  selectedProblemNumber - 1 +
+                  direction * offset +
+                  totalProblems * 2
+                ) % totalProblems;
+                const candidate = zeroBased + 1;
+                const candidateState =
+                  problemStates[candidate] || 'unanswered';
+                if (candidateState === 'unanswered' || candidateState === 'unchecked') {
+                  navigateToProblem(candidate);
+                  return;
+                }
+              }
+            };
             let problemMap = document.querySelector(
               '.matholic-kiosk-problem-map'
             );
@@ -1212,11 +1291,37 @@ object WebDomScripts {
                 });
                 const grid = document.createElement('div');
                 grid.className = 'matholic-kiosk-problem-map-grid';
+                const unanswered = document.createElement('div');
+                unanswered.className =
+                  'matholic-kiosk-problem-map-unanswered';
+                const previousUnanswered = document.createElement('button');
+                previousUnanswered.type = 'button';
+                previousUnanswered.textContent = '이전 미입력';
+                previousUnanswered.setAttribute(
+                  'aria-label',
+                  '이전 미입력 문제로 이동'
+                );
+                previousUnanswered.addEventListener('click', () => {
+                  problemMap.dataset.open = 'false';
+                  navigateToUnanswered(-1);
+                });
+                const nextUnanswered = document.createElement('button');
+                nextUnanswered.type = 'button';
+                nextUnanswered.textContent = '다음 미입력';
+                nextUnanswered.setAttribute(
+                  'aria-label',
+                  '다음 미입력 문제로 이동'
+                );
+                nextUnanswered.addEventListener('click', () => {
+                  problemMap.dataset.open = 'false';
+                  navigateToUnanswered(1);
+                });
+                unanswered.append(previousUnanswered, nextUnanswered);
                 const legend = document.createElement('div');
                 legend.className = 'matholic-kiosk-problem-map-legend';
                 legend.textContent =
                   '파랑: 답변 · 회색: 모름 · 테두리: 현재 문제';
-                problemMap.append(toggle, grid, legend);
+                problemMap.append(toggle, grid, unanswered, legend);
                 document.body.appendChild(problemMap);
               }
               const modalOpen = Array.from(document.querySelectorAll(
@@ -2071,6 +2176,25 @@ object WebDomScripts {
                     factory(currentEditor) : null;
                   return { field, editor: currentEditor };
                 };
+                const editHistories =
+                  window.__matholicKioskEditHistories ||
+                  (window.__matholicKioskEditHistories = new WeakMap());
+                const historyFor = (editor, field) => {
+                  let history = editHistories.get(editor);
+                  if (!history) {
+                    let initial = '';
+                    try { initial = field.latex(); } catch (_) {}
+                    history = { undo: [], redo: [], last: initial };
+                    editHistories.set(editor, history);
+                  }
+                  return history;
+                };
+                const setMathValue = (field, editor, value) => {
+                  field.latex(value);
+                  field.focus?.();
+                  editor.dispatchEvent(new Event('input', { bubbles: true }));
+                  editor.dispatchEvent(new Event('change', { bubbles: true }));
+                };
                 const runKeyAction = (button, action, value) => {
                   if (action === 'clear') {
                     if (
@@ -2086,13 +2210,29 @@ object WebDomScripts {
                       return;
                     }
                   }
-                  const { field } = activeMathField();
+                  const { field, editor } = activeMathField();
                   if (!field) {
                     resetClearArm();
                     return;
                   }
                   try {
-                    if (action === 'write' && typeof field.write === 'function') {
+                    const history = historyFor(editor, field);
+                    const before = field.latex();
+                    if (action === 'undo') {
+                      const previous = history.undo.pop();
+                      if (previous === undefined) return;
+                      history.redo.push(before);
+                      setMathValue(field, editor, previous);
+                      history.last = previous;
+                      return;
+                    } else if (action === 'redo') {
+                      const next = history.redo.pop();
+                      if (next === undefined) return;
+                      history.undo.push(before);
+                      setMathValue(field, editor, next);
+                      history.last = next;
+                      return;
+                    } else if (action === 'write' && typeof field.write === 'function') {
                       field.write(value);
                     } else if (action === 'command') {
                       if (typeof field.cmd === 'function') {
@@ -2117,6 +2257,13 @@ object WebDomScripts {
                         field.keystroke('Ctrl-A');
                         field.keystroke('Backspace');
                       }
+                    }
+                    const after = field.latex();
+                    if (after !== before) {
+                      history.undo.push(before);
+                      if (history.undo.length > 50) history.undo.shift();
+                      history.redo.length = 0;
+                      history.last = after;
                     }
                     field.focus?.();
                   } catch (_) {
@@ -2146,13 +2293,41 @@ object WebDomScripts {
                       'important'
                     );
                   }
+                  let repeatDelay = 0;
+                  let repeatTimer = 0;
+                  let repeated = false;
+                  const stopRepeat = () => {
+                    clearTimeout(repeatDelay);
+                    clearInterval(repeatTimer);
+                    repeatDelay = 0;
+                    repeatTimer = 0;
+                  };
                   button.addEventListener('pointerdown', event => {
                     event.preventDefault();
                     event.stopPropagation();
+                    if (action === 'keystroke' && value === 'Backspace') {
+                      repeated = false;
+                      repeatDelay = setTimeout(() => {
+                        repeated = true;
+                        runKeyAction(button, action, value);
+                        repeatTimer = setInterval(
+                          () => runKeyAction(button, action, value),
+                          85
+                        );
+                      }, 420);
+                    }
+                  });
+                  ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => {
+                    button.addEventListener(type, stopRepeat);
                   });
                   button.addEventListener('click', event => {
                     event.preventDefault();
                     event.stopPropagation();
+                    stopRepeat();
+                    if (repeated) {
+                      repeated = false;
+                      return;
+                    }
                     runKeyAction(button, action, value);
                   });
                   container.appendChild(button);
@@ -2235,6 +2410,22 @@ object WebDomScripts {
                 );
                 const actions = document.createElement('div');
                 actions.className = 'matholic-kiosk-keypad-actions';
+                createKey(
+                  actions,
+                  '실행 취소',
+                  '마지막 입력 실행 취소',
+                  'undo',
+                  '',
+                  ''
+                );
+                createKey(
+                  actions,
+                  '다시 실행',
+                  '취소한 입력 다시 실행',
+                  'redo',
+                  '',
+                  ''
+                );
                 createKey(
                   actions,
                   '한 칸 삭제',
@@ -2901,6 +3092,18 @@ object WebDomScripts {
           });
         })()
         """.trimIndent()
+
+    fun applyStudentExperience(keypadPreset: String): String {
+        val normalized = keypadPreset.takeIf { it in setOf("right", "left", "center") }
+            ?: "right"
+        return """
+            (() => {
+              document.documentElement.dataset.matholicKioskKeypadPreset =
+                '$normalized';
+            })();
+            $applyStudentExperience
+        """.trimIndent()
+    }
 
     fun navigateStudentSection(targetPath: String): String {
         require(targetPath == "/workbook" || targetPath == "/diagnostic")

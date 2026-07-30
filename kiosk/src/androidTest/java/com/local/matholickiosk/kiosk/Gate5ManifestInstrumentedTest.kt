@@ -64,7 +64,7 @@ class Gate5ManifestInstrumentedTest {
     }
 
     @Test
-    fun kioskCanOnlyUseInternetForPairedOutboundTransfer() {
+    fun kioskNetworkPermissionsRemainReadOnlyAndPairedOutboundOnly() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val packageInfo = context.packageManager.getPackageInfo(
             context.packageName,
@@ -73,7 +73,7 @@ class Gate5ManifestInstrumentedTest {
         val permissions = packageInfo.requestedPermissions.orEmpty().toSet()
 
         assertTrue("android.permission.INTERNET" in permissions)
-        assertTrue("android.permission.ACCESS_NETWORK_STATE" !in permissions)
+        assertTrue("android.permission.ACCESS_NETWORK_STATE" in permissions)
     }
 
     @Test

@@ -123,6 +123,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var resumeSessionButton: Button
     private lateinit var selfTestButton: Button
     private lateinit var feedbackSettingsButton: Button
+    private lateinit var keypadLayoutButton: Button
     private lateinit var recoverSessionButton: Button
     private lateinit var adminMessage: TextView
     private lateinit var undoAdminButton: Button
@@ -373,6 +374,7 @@ class MainActivity : ComponentActivity() {
         resumeSessionButton = findViewById(R.id.resume_session_button)
         selfTestButton = findViewById(R.id.self_test_button)
         feedbackSettingsButton = findViewById(R.id.feedback_settings_button)
+        keypadLayoutButton = findViewById(R.id.keypad_layout_button)
         recoverSessionButton = findViewById(R.id.recover_session_button)
         adminMessage = findViewById(R.id.admin_message)
         undoAdminButton = findViewById(R.id.undo_admin_button)
@@ -423,6 +425,7 @@ class MainActivity : ComponentActivity() {
             resumeSessionButton,
             selfTestButton,
             feedbackSettingsButton,
+            keypadLayoutButton,
             recoverSessionButton,
             cancelQrLoginButton,
             switchCameraButton,
@@ -469,6 +472,7 @@ class MainActivity : ComponentActivity() {
         resumeSessionButton.setOnClickListener { showScanner() }
         selfTestButton.setOnClickListener { runOperationalSelfTest() }
         feedbackSettingsButton.setOnClickListener { showFeedbackSettings() }
+        keypadLayoutButton.setOnClickListener { showKeypadLayoutSettings() }
         recoverSessionButton.setOnClickListener { confirmOneButtonRecovery() }
         cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
@@ -2565,6 +2569,33 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun showKeypadLayoutSettings() {
+        val choices = arrayOf("오른손 배치 (기본)", "왼손 배치", "하단 중앙 배치")
+        val values = arrayOf(KEYPAD_PRESET_RIGHT, KEYPAD_PRESET_LEFT, KEYPAD_PRESET_CENTER)
+        val preferences = getSharedPreferences(STUDENT_UI_PREFERENCES, Context.MODE_PRIVATE)
+        val current = preferences.getString(KEY_KEYPAD_PRESET, KEYPAD_PRESET_RIGHT)
+        var selected = values.indexOf(current).takeIf { it >= 0 } ?: 0
+        AlertDialog.Builder(this)
+            .setTitle("수식 키패드 배치")
+            .setSingleChoiceItems(choices, selected) { _, index -> selected = index }
+            .setNegativeButton("취소", null)
+            .setPositiveButton("저장") { _, _ ->
+                preferences.edit().putString(KEY_KEYPAD_PRESET, values[selected]).apply()
+                adminMessage.text = "수식 키패드 배치 저장 · ${choices[selected]}"
+            }
+            .show()
+    }
+
+    private fun selectedKeypadPreset(): String =
+        getSharedPreferences(STUDENT_UI_PREFERENCES, Context.MODE_PRIVATE)
+            .getString(KEY_KEYPAD_PRESET, KEYPAD_PRESET_RIGHT)
+            ?.takeIf {
+                it == KEYPAD_PRESET_RIGHT ||
+                    it == KEYPAD_PRESET_LEFT ||
+                    it == KEYPAD_PRESET_CENTER
+            }
+            ?: KEYPAD_PRESET_RIGHT
+
     private fun provideFeedback(success: Boolean) {
         val preferences = getSharedPreferences(FEEDBACK_PREFERENCES, Context.MODE_PRIVATE)
         if (preferences.getBoolean(KEY_VIBRATION_ENABLED, true)) {
@@ -3214,6 +3245,10 @@ class MainActivity : ComponentActivity() {
                                         CredentialBridgeContract.EXTRA_CREDENTIAL_HANDLE,
                                         handle.id,
                                     )
+                                    .putExtra(
+                                        CredentialBridgeContract.EXTRA_KEYPAD_PRESET,
+                                        selectedKeypadPreset(),
+                                    )
                                 runCatching { webSessionLauncher.launch(intent) }
                                     .onFailure {
                                         OneTimeCredentialBroker.revoke(handle.id)
@@ -3675,5 +3710,10 @@ class MainActivity : ComponentActivity() {
         private const val FEEDBACK_PREFERENCES = "operator_feedback"
         private const val KEY_VIBRATION_ENABLED = "vibration_enabled"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
+        private const val STUDENT_UI_PREFERENCES = "student_ui"
+        private const val KEY_KEYPAD_PRESET = "keypad_preset"
+        private const val KEYPAD_PRESET_RIGHT = "right"
+        private const val KEYPAD_PRESET_LEFT = "left"
+        private const val KEYPAD_PRESET_CENTER = "center"
     }
 }

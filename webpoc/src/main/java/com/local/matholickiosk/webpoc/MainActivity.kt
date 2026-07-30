@@ -6,6 +6,9 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Bundle
@@ -14,6 +17,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -81,6 +85,9 @@ class MainActivity : Activity() {
     private lateinit var resultContinueButton: Button
     private lateinit var resultConfirmButton: Button
     private lateinit var studentNameBadge: TextView
+    private lateinit var idleWarningPanel: FrameLayout
+    private lateinit var idleContinueButton: Button
+    private lateinit var networkPausePanel: FrameLayout
 
     private val handler = Handler(Looper.getMainLooper())
     private val preferences by lazy { getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE) }
@@ -124,6 +131,17 @@ class MainActivity : Activity() {
     private var originalWindowBrightness =
         WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
     private var studentSessionBrightnessApplied = false
+    private var keypadPreset = KEYPAD_PRESET_RIGHT
+    private var inactivityGeneration = 0
+    private var networkCallbackRegistered = false
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = refreshNetworkPause()
+        override fun onLost(network: Network) = refreshNetworkPause()
+        override fun onCapabilitiesChanged(
+            network: Network,
+            networkCapabilities: NetworkCapabilities,
+        ) = refreshNetworkPause()
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -182,6 +200,7 @@ class MainActivity : Activity() {
         configureSensitiveInputs()
         configureWebView()
         configureActions()
+        registerNetworkMonitor()
         registerBackHandler()
         hideSystemNavigation()
         uiInitialized = true
@@ -253,6 +272,9 @@ class MainActivity : Activity() {
             finishSecureKioskSessionWithFailure("SECURE_SESSION_CALLER")
             return
         }
+        keypadPreset = launchIntent.getStringExtra(EXTRA_KEYPAD_PRESET)
+            ?.takeIf { it in KEYPAD_PRESETS }
+            ?: KEYPAD_PRESET_RIGHT
         val savedState = preferences.getString(KEY_STATE, WebPocState.IDLE.name)
             ?.let { runCatching { WebPocState.valueOf(it) }.getOrNull() }
             ?: WebPocState.RECOVERY_REQUIRED
@@ -331,6 +353,9 @@ class MainActivity : Activity() {
         resultContinueButton = findViewById(R.id.result_continue_button)
         resultConfirmButton = findViewById(R.id.result_confirm_button)
         studentNameBadge = findViewById(R.id.student_name_badge)
+        idleWarningPanel = findViewById(R.id.idle_warning_panel)
+        idleContinueButton = findViewById(R.id.idle_continue_button)
+        networkPausePanel = findViewById(R.id.network_pause_panel)
     }
 
     private fun configureSensitiveInputs() {
@@ -358,6 +383,7 @@ class MainActivity : Activity() {
             diagnosticButton,
             resultContinueButton,
             resultConfirmButton,
+            idleContinueButton,
             webView,
         ).forEach {
             it.filterTouchesWhenObscured = true
@@ -532,6 +558,14 @@ class MainActivity : Activity() {
                     if (!preflightDnsRetryScheduled) {
                         schedulePreflightDnsRetry(view)
                     }
+                    return
+                }
+                if (
+                    state == WebPocState.ACTIVE &&
+                    request?.isForMainFrame == true &&
+                    !hasValidatedNetwork()
+                ) {
+                    updateNetworkPause()
                     return
                 }
                 if (
@@ -772,6 +806,11 @@ class MainActivity : Activity() {
                 pendingLockReason = null
                 beginLogout()
             }
+        }
+        idleContinueButton.setOnClickListener {
+            idleWarningPanel.visibility = View.GONE
+            PrivateDiagnosticLog.event(this, "IDLE_CONTINUE")
+            scheduleInactivityWarning()
         }
         recoveryButton.setOnClickListener { restartForRecovery() }
     }
@@ -1209,7 +1248,7 @@ class MainActivity : Activity() {
             resultSummaryDisplayed
         ) return
 
-        evaluate(WebDomScripts.applyStudentExperience) { result ->
+        evaluate(WebDomScripts.applyStudentExperience(keypadPreset)) { result ->
             if (
                 state != WebPocState.ACTIVE ||
                 generation != activeExperienceGeneration ||
@@ -1750,6 +1789,7 @@ class MainActivity : Activity() {
         progress.visibility = View.GONE
         gate3AbortButton.visibility = View.GONE
         Log.w(DIAGNOSTIC_LOG_TAG, "event=WEB_LOCK reason=$reason")
+        PrivateDiagnosticLog.event(this, "WEB_LOCK:$reason")
         blockerMessage.text = if (
             reason.startsWith("NETWORK_") ||
             reason == "HTTP_ERROR" ||
@@ -1788,6 +1828,7 @@ class MainActivity : Activity() {
         blocker.visibility = View.VISIBLE
         progress.visibility = View.GONE
         gate3AbortButton.visibility = View.GONE
+        PrivateDiagnosticLog.event(this, "WEB_MAINTENANCE:$reason")
         blockerMessage.text = getString(R.string.status_maintenance_with_code, reason)
         recoveryButton.visibility = View.VISIBLE
         if (adminRecoverySession) {
@@ -2067,9 +2108,94 @@ class MainActivity : Activity() {
         }
         if (next == WebPocState.ACTIVE) {
             applyStudentSessionBrightness()
+            scheduleInactivityWarning()
         } else {
             restoreWindowBrightness()
+            cancelInactivityWarning()
+            if (uiInitialized) {
+                idleWarningPanel.visibility = View.GONE
+                networkPausePanel.visibility = View.GONE
+            }
         }
+        if (uiInitialized) handler.post(::updateNetworkPause)
+    }
+
+    private fun registerNetworkMonitor() {
+        val connectivity = getSystemService(ConnectivityManager::class.java) ?: return
+        runCatching {
+            connectivity.registerDefaultNetworkCallback(networkCallback)
+            networkCallbackRegistered = true
+            updateNetworkPause()
+        }.onFailure {
+            PrivateDiagnosticLog.event(this, "NETWORK_MONITOR_FAILED")
+        }
+    }
+
+    private fun refreshNetworkPause() {
+        handler.post {
+            if (!destroyed && uiInitialized) updateNetworkPause()
+        }
+    }
+
+    private fun hasValidatedNetwork(): Boolean {
+        val connectivity = getSystemService(ConnectivityManager::class.java) ?: return false
+        val capabilities = connectivity.activeNetwork
+            ?.let(connectivity::getNetworkCapabilities)
+            ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private fun updateNetworkPause() {
+        if (!uiInitialized) return
+        val shouldPause = state == WebPocState.ACTIVE && !hasValidatedNetwork()
+        val wasPaused = networkPausePanel.visibility == View.VISIBLE
+        networkPausePanel.visibility = if (shouldPause) View.VISIBLE else View.GONE
+        if (shouldPause && !wasPaused) {
+            idleWarningPanel.visibility = View.GONE
+            cancelInactivityWarning()
+            PrivateDiagnosticLog.event(this, "NETWORK_PAUSE")
+        } else if (!shouldPause && wasPaused) {
+            PrivateDiagnosticLog.event(this, "NETWORK_RESUME")
+            scheduleInactivityWarning()
+        }
+    }
+
+    private fun scheduleInactivityWarning() {
+        val generation = ++inactivityGeneration
+        if (
+            !uiInitialized ||
+            state != WebPocState.ACTIVE ||
+            networkPausePanel.visibility == View.VISIBLE
+        ) return
+        handler.postDelayed({
+            if (
+                !destroyed &&
+                state == WebPocState.ACTIVE &&
+                generation == inactivityGeneration &&
+                networkPausePanel.visibility != View.VISIBLE
+            ) {
+                idleWarningPanel.visibility = View.VISIBLE
+                PrivateDiagnosticLog.event(this, "IDLE_WARNING")
+            }
+        }, INACTIVITY_WARNING_MS)
+    }
+
+    private fun cancelInactivityWarning() {
+        inactivityGeneration += 1
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (
+            event.actionMasked == MotionEvent.ACTION_DOWN &&
+            uiInitialized &&
+            state == WebPocState.ACTIVE &&
+            idleWarningPanel.visibility != View.VISIBLE &&
+            networkPausePanel.visibility != View.VISIBLE
+        ) {
+            scheduleInactivityWarning()
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     private fun applyStudentSessionBrightness() {
@@ -2159,7 +2285,15 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         destroyed = true
         cancelTimeout()
+        cancelInactivityWarning()
         try {
+            if (networkCallbackRegistered) {
+                runCatching {
+                    getSystemService(ConnectivityManager::class.java)
+                        ?.unregisterNetworkCallback(networkCallback)
+                }
+                networkCallbackRegistered = false
+            }
             restoreWindowBrightness()
             val activeDialog = activeJavaScriptDialog
             if (activeDialog != null) {
@@ -2218,6 +2352,8 @@ class MainActivity : Activity() {
             "com.local.matholickiosk.kiosk.credentials"
         const val EXTRA_CREDENTIAL_HANDLE =
             "com.local.matholickiosk.extra.CREDENTIAL_HANDLE"
+        const val EXTRA_KEYPAD_PRESET =
+            "com.local.matholickiosk.extra.KEYPAD_PRESET"
         const val EXTRA_RECOVERY_RENDERER_RECYCLED =
             "com.local.matholickiosk.extra.RECOVERY_RENDERER_RECYCLED"
         const val COLUMN_EXPECTED_NAME = "expected_name"
@@ -2255,11 +2391,14 @@ class MainActivity : Activity() {
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
+        const val INACTIVITY_WARNING_MS = 10 * 60 * 1_000L
         const val STUDENT_SESSION_BRIGHTNESS = 0.8f
         const val STUDENT_REVEAL_STABLE_PASSES = 2
         const val RESULT_EXTRACTION_RETRIES = 40
         const val RESULT_HYDRATION_RETRIES = 120
         const val STUDENT_NAV_HEIGHT_DP = 64
+        const val KEYPAD_PRESET_RIGHT = "right"
+        val KEYPAD_PRESETS = setOf("right", "left", "center")
         const val PORTAL_PROBE_RETRIES = 8
         const val MAX_LOGOUT_RETRIES = 1
     }
