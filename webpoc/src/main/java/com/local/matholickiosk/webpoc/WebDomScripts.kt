@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.12"
+    const val CONTRACT_VERSION = "web-2026-07-30.13"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -521,37 +521,157 @@ object WebDomScripts {
             }
             .matholic-kiosk-math-nav {
               position: fixed !important;
-              left: calc(16px + 35mm) !important;
-              top: calc(88px + 35mm) !important;
+              left: 18px !important;
+              right: 18px !important;
+              bottom: 12px !important;
+              top: auto !important;
               z-index: 2147482500 !important;
               display: none !important;
-              grid-template-columns: repeat(3, 54px) !important;
-              grid-template-rows: repeat(2, 54px) !important;
-              grid-template-areas:
-                ". up ."
-                "left down right" !important;
-              gap: 6px !important;
-              width: 190px !important;
+              width: auto !important;
+              max-width: none !important;
               margin: 0 !important;
-              padding: 8px !important;
-              border: 1px solid rgba(16, 42, 67, 0.35) !important;
-              border-radius: 14px !important;
-              background: rgba(255, 255, 255, 0.96) !important;
-              box-shadow: 0 5px 18px rgba(16, 42, 67, 0.28) !important;
+              padding: 24px !important;
+              border: 2px solid #9fb3c8 !important;
+              border-radius: 24px !important;
+              background: rgba(255, 255, 255, 0.985) !important;
+              box-shadow: 0 8px 28px rgba(16, 42, 67, 0.32) !important;
               overflow: visible !important;
             }
             .matholic-kiosk-math-nav[data-matholic-kiosk-active="true"] {
-              display: grid !important;
+              display: block !important;
             }
-            .matholic-kiosk-math-nav > button {
-              width: 54px !important;
-              min-width: 54px !important;
-              max-width: 54px !important;
-              height: 54px !important;
-              min-height: 54px !important;
-              padding: 4px !important;
-              font-size: 28px !important;
+            html[data-matholic-kiosk-keypad-active="true"] body {
+              padding-bottom: 452px !important;
+            }
+            .matholic-kiosk-keypad-inner {
+              display: grid !important;
+              grid-template-columns:
+                minmax(0, 480fr) minmax(0, 350fr) minmax(0, 250fr) !important;
+              gap: clamp(18px, 3vw, 38px) !important;
+              width: 100% !important;
+              max-width: 1156px !important;
+              margin: 0 auto !important;
+            }
+            .matholic-kiosk-keypad-section {
+              display: flex !important;
+              flex-direction: column !important;
+              min-width: 0 !important;
+            }
+            .matholic-kiosk-keypad-heading {
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              width: 100% !important;
+              height: 60px !important;
+              min-height: 60px !important;
+              border-radius: 12px !important;
+              font-size: 24px !important;
+              font-weight: 800 !important;
               line-height: 1 !important;
+            }
+            .matholic-kiosk-keypad-numeric
+              .matholic-kiosk-keypad-heading {
+              background: #dbeafe !important;
+              color: #173f6d !important;
+            }
+            .matholic-kiosk-keypad-structure
+              .matholic-kiosk-keypad-heading {
+              background: #e8f5e9 !important;
+              color: #1b5e20 !important;
+            }
+            .matholic-kiosk-keypad-edit
+              .matholic-kiosk-keypad-heading {
+              background: #fff3e0 !important;
+              color: #8a4b08 !important;
+            }
+            .matholic-kiosk-keypad-numeric-grid,
+            .matholic-kiosk-keypad-structure-grid {
+              display: grid !important;
+              margin-top: 16px !important;
+              gap: 16px 32px !important;
+            }
+            .matholic-kiosk-keypad-numeric-grid {
+              grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+              grid-template-rows: repeat(3, 88px) !important;
+            }
+            .matholic-kiosk-keypad-structure-grid {
+              grid-template-columns: minmax(0, 1fr) !important;
+              grid-template-rows: repeat(3, 88px) !important;
+            }
+            .matholic-kiosk-keypad-edit-body {
+              position: relative !important;
+              height: 296px !important;
+              margin-top: 16px !important;
+            }
+            .matholic-kiosk-keypad-arrows {
+              position: absolute !important;
+              top: 19px !important;
+              left: 0 !important;
+              right: 0 !important;
+              display: grid !important;
+              grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+              grid-template-rows: repeat(2, 76px) !important;
+              grid-template-areas:
+                ". up ."
+                "left down right" !important;
+              gap: 9px !important;
+            }
+            .matholic-kiosk-keypad-actions {
+              position: absolute !important;
+              left: 0 !important;
+              right: 0 !important;
+              bottom: 0 !important;
+              display: grid !important;
+              grid-template-columns: 116fr 122fr !important;
+              gap: 12px !important;
+              height: 88px !important;
+            }
+            .matholic-kiosk-math-nav button {
+              width: 100% !important;
+              min-width: 0 !important;
+              max-width: none !important;
+              height: 100% !important;
+              min-height: 0 !important;
+              margin: 0 !important;
+              padding: 8px !important;
+              border-width: 2px !important;
+              border-style: solid !important;
+              border-radius: 14px !important;
+              font-size: 32px !important;
+              font-weight: 800 !important;
+              line-height: 1 !important;
+              touch-action: manipulation !important;
+            }
+            .matholic-kiosk-keypad-numeric-grid > button {
+              border-color: #9fb3c8 !important;
+              background: #f8fafc !important;
+              color: #102a43 !important;
+            }
+            .matholic-kiosk-keypad-structure-grid > button {
+              border-color: #81c784 !important;
+              background: #f1f8f2 !important;
+              color: #1b5e20 !important;
+              font-size: 28px !important;
+            }
+            .matholic-kiosk-keypad-arrows > button,
+            .matholic-kiosk-keypad-actions > button {
+              border-color: #f59e0b !important;
+              background: #fff8ed !important;
+              color: #8a4b08 !important;
+            }
+            .matholic-kiosk-keypad-arrows > button {
+              font-size: 40px !important;
+            }
+            .matholic-kiosk-keypad-actions > button {
+              font-size: 21px !important;
+            }
+            .matholic-kiosk-keypad-actions > button[
+              data-matholic-kiosk-clear-armed="true"
+            ] {
+              border-color: #c2410c !important;
+              background: #ffedd5 !important;
+              color: #9a3412 !important;
+              font-size: 17px !important;
             }
             .matholic-kiosk-problem-number {
               position: fixed !important;
@@ -719,6 +839,7 @@ object WebDomScripts {
           let subjectiveTouchTargets = 0;
           let problemNavigationEnhancements = 0;
           let problemStateMapEnhancements = 0;
+          let mathKeypadEnhancements = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
             const navigationDirection = control => {
@@ -1734,13 +1855,75 @@ object WebDomScripts {
                   '.matholic-kiosk-math-nav'
                 );
                 if (!navigation) return;
+                const clearButton = navigation.querySelector(
+                  '[data-matholic-kiosk-key-action="clear"]'
+                );
+                if (clearButton) {
+                  delete clearButton.dataset.matholicKioskClearArmed;
+                  clearButton.textContent = '전체 지움';
+                }
+                if (navigation.matholicKioskClearTimer) {
+                  clearTimeout(navigation.matholicKioskClearTimer);
+                  navigation.matholicKioskClearTimer = 0;
+                }
                 delete navigation.dataset.matholicKioskActive;
                 navigation.setAttribute('aria-hidden', 'true');
+                delete document.documentElement.dataset
+                  .matholicKioskKeypadActive;
+              };
+              const scrollMathEditorAboveKeypad = (
+                editor,
+                navigation
+              ) => {
+                requestAnimationFrame(() => {
+                  if (
+                    !editor?.isConnected ||
+                    navigation.dataset.matholicKioskActive !== 'true'
+                  ) return;
+                  const editorRect = editor.getBoundingClientRect();
+                  const keypadRect = navigation.getBoundingClientRect();
+                  const overlap = editorRect.bottom - (keypadRect.top - 16);
+                  if (overlap <= 0) return;
+                  let scrollingParent = editor.parentElement;
+                  while (
+                    scrollingParent &&
+                    scrollingParent !== document.body &&
+                    scrollingParent !== document.documentElement
+                  ) {
+                    const parentStyle = getComputedStyle(scrollingParent);
+                    const overflowY =
+                      parentStyle.overflowY || parentStyle.overflow || '';
+                    if (
+                      /^(auto|scroll|overlay)$/.test(overflowY) &&
+                      scrollingParent.scrollHeight >
+                        scrollingParent.clientHeight + 2
+                    ) break;
+                    scrollingParent = scrollingParent.parentElement;
+                  }
+                  if (
+                    scrollingParent &&
+                    scrollingParent !== document.body &&
+                    scrollingParent !== document.documentElement
+                  ) {
+                    scrollingParent.scrollTop += overlap;
+                  } else {
+                    try {
+                      window.scrollBy({ top: overlap, behavior: 'auto' });
+                    } catch (_) {
+                      window.scrollBy(0, overlap);
+                    }
+                  }
+                });
               };
               const activateMathNavigation = (navigation, scope) => {
+                const editor = scope?.querySelector('.mq-editable-field');
+                if (!editor?.isConnected || !visible(editor)) return;
                 navigation.matholicKioskScope = scope;
                 navigation.dataset.matholicKioskActive = 'true';
                 navigation.setAttribute('aria-hidden', 'false');
+                document.documentElement.dataset
+                  .matholicKioskKeypadActive = 'true';
+                scrollMathEditorAboveKeypad(editor, navigation);
               };
               const bindMathNavigationActivation = (
                 editor,
@@ -1754,7 +1937,6 @@ object WebDomScripts {
                     activateMathNavigation(navigation, scope);
                   editor.addEventListener('pointerdown', activate);
                   editor.addEventListener('click', activate);
-                  editor.addEventListener('focusin', activate);
                   editor.dataset.matholicKioskNavigationBound = 'true';
                 }
                 if (!window.__matholicKioskMathNavigationDismissGuard) {
@@ -1769,14 +1951,47 @@ object WebDomScripts {
                   window.__matholicKioskMathNavigationDismissGuard = true;
                 }
               };
+              const hideOriginalMathToolbar = scope => {
+                if (!scope) return false;
+                const toolbarButtons = Array.from(
+                  scope.querySelectorAll('button,[role="button"]')
+                ).filter(button =>
+                  toolbarLabels.has(normalize(button.textContent))
+                );
+                const labels = new Set(
+                  toolbarButtons.map(button => normalize(button.textContent))
+                );
+                if (![...toolbarLabels].every(label => labels.has(label))) {
+                  return false;
+                }
+                toolbarButtons.forEach(button => {
+                  button.dataset.matholicKioskOriginalMathTool = 'true';
+                  hide(button);
+                });
+                return true;
+              };
               const ensureMathNavigation = scope => {
                 const editor = scope?.querySelector('.mq-editable-field');
                 if (!editor) return false;
                 let navigation = document.querySelector(
                   '.matholic-kiosk-math-nav'
                 );
+                if (
+                  navigation &&
+                  navigation.dataset.matholicKioskKeypadVersion !== version
+                ) {
+                  navigation.remove();
+                  navigation = null;
+                }
                 if (navigation) {
+                  hideOriginalMathToolbar(scope);
                   bindMathNavigationActivation(editor, scope, navigation);
+                  mathKeypadEnhancements = Math.max(
+                    mathKeypadEnhancements,
+                    navigation.querySelectorAll(
+                      '[data-matholic-kiosk-key-action]'
+                    ).length
+                  );
                   return true;
                 }
                 let toolbarButtons = Array.from(
@@ -1800,53 +2015,250 @@ object WebDomScripts {
                 const toolbar = toolbarButtons[0]?.parentElement;
                 if (!toolbar?.parentElement) return false;
                 navigation = document.createElement('div');
-                navigation.className = 'matholic-kiosk-math-nav';
+                navigation.className =
+                  'matholic-kiosk-math-nav matholic-kiosk-math-keypad';
+                navigation.dataset.matholicKioskKeypadVersion = version;
                 navigation.setAttribute('role', 'group');
-                navigation.setAttribute('aria-label', '수식 커서 이동');
+                navigation.setAttribute('aria-label', '주관식 수식 입력 키패드');
                 navigation.setAttribute('aria-hidden', 'true');
-                [
-                  ['↑', 'Up', '커서 위쪽', 'up'],
-                  ['←', 'Left', '커서 왼쪽', 'left'],
-                  ['↓', 'Down', '커서 아래쪽', 'down'],
-                  ['→', 'Right', '커서 오른쪽', 'right']
-                ].forEach(([symbol, key, label, area]) => {
+                const inner = document.createElement('div');
+                inner.className = 'matholic-kiosk-keypad-inner';
+                const createSection = (className, headingText, label) => {
+                  const section = document.createElement('section');
+                  section.className =
+                    `matholic-kiosk-keypad-section ${'$'}{className}`;
+                  section.setAttribute('aria-label', label);
+                  const heading = document.createElement('div');
+                  heading.className = 'matholic-kiosk-keypad-heading';
+                  heading.textContent = headingText;
+                  heading.setAttribute('aria-hidden', 'true');
+                  section.appendChild(heading);
+                  inner.appendChild(section);
+                  return section;
+                };
+                const resetClearArm = () => {
+                  const clearButton = navigation.querySelector(
+                    '[data-matholic-kiosk-key-action="clear"]'
+                  );
+                  if (clearButton) {
+                    delete clearButton.dataset.matholicKioskClearArmed;
+                    clearButton.textContent = '전체 지움';
+                  }
+                  if (navigation.matholicKioskClearTimer) {
+                    clearTimeout(navigation.matholicKioskClearTimer);
+                    navigation.matholicKioskClearTimer = 0;
+                  }
+                };
+                const activeMathField = () => {
+                  const focusedEditor = document.activeElement?.closest?.(
+                    '.mq-editable-field'
+                  );
+                  const currentEditor = focusedEditor ||
+                    navigation.matholicKioskScope?.querySelector(
+                      '.mq-editable-field'
+                    ) ||
+                    Array.from(document.querySelectorAll('.mq-editable-field'))
+                      .find(visible);
+                  const factory = window.MathQuill?.getInterface?.(2);
+                  const field = currentEditor &&
+                    typeof factory === 'function' ?
+                    factory(currentEditor) : null;
+                  return { field, editor: currentEditor };
+                };
+                const runKeyAction = (button, action, value) => {
+                  if (action === 'clear') {
+                    if (
+                      button.dataset.matholicKioskClearArmed !== 'true'
+                    ) {
+                      resetClearArm();
+                      button.dataset.matholicKioskClearArmed = 'true';
+                      button.textContent = '다시 눌러 지움';
+                      navigation.matholicKioskClearTimer = setTimeout(
+                        resetClearArm,
+                        2000
+                      );
+                      return;
+                    }
+                  }
+                  const { field } = activeMathField();
+                  if (!field) {
+                    resetClearArm();
+                    return;
+                  }
+                  try {
+                    if (action === 'write' && typeof field.write === 'function') {
+                      field.write(value);
+                    } else if (action === 'command') {
+                      if (typeof field.cmd === 'function') {
+                        field.cmd(value);
+                      } else if (typeof field.write === 'function') {
+                        field.write(value);
+                      }
+                    } else if (
+                      action === 'keystroke' &&
+                      typeof field.keystroke === 'function'
+                    ) {
+                      field.keystroke(value);
+                    } else if (
+                      action === 'clear' &&
+                      typeof field.keystroke === 'function'
+                    ) {
+                      resetClearArm();
+                      if (typeof field.select === 'function') {
+                        field.select();
+                        field.keystroke('Backspace');
+                      } else {
+                        field.keystroke('Ctrl-A');
+                        field.keystroke('Backspace');
+                      }
+                    }
+                    field.focus?.();
+                  } catch (_) {
+                    resetClearArm();
+                  }
+                };
+                const createKey = (
+                  container,
+                  text,
+                  label,
+                  action,
+                  value,
+                  area
+                ) => {
                   const button = document.createElement('button');
                   button.type = 'button';
-                  button.textContent = symbol;
+                  button.textContent = text;
                   button.setAttribute('aria-label', label);
                   button.setAttribute('title', label);
-                  button.dataset.matholicKioskCursorKey = key;
-                  button.dataset.matholicKioskGridArea = area;
-                  button.style.setProperty('grid-area', area, 'important');
+                  button.dataset.matholicKioskKeyAction = action;
+                  if (value) button.dataset.matholicKioskKeyValue = value;
+                  if (area) {
+                    button.dataset.matholicKioskGridArea = area;
+                    button.style.setProperty(
+                      'grid-area',
+                      area,
+                      'important'
+                    );
+                  }
                   button.addEventListener('pointerdown', event => {
                     event.preventDefault();
+                    event.stopPropagation();
                   });
                   button.addEventListener('click', event => {
                     event.preventDefault();
                     event.stopPropagation();
-                    try {
-                      const focusedEditor = document.activeElement?.closest?.(
-                        '.mq-editable-field'
-                      );
-                      const currentEditor = focusedEditor ||
-                        navigation.matholicKioskScope?.querySelector(
-                          '.mq-editable-field'
-                        ) ||
-                        Array.from(document.querySelectorAll('.mq-editable-field'))
-                          .find(visible);
-                      const factory = window.MathQuill?.getInterface?.(2);
-                      const field = currentEditor &&
-                        typeof factory === 'function' ?
-                        factory(currentEditor) : null;
-                      if (!field || typeof field.keystroke !== 'function') return;
-                      field.keystroke(key);
-                      field.focus?.();
-                    } catch (_) {}
+                    runKeyAction(button, action, value);
                   });
-                  navigation.appendChild(button);
-                });
+                  container.appendChild(button);
+                  return button;
+                };
+
+                const numericSection = createSection(
+                  'matholic-kiosk-keypad-numeric',
+                  '숫자 · 소수점 · 부호',
+                  '숫자와 부호'
+                );
+                const numericGrid = document.createElement('div');
+                numericGrid.className = 'matholic-kiosk-keypad-numeric-grid';
+                [
+                  ['1', '숫자 1', '1'], ['2', '숫자 2', '2'],
+                  ['3', '숫자 3', '3'], ['부호', '음수 부호', '-'],
+                  ['4', '숫자 4', '4'], ['5', '숫자 5', '5'],
+                  ['6', '숫자 6', '6'], ['.', '소수점', '.'],
+                  ['7', '숫자 7', '7'], ['8', '숫자 8', '8'],
+                  ['9', '숫자 9', '9'], ['0', '숫자 0', '0']
+                ].forEach(([text, label, value]) =>
+                  createKey(
+                    numericGrid,
+                    text,
+                    label,
+                    'write',
+                    value,
+                    ''
+                  )
+                );
+                numericSection.appendChild(numericGrid);
+
+                const structureSection = createSection(
+                  'matholic-kiosk-keypad-structure',
+                  '수식 구조',
+                  '수식 구조'
+                );
+                const structureGrid = document.createElement('div');
+                structureGrid.className =
+                  'matholic-kiosk-keypad-structure-grid';
+                [
+                  ['루트  √□', '루트 입력', '\\sqrt'],
+                  ['분수  □/□', '분수 입력', '\\frac'],
+                  ['파이  π', '파이 입력', '\\pi']
+                ].forEach(([text, label, value]) =>
+                  createKey(
+                    structureGrid,
+                    text,
+                    label,
+                    'command',
+                    value,
+                    ''
+                  )
+                );
+                structureSection.appendChild(structureGrid);
+
+                const editSection = createSection(
+                  'matholic-kiosk-keypad-edit',
+                  '이동 · 수정',
+                  '커서 이동과 수정'
+                );
+                const editBody = document.createElement('div');
+                editBody.className = 'matholic-kiosk-keypad-edit-body';
+                const arrows = document.createElement('div');
+                arrows.className = 'matholic-kiosk-keypad-arrows';
+                [
+                  ['↑', '커서 위쪽', 'Up', 'up'],
+                  ['←', '커서 왼쪽', 'Left', 'left'],
+                  ['↓', '커서 아래쪽', 'Down', 'down'],
+                  ['→', '커서 오른쪽', 'Right', 'right']
+                ].forEach(([text, label, value, area]) =>
+                  createKey(
+                    arrows,
+                    text,
+                    label,
+                    'keystroke',
+                    value,
+                    area
+                  )
+                );
+                const actions = document.createElement('div');
+                actions.className = 'matholic-kiosk-keypad-actions';
+                createKey(
+                  actions,
+                  '한 칸 삭제',
+                  '한 칸 삭제',
+                  'keystroke',
+                  'Backspace',
+                  ''
+                );
+                createKey(
+                  actions,
+                  '전체 지움',
+                  '전체 지움',
+                  'clear',
+                  '',
+                  ''
+                );
+                editBody.appendChild(arrows);
+                editBody.appendChild(actions);
+                editSection.appendChild(editBody);
+
+                navigation.appendChild(inner);
                 document.body.appendChild(navigation);
+                hideOriginalMathToolbar(scope);
                 bindMathNavigationActivation(editor, scope, navigation);
+                mathKeypadEnhancements = Math.max(
+                  mathKeypadEnhancements,
+                  navigation.querySelectorAll(
+                    '[data-matholic-kiosk-key-action]'
+                  ).length
+                );
                 return true;
               };
               const prepareMathEditor = scope => {
@@ -1855,14 +2267,14 @@ object WebDomScripts {
                 const textarea =
                   editor.querySelector('textarea') ||
                   scope.querySelector('.mq-textarea textarea');
+                if (!ensureMathNavigation(scope)) return false;
                 if (textarea) {
-                  textarea.setAttribute('inputmode', 'decimal');
+                  textarea.setAttribute('inputmode', 'none');
                   textarea.setAttribute('enterkeyhint', 'done');
                   textarea.setAttribute('autocomplete', 'off');
                   textarea.setAttribute('autocapitalize', 'none');
                   textarea.setAttribute('spellcheck', 'false');
                 }
-                if (!ensureMathNavigation(scope)) return false;
                 if (editor.dataset.matholicKioskMathStabilized === 'true') {
                   return true;
                 }
@@ -2465,7 +2877,7 @@ object WebDomScripts {
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
             mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets, problemNavigationEnhancements,
-            problemStateMapEnhancements,
+            problemStateMapEnhancements, mathKeypadEnhancements,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });

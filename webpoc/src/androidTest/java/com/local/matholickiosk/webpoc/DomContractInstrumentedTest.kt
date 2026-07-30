@@ -825,6 +825,29 @@ class DomContractInstrumentedTest {
                   <button id="pi" onclick="this.dataset.clicked='yes'">파이</button>
                   <button id="input-menu">입력기</button>
                 </div>
+                <script>
+                  window.rc47Commands = [];
+                  const editor = document.getElementById('math-editor');
+                  let latex = '';
+                  editor.fieldApi = {
+                    latex: value => {
+                      if (value !== undefined) latex = value;
+                      return latex;
+                    },
+                    write: value => { latex += value; },
+                    cmd: value => {
+                      window.rc47Commands.push(value);
+                      latex += value;
+                    },
+                    keystroke: key => {
+                      if (key === 'Backspace') latex = latex.slice(0, -1);
+                    },
+                    focus: () => {}
+                  };
+                  window.MathQuill = {
+                    getInterface: () => element => element.fieldApi || null
+                  };
+                </script>
               </main>
             </body></html>
             """.trimIndent(),
@@ -835,18 +858,23 @@ class DomContractInstrumentedTest {
                 webView,
                 """
                 (() => {
-                  ['root', 'fraction', 'pi'].forEach(id =>
-                    document.getElementById(id).click()
-                  );
-                  const scope = document.getElementById('answer-input-form-0');
                   const editor = document.getElementById('math-editor');
+                  editor.dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
+                  const structureControls = Array.from(
+                    document.querySelectorAll(
+                      '.matholic-kiosk-keypad-structure-grid button'
+                    )
+                  );
+                  structureControls.forEach(control => control.click());
+                  const scope = document.getElementById('answer-input-form-0');
                   const editorStyle = getComputedStyle(editor);
-                  const controls = ['root', 'fraction', 'pi'].map(id => {
+                  const originalControls = ['root', 'fraction', 'pi'].map(id => {
                     const control = document.getElementById(id);
                     const style = getComputedStyle(control);
                     return {
                       display: style.display,
-                      pointerEvents: style.pointerEvents,
                       clicked: control.dataset.clicked === 'yes'
                     };
                   });
@@ -857,7 +885,12 @@ class DomContractInstrumentedTest {
                       !scope.hasAttribute('data-matholic-kiosk-math-pending'),
                     editorMinHeight: parseFloat(editorStyle.minHeight),
                     editorPointerEvents: editorStyle.pointerEvents,
-                    controls,
+                    originalControls,
+                    structureControlCount: structureControls.length,
+                    structureControlsTouchable: structureControls.every(control =>
+                      getComputedStyle(control).pointerEvents !== 'none'
+                    ),
+                    commands: window.rc47Commands,
                     navigationCount:
                       document.querySelectorAll('.matholic-kiosk-math-nav').length
                   });
@@ -869,13 +902,17 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("pendingMarkerRemoved"))
             assertTrue(proof.getDouble("editorMinHeight") >= 56.0)
             assertEquals("auto", proof.getString("editorPointerEvents"))
-            val controls = proof.getJSONArray("controls")
-            repeat(controls.length()) { index ->
-                val control = controls.getJSONObject(index)
-                assertFalse(control.getString("display") == "none")
-                assertFalse(control.getString("pointerEvents") == "none")
-                assertTrue(control.getBoolean("clicked"))
+            val originalControls = proof.getJSONArray("originalControls")
+            repeat(originalControls.length()) { index ->
+                val control = originalControls.getJSONObject(index)
+                assertEquals("none", control.getString("display"))
+                assertFalse(control.getBoolean("clicked"))
             }
+            assertEquals(3, proof.getInt("structureControlCount"))
+            assertTrue(proof.getBoolean("structureControlsTouchable"))
+            assertEquals("\\sqrt", proof.getJSONArray("commands").getString(0))
+            assertEquals("\\frac", proof.getJSONArray("commands").getString(1))
+            assertEquals("\\pi", proof.getJSONArray("commands").getString(2))
             assertEquals(1, proof.getInt("navigationCount"))
         }
     }
@@ -1602,7 +1639,7 @@ class DomContractInstrumentedTest {
             assertEquals(3, proof.getInt("editCount"))
             assertTrue(proof.getBoolean("inputEnabled"))
             assertTrue(proof.getBoolean("stabilized"))
-            assertEquals("decimal", proof.getString("inputMode"))
+            assertEquals("none", proof.getString("inputMode"))
         }
     }
 
@@ -1746,7 +1783,7 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperienceAddsIdempotentMathCursorControls() {
+    fun testStudentExperienceAddsIdempotentBottomMathKeypad() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -1766,18 +1803,26 @@ class DomContractInstrumentedTest {
                 </div>
                 <script>
                   window.cursorKeys = [];
+                  window.mathCommands = [];
                   window.cursorFocusCount = 0;
                   const editor = document.getElementById('math-editor');
                   let latex = '';
+                  let selected = false;
                   editor.fieldApi = {
                     latex: value => {
                       if (value !== undefined) latex = value;
                       return latex;
                     },
                     write: value => { latex += value; },
+                    cmd: value => {
+                      window.mathCommands.push(value);
+                      latex += value;
+                    },
+                    select: () => { selected = true; },
                     keystroke: key => {
                       if (key === 'Backspace') {
-                        latex = latex.slice(0, -1);
+                        latex = selected ? '' : latex.slice(0, -1);
+                        selected = false;
                       } else {
                         window.cursorKeys.push(key);
                       }
@@ -1801,61 +1846,158 @@ class DomContractInstrumentedTest {
                   const navigation = document.querySelector(
                     '.matholic-kiosk-math-nav'
                   );
-                  const buttons = Array.from(document.querySelectorAll(
-                    '.matholic-kiosk-math-nav button'
-                  ));
-                  const hiddenBeforeDirectInput =
-                    getComputedStyle(navigation).display === 'none';
-                  document.getElementById('math-editor').dispatchEvent(
-                    new Event('pointerdown', { bubbles: true })
-                  );
-                  const visibleWhileDirectlyEditing =
-                    getComputedStyle(navigation).display === 'grid';
-                  buttons.forEach(button => button.click());
-                  document.body.dispatchEvent(
-                    new Event('pointerdown', { bubbles: true })
-                  );
-                  return JSON.stringify({
-                    count: buttons.length,
-                    labels: buttons.map(button => button.textContent).join(''),
-                    keys: window.cursorKeys,
-                    focusCount: window.cursorFocusCount,
-                    parentIsBody: buttons[0]?.parentElement?.parentElement === document.body,
-                    position: getComputedStyle(buttons[0]?.parentElement).position,
-                    left: parseFloat(getComputedStyle(buttons[0]?.parentElement).left),
-                    top: parseFloat(getComputedStyle(buttons[0]?.parentElement).top),
-                    areas: buttons.map(button =>
-                      button.dataset.matholicKioskGridArea
-                    ),
-                    navCount: document.querySelectorAll(
-                      '.matholic-kiosk-math-nav'
-                    ).length,
-                    hiddenBeforeDirectInput,
-                    visibleWhileDirectlyEditing,
-                    hiddenAfterOutsideTouch:
-                      getComputedStyle(navigation).display === 'none'
-                  });
+                   const buttons = Array.from(document.querySelectorAll(
+                     '.matholic-kiosk-math-nav ' +
+                     '[data-matholic-kiosk-key-action]'
+                   ));
+                   const hiddenBeforeDirectInput =
+                     getComputedStyle(navigation).display === 'none';
+                   document.getElementById('math-editor').dispatchEvent(
+                     new Event('focusin', { bubbles: true })
+                   );
+                   const hiddenAfterProgrammaticFocus =
+                     getComputedStyle(navigation).display === 'none';
+                   document.getElementById('math-editor').dispatchEvent(
+                     new Event('pointerdown', { bubbles: true })
+                   );
+                   const visibleWhileDirectlyEditing =
+                     getComputedStyle(navigation).display === 'block';
+                   const sectionRects = Array.from(
+                     navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-section'
+                     )
+                   ).map(section => section.getBoundingClientRect());
+                   const numericHeading = navigation.querySelector(
+                     '.matholic-kiosk-keypad-numeric ' +
+                     '.matholic-kiosk-keypad-heading'
+                   ).getBoundingClientRect();
+                   const numericGrid = navigation.querySelector(
+                     '.matholic-kiosk-keypad-numeric-grid'
+                   ).getBoundingClientRect();
+                   const key = value => Array.from(navigation.querySelectorAll(
+                     '[data-matholic-kiosk-key-value]'
+                   )).find(button =>
+                     button.dataset.matholicKioskKeyValue === value
+                   );
+                   key('1').click();
+                   key('2').click();
+                   navigation.querySelector(
+                     '[data-matholic-kiosk-key-value="Backspace"]'
+                   ).click();
+                   key('-').click();
+                   key('.').click();
+                   key('\\sqrt').click();
+                   key('\\frac').click();
+                   key('\\pi').click();
+                   navigation.querySelectorAll(
+                     '.matholic-kiosk-keypad-arrows button'
+                   ).forEach(button => button.click());
+                   const clearButton = navigation.querySelector(
+                     '[data-matholic-kiosk-key-action="clear"]'
+                   );
+                   clearButton.click();
+                   const clearArmed =
+                     clearButton.dataset.matholicKioskClearArmed === 'true';
+                   const answerBeforeConfirmedClear = editor.fieldApi.latex();
+                   clearButton.click();
+                   const answerAfterConfirmedClear = editor.fieldApi.latex();
+                   document.body.dispatchEvent(
+                     new Event('pointerdown', { bubbles: true })
+                   );
+                   return JSON.stringify({
+                     count: buttons.length,
+                     numericCount: navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-numeric-grid button'
+                     ).length,
+                     structureCount: navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-structure-grid button'
+                     ).length,
+                     arrowCount: navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-arrows button'
+                     ).length,
+                     actionCount: navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-actions button'
+                     ).length,
+                     headings: Array.from(navigation.querySelectorAll(
+                       '.matholic-kiosk-keypad-heading'
+                     )).map(heading => heading.textContent),
+                     keys: window.cursorKeys,
+                     commands: window.mathCommands,
+                     focusCount: window.cursorFocusCount,
+                     parentIsBody: navigation.parentElement === document.body,
+                     position: getComputedStyle(navigation).position,
+                     left: parseFloat(getComputedStyle(navigation).left),
+                     right: parseFloat(getComputedStyle(navigation).right),
+                     bottom: parseFloat(getComputedStyle(navigation).bottom),
+                     firstGap: sectionRects[1].left - sectionRects[0].right,
+                     secondGap: sectionRects[2].left - sectionRects[1].right,
+                     numericHeaderLeftDelta:
+                       numericHeading.left - numericGrid.left,
+                     numericHeaderRightDelta:
+                       numericHeading.right - numericGrid.right,
+                     inputMode: document.querySelector(
+                       '#math-editor textarea'
+                     ).getAttribute('inputmode'),
+                     originalToolbarHidden: Array.from(
+                       document.querySelectorAll('#math-toolbar button')
+                     ).every(button =>
+                       getComputedStyle(button).display === 'none'
+                     ),
+                     navCount: document.querySelectorAll(
+                       '.matholic-kiosk-math-nav'
+                     ).length,
+                     hiddenBeforeDirectInput,
+                     hiddenAfterProgrammaticFocus,
+                     visibleWhileDirectlyEditing,
+                     clearArmed,
+                     answerBeforeConfirmedClear,
+                     answerAfterConfirmedClear,
+                     hiddenAfterOutsideTouch:
+                       getComputedStyle(navigation).display === 'none'
+                   });
                 })()
                 """.trimIndent(),
             )
-            assertEquals(4, proof.getInt("count"))
-            assertEquals("↑←↓→", proof.getString("labels"))
+            assertEquals(21, proof.getInt("count"))
+            assertEquals(12, proof.getInt("numericCount"))
+            assertEquals(3, proof.getInt("structureCount"))
+            assertEquals(4, proof.getInt("arrowCount"))
+            assertEquals(2, proof.getInt("actionCount"))
+            assertEquals("숫자 · 소수점 · 부호", proof.getJSONArray("headings").getString(0))
+            assertEquals("수식 구조", proof.getJSONArray("headings").getString(1))
+            assertEquals("이동 · 수정", proof.getJSONArray("headings").getString(2))
             assertEquals(1, proof.getInt("navCount"))
-            assertEquals(4, proof.getInt("focusCount"))
+            assertTrue(proof.getInt("focusCount") >= 12)
             assertTrue(proof.getBoolean("parentIsBody"))
             assertEquals("fixed", proof.getString("position"))
-            assertTrue(proof.getDouble("left") in 148.0..149.0)
-            assertTrue(proof.getDouble("top") in 220.0..221.0)
-            assertEquals("up", proof.getJSONArray("areas").getString(0))
-            assertEquals("left", proof.getJSONArray("areas").getString(1))
-            assertEquals("down", proof.getJSONArray("areas").getString(2))
-            assertEquals("right", proof.getJSONArray("areas").getString(3))
+            assertEquals(18.0, proof.getDouble("left"), 0.6)
+            assertEquals(18.0, proof.getDouble("right"), 0.6)
+            assertEquals(12.0, proof.getDouble("bottom"), 0.6)
+            assertEquals(
+                proof.getDouble("firstGap"),
+                proof.getDouble("secondGap"),
+                0.6,
+            )
+            assertEquals(0.0, proof.getDouble("numericHeaderLeftDelta"), 0.6)
+            assertEquals(0.0, proof.getDouble("numericHeaderRightDelta"), 0.6)
+            assertEquals("none", proof.getString("inputMode"))
+            assertTrue(proof.getBoolean("originalToolbarHidden"))
+            assertEquals("\\sqrt", proof.getJSONArray("commands").getString(0))
+            assertEquals("\\frac", proof.getJSONArray("commands").getString(1))
+            assertEquals("\\pi", proof.getJSONArray("commands").getString(2))
             assertEquals("Up", proof.getJSONArray("keys").getString(0))
             assertEquals("Left", proof.getJSONArray("keys").getString(1))
             assertEquals("Down", proof.getJSONArray("keys").getString(2))
             assertEquals("Right", proof.getJSONArray("keys").getString(3))
             assertTrue(proof.getBoolean("hiddenBeforeDirectInput"))
+            assertTrue(proof.getBoolean("hiddenAfterProgrammaticFocus"))
             assertTrue(proof.getBoolean("visibleWhileDirectlyEditing"))
+            assertTrue(proof.getBoolean("clearArmed"))
+            assertEquals(
+                "1-.\\sqrt\\frac\\pi",
+                proof.getString("answerBeforeConfirmedClear"),
+            )
+            assertEquals("", proof.getString("answerAfterConfirmedClear"))
             assertTrue(proof.getBoolean("hiddenAfterOutsideTouch"))
         }
     }
@@ -1911,8 +2053,8 @@ class DomContractInstrumentedTest {
                   document.getElementById('math-editor').dispatchEvent(
                     new Event('pointerdown', { bubbles: true })
                   );
-                  const visibleDuringEdit =
-                    getComputedStyle(navigation).display === 'grid';
+                   const visibleDuringEdit =
+                     getComputedStyle(navigation).display === 'block';
                   document.getElementById('answer-submit').dispatchEvent(
                     new Event('pointerdown', { bubbles: true })
                   );
@@ -1926,6 +2068,64 @@ class DomContractInstrumentedTest {
             )
             assertTrue(proof.getBoolean("visibleDuringEdit"))
             assertTrue(proof.getBoolean("hiddenOnSubmitTouch"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceKeepsNativeMathInputWhenCustomKeypadCannotBeBuilt() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="answer-input-form-0">
+                <span id="math-editor" class="mq-editable-field mq-math-mode">
+                  <span class="mq-textarea">
+                    <textarea inputmode="decimal"></textarea>
+                  </span>
+                  <span class="mq-root-block"></span>
+                </span>
+              </div>
+              <script>
+                const editor = document.getElementById('math-editor');
+                let latex = '';
+                editor.fieldApi = {
+                  latex: value => {
+                    if (value !== undefined) latex = value;
+                    return latex;
+                  },
+                  write: value => { latex += value; },
+                  keystroke: key => {
+                    if (key === 'Backspace') latex = latex.slice(0, -1);
+                  },
+                  focus: () => {}
+                };
+                window.MathQuill = {
+                  getInterface: () => element => element.fieldApi || null
+                };
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  keypadCount: document.querySelectorAll(
+                    '.matholic-kiosk-math-nav'
+                  ).length,
+                  inputMode: document.querySelector(
+                    '#math-editor textarea'
+                  ).getAttribute('inputmode'),
+                  pointerEvents: getComputedStyle(
+                    document.getElementById('math-editor')
+                  ).pointerEvents
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals(0, proof.getInt("keypadCount"))
+            assertEquals("decimal", proof.getString("inputMode"))
+            assertEquals("auto", proof.getString("pointerEvents"))
         }
     }
 
