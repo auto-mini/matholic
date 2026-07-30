@@ -5,7 +5,17 @@ from pathlib import Path
 import pytest
 
 from matholic_pdf_receiver.config import ConfigStore, ReceiverConfig
-from matholic_pdf_receiver.protocol import Pairing, ProtocolError, decode_ack, encode_request
+from matholic_pdf_receiver.protocol import (
+    CONTROL_FETCH_CSV,
+    CONTROL_STATUS,
+    Pairing,
+    ProtocolError,
+    decode_ack,
+    decode_control_request,
+    decode_control_response,
+    encode_control_request,
+    encode_request,
+)
 from matholic_pdf_receiver.server import ReceiverState, ThreadedReceiverServer, safe_pdf_name
 
 
@@ -69,3 +79,53 @@ def test_tcp_receiver_returns_authenticated_ack(
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_receiver_accepts_status_and_serves_csv_once(
+    tmp_path: Path,
+    config: ReceiverConfig,
+) -> None:
+    store = ConfigStore(tmp_path / "config.json")
+    store.save(config)
+    events = []
+    state = ReceiverState(config, store, events.append)
+    pairing = config.pairing(host="127.0.0.1")
+    state.queue_csv("students.csv", "이름,아이디\n테스트,test".encode())
+
+    status_frame = encode_control_request(
+        pairing,
+        CONTROL_STATUS,
+        "ACTIVE",
+        '{"state":"문제풀이","studentName":"테스트","notify":false}'.encode(),
+    )
+    status_response, event = state.accept_control(status_frame)
+    decoded_status = decode_control_response(
+        pairing,
+        status_response,
+        expected_request_id=decode_control_request(pairing, status_frame).request_id,
+    )
+    assert decoded_status.accepted
+    assert event.kind == "status"
+    assert event.student_name == "테스트"
+
+    csv_frame = encode_control_request(pairing, CONTROL_FETCH_CSV, "FETCH")
+    csv_request = decode_control_request(pairing, csv_frame)
+    csv_response, csv_event = state.accept_control(csv_frame)
+    decoded_csv = decode_control_response(
+        pairing,
+        csv_response,
+        expected_request_id=csv_request.request_id,
+    )
+    assert decoded_csv.accepted
+    assert decoded_csv.label == "students.csv"
+    assert decoded_csv.payload.decode().startswith("이름")
+    assert csv_event.kind == "csv"
+
+    second_frame = encode_control_request(pairing, CONTROL_FETCH_CSV, "FETCH")
+    second_request = decode_control_request(pairing, second_frame)
+    second_response, _ = state.accept_control(second_frame)
+    assert not decode_control_response(
+        pairing,
+        second_response,
+        expected_request_id=second_request.request_id,
+    ).accepted

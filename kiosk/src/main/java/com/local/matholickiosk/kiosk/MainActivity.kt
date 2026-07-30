@@ -72,6 +72,7 @@ import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.clearSensitiveData
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import com.local.matholickiosk.kiosk.transfer.PcPairingStore
+import com.local.matholickiosk.kiosk.transfer.PcControlClient
 import com.local.matholickiosk.kiosk.transfer.PcPdfSender
 import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
 import java.io.File
@@ -116,17 +117,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var scannerPanel: FrameLayout
     private lateinit var scannerInstruction: TextView
     private lateinit var scannerMessage: TextView
+    private lateinit var cancelQrLoginButton: Button
     private lateinit var switchCameraButton: ImageButton
     private lateinit var sessionAdminButton: ImageButton
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val pcControlExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private lateinit var database: KioskDatabase
     private lateinit var authRepository: AdminAuthRepository
     private lateinit var studentRepository: StudentRepository
     private lateinit var lockTaskController: KioskLockTaskController
     private lateinit var pcPairingStore: PcPairingStore
     private val pcPdfSender = PcPdfSender()
+    private val pcControlClient = PcControlClient()
 
     private var authEnrollmentMode = false
     private var authBusy = false
@@ -162,6 +166,8 @@ class MainActivity : ComponentActivity() {
     private val quickClassButtons = linkedMapOf<String, Button>()
     private var manualStudentSelectionOnly = false
     private var manualStudentSelectionFlowActive = false
+    private var qrAcceptanceGeneration = 0
+    private var activeStudentDisplayName: String? = null
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -218,14 +224,30 @@ class MainActivity : ComponentActivity() {
                     onSuccess = { persisted ->
                         currentSession = persisted.session
                         if (persisted.passed) {
+                            reportPcStatus(
+                                state = "채점 완료",
+                                studentName = activeStudentDisplayName,
+                                notify = true,
+                            )
+                            activeStudentDisplayName = null
                             showScanner()
                         } else {
+                            reportPcStatus(
+                                state = "복구 필요",
+                                studentName = activeStudentDisplayName,
+                                notify = true,
+                            )
                             statusText.text = KioskState.LOCKED.name
                             showAuthentication(enrollment = false)
                             authError.text = "화면이 잠겼습니다 · $failureReason"
                         }
                     },
                     onFailure = {
+                        reportPcStatus(
+                            state = "복구 필요",
+                            studentName = activeStudentDisplayName,
+                            notify = true,
+                        )
                         currentSession = null
                         statusText.text = KioskState.LOCKED.name
                         showAuthentication(enrollment = false)
@@ -328,6 +350,7 @@ class MainActivity : ComponentActivity() {
         scannerPanel = findViewById(R.id.scanner_panel)
         scannerInstruction = findViewById(R.id.scanner_lens_instruction)
         scannerMessage = findViewById(R.id.scanner_message)
+        cancelQrLoginButton = findViewById(R.id.cancel_qr_login_button)
         switchCameraButton = findViewById(R.id.switch_camera_button)
         sessionAdminButton = findViewById(R.id.session_admin_button)
     }
@@ -356,6 +379,7 @@ class MainActivity : ComponentActivity() {
             addTemporaryButton,
             startSessionButton,
             resumeSessionButton,
+            cancelQrLoginButton,
             switchCameraButton,
             sessionAdminButton,
         ).forEach { it.filterTouchesWhenObscured = true }
@@ -394,6 +418,7 @@ class MainActivity : ComponentActivity() {
         addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
         startSessionButton.setOnClickListener { startOrEndSession() }
         resumeSessionButton.setOnClickListener { showScanner() }
+        cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
         sessionAdminButton.setOnClickListener {
             if (pcPairingMode) {
@@ -551,6 +576,11 @@ class MainActivity : ComponentActivity() {
         setAuthBusy(false)
         pinInput.requestFocus()
         enterDedicatedMode()
+        reportPcStatus(
+            state = if (enrollment) "관리자 PIN 설정 필요" else "관리자 인증 필요",
+            studentName = null,
+            notify = false,
+        )
     }
 
     private fun submitAuthentication() {
@@ -632,6 +662,32 @@ class MainActivity : ComponentActivity() {
         statusText.text = "ADMIN_LOADING"
         refreshAdminData(message)
         refreshPcPairingState()
+        reportPcStatus("관리자 화면", null, notify = false)
+    }
+
+    private fun reportPcStatus(
+        state: String,
+        studentName: String?,
+        notify: Boolean,
+    ) {
+        if (!::pcPairingStore.isInitialized || pcControlExecutor.isShutdown) return
+        runCatching {
+            pcControlExecutor.execute {
+                val pairing = runCatching { pcPairingStore.load() }.getOrNull() ?: return@execute
+                try {
+                    runCatching {
+                        pcControlClient.sendStatus(
+                            pairing = pairing,
+                            state = state,
+                            studentName = studentName,
+                            notify = notify,
+                        )
+                    }
+                } finally {
+                    pairing.clearSensitiveData()
+                }
+            }
+        }
     }
 
     private fun configureDedicatedDevice() {
@@ -2191,9 +2247,13 @@ class MainActivity : ComponentActivity() {
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
         scannerVisible = true
+        qrAcceptanceGeneration += 1
+        cancelQrLoginButton.visibility = View.GONE
+        activeStudentDisplayName = null
         qrGuidanceGeneration += 1
         scannerMessage.text = ""
         statusText.text = KioskState.QR_READY.name
+        reportPcStatus("QR 대기", null, notify = false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterDedicatedMode()
         if (manualStudentSelectionOnly) {
@@ -2435,13 +2495,27 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = { student ->
                         if (student == null) {
+                            cancelQrLoginButton.visibility = View.GONE
                             scannerMessage.text = "현재 수업에서 사용할 수 없는 카드입니다\n선생님에게 문의하세요"
                             resumeScannerAfterCooldown()
                         } else {
+                            val generation = ++qrAcceptanceGeneration
+                            activeStudentDisplayName = student.displayNameExact
+                            cancelQrLoginButton.visibility = View.VISIBLE
                             scannerMessage.text =
                                 "${student.displayNameExact}\nQR 인증이 완료되었습니다"
+                            reportPcStatus(
+                                state = "학생 확인",
+                                studentName = student.displayNameExact,
+                                notify = false,
+                            )
                             mainHandler.postDelayed({
-                                if (!destroyed && scannerVisible) {
+                                if (
+                                    !destroyed &&
+                                    scannerVisible &&
+                                    generation == qrAcceptanceGeneration
+                                ) {
+                                    cancelQrLoginButton.visibility = View.GONE
                                     scannerMessage.text =
                                         "${student.displayNameExact}\n로그인 중입니다"
                                     launchSecureWebSession(student)
@@ -2462,6 +2536,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchSecureWebSession(student: ValidatedStudent) {
+        cancelQrLoginButton.visibility = View.GONE
+        activeStudentDisplayName = student.displayNameExact
+        reportPcStatus(
+            state = "로그인 중",
+            studentName = student.displayNameExact,
+            notify = false,
+        )
         statusText.text = KioskState.PRELOGIN_CHECK.name
         ioExecutor.execute {
             val prepared = runCatching {
@@ -2578,6 +2659,11 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
+                reportPcStatus(
+                    state = "복구 필요",
+                    studentName = activeStudentDisplayName,
+                    notify = true,
+                )
                 statusText.text = KioskState.LOCKED.name
                 showAuthentication(enrollment = false)
                 authError.text = "화면이 잠겼습니다 · $reason"
@@ -2586,6 +2672,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun resumeScannerAfterCooldown() {
+        qrAcceptanceGeneration += 1
+        cancelQrLoginButton.visibility = View.GONE
         mainHandler.postDelayed({
             if (!scannerVisible || destroyed) return@postDelayed
             qrGuidanceGeneration += 1
@@ -2593,6 +2681,22 @@ class MainActivity : ComponentActivity() {
             statusText.text = KioskState.QR_READY.name
             qrAnalyzer?.setEnabled(true)
         }, SCAN_COOLDOWN_MS)
+    }
+
+    private fun cancelPendingQrLogin() {
+        if (!scannerVisible || cancelQrLoginButton.visibility != View.VISIBLE) return
+        qrAcceptanceGeneration += 1
+        cancelQrLoginButton.visibility = View.GONE
+        activeStudentDisplayName = null
+        scannerMessage.text = "로그인을 취소했습니다\n다른 QR 카드를 보여주세요"
+        statusText.text = KioskState.QR_READY.name
+        reportPcStatus("QR 대기", null, notify = false)
+        mainHandler.postDelayed({
+            if (!destroyed && scannerVisible) {
+                scannerMessage.text = ""
+                qrAnalyzer?.setEnabled(true)
+            }
+        }, 700L)
     }
 
     private fun requestSessionAdminAuthentication() {
@@ -2823,6 +2927,7 @@ class MainActivity : ComponentActivity() {
         ioExecutor.shutdownNow()
             .filterIsInstance<SensitiveTask>()
             .forEach(SensitiveTask::discard)
+        pcControlExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -2922,7 +3027,7 @@ class MainActivity : ComponentActivity() {
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val QR_GUIDANCE_STALE_MS = 900L
-        private const val QR_ACCEPTED_DISPLAY_MS = 900L
+        private const val QR_ACCEPTED_DISPLAY_MS = 2_000L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
     }

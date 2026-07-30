@@ -14,6 +14,8 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 REQUEST_MAGIC = b"MATHPDF1"
 ACK_MAGIC = b"MATHACK1"
+CONTROL_MAGIC = b"MATHCTL1"
+CONTROL_RESPONSE_MAGIC = b"MATHRSP1"
 PAIRING_PREFIX = "MATHOLIC-PC1:"
 VERSION = 1
 RECEIVER_ID_BYTES = 16
@@ -24,11 +26,17 @@ SHA256_BYTES = 32
 MAX_PDF_BYTES = 5 * 1024 * 1024
 MAX_FILENAME_BYTES = 240
 MAX_CIPHERTEXT_BYTES = MAX_PDF_BYTES + MAX_FILENAME_BYTES + 64
+MAX_CONTROL_PAYLOAD_BYTES = 1024 * 1024
+MAX_CONTROL_LABEL_BYTES = 160
 MAX_CLOCK_SKEW_SECONDS = 300
+CONTROL_STATUS = 1
+CONTROL_FETCH_CSV = 2
 
 _REQUEST_FIXED = struct.Struct(">8sB16s16sq12sI")
 _ACK_FIXED = struct.Struct(">8sB16s32s32s")
 _PLAINTEXT_FIXED = struct.Struct(">HI")
+_CONTROL_PLAINTEXT_FIXED = struct.Struct(">BHI")
+_CONTROL_RESPONSE_FIXED = struct.Struct(">BBHI")
 
 
 class ProtocolError(ValueError):
@@ -69,6 +77,25 @@ class DecodedAck:
     accepted: bool
     request_id: bytes
     pdf_sha256: bytes
+
+
+@dataclass(frozen=True)
+class DecodedControlRequest:
+    request_id: bytes
+    timestamp: int
+    operation: int
+    label: str
+    payload: bytes
+
+
+@dataclass(frozen=True)
+class DecodedControlResponse:
+    request_id: bytes
+    timestamp: int
+    operation: int
+    accepted: bool
+    label: str
+    payload: bytes
 
 
 def _b64url_encode(value: bytes) -> str:
@@ -323,6 +350,260 @@ def decode_ack(pairing: Pairing, frame: bytes) -> DecodedAck:
         request_id=request_id,
         pdf_sha256=pdf_sha256,
     )
+
+
+def _encode_secure_frame(
+    pairing: Pairing,
+    magic: bytes,
+    plaintext: bytes,
+    *,
+    timestamp: int | None,
+    request_id: bytes | None,
+    nonce: bytes | None,
+) -> bytes:
+    if len(magic) != 8:
+        raise ProtocolError("secure frame magic is invalid")
+    request_id = request_id or os.urandom(REQUEST_ID_BYTES)
+    nonce = nonce or os.urandom(NONCE_BYTES)
+    timestamp = int(time.time()) if timestamp is None else timestamp
+    if len(request_id) != REQUEST_ID_BYTES or len(nonce) != NONCE_BYTES:
+        raise ProtocolError("secure frame randomness is invalid")
+    header_without_length = struct.pack(
+        ">8sB16s16sq12s",
+        magic,
+        VERSION,
+        pairing.receiver_id,
+        request_id,
+        timestamp,
+        nonce,
+    )
+    ciphertext = AESGCM(derive_transfer_key(pairing.secret, pairing.receiver_id)).encrypt(
+        nonce,
+        plaintext,
+        header_without_length,
+    )
+    return _REQUEST_FIXED.pack(
+        magic,
+        VERSION,
+        pairing.receiver_id,
+        request_id,
+        timestamp,
+        nonce,
+        len(ciphertext),
+    ) + ciphertext
+
+
+def _decode_secure_frame(
+    pairing: Pairing,
+    frame: bytes,
+    expected_magic: bytes,
+    *,
+    now: int | None,
+) -> tuple[bytes, int, bytes]:
+    if len(frame) < _REQUEST_FIXED.size:
+        raise ProtocolError("secure frame is truncated")
+    header = frame[: _REQUEST_FIXED.size]
+    magic, version, receiver_id, request_id, timestamp, nonce, ciphertext_length = (
+        _REQUEST_FIXED.unpack(header)
+    )
+    if (
+        magic != expected_magic
+        or version != VERSION
+        or receiver_id != pairing.receiver_id
+    ):
+        raise ProtocolError("secure frame target is invalid")
+    if ciphertext_length != len(frame) - _REQUEST_FIXED.size:
+        raise ProtocolError("secure frame body length does not match")
+    current_time = int(time.time()) if now is None else now
+    if abs(current_time - timestamp) > MAX_CLOCK_SKEW_SECONDS:
+        raise ProtocolError("secure frame timestamp is outside the allowed window")
+    header_without_length = struct.pack(
+        ">8sB16s16sq12s",
+        magic,
+        version,
+        receiver_id,
+        request_id,
+        timestamp,
+        nonce,
+    )
+    try:
+        plaintext = AESGCM(derive_transfer_key(pairing.secret, pairing.receiver_id)).decrypt(
+            nonce,
+            frame[_REQUEST_FIXED.size :],
+            header_without_length,
+        )
+    except Exception as error:
+        raise ProtocolError("secure frame authentication failed") from error
+    return request_id, timestamp, plaintext
+
+
+def _validate_control_parts(operation: int, label: str, payload: bytes) -> bytes:
+    label_bytes = label.encode("utf-8")
+    if not 1 <= operation <= 255:
+        raise ProtocolError("control operation is invalid")
+    if len(label_bytes) > MAX_CONTROL_LABEL_BYTES:
+        raise ProtocolError("control label is invalid")
+    if len(payload) > MAX_CONTROL_PAYLOAD_BYTES:
+        raise ProtocolError("control payload is too large")
+    return label_bytes
+
+
+def encode_control_request(
+    pairing: Pairing,
+    operation: int,
+    label: str = "",
+    payload: bytes = b"",
+    *,
+    timestamp: int | None = None,
+    request_id: bytes | None = None,
+    nonce: bytes | None = None,
+) -> bytes:
+    label_bytes = _validate_control_parts(operation, label, payload)
+    plaintext = (
+        _CONTROL_PLAINTEXT_FIXED.pack(operation, len(label_bytes), len(payload))
+        + label_bytes
+        + payload
+    )
+    return _encode_secure_frame(
+        pairing,
+        CONTROL_MAGIC,
+        plaintext,
+        timestamp=timestamp,
+        request_id=request_id,
+        nonce=nonce,
+    )
+
+
+def decode_control_request(
+    pairing: Pairing,
+    frame: bytes,
+    *,
+    now: int | None = None,
+) -> DecodedControlRequest:
+    request_id, timestamp, plaintext = _decode_secure_frame(
+        pairing,
+        frame,
+        CONTROL_MAGIC,
+        now=now,
+    )
+    if len(plaintext) < _CONTROL_PLAINTEXT_FIXED.size:
+        raise ProtocolError("control request is truncated")
+    operation, label_length, payload_length = _CONTROL_PLAINTEXT_FIXED.unpack(
+        plaintext[: _CONTROL_PLAINTEXT_FIXED.size],
+    )
+    expected = _CONTROL_PLAINTEXT_FIXED.size + label_length + payload_length
+    if (
+        operation == 0
+        or label_length > MAX_CONTROL_LABEL_BYTES
+        or payload_length > MAX_CONTROL_PAYLOAD_BYTES
+        or len(plaintext) != expected
+    ):
+        raise ProtocolError("control request lengths are invalid")
+    label_start = _CONTROL_PLAINTEXT_FIXED.size
+    try:
+        label = plaintext[label_start : label_start + label_length].decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ProtocolError("control label encoding is invalid") from error
+    return DecodedControlRequest(
+        request_id=request_id,
+        timestamp=timestamp,
+        operation=operation,
+        label=label,
+        payload=plaintext[label_start + label_length :],
+    )
+
+
+def encode_control_response(
+    pairing: Pairing,
+    request_id: bytes,
+    operation: int,
+    *,
+    accepted: bool,
+    label: str = "",
+    payload: bytes = b"",
+    timestamp: int | None = None,
+    nonce: bytes | None = None,
+) -> bytes:
+    if len(request_id) != REQUEST_ID_BYTES:
+        raise ProtocolError("control response request ID is invalid")
+    label_bytes = _validate_control_parts(operation, label, payload)
+    plaintext = (
+        _CONTROL_RESPONSE_FIXED.pack(
+            operation,
+            1 if accepted else 0,
+            len(label_bytes),
+            len(payload),
+        )
+        + label_bytes
+        + payload
+    )
+    return _encode_secure_frame(
+        pairing,
+        CONTROL_RESPONSE_MAGIC,
+        plaintext,
+        timestamp=timestamp,
+        request_id=request_id,
+        nonce=nonce,
+    )
+
+
+def decode_control_response(
+    pairing: Pairing,
+    frame: bytes,
+    *,
+    expected_request_id: bytes | None = None,
+    now: int | None = None,
+) -> DecodedControlResponse:
+    request_id, timestamp, plaintext = _decode_secure_frame(
+        pairing,
+        frame,
+        CONTROL_RESPONSE_MAGIC,
+        now=now,
+    )
+    if expected_request_id is not None and not hmac.compare_digest(
+        request_id,
+        expected_request_id,
+    ):
+        raise ProtocolError("control response request ID does not match")
+    if len(plaintext) < _CONTROL_RESPONSE_FIXED.size:
+        raise ProtocolError("control response is truncated")
+    operation, accepted, label_length, payload_length = _CONTROL_RESPONSE_FIXED.unpack(
+        plaintext[: _CONTROL_RESPONSE_FIXED.size],
+    )
+    expected = _CONTROL_RESPONSE_FIXED.size + label_length + payload_length
+    if (
+        operation == 0
+        or accepted not in (0, 1)
+        or label_length > MAX_CONTROL_LABEL_BYTES
+        or payload_length > MAX_CONTROL_PAYLOAD_BYTES
+        or len(plaintext) != expected
+    ):
+        raise ProtocolError("control response lengths are invalid")
+    label_start = _CONTROL_RESPONSE_FIXED.size
+    try:
+        label = plaintext[label_start : label_start + label_length].decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ProtocolError("control response label encoding is invalid") from error
+    return DecodedControlResponse(
+        request_id=request_id,
+        timestamp=timestamp,
+        operation=operation,
+        accepted=accepted == 1,
+        label=label,
+        payload=plaintext[label_start + label_length :],
+    )
+
+
+def secure_frame_body_length(prefix: bytes, expected_magic: bytes) -> int:
+    if len(prefix) != _REQUEST_FIXED.size:
+        raise ProtocolError("secure frame header length is invalid")
+    magic, version, _, _, _, _, ciphertext_length = _REQUEST_FIXED.unpack(prefix)
+    if magic != expected_magic or version != VERSION:
+        raise ProtocolError("secure frame header is invalid")
+    maximum = MAX_CONTROL_PAYLOAD_BYTES + MAX_CONTROL_LABEL_BYTES + 64
+    if not 16 <= ciphertext_length <= maximum:
+        raise ProtocolError("secure frame body length is invalid")
+    return ciphertext_length
 
 
 REQUEST_HEADER_BYTES = _REQUEST_FIXED.size

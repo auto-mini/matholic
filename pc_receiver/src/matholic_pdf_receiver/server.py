@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import socket
@@ -13,11 +14,18 @@ from typing import Callable
 
 from .config import ConfigStore, ReceiverConfig
 from .protocol import (
+    CONTROL_FETCH_CSV,
+    CONTROL_MAGIC,
+    CONTROL_STATUS,
     REQUEST_HEADER_BYTES,
+    REQUEST_MAGIC,
     ProtocolError,
+    decode_control_request,
     decode_request,
+    encode_control_response,
     encode_ack,
     request_frame_length,
+    secure_frame_body_length,
 )
 
 SOCKET_TIMEOUT_SECONDS = 10
@@ -60,6 +68,10 @@ class ReceiveEvent:
     accepted: bool
     message: str
     path: Path | None = None
+    kind: str = "transfer"
+    state: str | None = None
+    student_name: str | None = None
+    notify: bool = False
 
 
 class ReceiverState:
@@ -73,6 +85,7 @@ class ReceiverState:
         self.store = store
         self.on_event = on_event or (lambda _: None)
         self.lock = threading.Lock()
+        self.pending_csv: tuple[str, bytes] | None = None
 
     def accept(self, frame: bytes) -> tuple[bytes, Path]:
         request = decode_request(self.config.pairing(host="127.0.0.1"), frame)
@@ -100,24 +113,132 @@ class ReceiverState:
         )
         return ack, destination
 
+    def queue_csv(self, filename: str, payload: bytes) -> None:
+        safe_name = Path(filename).name
+        if not safe_name.lower().endswith(".csv"):
+            raise ValueError("CSV 파일만 선택할 수 있습니다.")
+        if not payload or len(payload) > 1024 * 1024:
+            raise ValueError("CSV 파일은 1MB 이하여야 합니다.")
+        payload.decode("utf-8-sig")
+        with self.lock:
+            self.pending_csv = (safe_name, bytes(payload))
+
+    def clear_csv(self) -> None:
+        with self.lock:
+            self.pending_csv = None
+
+    def accept_control(self, frame: bytes) -> tuple[bytes, ReceiveEvent]:
+        request = decode_control_request(self.config.pairing(host="127.0.0.1"), frame)
+        pairing = self.config.pairing(host="127.0.0.1")
+        with self.lock:
+            if request.request_id.hex() in self.config.replay_ids:
+                raise ProtocolError("이미 처리한 제어 요청입니다.")
+            self.config.remember_request(request.request_id)
+            self.store.save(self.config)
+            if request.operation == CONTROL_STATUS:
+                event, label = self._status_event(request.label, request.payload)
+                response = encode_control_response(
+                    pairing,
+                    request.request_id,
+                    request.operation,
+                    accepted=True,
+                    label=label,
+                )
+                return response, event
+            if request.operation == CONTROL_FETCH_CSV:
+                queued = self.pending_csv
+                if queued is None:
+                    response = encode_control_response(
+                        pairing,
+                        request.request_id,
+                        request.operation,
+                        accepted=False,
+                        label="NO_CSV",
+                    )
+                    return response, ReceiveEvent(
+                        accepted=False,
+                        message="태블릿이 CSV를 요청했지만 대기 파일이 없습니다.",
+                        kind="csv",
+                    )
+                filename, payload = queued
+                response = encode_control_response(
+                    pairing,
+                    request.request_id,
+                    request.operation,
+                    accepted=True,
+                    label=filename,
+                    payload=payload,
+                )
+                self.pending_csv = None
+                return response, ReceiveEvent(
+                    accepted=True,
+                    message=f"{filename} 암호화 전송 완료",
+                    kind="csv",
+                )
+        raise ProtocolError("지원하지 않는 제어 요청입니다.")
+
+    @staticmethod
+    def _status_event(label: str, payload: bytes) -> tuple[ReceiveEvent, str]:
+        if len(payload) > 4096:
+            raise ProtocolError("상태 정보가 너무 큽니다.")
+        try:
+            value = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ProtocolError("상태 정보 형식이 올바르지 않습니다.") from error
+        if not isinstance(value, dict):
+            raise ProtocolError("상태 정보 형식이 올바르지 않습니다.")
+        state = str(value.get("state", "")).strip()
+        student_name = str(value.get("studentName", "")).strip() or None
+        notify = bool(value.get("notify", False))
+        if (
+            not state
+            or len(state) > 80
+            or (student_name is not None and len(student_name) > 80)
+        ):
+            raise ProtocolError("상태 정보 값이 올바르지 않습니다.")
+        message = state if student_name is None else f"{student_name} · {state}"
+        return (
+            ReceiveEvent(
+                accepted=True,
+                message=message,
+                kind="status",
+                state=state,
+                student_name=student_name,
+                notify=notify,
+            ),
+            label[:160],
+        )
+
 
 class _ReceiverHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         state: ReceiverState = self.server.receiver_state  # type: ignore[attr-defined]
         self.request.settimeout(SOCKET_TIMEOUT_SECONDS)
         try:
-            header = _read_exact(self.request, REQUEST_HEADER_BYTES)
-            body_length = request_frame_length(header)
+            magic = _read_exact(self.request, 8)
+            header = magic + _read_exact(self.request, REQUEST_HEADER_BYTES - 8)
+            if magic == REQUEST_MAGIC:
+                body_length = request_frame_length(header)
+            elif magic == CONTROL_MAGIC:
+                body_length = secure_frame_body_length(header, CONTROL_MAGIC)
+            else:
+                raise ProtocolError("지원하지 않는 요청입니다.")
             frame = header + _read_exact(self.request, body_length)
-            ack, destination = state.accept(frame)
-            self.request.sendall(ack)
-            state.on_event(
-                ReceiveEvent(
-                    accepted=True,
-                    message=f"{destination.name} 저장 완료",
-                    path=destination,
-                ),
-            )
+            if magic == REQUEST_MAGIC:
+                ack, destination = state.accept(frame)
+                self.request.sendall(ack)
+                state.on_event(
+                    ReceiveEvent(
+                        accepted=True,
+                        message=f"{destination.name} 저장 완료",
+                        path=destination,
+                        notify=True,
+                    ),
+                )
+            else:
+                response, event = state.accept_control(frame)
+                self.request.sendall(response)
+                state.on_event(event)
         except Exception as error:
             state.on_event(
                 ReceiveEvent(

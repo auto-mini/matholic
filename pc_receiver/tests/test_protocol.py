@@ -4,12 +4,18 @@ import pytest
 
 from matholic_pdf_receiver.protocol import (
     ACK_BYTES,
+    CONTROL_FETCH_CSV,
+    CONTROL_STATUS,
     Pairing,
     ProtocolError,
     decode_ack,
+    decode_control_request,
+    decode_control_response,
     decode_pairing,
     decode_request,
     encode_ack,
+    encode_control_request,
+    encode_control_response,
     encode_pairing,
     encode_request,
 )
@@ -103,3 +109,65 @@ def test_stale_request_is_rejected() -> None:
     )
     with pytest.raises(ProtocolError, match="timestamp"):
         decode_request(PAIRING, frame, now=1_800_000_301)
+
+
+def test_control_status_and_response_round_trip() -> None:
+    frame = encode_control_request(
+        PAIRING,
+        CONTROL_STATUS,
+        "ACTIVE",
+        '{"state":"문제풀이","studentName":"테스트","notify":false}'.encode(),
+        timestamp=1_800_000_000,
+        request_id=REQUEST_ID,
+        nonce=NONCE,
+    )
+    decoded = decode_control_request(PAIRING, frame, now=1_800_000_010)
+    assert decoded.operation == CONTROL_STATUS
+    assert decoded.label == "ACTIVE"
+    assert decoded.request_id == REQUEST_ID
+    assert b'"studentName"' in decoded.payload
+
+    response = encode_control_response(
+        PAIRING,
+        REQUEST_ID,
+        CONTROL_STATUS,
+        accepted=True,
+        label="ACTIVE",
+        timestamp=1_800_000_010,
+        nonce=bytes.fromhex("102132435465768798a9babb"),
+    )
+    decoded_response = decode_control_response(
+        PAIRING,
+        response,
+        expected_request_id=REQUEST_ID,
+        now=1_800_000_020,
+    )
+    assert decoded_response.accepted
+    assert decoded_response.operation == CONTROL_STATUS
+    assert decoded_response.label == "ACTIVE"
+
+
+def test_control_csv_response_is_authenticated() -> None:
+    response = bytearray(
+        encode_control_response(
+            PAIRING,
+            REQUEST_ID,
+            CONTROL_FETCH_CSV,
+            accepted=True,
+            label="students.csv",
+            payload="이름,아이디\n테스트,test".encode(),
+            timestamp=1_800_000_000,
+            nonce=NONCE,
+        ),
+    )
+    decoded = decode_control_response(
+        PAIRING,
+        bytes(response),
+        expected_request_id=REQUEST_ID,
+        now=1_800_000_000,
+    )
+    assert decoded.label == "students.csv"
+    assert decoded.payload.decode().startswith("이름")
+    response[-1] ^= 1
+    with pytest.raises(ProtocolError, match="authentication"):
+        decode_control_response(PAIRING, bytes(response), now=1_800_000_000)

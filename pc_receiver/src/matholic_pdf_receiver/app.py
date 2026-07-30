@@ -6,7 +6,7 @@ import socket
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 import pystray
 import qrcode
@@ -35,9 +35,10 @@ class ReceiverApplication:
         self.config = self.store.load_or_create()
         self.host = current_lan_ipv4()
         self.events: queue.Queue[ReceiveEvent] = queue.Queue()
+        self.receiver_state = ReceiverState(self.config, self.store, self.events.put)
         self.server = ThreadedReceiverServer(
             ("0.0.0.0", self.config.port),
-            ReceiverState(self.config, self.store, self.events.put),
+            self.receiver_state,
         )
         self.server_thread = threading.Thread(
             target=self.server.serve_forever,
@@ -53,6 +54,9 @@ class ReceiverApplication:
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         self.qr_photo: ImageTk.PhotoImage | None = None
         self.status_var = tk.StringVar(value="수신 대기 중")
+        self.kiosk_state_var = tk.StringVar(value="태블릿 상태: 연결 대기")
+        self.student_var = tk.StringVar(value="학생: 없음")
+        self.csv_var = tk.StringVar(value="학생 CSV: 대기 파일 없음")
         self.address_var = tk.StringVar(
             value=f"{self.config.display_name} · {self.host}:{self.config.port}",
         )
@@ -106,6 +110,20 @@ class ReceiverApplication:
         ttk.Label(frame, image=self.qr_photo).pack(pady=8)
 
         ttk.Separator(frame).pack(fill=tk.X, pady=12)
+        state_box = ttk.LabelFrame(frame, text="A 태블릿 실시간 상태", padding=12)
+        state_box.pack(fill=tk.X, pady=(0, 12))
+        ttk.Label(
+            state_box,
+            textvariable=self.kiosk_state_var,
+            font=("Malgun Gothic", 13, "bold"),
+            foreground="#102A43",
+        ).pack(anchor=tk.W)
+        ttk.Label(
+            state_box,
+            textvariable=self.student_var,
+            font=("Malgun Gothic", 11),
+        ).pack(anchor=tk.W, pady=(5, 0))
+
         ttk.Label(
             frame,
             textvariable=self.status_var,
@@ -123,6 +141,31 @@ class ReceiverApplication:
             ipadx=18,
             ipady=5,
         )
+        ttk.Separator(frame).pack(fill=tk.X, pady=14)
+        ttk.Label(
+            frame,
+            text="학생 CSV 암호화 전송",
+            font=("Malgun Gothic", 12, "bold"),
+        ).pack()
+        ttk.Label(
+            frame,
+            textvariable=self.csv_var,
+            justify=tk.CENTER,
+            wraplength=540,
+            font=("Malgun Gothic", 10),
+        ).pack(pady=(4, 8))
+        csv_buttons = ttk.Frame(frame)
+        csv_buttons.pack()
+        ttk.Button(
+            csv_buttons,
+            text="CSV 선택",
+            command=self.choose_csv,
+        ).pack(side=tk.LEFT, padx=4, ipadx=12, ipady=4)
+        ttk.Button(
+            csv_buttons,
+            text="대기 취소",
+            command=self.clear_csv,
+        ).pack(side=tk.LEFT, padx=4, ipadx=12, ipady=4)
         ttk.Label(
             frame,
             text=(
@@ -151,12 +194,49 @@ class ReceiverApplication:
 
         os.startfile(self.config.receive_dir)  # type: ignore[attr-defined]
 
+    def choose_csv(self) -> None:
+        selected = filedialog.askopenfilename(
+            parent=self.root,
+            title="학생 CSV 선택",
+            filetypes=[("CSV 파일", "*.csv")],
+        )
+        if not selected:
+            return
+        path = Path(selected)
+        try:
+            payload = path.read_bytes()
+            self.receiver_state.queue_csv(path.name, payload)
+        except (OSError, UnicodeError, ValueError) as error:
+            messagebox.showerror(APP_TITLE, str(error), parent=self.root)
+            return
+        finally:
+            if "payload" in locals():
+                payload = b""
+        self.csv_var.set(f"학생 CSV: {path.name} · 태블릿 요청 대기")
+        self.status_var.set("A 태블릿 관리자 화면에서 CSV 가져오기를 누르세요.")
+
+    def clear_csv(self) -> None:
+        self.receiver_state.clear_csv()
+        self.csv_var.set("학생 CSV: 대기 파일 없음")
+
     def _poll_events(self) -> None:
         try:
             while True:
                 event = self.events.get_nowait()
                 self.status_var.set(event.message)
-                if event.accepted:
+                if event.kind == "status":
+                    self.kiosk_state_var.set(f"태블릿 상태: {event.state or '알 수 없음'}")
+                    self.student_var.set(
+                        f"학생: {event.student_name}" if event.student_name else "학생: 없음",
+                    )
+                elif event.kind == "csv" and event.accepted:
+                    self.csv_var.set("학생 CSV: 전송 완료 · 대기 파일 없음")
+                if event.notify:
+                    try:
+                        self.tray.notify(event.state or event.message, APP_TITLE)
+                    except (NotImplementedError, RuntimeError):
+                        pass
+                if event.accepted and event.kind != "status":
                     self.root.after(0, self.show_window)
         except queue.Empty:
             pass

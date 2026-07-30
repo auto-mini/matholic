@@ -447,6 +447,16 @@
                             android:textColor="#D9EAF7"
                             android:textSize="22sp"
                             android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/cancel_qr_login_button"
+                            android:layout_width="220dp"
+                            android:layout_height="64dp"
+                            android:layout_marginTop="18dp"
+                            android:filterTouchesWhenObscured="true"
+                            android:text="다른 카드"
+                            android:textSize="20sp"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </FrameLayout>
 
