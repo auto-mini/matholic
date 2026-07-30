@@ -5262,3 +5262,45 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   전용 HOME을 보존했다. 설치 APK 해시 일치와 Kiosk 전경을 확인했다.
 - 실제 사이트에서는 문제 화면에서 건드리지 않은 주관식이 포함된 학습지로
   전체답안을 바로 열어 입력란 크기와 터치를 재확인한다.
+
+## Web POC RC53 특정 전체답안 주관식 지연 초기화 — 2026-07-30
+
+### 현상과 원인
+
+- 전체답안의 일부 문제는 `answer-input-form-*` 자식 입력기가 아직 생성되지
+  않은 상태로 표시되어 RC52의 자식 기반 크기 보정을 받지 못했다.
+- DOM mutation 없이 스크롤·CSS 표시 상태만 바뀌는 경우 MutationObserver가
+  재실행되지 않아 뒤늦게 표시된 입력기 메뉴와 수식 편집기가 초기화되지
+  않았다.
+
+### 수정
+
+- 모든 `answer-input-form-*` 자체에 입력기 자식 생성 전부터 box sizing,
+  최소 220px 폭·64px 높이, 최대 폭 100%, visible overflow를 적용한다.
+- answer scope 안의 일반 input·textarea·contenteditable·textbox도
+  placeholder 문구에 의존하지 않고 주관식 터치 대상으로 보정한다.
+- 문서 scroll, viewport resize, orientationchange를 requestAnimationFrame으로
+  묶어 표시 상태가 바뀐 답안칸을 재처리한다.
+- 숨겨진 편집기와 MathQuill 내부의 의도적으로 작은 textarea는 확대하지
+  않는다.
+- Web 계약을 `web-2026-07-30.5`, 버전을
+  `0.4.0-rc53`/code 70으로 올렸다.
+
+### 검증
+
+- CSSOM으로 숨김 상태를 해제해 MutationObserver가 감지하지 못하는 fixture를
+  추가했다. scroll 재처리 후 입력기 메뉴가 초기화되고 편집기가 실제
+  220×56px 이상, pointer-events auto가 되는 것을 확인했다.
+- JVM 단위시험·debug assemble·계측 APK compile: 통과
+- Android 13 신규 회귀시험: 통과
+- Android 13 DOM 계약 계측시험 48개: 실패·오류 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc53`/code 70을 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `2CF1078E942B3181EA28490EFE09CD1E85F1F3E9DD9B8579E7A6366240D88653`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk `0.6.0-rc39` Device Owner와 전용 HOME을 보존했다.
+- 설치 후 Kiosk가 전경으로 정상 복귀했고 설치 APK 해시가 artifact와
+  일치했다.
+- 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.

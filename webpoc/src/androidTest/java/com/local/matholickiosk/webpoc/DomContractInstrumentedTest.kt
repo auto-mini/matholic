@@ -821,6 +821,122 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceInitializesSubjectiveEditorWhenScrolledIntoView() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head>
+              <style>
+                #answer-input-form-offscreen {
+                  display:none;
+                  height:4px;
+                  min-height:0;
+                  overflow:hidden;
+                }
+              </style>
+            </head>
+            <body style="margin:0">
+              <div id="answer-input-form-offscreen">
+                <button id="lazy-input-menu" type="button">입력기</button>
+              </div>
+              <script>
+                document.getElementById('lazy-input-menu')
+                  .addEventListener('click', function () {
+                    this.dataset.clicked = 'yes';
+                    if (document.getElementById('scrolled-editor')) return;
+                    const scope = document.getElementById(
+                      'answer-input-form-offscreen'
+                    );
+                    const editor = document.createElement('span');
+                    editor.id = 'scrolled-editor';
+                    editor.className = 'mq-editable-field mq-math-mode';
+                    editor.style.cssText =
+                      'display:inline;height:4px;min-height:0;width:12px';
+                    editor.innerHTML =
+                      '<span class="mq-textarea"><textarea></textarea></span>' +
+                      '<span class="mq-root-block"></span>';
+                    scope.appendChild(editor);
+                    ['루트', '분수', '파이'].forEach(label => {
+                      const button = document.createElement('button');
+                      button.type = 'button';
+                      button.textContent = label;
+                      scope.appendChild(button);
+                    });
+                  });
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val initial = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(initial.getBoolean("ok"))
+            val beforeScroll = evaluate(
+                webView,
+                """
+                (() => {
+                  const scope = document.getElementById(
+                    'answer-input-form-offscreen'
+                  );
+                  return JSON.stringify({
+                    clicked:
+                      document.getElementById('lazy-input-menu').dataset
+                        .clicked === 'yes',
+                    scopeMinHeight:
+                      parseFloat(getComputedStyle(scope).minHeight),
+                    scopeOverflow: getComputedStyle(scope).overflow,
+                    scopeMarked:
+                      scope.dataset.matholicKioskSubjectiveTouchScope ===
+                        'true'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertFalse(beforeScroll.getBoolean("clicked"))
+            assertTrue(beforeScroll.getDouble("scopeMinHeight") >= 64.0)
+            assertEquals("visible", beforeScroll.getString("scopeOverflow"))
+            assertTrue(beforeScroll.getBoolean("scopeMarked"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.styleSheets[0].cssRules[0].style.display = 'block';
+                  document.dispatchEvent(new Event('scroll'));
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(300)
+
+            val afterScroll = evaluate(
+                webView,
+                """
+                (() => {
+                  const editor = document.getElementById('scrolled-editor');
+                  const editorStyle = editor && getComputedStyle(editor);
+                  const rect = editor && editor.getBoundingClientRect();
+                  return JSON.stringify({
+                    clicked:
+                      document.getElementById('lazy-input-menu').dataset
+                        .clicked === 'yes',
+                    editorExists: !!editor,
+                    display: editorStyle && editorStyle.display,
+                    actualWidth: rect && rect.width,
+                    actualHeight: rect && rect.height,
+                    pointerEvents: editorStyle && editorStyle.pointerEvents
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(afterScroll.getBoolean("clicked"))
+            assertTrue(afterScroll.getBoolean("editorExists"))
+            assertEquals("inline-block", afterScroll.getString("display"))
+            assertTrue(afterScroll.getDouble("actualWidth") >= 220.0)
+            assertTrue(afterScroll.getDouble("actualHeight") >= 56.0)
+            assertEquals("auto", afterScroll.getString("pointerEvents"))
+        }
+    }
+
+    @Test
     fun testStudentExperiencePrimesMathFieldSoFirstUserEditPersists() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

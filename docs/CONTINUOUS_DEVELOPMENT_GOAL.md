@@ -1724,3 +1724,28 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
     `A03F189545EAFC133821DC6EC54C3C94215AC01337E2CC1C5910C3266CAC1A34`
   - 기존 데이터, credential bridge 권한, Device Owner·전용 HOME 유지
 - 실제 사이트의 미입력 주관식 전체답안 터치는 사용자 실물 재확인 대기다.
+
+## Web POC RC53 특정 전체답안 답안폼 선행 크기 보정 — 2026-07-30
+
+- RC52 이후에도 특정 문제의 전체답안 입력란이 얇게 남는 실기 현상을
+  재확인했다.
+- 입력기 자식이 생성된 뒤에만 부모 scope를 키우던 순서를 제거하고 모든
+  `answer-input-form-*`을 먼저 최소 220×64px로 보정한다.
+- placeholder가 다른 일반 input·textarea·contenteditable·textbox도
+  answer scope 기준으로 찾아 최소 220×56px 터치 대상으로 만든다.
+- MutationObserver가 감지하지 못하는 scroll·resize·orientation 표시 변경도
+  requestAnimationFrame으로 재처리한다.
+- 검증:
+  - DOM mutation 없이 CSSOM으로 숨김을 해제한 뒤 scroll할 때 지연 입력기가
+    초기화되고 실제 220×56px 이상이 됨
+  - JVM 단위시험·debug assemble·계측 APK compile 통과
+  - Android 13 DOM 계약 48개 전부 통과
+- Web POC 버전은 `0.4.0-rc53`/code 70,
+  Web 계약은 `web-2026-07-30.5`이다.
+- release 158 tasks와 APK 이중 검증을 통과했다.
+- A에 Web POC `0.4.0-rc53`/code 70을 보존형 설치했다.
+  - APK SHA-256:
+    `2CF1078E942B3181EA28490EFE09CD1E85F1F3E9DD9B8579E7A6366240D88653`
+  - firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner와
+    전용 HOME 유지
+- 실제 사이트의 문제 4 전체답안 칸은 사용자 실물 재확인 대상으로 둔다.

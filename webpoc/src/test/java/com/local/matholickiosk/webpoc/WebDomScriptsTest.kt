@@ -68,7 +68,10 @@ class WebDomScriptsTest {
         assertTrue(script.contains("data-matholic-kiosk-active"))
         assertTrue(script.contains("ensureSubjectiveTouchTargets"))
         assertTrue(script.contains("matholicKioskSubjectiveTouchTarget"))
+        assertTrue(script.contains("matholicKioskSubjectiveTouchScope"))
         assertTrue(script.contains("important(target, 'display', 'inline-block')"))
+        assertTrue(script.contains("scheduleViewportMaintenance"))
+        assertTrue(script.contains("'scroll',"))
     }
 
     @Test

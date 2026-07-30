@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.4"
+    const val CONTRACT_VERSION = "web-2026-07-30.5"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -629,6 +629,23 @@ object WebDomScripts {
             const ensureSubjectiveTouchTargets = () => {
               const targets = new Set();
               const containers = new Set();
+              const answerScopes = Array.from(document.querySelectorAll(
+                '[id^="answer-input-form-"]'
+              ));
+              answerScopes.forEach(answerScope => {
+                important(answerScope, 'box-sizing', 'border-box');
+                important(answerScope, 'min-width', '220px');
+                important(answerScope, 'max-width', '100%');
+                important(answerScope, 'min-height', '64px');
+                important(answerScope, 'overflow', 'visible');
+                answerScope.dataset.matholicKioskSubjectiveTouchScope = 'true';
+                Array.from(answerScope.querySelectorAll(
+                  'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]),' +
+                  'textarea,[contenteditable="true"],[role="textbox"]'
+                )).forEach(candidate => {
+                  if (!candidate.closest('.mq-textarea')) targets.add(candidate);
+                });
+              });
               Array.from(document.querySelectorAll(
                 'input[placeholder*="주관식 답"]'
               )).forEach(input => {
@@ -679,11 +696,14 @@ object WebDomScripts {
                   '[id^="answer-input-form-"]'
                 );
                 if (answerScope) {
+                  important(answerScope, 'box-sizing', 'border-box');
+                  important(answerScope, 'min-width', '220px');
+                  important(answerScope, 'max-width', '100%');
                   important(answerScope, 'min-height', '64px');
                   important(answerScope, 'overflow', 'visible');
                 }
               });
-              return targets.size + containers.size;
+              return targets.size + containers.size + answerScopes.length;
             };
             subjectiveTouchTargets = ensureSubjectiveTouchTargets();
 
@@ -1571,6 +1591,27 @@ object WebDomScripts {
               protectAnalysisDetails();
             };
             maintainLateStudentControls();
+            if (!window.__matholicKioskExperienceViewportGuard) {
+              let viewportMaintenanceFrame = 0;
+              const scheduleViewportMaintenance = () => {
+                if (viewportMaintenanceFrame) return;
+                viewportMaintenanceFrame = requestAnimationFrame(() => {
+                  viewportMaintenanceFrame = 0;
+                  maintainLateStudentControls();
+                });
+              };
+              document.addEventListener(
+                'scroll',
+                scheduleViewportMaintenance,
+                true
+              );
+              window.addEventListener('resize', scheduleViewportMaintenance);
+              window.addEventListener(
+                'orientationchange',
+                scheduleViewportMaintenance
+              );
+              window.__matholicKioskExperienceViewportGuard = true;
+            }
             if (!window.__matholicKioskExperienceObserver && document.body) {
               const observer = new MutationObserver(maintainLateStudentControls);
               observer.observe(document.body, {
