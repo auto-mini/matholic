@@ -85,6 +85,11 @@ class WebDomScriptsTest {
         assertTrue(script.contains("now - firstSeen < 1500"))
         assertTrue(script.contains("scheduleViewportMaintenance"))
         assertTrue(script.contains("'scroll',"))
+        assertTrue(script.contains("enhanceProblemNavigation"))
+        assertTrue(script.contains("matholic-kiosk-problem-number"))
+        assertTrue(script.contains("width: 112px"))
+        assertTrue(script.contains("height: 96px"))
+        assertTrue(script.contains("현재 문제 번호 선택"))
     }
 
     @Test

@@ -5256,6 +5256,47 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   통과
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
 
+## Web POC RC59 문제 이동 UI와 학생 세션 밝기 — 2026-07-30
+
+### 변경
+
+- 학습 페이지의 이전·다음 문제 버튼을 각각 112×96px로 확대하고 아이콘도
+  42px로 키웠다.
+- 버튼 사이의 기존 Ant Select 번호 선택기를 제거하지 않고 좌상단의 진한
+  `문제 n / 전체` 배지로 재배치했다. 배지 전체를 눌러 기존 번호 선택기를
+  열 수 있으므로 직접 문제 이동 기능은 유지된다.
+- 전체답안 모달이 열려 있는 동안 문제번호 배지를 숨겨 제출 화면을 가리지
+  않게 했다.
+- `ACTIVE` 학생 세션 진입 시 앱 창 밝기를 0.8로 적용한다. 로그아웃,
+  잠금, 복구, 관리자 상태와 Activity 종료 때 앱 진입 전 창 밝기로
+  복원한다. Android 시스템 밝기 설정은 변경하지 않는다.
+- Web 계약을 `web-2026-07-30.11`, 버전을
+  `0.4.0-rc59`/code 76으로 올렸다.
+- A 설치 점검 중 삼성 Android 13의 `device_policy` dump에 Lock Task
+  패키지 목록이 나오지 않아 생기던 검증 오탐을 수정했다. 검증 스크립트는
+  실제 `LockTaskController.mLockTaskPackages`를 제공하는 activity dump를
+  사용한다.
+
+### 검증과 A 설치
+
+- JVM 단위시험, debug AndroidTest compile, debug lint: 통과
+- 신규 DOM 계측: 양쪽 112×96px, 좌상단 고정 번호 배지, 배지 터치로 기존
+  selector 열기 확인
+- 신규 Activity 계측: ACTIVE에서 0.8, LOCKED 전환 후 기존 밝기 복원 확인
+- Android 13 Web POC 전체 계측 91개: 실패·오류·생략 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc59`/code 76을 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `790B6AA4D037BD723E9E3059864846B189508AAAC9310FD259741844D9A1BA23`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
+- 재부팅 후 Lock Task `LOCKED`와 allowlist
+  `[com.local.matholickiosk.kiosk, com.local.matholickiosk.webpoc]`를
+  확인했다.
+- 실제 학습지에서 버튼 위치·문제번호 가시성·로그인/로그아웃 밝기 체감은
+  사용자 실물 재확인 대상으로 둔다.
+
 ## Web POC RC56 실패 편집기 React 답안 재연결 — 2026-07-30
 
 ### 사용자 재확인과 남은 원인

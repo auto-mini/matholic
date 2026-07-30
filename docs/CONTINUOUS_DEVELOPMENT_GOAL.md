@@ -1876,3 +1876,27 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   전용 HOME을 유지했고 Kiosk 전경 복귀를 확인했다.
 - 동일 학습지 답안제출창의 화면 안정성과 임시저장은 사용자 실물 재확인
   대상으로 둔다.
+
+## Web POC RC59 문제 이동 UI와 학생 세션 밝기 — 2026-07-30
+
+- 이전·다음 문제 이동 버튼을 각각 112×96px로 확대했다.
+- 버튼 사이의 번호 선택기를 좌상단의 진한 문제번호 배지로 재배치하되,
+  배지를 눌러 기존 문제 선택 목록을 여는 직접 이동 기능은 유지했다.
+- 전체답안 모달에서는 문제번호 배지를 숨긴다.
+- 학생 세션이 `ACTIVE`인 동안 앱 창 밝기를 80%로 적용하고 로그아웃,
+  잠금, 복구와 Activity 종료 시 기존 창 밝기로 복원한다.
+- 시스템 밝기 설정은 변경하지 않는다.
+- Web POC 버전은 `0.4.0-rc59`/code 76,
+  Web 계약은 `web-2026-07-30.11`이다.
+- 검증:
+  - JVM 단위시험, debug AndroidTest compile, debug lint 통과
+  - 신규 문제 이동 DOM 계측과 밝기 적용·복원 Activity 계측 통과
+  - Android 13 Web POC 전체 계측 91개 전부 통과
+  - release 단위시험·lint·두 APK assemble 158 tasks와 APK 이중 검증 통과
+- A에 보존형 설치했고 artifact와 설치 APK SHA-256은
+  `790B6AA4D037BD723E9E3059864846B189508AAAC9310FD259741844D9A1BA23`
+  로 일치했다.
+- firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner,
+  전용 HOME과 두 앱 Lock Task allowlist를 유지했다.
+- 실제 학습지의 문제번호 배지 위치와 로그인/로그아웃 밝기는 사용자 실물
+  재확인 대상으로 둔다.

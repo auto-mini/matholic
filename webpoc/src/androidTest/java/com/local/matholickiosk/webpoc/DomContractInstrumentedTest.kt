@@ -335,6 +335,74 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceMovesProblemSelectorAndEnlargesBothNavigationButtons() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex">
+                  <button id="previous">&lt;</button>
+                  <div id="problem-number">
+                    <div class="ant-select">
+                      <div id="problem-selector" class="ant-select-selector"
+                           role="combobox"
+                           onclick="document.body.dataset.selectorOpened='yes'">
+                        <span class="ant-select-selection-item">4</span>
+                      </div>
+                    </div>
+                    <span>/ 10</span>
+                  </div>
+                  <button id="next">&gt;</button>
+                </div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(3, result.getInt("problemNavigationEnhancements"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('problem-number').click();
+                  const previous = document.getElementById('previous');
+                  const next = document.getElementById('next');
+                  const number = document.getElementById('problem-number');
+                  const numberStyle = getComputedStyle(number);
+                  return JSON.stringify({
+                    previousWidth: previous.style.width,
+                    previousHeight: previous.style.height,
+                    nextWidth: next.style.width,
+                    nextHeight: next.style.height,
+                    previousLabel: previous.getAttribute('aria-label'),
+                    nextLabel: next.getAttribute('aria-label'),
+                    numberClass:
+                      number.classList.contains('matholic-kiosk-problem-number'),
+                    numberPosition: numberStyle.position,
+                    numberTop: numberStyle.top,
+                    numberLabel: number.getAttribute('aria-label'),
+                    selectorOpened: document.body.dataset.selectorOpened === 'yes'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("112px", proof.getString("previousWidth"))
+            assertEquals("96px", proof.getString("previousHeight"))
+            assertEquals("112px", proof.getString("nextWidth"))
+            assertEquals("96px", proof.getString("nextHeight"))
+            assertEquals("이전 문제", proof.getString("previousLabel"))
+            assertEquals("다음 문제", proof.getString("nextLabel"))
+            assertTrue(proof.getBoolean("numberClass"))
+            assertEquals("fixed", proof.getString("numberPosition"))
+            assertEquals("68px", proof.getString("numberTop"))
+            assertEquals("현재 문제 번호 선택", proof.getString("numberLabel"))
+            assertTrue(proof.getBoolean("selectorOpened"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceHidesGlobalChromeAndUnwantedAnswerControls() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

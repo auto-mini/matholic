@@ -120,10 +120,14 @@ class MainActivity : Activity() {
     private var recoveryRecreatePending = false
     private var rendererFailureReason: String? = null
     private var rendererActionGeneration = 0
+    private var originalWindowBrightness =
+        WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+    private var studentSessionBrightnessApplied = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null)
+        originalWindowBrightness = window.attributes.screenBrightness
         recoveryRendererRecycleAttempted =
             intent.getBooleanExtra(EXTRA_RECOVERY_RENDERER_RECYCLED, false)
         window.addFlags(
@@ -2048,8 +2052,30 @@ class MainActivity : Activity() {
                 .putString(KEY_STATE, WebPocState.LOCKED.name)
                 .putString(KEY_REASON, "STATE_PERSISTENCE")
                 .commit()
+            restoreWindowBrightness()
             throw IllegalStateException("Failed to persist fail-closed state")
         }
+        if (next == WebPocState.ACTIVE) {
+            applyStudentSessionBrightness()
+        } else {
+            restoreWindowBrightness()
+        }
+    }
+
+    private fun applyStudentSessionBrightness() {
+        if (studentSessionBrightnessApplied) return
+        val attributes = window.attributes
+        attributes.screenBrightness = STUDENT_SESSION_BRIGHTNESS
+        window.attributes = attributes
+        studentSessionBrightnessApplied = true
+    }
+
+    private fun restoreWindowBrightness() {
+        if (!studentSessionBrightnessApplied) return
+        val attributes = window.attributes
+        attributes.screenBrightness = originalWindowBrightness
+        window.attributes = attributes
+        studentSessionBrightnessApplied = false
     }
 
     private fun scheduleTimeout(milliseconds: Long, reason: String, action: (() -> Unit)? = null) {
@@ -2124,6 +2150,7 @@ class MainActivity : Activity() {
         destroyed = true
         cancelTimeout()
         try {
+            restoreWindowBrightness()
             val activeDialog = activeJavaScriptDialog
             if (activeDialog != null) {
                 activeDialog.dismiss()
@@ -2217,6 +2244,7 @@ class MainActivity : Activity() {
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
+        const val STUDENT_SESSION_BRIGHTNESS = 0.8f
         const val STUDENT_REVEAL_STABLE_PASSES = 2
         const val RESULT_EXTRACTION_RETRIES = 40
         const val RESULT_HYDRATION_RETRIES = 120

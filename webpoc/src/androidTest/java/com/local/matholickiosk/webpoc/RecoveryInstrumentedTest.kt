@@ -574,6 +574,35 @@ class RecoveryInstrumentedTest {
         }
     }
 
+    @Test
+    fun activeStudentSessionUsesEightyPercentBrightnessAndRestoresPreviousValue() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val originalBrightness = activity.window.attributes.screenBrightness
+                val transition = MainActivity::class.java.getDeclaredMethod(
+                    "transition",
+                    WebPocState::class.java,
+                    String::class.java,
+                ).apply { isAccessible = true }
+
+                transition.invoke(activity, WebPocState.ACTIVE, null)
+                assertEquals(
+                    0.8f,
+                    activity.window.attributes.screenBrightness,
+                    0.001f,
+                )
+
+                transition.invoke(activity, WebPocState.LOCKED, "TEST_COMPLETE")
+                assertEquals(
+                    originalBrightness,
+                    activity.window.attributes.screenBrightness,
+                    0.001f,
+                )
+            }
+        }
+    }
+
     @Suppress("DEPRECATION")
     @Test
     fun webViewDisablesPersistentCacheAndLocalFileAccess() {

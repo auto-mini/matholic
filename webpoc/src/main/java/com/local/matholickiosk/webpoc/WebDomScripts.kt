@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.10"
+    const val CONTRACT_VERSION = "web-2026-07-30.11"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -553,6 +553,80 @@ object WebDomScripts {
               font-size: 28px !important;
               line-height: 1 !important;
             }
+            .matholic-kiosk-problem-number {
+              position: fixed !important;
+              top: 68px !important;
+              left: 24px !important;
+              z-index: 2147482000 !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 8px !important;
+              min-width: 126px !important;
+              min-height: 68px !important;
+              margin: 0 !important;
+              padding: 10px 16px !important;
+              border: 2px solid #173f6d !important;
+              border-radius: 16px !important;
+              background: #173f6d !important;
+              color: #fff !important;
+              box-shadow: 0 6px 18px rgba(16, 42, 67, 0.28) !important;
+              font-size: 26px !important;
+              font-weight: 800 !important;
+              line-height: 1 !important;
+              cursor: pointer !important;
+              transform: none !important;
+              touch-action: manipulation !important;
+            }
+            .matholic-kiosk-problem-number::before {
+              content: '문제' !important;
+              color: #dbeafe !important;
+              font-size: 17px !important;
+              font-weight: 700 !important;
+              line-height: 1 !important;
+            }
+            .matholic-kiosk-problem-number .ant-select,
+            .matholic-kiosk-problem-number .ant-select-selector,
+            .matholic-kiosk-problem-number [role="combobox"],
+            .matholic-kiosk-problem-number select {
+              min-width: 42px !important;
+              min-height: 44px !important;
+              border: 0 !important;
+              background: transparent !important;
+              color: #fff !important;
+              box-shadow: none !important;
+              font-size: 28px !important;
+              font-weight: 800 !important;
+              line-height: 1 !important;
+              cursor: pointer !important;
+            }
+            .matholic-kiosk-problem-number .ant-select-selection-item,
+            .matholic-kiosk-problem-number .ant-select-arrow {
+              color: #fff !important;
+              font-size: 28px !important;
+              font-weight: 800 !important;
+            }
+            [data-matholic-kiosk-problem-navigation="true"] {
+              justify-content: center !important;
+              gap: 28px !important;
+            }
+            [data-matholic-kiosk-problem-direction] {
+              width: 112px !important;
+              min-width: 112px !important;
+              max-width: 112px !important;
+              height: 96px !important;
+              min-height: 96px !important;
+              max-height: 96px !important;
+              padding: 12px !important;
+              border-radius: 18px !important;
+              font-size: 38px !important;
+              line-height: 1 !important;
+              touch-action: manipulation !important;
+            }
+            [data-matholic-kiosk-problem-direction] svg {
+              width: 42px !important;
+              height: 42px !important;
+            }
           ` : `
             header, nav, [role="navigation"] {
               display: none !important;
@@ -567,8 +641,147 @@ object WebDomScripts {
           let mathModeReady = 0;
           let mathModeRemounted = 0;
           let subjectiveTouchTargets = 0;
+          let problemNavigationEnhancements = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
+            const navigationDirection = control => {
+              const text = normalize(control.textContent);
+              const identity = normalize([
+                text,
+                control.getAttribute('aria-label') || '',
+                control.getAttribute('title') || ''
+              ].join(' ')).toLowerCase();
+              if (
+                ['<', '‹', '〈', '이전', '이전 문제'].includes(text) ||
+                identity.includes('이전 문제') ||
+                identity.includes('previous problem')
+              ) return 'previous';
+              if (
+                ['>', '›', '〉', '다음', '다음 문제'].includes(text) ||
+                identity.includes('다음 문제') ||
+                identity.includes('next problem')
+              ) return 'next';
+              return null;
+            };
+            const directChildInside = (container, descendant) => {
+              let candidate = descendant;
+              while (
+                candidate?.parentElement &&
+                candidate.parentElement !== container
+              ) {
+                candidate = candidate.parentElement;
+              }
+              return candidate?.parentElement === container ? candidate : null;
+            };
+            const enhanceProblemNavigation = () => {
+              const controls = Array.from(
+                document.querySelectorAll('button,[role="button"]')
+              ).filter(visible);
+              const previousControls = controls.filter(
+                control => navigationDirection(control) === 'previous'
+              );
+              const nextControls = controls.filter(
+                control => navigationDirection(control) === 'next'
+              );
+              for (const previous of previousControls) {
+                let navigation = previous.parentElement;
+                for (
+                  let depth = 0;
+                  navigation &&
+                    navigation !== document.body &&
+                    navigation !== document.documentElement &&
+                    depth < 6;
+                  depth += 1
+                ) {
+                  const next = nextControls.find(control =>
+                    navigation.contains(control)
+                  );
+                  const selectorRoot = navigation.querySelector(
+                    '.ant-select,select,[role="combobox"]'
+                  );
+                  if (next && selectorRoot) {
+                    const previousChild = directChildInside(navigation, previous);
+                    const nextChild = directChildInside(navigation, next);
+                    const numberCluster = directChildInside(
+                      navigation,
+                      selectorRoot
+                    );
+                    if (
+                      previousChild &&
+                      nextChild &&
+                      numberCluster &&
+                      numberCluster !== previousChild &&
+                      numberCluster !== nextChild
+                    ) {
+                      navigation.dataset.matholicKioskProblemNavigation = 'true';
+                      [
+                        [previous, 'previous', '이전 문제'],
+                        [next, 'next', '다음 문제']
+                      ].forEach(([button, direction, label]) => {
+                        button.dataset.matholicKioskProblemDirection = direction;
+                        button.setAttribute('aria-label', label);
+                        button.setAttribute('title', label);
+                        important(button, 'width', '112px');
+                        important(button, 'min-width', '112px');
+                        important(button, 'max-width', '112px');
+                        important(button, 'height', '96px');
+                        important(button, 'min-height', '96px');
+                        important(button, 'max-height', '96px');
+                      });
+                      numberCluster.classList.add(
+                        'matholic-kiosk-problem-number'
+                      );
+                      numberCluster.setAttribute(
+                        'aria-label',
+                        '현재 문제 번호 선택'
+                      );
+                      const selectorSurface = numberCluster.querySelector(
+                        '.ant-select-selector,[role="combobox"],select'
+                      ) || selectorRoot;
+                      selectorSurface.setAttribute(
+                        'aria-label',
+                        '이동할 문제 번호'
+                      );
+                      if (
+                        numberCluster.dataset
+                          .matholicKioskProblemNumberBound !== 'true'
+                      ) {
+                        numberCluster.addEventListener('click', event => {
+                          if (
+                            event.target?.closest?.(
+                              '.ant-select-selector,[role="combobox"],select'
+                            )
+                          ) return;
+                          const target = numberCluster.querySelector(
+                            '.ant-select-selector,[role="combobox"],select'
+                          ) || selectorRoot;
+                          target.click();
+                        });
+                        numberCluster.dataset
+                          .matholicKioskProblemNumberBound = 'true';
+                      }
+                      const modalOpen = Array.from(
+                        document.querySelectorAll(
+                          '.ant-modal-wrap,.ant-modal[role="dialog"]'
+                        )
+                      ).some(visible);
+                      important(
+                        numberCluster,
+                        'visibility',
+                        modalOpen ? 'hidden' : 'visible'
+                      );
+                      problemNavigationEnhancements = Math.max(
+                        problemNavigationEnhancements,
+                        3
+                      );
+                      return;
+                    }
+                  }
+                  navigation = navigation.parentElement;
+                }
+              }
+            };
+            enhanceProblemNavigation();
             const exactButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
             ).filter(visible);
@@ -1780,6 +1993,7 @@ object WebDomScripts {
               mathModePending = lateMathMode.pendingCount;
               mathModeReady = lateMathMode.readyCount;
               protectAnalysisDetails();
+              enhanceProblemNavigation();
             };
             maintainLateStudentControls();
             mathQuillRuntimePromise.then(runtimeReady => {
@@ -1862,7 +2076,7 @@ object WebDomScripts {
             learningPage: isLearning,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
             mathModePending, mathModeReady, mathModeRemounted,
-            subjectiveTouchTargets,
+            subjectiveTouchTargets, problemNavigationEnhancements,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });

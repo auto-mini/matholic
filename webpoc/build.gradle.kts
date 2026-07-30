@@ -23,8 +23,8 @@ android {
         applicationId = "com.local.matholickiosk.webpoc"
         minSdk = 33
         targetSdk = 37
-        versionCode = 75
-        versionName = "0.4.0-rc58"
+        versionCode = 76
+        versionName = "0.4.0-rc59"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
