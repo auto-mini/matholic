@@ -23,8 +23,9 @@ $env:PYTHONPATH = (Resolve-Path '.\src').Path
 python -m pytest .\tests -q
 ```
 
-독립 실행 파일은 OneDrive 밖의 임시 경로에서 만들고, import 스모크 검증 뒤
-`artifacts`에 보관한다.
+독립 실행 파일은 OneDrive 밖의 임시 경로에서 만들고, 실행 중인 수신기에
+합성 PDF를 암호화 전송해 인증 ACK·저장·정리까지 확인한 뒤 `artifacts`에
+보관한다.
 
 ```powershell
 .\build-receiver.ps1

@@ -276,6 +276,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if args.smoke_check:
+        from matholic_pdf_receiver.smoke import main as run_smoke_check
+
+        run_smoke_check()
         return
     try:
         application = ReceiverApplication(show_window=not args.background)
