@@ -24,6 +24,25 @@ data class StudentEntity(
     val updatedAtEpochMs: Long,
 )
 
+@Entity(
+    tableName = "qr_card_status",
+    foreignKeys = [
+        ForeignKey(
+            entity = StudentEntity::class,
+            parentColumns = ["studentId"],
+            childColumns = ["studentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class QrCardStatusEntity(
+    @androidx.room.PrimaryKey val studentId: String,
+    val issuedAtEpochMs: Long,
+    val lastUsedAtEpochMs: Long?,
+    val lastDeliveredAtEpochMs: Long?,
+    val needsPrint: Boolean,
+)
+
 @Entity(tableName = "class_groups")
 data class ClassGroupEntity(
     @androidx.room.PrimaryKey val classId: String,

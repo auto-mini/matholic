@@ -147,6 +147,20 @@
                             android:textSize="20sp"
                             android:textStyle="bold" />
 
+                        <Button
+                            android:id="@+id/self_test_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="운영 준비 자가진단" />
+
+                        <Button
+                            android:id="@+id/feedback_settings_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="소리·진동 피드백 설정" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -236,6 +250,13 @@
                             android:layout_marginTop="8dp"
                             android:text="새 학생 등록 및 QR 발급" />
 
+                        <Button
+                            android:id="@+id/import_student_csv_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="지정 PC 학생 CSV 가져오기" />
+
                         <Spinner
                             android:id="@+id/student_spinner"
                             android:layout_width="match_parent"
@@ -313,6 +334,14 @@
                             android:text="QR 대기 화면으로 복귀"
                             android:visibility="gone" />
 
+                        <Button
+                            android:id="@+id/recover_session_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="오류 상태 원버튼 복구"
+                            android:visibility="gone" />
+
                         <TextView
                             android:id="@+id/admin_message"
                             android:layout_width="match_parent"
@@ -320,6 +349,14 @@
                             android:layout_marginTop="12dp"
                             android:textColor="#334E68"
                             android:textSize="15sp" />
+
+                        <Button
+                            android:id="@+id/undo_admin_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="방금 작업 실행취소"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </ScrollView>
 
@@ -386,6 +423,20 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:text="선택 반 QR 일괄 재발급·인쇄" />
+
+                        <Button
+                            android:id="@+id/pending_cards_pdf_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="신규·변경 카드만 PC로 보내기" />
+
+                        <Button
+                            android:id="@+id/card_status_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="QR 카드 상태·이력" />
 
                         <Button
                             android:id="@+id/pair_pc_button"

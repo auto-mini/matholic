@@ -9,10 +9,16 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.text.Editable
@@ -47,6 +53,9 @@ import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.AdminAuthResult
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
+import com.local.matholickiosk.kiosk.data.StudentCsvParser
+import com.local.matholickiosk.kiosk.data.ParsedStudentCsv
+import com.local.matholickiosk.kiosk.data.StudentCsvImportPreview
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
@@ -60,6 +69,7 @@ import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
 import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.print.BatchQrCard
+import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.BatchQrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
@@ -67,6 +77,7 @@ import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameGuidance
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
+import com.local.matholickiosk.kiosk.qr.QrFrameQuality
 import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.clearSensitiveData
@@ -76,6 +87,9 @@ import com.local.matholickiosk.kiosk.transfer.PcControlClient
 import com.local.matholickiosk.kiosk.transfer.PcPdfSender
 import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -99,6 +113,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var deleteClassButton: Button
     private lateinit var studentSpinner: Spinner
     private lateinit var registerStudentButton: Button
+    private lateinit var importStudentCsvButton: Button
     private lateinit var reissueQrButton: Button
     private lateinit var updateProfileButton: Button
     private lateinit var updateCredentialsButton: Button
@@ -106,12 +121,18 @@ class MainActivity : ComponentActivity() {
     private lateinit var addTemporaryButton: Button
     private lateinit var startSessionButton: Button
     private lateinit var resumeSessionButton: Button
+    private lateinit var selfTestButton: Button
+    private lateinit var feedbackSettingsButton: Button
+    private lateinit var recoverSessionButton: Button
     private lateinit var adminMessage: TextView
+    private lateinit var undoAdminButton: Button
     private lateinit var qrCardName: TextView
     private lateinit var qrImage: ImageView
     private lateinit var printQrButton: Button
     private lateinit var exportQrPdfButton: Button
     private lateinit var batchQrButton: Button
+    private lateinit var pendingCardsPdfButton: Button
+    private lateinit var cardStatusButton: Button
     private lateinit var pairPcButton: Button
     private lateinit var sendPcPdfButton: Button
     private lateinit var scannerPanel: FrameLayout
@@ -129,6 +150,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var studentRepository: StudentRepository
     private lateinit var lockTaskController: KioskLockTaskController
     private lateinit var pcPairingStore: PcPairingStore
+    private lateinit var diagnosticLog: PrivateDiagnosticLog
     private val pcPdfSender = PcPdfSender()
     private val pcControlClient = PcControlClient()
 
@@ -168,6 +190,8 @@ class MainActivity : ComponentActivity() {
     private var manualStudentSelectionFlowActive = false
     private var qrAcceptanceGeneration = 0
     private var activeStudentDisplayName: String? = null
+    private var pendingAdminUndo: PendingAdminUndo? = null
+    private var adminUndoGeneration = 0
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -199,6 +223,10 @@ class MainActivity : ComponentActivity() {
         passed: Boolean,
         failureReason: String,
     ) {
+        diagnosticLog.record(
+            if (passed) "WEB_SESSION_COMPLETE" else "WEB_SESSION_FAILED",
+            if (passed) null else failureReason,
+        )
         ioExecutor.execute {
             val outcome = WebSessionResultPersistence.persist(
                 passed = passed,
@@ -224,6 +252,7 @@ class MainActivity : ComponentActivity() {
                     onSuccess = { persisted ->
                         currentSession = persisted.session
                         if (persisted.passed) {
+                            provideFeedback(success = true)
                             reportPcStatus(
                                 state = "채점 완료",
                                 studentName = activeStudentDisplayName,
@@ -232,6 +261,7 @@ class MainActivity : ComponentActivity() {
                             activeStudentDisplayName = null
                             showScanner()
                         } else {
+                            provideFeedback(success = false)
                             reportPcStatus(
                                 state = "복구 필요",
                                 studentName = activeStudentDisplayName,
@@ -307,6 +337,7 @@ class MainActivity : ComponentActivity() {
             appVersion = applicationVersion(),
         )
         pcPairingStore = PcPairingStore(this)
+        diagnosticLog = PrivateDiagnosticLog(this)
         QrPdfExporter.cleanupExpired(this)
         configureActions()
         loadInitialState()
@@ -332,6 +363,7 @@ class MainActivity : ComponentActivity() {
         deleteClassButton = findViewById(R.id.delete_class_button)
         studentSpinner = findViewById(R.id.student_spinner)
         registerStudentButton = findViewById(R.id.register_student_button)
+        importStudentCsvButton = findViewById(R.id.import_student_csv_button)
         reissueQrButton = findViewById(R.id.reissue_qr_button)
         updateProfileButton = findViewById(R.id.update_profile_button)
         updateCredentialsButton = findViewById(R.id.update_credentials_button)
@@ -339,12 +371,18 @@ class MainActivity : ComponentActivity() {
         addTemporaryButton = findViewById(R.id.add_temporary_button)
         startSessionButton = findViewById(R.id.start_session_button)
         resumeSessionButton = findViewById(R.id.resume_session_button)
+        selfTestButton = findViewById(R.id.self_test_button)
+        feedbackSettingsButton = findViewById(R.id.feedback_settings_button)
+        recoverSessionButton = findViewById(R.id.recover_session_button)
         adminMessage = findViewById(R.id.admin_message)
+        undoAdminButton = findViewById(R.id.undo_admin_button)
         qrCardName = findViewById(R.id.qr_card_name)
         qrImage = findViewById(R.id.qr_image)
         printQrButton = findViewById(R.id.print_qr_button)
         exportQrPdfButton = findViewById(R.id.export_qr_pdf_button)
         batchQrButton = findViewById(R.id.batch_qr_button)
+        pendingCardsPdfButton = findViewById(R.id.pending_cards_pdf_button)
+        cardStatusButton = findViewById(R.id.card_status_button)
         pairPcButton = findViewById(R.id.pair_pc_button)
         sendPcPdfButton = findViewById(R.id.send_pc_pdf_button)
         scannerPanel = findViewById(R.id.scanner_panel)
@@ -365,6 +403,7 @@ class MainActivity : ComponentActivity() {
             authSubmit,
             findViewById<Button>(R.id.create_class_button),
             registerStudentButton,
+            importStudentCsvButton,
             manageClassMembersButton,
             deleteClassButton,
             reissueQrButton,
@@ -374,11 +413,17 @@ class MainActivity : ComponentActivity() {
             printQrButton,
             exportQrPdfButton,
             batchQrButton,
+            pendingCardsPdfButton,
+            cardStatusButton,
+            undoAdminButton,
             pairPcButton,
             sendPcPdfButton,
             addTemporaryButton,
             startSessionButton,
             resumeSessionButton,
+            selfTestButton,
+            feedbackSettingsButton,
+            recoverSessionButton,
             cancelQrLoginButton,
             switchCameraButton,
             sessionAdminButton,
@@ -404,6 +449,7 @@ class MainActivity : ComponentActivity() {
         findViewById<Button>(R.id.create_class_button).setOnClickListener { createClass() }
         configureQuickClassButtons()
         registerStudentButton.setOnClickListener { showRegisterStudentDialog() }
+        importStudentCsvButton.setOnClickListener { fetchStudentCsvFromPc() }
         manageClassMembersButton.setOnClickListener { showClassMembershipDialog() }
         deleteClassButton.setOnClickListener { confirmDeleteClass() }
         reissueQrButton.setOnClickListener { confirmReissueQr() }
@@ -413,11 +459,17 @@ class MainActivity : ComponentActivity() {
         printQrButton.setOnClickListener { confirmQrPrint() }
         exportQrPdfButton.setOnClickListener { confirmQrPdfExport() }
         batchQrButton.setOnClickListener { confirmBatchQrPrint() }
+        pendingCardsPdfButton.setOnClickListener { showPendingCardsDialog() }
+        cardStatusButton.setOnClickListener { showCardStatusDialog() }
+        undoAdminButton.setOnClickListener { performPendingAdminUndo() }
         pairPcButton.setOnClickListener { startPcPairingScanner() }
         sendPcPdfButton.setOnClickListener { confirmPcPdfTransfer() }
         addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
         startSessionButton.setOnClickListener { startOrEndSession() }
         resumeSessionButton.setOnClickListener { showScanner() }
+        selfTestButton.setOnClickListener { runOperationalSelfTest() }
+        feedbackSettingsButton.setOnClickListener { showFeedbackSettings() }
+        recoverSessionButton.setOnClickListener { confirmOneButtonRecovery() }
         cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
         sessionAdminButton.setOnClickListener {
@@ -529,6 +581,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showInitialStateFailure() {
+        diagnosticLog.record("INITIALIZATION_FAILED")
         stopCamera()
         pcPairingMode = false
         initialStateLoadFailed = true
@@ -962,6 +1015,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun deleteClass(selected: Choice) {
+        val previousMembers = classRosterState.membershipStudentIds.toSet()
         adminMessage.text = "반 삭제 중"
         ioExecutor.execute {
             val result = runCatching { studentRepository.deleteClass(selected.id) }
@@ -970,6 +1024,13 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = {
                         pendingTemporaryStudentIds = emptySet()
+                        offerAdminUndo(
+                            PendingAdminUndo.RestoreClass(
+                                selected.id,
+                                selected.label,
+                                previousMembers,
+                            ),
+                        )
                         refreshAdminData("${selected.label} 반을 삭제했습니다.")
                     },
                     onFailure = { adminMessage.text = it.message ?: "반 삭제 실패" },
@@ -1007,6 +1068,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun replaceClassMemberships(selectedClass: Choice, studentIds: Set<String>) {
+        val previousStudentIds = classRosterState.membershipStudentIds.toSet()
         adminMessage.text = "반 학생 구성 저장 중"
         ioExecutor.execute {
             val result = runCatching {
@@ -1020,6 +1082,13 @@ class MainActivity : ComponentActivity() {
                             pendingTemporaryStudentIds -= studentIds
                             updateClassRosterUi()
                         }
+                        offerAdminUndo(
+                            PendingAdminUndo.RestoreMemberships(
+                                selectedClass.id,
+                                selectedClass.label,
+                                previousStudentIds,
+                            ),
+                        )
                         adminMessage.text = "${selectedClass.label} 반 학생 ${studentIds.size}명을 저장했습니다."
                     },
                     onFailure = { adminMessage.text = it.message ?: "반 학생 구성 저장 실패" },
@@ -1291,6 +1360,12 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = {
                         if (issuedQrPreview?.studentId == selected.id) clearQrPreview()
+                        offerAdminUndo(
+                            PendingAdminUndo.RestoreStudentName(
+                                selected.id,
+                                selected.label,
+                            ),
+                        )
                         refreshAdminData(
                             message = "학생 표시명을 수정했습니다. 이름이 적힌 카드는 QR을 재발급해 다시 인쇄하세요.",
                             preferredStudentId = selected.id,
@@ -1300,6 +1375,76 @@ class MainActivity : ComponentActivity() {
                     onFailure = {
                         finishStudentMutation()
                         adminMessage.text = it.message ?: "학생 표시명 수정 실패"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun offerAdminUndo(action: PendingAdminUndo) {
+        pendingAdminUndo = action
+        val generation = ++adminUndoGeneration
+        undoAdminButton.visibility = View.VISIBLE
+        undoAdminButton.isEnabled = true
+        mainHandler.postDelayed({
+            if (generation == adminUndoGeneration) clearPendingAdminUndo()
+        }, ADMIN_UNDO_WINDOW_MS)
+    }
+
+    private fun clearPendingAdminUndo() {
+        adminUndoGeneration += 1
+        pendingAdminUndo = null
+        if (::undoAdminButton.isInitialized) {
+            undoAdminButton.visibility = View.GONE
+            undoAdminButton.isEnabled = false
+        }
+    }
+
+    private fun performPendingAdminUndo() {
+        val action = pendingAdminUndo ?: return
+        clearPendingAdminUndo()
+        adminMessage.text = "방금 관리자 작업을 되돌리는 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                when (action) {
+                    is PendingAdminUndo.RestoreMemberships ->
+                        studentRepository.replaceClassMemberships(
+                            action.classId,
+                            action.studentIds,
+                        )
+                    is PendingAdminUndo.RestoreStudentName ->
+                        studentRepository.updateStudentProfile(
+                            action.studentId,
+                            action.previousName,
+                        )
+                    is PendingAdminUndo.RestoreClass ->
+                        studentRepository.restoreClass(
+                            action.classId,
+                            action.className,
+                            action.studentIds,
+                        )
+                }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = {
+                        refreshAdminData(
+                            message = "방금 관리자 작업을 되돌렸습니다.",
+                            preferredClassId = when (action) {
+                                is PendingAdminUndo.RestoreClass -> action.classId
+                                is PendingAdminUndo.RestoreMemberships -> action.classId
+                                is PendingAdminUndo.RestoreStudentName -> null
+                            },
+                            preferredStudentId = when (action) {
+                                is PendingAdminUndo.RestoreStudentName -> action.studentId
+                                else -> null
+                            },
+                        )
+                    },
+                    onFailure = {
+                        adminMessage.text =
+                            it.message ?: "관리자 작업 실행취소에 실패했습니다."
                     },
                 )
             }
@@ -1467,10 +1612,304 @@ class MainActivity : ComponentActivity() {
         val hasStudents = students.isNotEmpty()
         studentSpinner.isEnabled = available && hasStudents
         registerStudentButton.isEnabled = available
+        importStudentCsvButton.isEnabled =
+            available && currentSession?.sessionId == null && pairedPcDisplayName != null
         reissueQrButton.isEnabled = available && hasStudents
         updateProfileButton.isEnabled = available && hasStudents
         updateCredentialsButton.isEnabled = available && hasStudents
         deactivateStudentButton.isEnabled = available && hasStudents
+        pendingCardsPdfButton.isEnabled =
+            available && hasStudents && currentSession?.sessionId == null &&
+            pairedPcDisplayName != null
+        cardStatusButton.isEnabled = available && hasStudents
+    }
+
+    private fun fetchStudentCsvFromPc() {
+        if (currentSession?.sessionId != null) {
+            adminMessage.text = "수업 중에는 학생 CSV를 가져올 수 없습니다."
+            return
+        }
+        if (pairedPcDisplayName == null) {
+            adminMessage.text = "먼저 지정 PC를 페어링하세요."
+            return
+        }
+        importStudentCsvButton.isEnabled = false
+        adminMessage.text = "지정 PC에서 암호화된 학생 CSV를 가져오는 중"
+        runCatching {
+            pcControlExecutor.execute {
+                val pairing = runCatching { pcPairingStore.load() }.getOrNull()
+                if (pairing == null) {
+                    runOnUiThread {
+                        importStudentCsvButton.isEnabled = true
+                        adminMessage.text = "저장된 PC 페어링을 확인하지 못했습니다."
+                    }
+                    return@execute
+                }
+                val download = try {
+                    pcControlClient.fetchStudentCsv(pairing)
+                } catch (failure: Throwable) {
+                    runOnUiThread {
+                        importStudentCsvButton.isEnabled = true
+                        adminMessage.text = failure.message ?: "PC에서 CSV를 가져오지 못했습니다."
+                    }
+                    return@execute
+                } finally {
+                    pairing.clearSensitiveData()
+                }
+                if (download == null) {
+                    runOnUiThread {
+                        importStudentCsvButton.isEnabled = true
+                        adminMessage.text = "PC 도우미에서 먼저 학생 CSV를 선택하세요."
+                    }
+                    return@execute
+                }
+                val parsed = try {
+                    StudentCsvParser.parse(download.payload)
+                } catch (failure: Throwable) {
+                    download.payload.fill(0)
+                    runOnUiThread {
+                        importStudentCsvButton.isEnabled = true
+                        adminMessage.text = failure.message ?: "학생 CSV 형식을 확인하지 못했습니다."
+                    }
+                    return@execute
+                } finally {
+                    download.payload.fill(0)
+                }
+                ioExecutor.execute {
+                    val preview = runCatching {
+                        studentRepository.previewStudentImport(parsed.rows)
+                    }
+                    runOnUiThread {
+                        importStudentCsvButton.isEnabled = true
+                        if (destroyed) {
+                            parsed.clearSensitiveData()
+                            return@runOnUiThread
+                        }
+                        preview.fold(
+                            onSuccess = {
+                                showStudentCsvPreview(download.filename, parsed, it)
+                            },
+                            onFailure = {
+                                parsed.clearSensitiveData()
+                                adminMessage.text =
+                                    it.message ?: "학생 CSV 변경 내용을 확인하지 못했습니다."
+                            },
+                        )
+                    }
+                }
+            }
+        }.onFailure {
+            importStudentCsvButton.isEnabled = true
+            adminMessage.text = "PC CSV 가져오기를 시작하지 못했습니다."
+        }
+    }
+
+    private fun showStudentCsvPreview(
+        filename: String,
+        parsed: ParsedStudentCsv,
+        preview: StudentCsvImportPreview,
+    ) {
+        var applying = false
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("학생 CSV 변경 미리보기")
+            .setMessage(
+                "$filename\n\n" +
+                    "신규 등록: ${preview.created}명\n" +
+                    "기존 계정 갱신: ${preview.updated}명\n" +
+                    "이름 변경: ${preview.renamed}명\n" +
+                    "반 소속: CSV 내용으로 교체\n" +
+                    "적용 후 카드 출력 필요 예상: ${preview.cardsNeedingPrintAfterImport}명\n\n" +
+                    "아이디가 같은 기존 학생은 이름·비밀번호·반 소속을 갱신합니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("변경 적용") { _, _ ->
+                applying = true
+                applyStudentCsv(parsed)
+            }
+            .create()
+        dialog.setOnDismissListener {
+            if (!applying) parsed.clearSensitiveData()
+        }
+        dialog.show()
+    }
+
+    private fun applyStudentCsv(parsed: ParsedStudentCsv) {
+        adminMessage.text = "학생 CSV를 암호화해 적용하는 중"
+        importStudentCsvButton.isEnabled = false
+        ioExecutor.execute {
+            val result = runCatching { studentRepository.importStudents(parsed.rows) }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                importStudentCsvButton.isEnabled = true
+                result.fold(
+                    onSuccess = {
+                        refreshAdminData(
+                            "학생 CSV 적용 완료 · 신규 ${it.created}명, 갱신 ${it.updated}명, " +
+                                "카드 출력 필요 ${it.cardsNeedingPrint}명",
+                        )
+                    },
+                    onFailure = {
+                        adminMessage.text = it.message ?: "학생 CSV 적용 실패"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showPendingCardsDialog() {
+        adminMessage.text = "카드 출력 필요 학생 확인 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.listQrCardStatuses().filter { it.needsPrint }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { pending ->
+                        if (pending.isEmpty()) {
+                            adminMessage.text = "신규·변경으로 카드 출력이 필요한 학생이 없습니다."
+                            return@fold
+                        }
+                        val chosen = pending.mapTo(mutableSetOf()) { it.studentId }
+                        val checked = BooleanArray(pending.size) { true }
+                        AlertDialog.Builder(this)
+                            .setTitle("신규·변경 카드 선택")
+                            .setMultiChoiceItems(
+                                pending.map { it.displayNameExact }.toTypedArray(),
+                                checked,
+                            ) { _, index, enabled ->
+                                if (enabled) {
+                                    chosen += pending[index].studentId
+                                } else {
+                                    chosen -= pending[index].studentId
+                                }
+                            }
+                            .setNegativeButton("취소", null)
+                            .setPositiveButton("영향 확인") { _, _ ->
+                                confirmPendingCardsPdf(chosen)
+                            }
+                            .show()
+                    },
+                    onFailure = {
+                        adminMessage.text = it.message ?: "QR 카드 상태를 확인하지 못했습니다."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun confirmPendingCardsPdf(studentIds: Set<String>) {
+        if (studentIds.isEmpty()) {
+            adminMessage.text = "카드를 만들 학생을 한 명 이상 선택하세요."
+            return
+        }
+        val pages = (studentIds.size + 8) / 9
+        AlertDialog.Builder(this)
+            .setTitle("QR 재발급 영향 확인")
+            .setMessage(
+                "선택 학생 ${studentIds.size}명의 기존 QR을 무효화합니다.\n" +
+                    "새 카드 PDF: $pages 페이지\n" +
+                    "지정 PC로 암호화 전송이 끝난 학생만 출력 완료로 기록합니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("재발급·PC 전송") { _, _ ->
+                preparePendingCardsPdf(studentIds)
+            }
+            .show()
+    }
+
+    private fun preparePendingCardsPdf(studentIds: Set<String>) {
+        pendingCardsPdfButton.isEnabled = false
+        adminMessage.text = "선택 학생 QR 재발급·PDF 암호화 전송 중"
+        ioExecutor.execute {
+            var output: File? = null
+            val cards = mutableListOf<BatchQrCard>()
+            val result = runCatching {
+                val pairing = requireNotNull(pcPairingStore.load()) {
+                    "저장된 PC 페어링이 없습니다."
+                }
+                try {
+                    val issued = studentRepository.reissueQrBatch(studentIds)
+                    issued.forEach { item ->
+                        cards += BatchQrCard(
+                            displayName = item.displayNameExact,
+                            qrBitmap = QrImageRenderer.render(
+                                payload = item.issuedQr.payload,
+                                sizePixels = QR_SIZE_PIXELS,
+                            ),
+                        )
+                        item.issuedQr.hash.fill(0)
+                    }
+                    output = BatchQrPdfExporter.export(this, cards)
+                    pcPdfSender.send(
+                        pairing = pairing,
+                        pdfFile = requireNotNull(output),
+                        filename = "신규 변경 학생 QR.pdf",
+                    )
+                    studentRepository.markCardsDelivered(studentIds)
+                } finally {
+                    pairing.clearSensitiveData()
+                }
+            }
+            output?.delete()
+            cards.forEach { card ->
+                if (!card.qrBitmap.isRecycled) {
+                    QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
+                }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                pendingCardsPdfButton.isEnabled = true
+                result.fold(
+                    onSuccess = {
+                        refreshAdminData(
+                            "새 QR ${studentIds.size}장을 지정 PC에 저장했습니다. 기존 QR은 무효화되었습니다.",
+                        )
+                    },
+                    onFailure = {
+                        adminMessage.text =
+                            (it.message ?: "선택 카드 PDF 전송 실패") +
+                                " 기존 QR이 이미 무효화되었을 수 있으므로 카드 상태를 확인하세요."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showCardStatusDialog() {
+        adminMessage.text = "QR 카드 상태·이력 확인 중"
+        ioExecutor.execute {
+            val result = runCatching { studentRepository.listQrCardStatuses() }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { statuses ->
+                        val formatter = SimpleDateFormat("MM-dd HH:mm", Locale.KOREA)
+                        val message = statuses.joinToString("\n\n") { status ->
+                            val issued = formatter.format(Date(status.issuedAtEpochMs))
+                            val used = status.lastUsedAtEpochMs
+                                ?.let { formatter.format(Date(it)) }
+                                ?: "사용 기록 없음"
+                            val delivered = status.lastDeliveredAtEpochMs
+                                ?.let { formatter.format(Date(it)) }
+                                ?: "전송 기록 없음"
+                            "${status.displayNameExact} · " +
+                                (if (status.needsPrint) "출력 필요" else "카드 전달됨") +
+                                "\n발급 $issued · 최근 사용 $used · 최근 전달 $delivered"
+                        }
+                        AlertDialog.Builder(this)
+                            .setTitle("QR 카드 상태·이력")
+                            .setMessage(message.ifEmpty { "등록 학생이 없습니다." })
+                            .setPositiveButton("확인", null)
+                            .show()
+                        adminMessage.text = "QR 카드 상태를 확인했습니다."
+                    },
+                    onFailure = {
+                        adminMessage.text = it.message ?: "QR 카드 상태를 불러오지 못했습니다."
+                    },
+                )
+            }
+        }
     }
 
     private fun confirmBatchQrPrint() {
@@ -1813,6 +2252,7 @@ class MainActivity : ComponentActivity() {
                     pdfFile = requireNotNull(exportFile),
                     filename = "${preview.exactName} QR.pdf",
                 )
+                studentRepository.markCardsDelivered(setOf(preview.studentId))
                 requireNotNull(pairing).displayName
             }
             pairing?.clearSensitiveData()
@@ -2030,6 +2470,151 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun runOperationalSelfTest() {
+        selfTestButton.isEnabled = false
+        adminMessage.text = "운영 준비 상태를 점검하는 중"
+        val deviceStatus = lockTaskController.status()
+        val cameraPermission =
+            checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val cameraHardware = packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+        val connected = getSystemService(ConnectivityManager::class.java)
+            ?.activeNetwork
+            ?.let { network ->
+                getSystemService(ConnectivityManager::class.java)
+                    ?.getNetworkCapabilities(network)
+            }
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        val localChecks = listOf(
+            "Device Owner" to deviceStatus.isDeviceOwner,
+            "전용기기 잠금 허용" to deviceStatus.isKioskPackagePermitted,
+            "학습 앱 보호" to deviceStatus.isWebPocUninstallBlocked,
+            "카메라 권한" to cameraPermission,
+            "카메라 장치" to cameraHardware,
+            "인터넷 연결" to connected,
+            "저장공간 100MB 이상" to (filesDir.usableSpace >= 100L * 1024L * 1024L),
+        )
+        runCatching {
+            pcControlExecutor.execute {
+                val pcReachable = runCatching {
+                    val pairing = requireNotNull(pcPairingStore.load())
+                    try {
+                        pcControlClient.sendStatus(
+                            pairing,
+                            state = "자가진단 중",
+                            studentName = null,
+                            notify = false,
+                        )
+                    } finally {
+                        pairing.clearSensitiveData()
+                    }
+                }.isSuccess
+                runOnUiThread {
+                    if (destroyed) return@runOnUiThread
+                    selfTestButton.isEnabled = true
+                    val checks = localChecks + ("지정 PC 연결" to pcReachable)
+                    val failed = checks.filterNot { it.second }
+                    AlertDialog.Builder(this)
+                        .setTitle(
+                            if (failed.isEmpty()) "운영 준비 자가진단 정상"
+                            else "운영 준비 자가진단 확인 필요",
+                        )
+                        .setMessage(
+                            checks.joinToString("\n") { (label, passed) ->
+                                "${if (passed) "✓" else "!"} $label"
+                            } +
+                                "\n\n공식 Web 화면 구조와 로그인 잔여 상태는 수업 시작 직전에 " +
+                                "기존 안전검사로 확인합니다.",
+                        )
+                        .setPositiveButton("확인", null)
+                        .show()
+                    adminMessage.text = if (failed.isEmpty()) {
+                        "자가진단 정상 · 수업 시작 직전 Web 안전검사를 계속 사용합니다."
+                    } else {
+                        "자가진단 확인 필요 · ${failed.joinToString { it.first }}"
+                    }
+                }
+            }
+        }.onFailure {
+            selfTestButton.isEnabled = true
+            adminMessage.text = "자가진단을 시작하지 못했습니다."
+        }
+    }
+
+    private fun showFeedbackSettings() {
+        val preferences = getSharedPreferences(FEEDBACK_PREFERENCES, Context.MODE_PRIVATE)
+        val selected = booleanArrayOf(
+            preferences.getBoolean(KEY_VIBRATION_ENABLED, true),
+            preferences.getBoolean(KEY_SOUND_ENABLED, false),
+        )
+        AlertDialog.Builder(this)
+            .setTitle("소리·진동 피드백")
+            .setMultiChoiceItems(
+                arrayOf("진동", "짧은 확인음"),
+                selected,
+            ) { _, index, enabled -> selected[index] = enabled }
+            .setNegativeButton("취소", null)
+            .setPositiveButton("저장") { _, _ ->
+                preferences.edit()
+                    .putBoolean(KEY_VIBRATION_ENABLED, selected[0])
+                    .putBoolean(KEY_SOUND_ENABLED, selected[1])
+                    .apply()
+                adminMessage.text =
+                    "피드백 설정 저장 · 진동 ${onOff(selected[0])}, 소리 ${onOff(selected[1])}"
+                provideFeedback(success = true)
+            }
+            .show()
+    }
+
+    private fun provideFeedback(success: Boolean) {
+        val preferences = getSharedPreferences(FEEDBACK_PREFERENCES, Context.MODE_PRIVATE)
+        if (preferences.getBoolean(KEY_VIBRATION_ENABLED, true)) {
+            runCatching {
+                getSystemService(VibratorManager::class.java)
+                    ?.defaultVibrator
+                    ?.vibrate(
+                        VibrationEffect.createOneShot(
+                            if (success) 45L else 110L,
+                            VibrationEffect.DEFAULT_AMPLITUDE,
+                        ),
+                    )
+            }
+        }
+        if (preferences.getBoolean(KEY_SOUND_ENABLED, false)) {
+            runCatching {
+                ToneGenerator(AudioManager.STREAM_NOTIFICATION, 55).apply {
+                    startTone(
+                        if (success) ToneGenerator.TONE_PROP_ACK
+                        else ToneGenerator.TONE_PROP_NACK,
+                        120,
+                    )
+                    mainHandler.postDelayed({ release() }, 200L)
+                }
+            }
+        }
+    }
+
+    private fun onOff(enabled: Boolean): String = if (enabled) "켬" else "끔"
+
+    private fun confirmOneButtonRecovery() {
+        val session = currentSession
+        if (session?.sessionId == null || session.state == KioskState.QR_READY.name) {
+            adminMessage.text = "원버튼 복구가 필요한 수업 상태가 아닙니다."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("오류 상태 원버튼 복구")
+            .setMessage(
+                "현재 상태: ${session.state}\n\n" +
+                    "남은 Web 로그인을 안전하게 정리하고 현재 수업과 보강 명단을 종료합니다. " +
+                    "학생·반·QR 데이터는 삭제하지 않습니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("안전 복구") { _, _ ->
+                launchWebSessionRecovery(PendingRecoveryAction.EndSession)
+            }
+            .show()
+    }
+
     private fun completeSessionStart(action: PendingRecoveryAction.StartSession) {
         ioExecutor.execute {
             val result = runCatching {
@@ -2081,12 +2666,15 @@ class MainActivity : ComponentActivity() {
         val resumable = active && session.state == KioskState.QR_READY.name
         addTemporaryButton.visibility = if (!active || resumable) View.VISIBLE else View.GONE
         resumeSessionButton.visibility = if (resumable) View.VISIBLE else View.GONE
+        recoverSessionButton.visibility = if (active && !resumable) View.VISIBLE else View.GONE
+        startSessionButton.visibility = if (active && !resumable) View.GONE else View.VISIBLE
         startSessionButton.text = if (active) {
             "현재 수업 안전 종료"
         } else {
             "선택한 반 수업 안전 시작"
         }
         classSpinner.isEnabled = !active && !webRecoveryGate.isActive
+        selfTestButton.isEnabled = !webRecoveryGate.isActive
         statusText.text = session?.state ?: KioskState.ADMIN_IDLE.name
         updateClassRosterUi()
         if (active && !resumable) {
@@ -2300,6 +2888,7 @@ class MainActivity : ComponentActivity() {
                 val analyzer = qrAnalyzer ?: QrImageAnalyzer(
                     onDecision = ::handleQrDecision,
                     onGuidance = ::handleQrGuidance,
+                    onQuality = ::handleQrQuality,
                     onRawQr = ::handleRawQr,
                 )
                     .also { qrAnalyzer = it }
@@ -2328,6 +2917,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleCameraBindingFailure() {
+        diagnosticLog.record("CAMERA_BIND_FAILURE")
         showAuthentication(enrollment = false)
         statusText.text = "CAMERA_ERROR"
         authError.text = "카메라를 시작하지 못했습니다. 관리자 PIN으로 상태를 확인하세요."
@@ -2413,6 +3003,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleQrQuality(quality: QrFrameQuality) {
+        runOnUiThread {
+            if (
+                !scannerVisible ||
+                destroyed ||
+                qrAnalyzer?.isEnabled() != true ||
+                statusText.text != KioskState.QR_READY.name
+            ) {
+                return@runOnUiThread
+            }
+            val generation = ++qrGuidanceGeneration
+            scannerMessage.text = when (quality) {
+                QrFrameQuality.TOO_DARK -> "QR이 보이지 않습니다\n카드에 빛이 닿게 해주세요"
+                QrFrameQuality.GLARE -> "빛 반사가 강합니다\n카드 각도를 조금 바꿔주세요"
+                QrFrameQuality.LOW_CONTRAST -> "QR이 흐리게 보입니다\n카드를 렌즈에 가까이 해주세요"
+            }
+            mainHandler.postDelayed({
+                if (
+                    generation == qrGuidanceGeneration &&
+                    scannerVisible &&
+                    !destroyed &&
+                    qrAnalyzer?.isEnabled() == true
+                ) {
+                    scannerMessage.text = ""
+                }
+            }, QR_GUIDANCE_STALE_MS)
+        }
+    }
+
     private fun handleQrDecision(decision: QrFrameDecision) {
         runOnUiThread {
             if (
@@ -2452,6 +3071,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun recordQrRejection(reason: String) {
+        diagnosticLog.record("QR_REJECTED", reason)
         try {
             ioExecutor.execute {
                 val result = runCatching { studentRepository.recordQrRejection(reason) }
@@ -2502,6 +3122,7 @@ class MainActivity : ComponentActivity() {
                             val generation = ++qrAcceptanceGeneration
                             activeStudentDisplayName = student.displayNameExact
                             cancelQrLoginButton.visibility = View.VISIBLE
+                            provideFeedback(success = true)
                             scannerMessage.text =
                                 "${student.displayNameExact}\nQR 인증이 완료되었습니다"
                             reportPcStatus(
@@ -2649,6 +3270,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun lockAfterBridgeFailure(reason: String) {
+        diagnosticLog.record("BRIDGE_FAILURE", reason)
         ioExecutor.execute {
             runCatching {
                 studentRepository.transitionSession(
@@ -3023,6 +3645,25 @@ class MainActivity : ComponentActivity() {
         data object EndSession : PendingRecoveryAction
     }
 
+    private sealed interface PendingAdminUndo {
+        data class RestoreMemberships(
+            val classId: String,
+            val className: String,
+            val studentIds: Set<String>,
+        ) : PendingAdminUndo
+
+        data class RestoreStudentName(
+            val studentId: String,
+            val previousName: String,
+        ) : PendingAdminUndo
+
+        data class RestoreClass(
+            val classId: String,
+            val className: String,
+            val studentIds: Set<String>,
+        ) : PendingAdminUndo
+    }
+
     companion object {
         private const val QR_SIZE_PIXELS = 720
         private const val SCAN_COOLDOWN_MS = 2_000L
@@ -3030,5 +3671,9 @@ class MainActivity : ComponentActivity() {
         private const val QR_ACCEPTED_DISPLAY_MS = 2_000L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
+        private const val ADMIN_UNDO_WINDOW_MS = 30_000L
+        private const val FEEDBACK_PREFERENCES = "operator_feedback"
+        private const val KEY_VIBRATION_ENABLED = "vibration_enabled"
+        private const val KEY_SOUND_ENABLED = "sound_enabled"
     }
 }

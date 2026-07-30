@@ -15,6 +15,7 @@ class QrImageAnalyzer(
     private val codec: QrTokenCodec = QrTokenCodec(),
     private val onDecision: (QrFrameDecision) -> Unit,
     private val onGuidance: (QrFrameGuidance) -> Unit = {},
+    private val onQuality: (QrFrameQuality) -> Unit = {},
     private val onRawQr: (String) -> Boolean = { false },
 ) : ImageAnalysis.Analyzer, Closeable {
     private val processing = AtomicBoolean(false)
@@ -28,9 +29,14 @@ class QrImageAnalyzer(
     private var frontFacing = false
     private var lastGuidance: QrFrameGuidance? = null
     private var lastGuidanceAtNanos = 0L
+    private var lastQuality: QrFrameQuality? = null
+    private var lastQualityAtNanos = 0L
 
     fun setEnabled(value: Boolean) {
-        if (!value) lastGuidance = null
+        if (!value) {
+            lastGuidance = null
+            lastQuality = null
+        }
         deliveryGate.setEnabled(value)
     }
 
@@ -62,6 +68,7 @@ class QrImageAnalyzer(
                 completeFrame()
                 return
             }
+            val frameQuality = sampleFrameQuality(imageProxy)
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
             scanner.process(image)
                 .addOnCompleteListener { task ->
@@ -85,6 +92,9 @@ class QrImageAnalyzer(
                                         imageProxy.imageInfo.rotationDegrees,
                                     )
                                 }
+                            }
+                            if (barcodes.isEmpty() && frameQuality != null) {
+                                deliverQuality(frameQuality)
                             }
                             if (
                                 matholicQrDetected &&
@@ -158,7 +168,39 @@ class QrImageAnalyzer(
         }
     }
 
+    private fun sampleFrameQuality(imageProxy: ImageProxy): QrFrameQuality? {
+        val plane = imageProxy.planes.firstOrNull() ?: return null
+        val buffer = plane.buffer.duplicate()
+        val width = imageProxy.width
+        val height = imageProxy.height
+        if (width <= 0 || height <= 0 || plane.rowStride <= 0) return null
+        val samples = IntArray(QUALITY_GRID * QUALITY_GRID)
+        var count = 0
+        for (row in 0 until QUALITY_GRID) {
+            val y = ((row + 0.5f) * height / QUALITY_GRID).toInt().coerceIn(0, height - 1)
+            for (column in 0 until QUALITY_GRID) {
+                val x = ((column + 0.5f) * width / QUALITY_GRID).toInt().coerceIn(0, width - 1)
+                val index = y * plane.rowStride + x * plane.pixelStride
+                if (index in 0 until buffer.limit()) {
+                    samples[count++] = buffer.get(index).toInt() and 0xff
+                }
+            }
+        }
+        return QrFrameQualityClassifier.classify(samples.copyOf(count))
+    }
+
+    private fun deliverQuality(quality: QrFrameQuality) {
+        val now = System.nanoTime()
+        if (quality != lastQuality || now - lastQualityAtNanos >= QUALITY_REPEAT_NANOS) {
+            lastQuality = quality
+            lastQualityAtNanos = now
+            onQuality(quality)
+        }
+    }
+
     private companion object {
         const val GUIDANCE_REPEAT_NANOS = 400_000_000L
+        const val QUALITY_REPEAT_NANOS = 1_200_000_000L
+        const val QUALITY_GRID = 12
     }
 }

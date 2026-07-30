@@ -25,6 +25,15 @@ data class BatchIssuedQr(
     val issuedQr: IssuedQrToken,
 )
 
+data class QrCardStatusSummary(
+    val studentId: String,
+    val displayNameExact: String,
+    val issuedAtEpochMs: Long,
+    val lastUsedAtEpochMs: Long?,
+    val lastDeliveredAtEpochMs: Long?,
+    val needsPrint: Boolean,
+)
+
 class DecryptedCredentials(
     val username: CharArray,
     val password: CharArray,
@@ -129,6 +138,15 @@ class StudentRepository(
                         updatedAtEpochMs = now,
                     ),
                 )
+                database.qrCardStatusDao().upsert(
+                    QrCardStatusEntity(
+                        studentId = studentId,
+                        issuedAtEpochMs = now,
+                        lastUsedAtEpochMs = null,
+                        lastDeliveredAtEpochMs = null,
+                        needsPrint = true,
+                    ),
+                )
                 audit("STUDENT_REGISTERED", null, studentId, null)
                 audit("QR_ISSUED", null, studentId, null)
             }
@@ -144,8 +162,19 @@ class StudentRepository(
         require(student.isActive) { "Student is inactive" }
         val issued = qrCodec.issue()
         database.runInTransaction {
+            val now = nowEpochMs()
             database.studentDao().update(
-                student.copy(qrTokenHash = issued.hash, updatedAtEpochMs = nowEpochMs()),
+                student.copy(qrTokenHash = issued.hash, updatedAtEpochMs = now),
+            )
+            database.qrCardStatusDao().upsert(
+                QrCardStatusEntity(
+                    studentId = studentId,
+                    issuedAtEpochMs = now,
+                    lastUsedAtEpochMs =
+                        database.qrCardStatusDao().find(studentId)?.lastUsedAtEpochMs,
+                    lastDeliveredAtEpochMs = null,
+                    needsPrint = true,
+                ),
             )
             audit("QR_REISSUED", null, studentId, null)
         }
@@ -184,6 +213,16 @@ class StudentRepository(
                             updatedAtEpochMs = now,
                         ),
                     )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = item.studentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs =
+                                database.qrCardStatusDao().find(item.studentId)?.lastUsedAtEpochMs,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
                 }
                 audit("CLASS_QR_BATCH_REISSUED", issued.size.toString(), null, null)
             }
@@ -191,6 +230,255 @@ class StudentRepository(
         } catch (failure: Throwable) {
             issued.forEach { it.issuedQr.hash.fill(0) }
             throw failure
+        }
+    }
+
+    fun reissueQrBatch(studentIds: Set<String>): List<BatchIssuedQr> {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 QR을 일괄 재발급할 수 없습니다."
+        }
+        require(studentIds.isNotEmpty()) { "재발급할 학생을 선택하세요." }
+        val students = database.studentDao().listAllActive()
+            .filter { it.studentId in studentIds }
+        require(students.size == studentIds.size) {
+            "비활성화되었거나 존재하지 않는 학생이 포함되어 있습니다."
+        }
+        val issued = students.map { student ->
+            BatchIssuedQr(
+                studentId = student.studentId,
+                displayNameExact = student.displayNameExact,
+                issuedQr = qrCodec.issue(),
+            )
+        }
+        try {
+            database.runInTransaction {
+                val now = nowEpochMs()
+                issued.forEach { item ->
+                    val student = requireNotNull(database.studentDao().findById(item.studentId))
+                    require(student.isActive) { "Student is inactive" }
+                    database.studentDao().update(
+                        student.copy(
+                            qrTokenHash = item.issuedQr.hash,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = item.studentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs =
+                                database.qrCardStatusDao().find(item.studentId)?.lastUsedAtEpochMs,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
+                }
+                audit("SELECTED_QR_BATCH_REISSUED", issued.size.toString(), null, null)
+            }
+            return issued
+        } catch (failure: Throwable) {
+            issued.forEach { it.issuedQr.hash.fill(0) }
+            throw failure
+        }
+    }
+
+    fun listQrCardStatuses(): List<QrCardStatusSummary> {
+        val statuses = database.qrCardStatusDao().listForActiveStudents()
+            .associateBy(QrCardStatusEntity::studentId)
+        return database.studentDao().listAllActive().map { student ->
+            val status = statuses[student.studentId] ?: QrCardStatusEntity(
+                studentId = student.studentId,
+                issuedAtEpochMs = student.updatedAtEpochMs,
+                lastUsedAtEpochMs = null,
+                lastDeliveredAtEpochMs = null,
+                needsPrint = false,
+            )
+            QrCardStatusSummary(
+                studentId = student.studentId,
+                displayNameExact = student.displayNameExact,
+                issuedAtEpochMs = status.issuedAtEpochMs,
+                lastUsedAtEpochMs = status.lastUsedAtEpochMs,
+                lastDeliveredAtEpochMs = status.lastDeliveredAtEpochMs,
+                needsPrint = status.needsPrint,
+            )
+        }
+    }
+
+    fun importStudents(rows: List<StudentCsvRow>): StudentCsvImportResult {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 학생 CSV를 가져올 수 없습니다."
+        }
+        require(rows.isNotEmpty()) { "가져올 학생이 없습니다." }
+        val classesByName = database.classDao().listActive()
+            .associateBy(ClassGroupEntity::className)
+        val unknownClasses = rows.flatMap(StudentCsvRow::classNames)
+            .filterNot(classesByName::containsKey)
+            .distinct()
+        require(unknownClasses.isEmpty()) {
+            "등록되지 않은 반이 있습니다: ${unknownClasses.joinToString(", ")}"
+        }
+        val existing = database.studentDao().listAllActive()
+        val existingUsernames = existing.map { student ->
+            student to cipher.decrypt(
+                student.studentId,
+                CredentialField.USERNAME,
+                EncryptedValue(
+                    student.usernameCiphertext,
+                    student.usernameIv,
+                    student.usernameEncryptionVersion,
+                ),
+            )
+        }
+        try {
+            var created = 0
+            var updated = 0
+            database.runInTransaction {
+                val now = nowEpochMs()
+                rows.forEach { row ->
+                    val matched = existingUsernames.firstOrNull { (_, username) ->
+                        username.contentEquals(row.username)
+                    }?.first
+                    val studentId = matched?.studentId ?: UUID.randomUUID().toString()
+                    val usernameEncrypted = cipher.encrypt(
+                        studentId,
+                        CredentialField.USERNAME,
+                        row.username,
+                    )
+                    val passwordEncrypted = cipher.encrypt(
+                        studentId,
+                        CredentialField.PASSWORD,
+                        row.password,
+                    )
+                    if (matched == null) {
+                        database.studentDao().insert(
+                            StudentEntity(
+                                studentId = studentId,
+                                displayNameExact = row.displayNameExact,
+                                displayNameMasked = row.displayNameExact,
+                                usernameCiphertext = usernameEncrypted.ciphertext,
+                                usernameIv = usernameEncrypted.iv,
+                                usernameEncryptionVersion = usernameEncrypted.version,
+                                passwordCiphertext = passwordEncrypted.ciphertext,
+                                passwordIv = passwordEncrypted.iv,
+                                passwordEncryptionVersion = passwordEncrypted.version,
+                                qrTokenHash = qrCodec.issueHashOnly(),
+                                isActive = true,
+                                createdAtEpochMs = now,
+                                updatedAtEpochMs = now,
+                            ),
+                        )
+                        database.qrCardStatusDao().upsert(
+                            QrCardStatusEntity(
+                                studentId = studentId,
+                                issuedAtEpochMs = now,
+                                lastUsedAtEpochMs = null,
+                                lastDeliveredAtEpochMs = null,
+                                needsPrint = true,
+                            ),
+                        )
+                        created += 1
+                    } else {
+                        database.studentDao().update(
+                            matched.copy(
+                                displayNameExact = row.displayNameExact,
+                                displayNameMasked = row.displayNameExact,
+                                usernameCiphertext = usernameEncrypted.ciphertext,
+                                usernameIv = usernameEncrypted.iv,
+                                usernameEncryptionVersion = usernameEncrypted.version,
+                                passwordCiphertext = passwordEncrypted.ciphertext,
+                                passwordIv = passwordEncrypted.iv,
+                                passwordEncryptionVersion = passwordEncrypted.version,
+                                updatedAtEpochMs = now,
+                            ),
+                        )
+                        if (matched.displayNameExact != row.displayNameExact) {
+                            check(database.qrCardStatusDao().setNeedsPrint(studentId, true) == 1)
+                        }
+                        updated += 1
+                    }
+                    database.classDao().clearStudentMemberships(studentId)
+                    row.classNames.forEach { className ->
+                        database.classDao().addMembership(
+                            ClassMembershipEntity(
+                                classId = requireNotNull(classesByName[className]).classId,
+                                studentId = studentId,
+                            ),
+                        )
+                    }
+                }
+                audit(
+                    "STUDENT_CSV_IMPORTED",
+                    "C$created-U$updated",
+                    null,
+                    null,
+                )
+            }
+            val needsPrint = listQrCardStatuses().count(QrCardStatusSummary::needsPrint)
+            return StudentCsvImportResult(created, updated, needsPrint)
+        } finally {
+            existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
+            rows.forEach(StudentCsvRow::clearSensitiveData)
+        }
+    }
+
+    fun previewStudentImport(rows: List<StudentCsvRow>): StudentCsvImportPreview {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 학생 CSV를 가져올 수 없습니다."
+        }
+        require(rows.isNotEmpty()) { "가져올 학생이 없습니다." }
+        val classesByName = database.classDao().listActive()
+            .associateBy(ClassGroupEntity::className)
+        val unknownClasses = rows.flatMap(StudentCsvRow::classNames)
+            .filterNot(classesByName::containsKey)
+            .distinct()
+        require(unknownClasses.isEmpty()) {
+            "등록되지 않은 반이 있습니다: ${unknownClasses.joinToString(", ")}"
+        }
+        val existing = database.studentDao().listAllActive()
+        val existingUsernames = existing.map { student ->
+            student to cipher.decrypt(
+                student.studentId,
+                CredentialField.USERNAME,
+                EncryptedValue(
+                    student.usernameCiphertext,
+                    student.usernameIv,
+                    student.usernameEncryptionVersion,
+                ),
+            )
+        }
+        try {
+            var created = 0
+            var updated = 0
+            var renamed = 0
+            rows.forEach { row ->
+                val matched = existingUsernames.firstOrNull { (_, username) ->
+                    username.contentEquals(row.username)
+                }?.first
+                if (matched == null) {
+                    created += 1
+                } else {
+                    updated += 1
+                    if (matched.displayNameExact != row.displayNameExact) renamed += 1
+                }
+            }
+            val alreadyPending = listQrCardStatuses().count(QrCardStatusSummary::needsPrint)
+            return StudentCsvImportPreview(
+                created = created,
+                updated = updated,
+                renamed = renamed,
+                cardsNeedingPrintAfterImport = alreadyPending + created + renamed,
+            )
+        } finally {
+            existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
+        }
+    }
+
+    fun markCardsDelivered(studentIds: Set<String>) {
+        require(studentIds.isNotEmpty()) { "전달 완료 학생이 필요합니다." }
+        database.runInTransaction {
+            val updated = database.qrCardStatusDao().markDelivered(studentIds, nowEpochMs())
+            require(updated == studentIds.size) { "일부 QR 카드 상태를 갱신하지 못했습니다." }
+            audit("QR_CARDS_DELIVERED", studentIds.size.toString(), null, null)
         }
     }
 
@@ -215,6 +503,9 @@ class StudentRepository(
                     updatedAtEpochMs = nowEpochMs(),
                 ),
             )
+            check(database.qrCardStatusDao().setNeedsPrint(studentId, true) == 1) {
+                "QR card status not found"
+            }
             audit("STUDENT_PROFILE_UPDATED", null, studentId, null)
         }
     }
@@ -252,6 +543,42 @@ class StudentRepository(
                 "Class delete failed"
             }
             audit("CLASS_DELETED", null, null, null)
+        }
+    }
+
+    fun restoreClass(
+        classId: String,
+        className: String,
+        studentIds: Set<String>,
+    ) {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 삭제한 반을 복원할 수 없습니다."
+        }
+        require(database.classDao().findActiveByName(className) == null) {
+            "같은 이름의 반이 이미 있어 복원할 수 없습니다."
+        }
+        val activeStudentIds = database.studentDao().listAllActive()
+            .mapTo(mutableSetOf(), StudentEntity::studentId)
+        require(studentIds.all(activeStudentIds::contains)) {
+            "복원할 반에 비활성 학생이 포함되어 있습니다."
+        }
+        val now = nowEpochMs()
+        database.runInTransaction {
+            database.classDao().upsert(
+                ClassGroupEntity(
+                    classId = classId,
+                    className = className,
+                    isActive = true,
+                    createdAtEpochMs = now,
+                    updatedAtEpochMs = now,
+                ),
+            )
+            studentIds.forEach { studentId ->
+                database.classDao().addMembership(
+                    ClassMembershipEntity(classId, studentId),
+                )
+            }
+            audit("CLASS_DELETE_UNDONE", studentIds.size.toString(), null, null)
         }
     }
 
@@ -425,6 +752,9 @@ class StudentRepository(
             return null
         }
         audit("QR_ACCEPTED", null, student.studentId, session.sessionId)
+        check(database.qrCardStatusDao().markUsed(student.studentId, nowEpochMs()) == 1) {
+            "QR card status not found"
+        }
         return ValidatedStudent(student.studentId, student.displayNameExact)
     }
 

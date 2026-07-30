@@ -66,6 +66,10 @@ android {
             "META-INF/NOTICE.md",
         )
     }
+
+    sourceSets {
+        getByName("androidTest").assets.directories.add("schemas")
+    }
 }
 
 ksp {

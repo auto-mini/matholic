@@ -80,6 +80,52 @@ interface StudentDao {
 }
 
 @Dao
+interface QrCardStatusDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsert(status: QrCardStatusEntity)
+
+    @Query("SELECT * FROM qr_card_status WHERE studentId = :studentId LIMIT 1")
+    fun find(studentId: String): QrCardStatusEntity?
+
+    @Query(
+        """
+        SELECT q.* FROM qr_card_status q
+        INNER JOIN students s ON s.studentId = q.studentId
+        WHERE s.isActive = 1
+        ORDER BY s.displayNameExact
+        """,
+    )
+    fun listForActiveStudents(): List<QrCardStatusEntity>
+
+    @Query(
+        """
+        UPDATE qr_card_status
+        SET lastUsedAtEpochMs = :usedAtEpochMs
+        WHERE studentId = :studentId
+        """,
+    )
+    fun markUsed(studentId: String, usedAtEpochMs: Long): Int
+
+    @Query(
+        """
+        UPDATE qr_card_status
+        SET lastDeliveredAtEpochMs = :deliveredAtEpochMs, needsPrint = 0
+        WHERE studentId IN (:studentIds)
+        """,
+    )
+    fun markDelivered(studentIds: Set<String>, deliveredAtEpochMs: Long): Int
+
+    @Query(
+        """
+        UPDATE qr_card_status
+        SET needsPrint = :needsPrint
+        WHERE studentId = :studentId
+        """,
+    )
+    fun setNeedsPrint(studentId: String, needsPrint: Boolean): Int
+}
+
+@Dao
 interface ClassDao {
     @Upsert
     fun upsert(group: ClassGroupEntity)
@@ -89,6 +135,9 @@ interface ClassDao {
 
     @Query("DELETE FROM class_memberships WHERE classId = :classId")
     fun clearMemberships(classId: String)
+
+    @Query("DELETE FROM class_memberships WHERE studentId = :studentId")
+    fun clearStudentMemberships(studentId: String)
 
     @Query("SELECT studentId FROM class_memberships WHERE classId = :classId")
     fun listMembershipStudentIds(classId: String): List<String>

@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
+import com.local.matholickiosk.kiosk.data.StudentCsvRow
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.qr.QrParseResult
@@ -437,5 +438,58 @@ class RepositoryInstrumentedTest {
         val audit = database.auditDao().latest(10)
         assertTrue(audit.any { it.eventType == "CLASS_QR_BATCH_REISSUED" })
         assertFalse(audit.joinToString().contains("가상학생"))
+    }
+
+    @Test
+    fun csvImportUpdatesByLoginIdAndTracksOnlyCardsNeedingPrint() {
+        val classA = repository.createClass("월1")
+        val classB = repository.createClass("화2")
+        val existing = repository.registerStudent(
+            "기존 이름",
+            "existing-user".toCharArray(),
+            "old-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classA, setOf(existing.studentId))
+        repository.markCardsDelivered(setOf(existing.studentId))
+
+        val previewRows = listOf(
+            StudentCsvRow(
+                "변경 이름",
+                "existing-user".toCharArray(),
+                "new-password".toCharArray(),
+                setOf("화2"),
+            ),
+            StudentCsvRow(
+                "신규 학생",
+                "new-user".toCharArray(),
+                "new-user-password".toCharArray(),
+                setOf("월1", "화2"),
+            ),
+        )
+        val preview = repository.previewStudentImport(previewRows)
+        assertEquals(1, preview.created)
+        assertEquals(1, preview.updated)
+        assertEquals(1, preview.renamed)
+
+        val result = repository.importStudents(previewRows)
+        assertEquals(1, result.created)
+        assertEquals(1, result.updated)
+        assertTrue(previewRows.all { row ->
+            row.username.all { it == '\u0000' } && row.password.all { it == '\u0000' }
+        })
+        val updated = repository.listStudents().single { it.studentId == existing.studentId }
+        assertEquals("변경 이름", updated.displayNameExact)
+        repository.decryptCredentials(existing.studentId).use {
+            assertArrayEquals("new-password".toCharArray(), it.password)
+        }
+        assertFalse(existing.studentId in repository.membershipStudentIds(classA))
+        assertTrue(existing.studentId in repository.membershipStudentIds(classB))
+        val pending = repository.listQrCardStatuses().filter { it.needsPrint }
+        assertEquals(2, pending.size)
+
+        val issued = repository.reissueQrBatch(pending.mapTo(mutableSetOf()) { it.studentId })
+        repository.markCardsDelivered(issued.mapTo(mutableSetOf()) { it.studentId })
+        assertTrue(repository.listQrCardStatuses().none { it.needsPrint })
+        issued.forEach { item -> item.issuedQr.hash.fill(0) }
     }
 }
