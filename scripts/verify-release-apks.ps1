@@ -4,8 +4,8 @@ param(
     [string]$KioskApk,
     [Parameter(Mandatory = $true)]
     [string]$WebPocApk,
-    [string]$ExpectedKioskVersion = '0.6.0-rc44',
-    [string]$ExpectedWebPocVersion = '0.4.0-rc67'
+    [string]$ExpectedKioskVersion = '0.6.0-rc45',
+    [string]$ExpectedWebPocVersion = '0.4.0-rc68'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -95,6 +95,23 @@ function Assert-ApkManifest(
     }
     if ($manifest -notmatch 'android:screenOrientation=\"6\"') {
         throw "Release APK must allow sensor-based landscape and reverse landscape: $ApkPath"
+    }
+    $diagnosticReceiver = [regex]::Match(
+        $manifest,
+        '(?s)<receiver\b[^>]*AdbDiagnosticDumpReceiver[^>]*>.*?</receiver>'
+    ).Value
+    if (-not $diagnosticReceiver) {
+        throw "ADB diagnostic receiver is missing from release APK: $ApkPath"
+    }
+    if (
+        $diagnosticReceiver -notmatch 'android:exported=\"true\"' -or
+        $diagnosticReceiver -notmatch 'android:permission=\"android.permission.DUMP\"'
+    ) {
+        throw "ADB diagnostic receiver must be exported and protected by android.permission.DUMP: $ApkPath"
+    }
+    $expectedDiagnosticAction = "$ExpectedPackage.action.DUMP_PRIVATE_DIAGNOSTICS"
+    if ($diagnosticReceiver -notmatch [regex]::Escape($expectedDiagnosticAction)) {
+        throw "Unexpected ADB diagnostic action in ${ApkPath}: $expectedDiagnosticAction"
     }
     foreach ($permission in $RequiredPermissions) {
         if ($permission -notin $permissions) {

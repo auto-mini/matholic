@@ -47,4 +47,22 @@ class DiagnosticEventPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun `adb dump accepts only generated nonce and structural event lines`() {
+        assertEquals(true, PrivateDiagnosticLog.isSafeDumpNonce("0123456789ABCDEF"))
+        assertEquals(false, PrivateDiagnosticLog.isSafeDumpNonce("student-name"))
+        assertEquals(
+            true,
+            PrivateDiagnosticLog.isSafeDumpLine(
+                "2026-07-31T01:02:03.456Z RESULT_INCOMPLETE:HYDRATING_RESULT:E25:C20:H4:F0",
+            ),
+        )
+        assertEquals(
+            false,
+            PrivateDiagnosticLog.isSafeDumpLine(
+                "2026-07-31T01:02:03.456Z LOGIN:student@example.com",
+            ),
+        )
+    }
 }

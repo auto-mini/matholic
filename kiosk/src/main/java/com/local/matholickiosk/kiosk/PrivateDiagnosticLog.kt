@@ -1,6 +1,7 @@
 package com.local.matholickiosk.kiosk
 
 import android.content.Context
+import android.util.Log
 import java.io.File
 import java.util.Locale
 
@@ -37,6 +38,20 @@ class PrivateDiagnosticLog(
         }
     }
 
+    fun dumpForAdb(nonce: String) {
+        if (!isSafeDumpNonce(nonce)) return
+        Log.i(ADB_DUMP_TAG, "BEGIN:$nonce")
+        listOf(previous, current).forEach { file ->
+            runCatching {
+                file.readLines(Charsets.UTF_8)
+                    .takeLast(MAX_DUMP_LINES_PER_FILE)
+                    .filter(::isSafeDumpLine)
+                    .forEach { line -> Log.i(ADB_DUMP_TAG, "$nonce $line") }
+            }
+        }
+        Log.i(ADB_DUMP_TAG, "END:$nonce")
+    }
+
     private fun String.safeCode(): String? {
         val normalized = trim().uppercase(Locale.ROOT).take(80)
         return normalized.takeIf {
@@ -52,5 +67,14 @@ class PrivateDiagnosticLog(
 
     companion object {
         private const val MAX_BYTES = 256 * 1024
+        private const val MAX_DUMP_LINES_PER_FILE = 200
+        internal const val ADB_DUMP_TAG = "KioskPrivateDiagnostics"
+        private val DUMP_NONCE = Regex("[A-F0-9]{16,64}")
+        private val DUMP_LINE =
+            Regex("[0-9]{1,20}\\t[A-Z0-9_.-]{1,80}(\\t[A-Z0-9_.-]{1,80})?")
+
+        internal fun isSafeDumpNonce(value: String): Boolean = DUMP_NONCE.matches(value)
+
+        internal fun isSafeDumpLine(value: String): Boolean = DUMP_LINE.matches(value)
     }
 }
