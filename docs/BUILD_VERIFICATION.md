@@ -5828,3 +5828,36 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - A 기기에는 rc67을 설치하지 않았다.
 - 실제 장애를 강제로 발생시키는 네트워크 차단·프로세스 중단·결과 판독
   실패주입은 사용자 부재와 기존 수업 데이터 보호를 위해 실행하지 않았다.
+
+## A 기기 보존 설치 RC44/RC67 — 2026-07-30
+
+### 설치
+
+- 대상: A / SM-P610 / `R54TB029FHZ`
+- Web `0.4.0-rc67`(code 84)을 `adb install --no-streaming -r`로 설치했다.
+- Kiosk `0.6.0-rc44`(code 49)을 `adb install --no-streaming -r`로 설치했다.
+- 앱 데이터 삭제, Device Owner 변경, 기기 재부팅과 QR 재발급은 수행하지
+  않았다.
+
+### 설치 직후 자동 검증
+
+- 두 APK 모두 설치 명령이 `Success`로 완료됐다.
+- Kiosk:
+  - `firstInstallTime` `2026-07-24 12:52:28` 유지
+  - `ceDataInode` `3236` 유지
+- Web:
+  - `firstInstallTime` `2026-07-28 13:12:16` 유지
+  - `ceDataInode` `28569` 유지
+- Kiosk Device Owner, 전용 HOME, `LOCKED` Lock Task가 유지됐다.
+- Kiosk가 최상위 resumed activity로 복귀했다.
+- 설치에 따른 Kiosk 프로세스 교체 기록은 Android의
+  `USER REQUESTED / FORCE STOP`이며 앱 crash 기록이 아니다.
+
+### 현재 상태와 미검증
+
+- 설치 직후 상태는 `RECOVERY_REQUIRED`다. 실행 중 Kiosk 패키지를 보존
+  설치하면서 프로세스가 교체된 데 따른 예상 안전 복구 상태다.
+- 관리자 PIN을 입력하는 수동 복구는 사용자 부재 중 수행하지 않았다.
+- 기존 학생·반·QR의 화면상 보존과 신규 편의 기능의 실제 현장 동작은
+  [현장 검증 체크리스트](RC44_RC67_FIELD_VERIFICATION_CHECKLIST.md)에 따라
+  검증해야 한다.
