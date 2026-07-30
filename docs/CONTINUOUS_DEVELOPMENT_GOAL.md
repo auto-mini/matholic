@@ -1769,3 +1769,34 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   - firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner와
     전용 HOME 유지
 - 동일 학습지 문제 4 전체답안 칸은 사용자 실물 재확인 대상으로 둔다.
+
+## Web POC RC55 공식 MathQuill 로드 경쟁 제거 — 2026-07-30
+
+- 공식 최신 학습 자산을 확인해 문제 4의 얇은 칸이 `.mq-math-mode`가 아니라
+  MathQuill 초기화 전 폭 160px의 일반 `span`임을 확정했다.
+- 여러 주관식 wrapper가 동시에 mount될 때 공식 script loader가 기존
+  element만 보고 load 완료로 오인해 일부 MathQuill instance가 생성되지
+  않는 경쟁 조건을 확인했다.
+- 학습 페이지에서 jQuery와 MathQuill을 하나의 Promise로 순차 선로딩하고,
+  실제 global 생성을 확인한 후 기존 주관식 유지보정을 다시 실행한다.
+- class/textarea가 없는 공식 초기 shell도 toolbar와 inline style을 기준으로
+  찾아 최소 220×56px로 만들고 겹친 clear control을 숨긴다.
+- `28`은 키오스크 하드코딩 값이 아니라 기존 Matholic 답안 상태다.
+  초기화 실패 때문에 삭제 edit가 React 상태에 도달하지 않아 화면과
+  임시저장에 복원된 것이다.
+- 기존 답안 28의 첫 두 vendor 무시 edit 소비와 이후 삭제 반영까지
+  회귀시험으로 고정했다.
+- Web POC 버전은 `0.4.0-rc55`/code 72,
+  Web 계약은 `web-2026-07-30.7`이다.
+- 검증:
+  - JVM 단위시험·debug assemble·계측 APK compile 통과
+  - Android 13 DOM 계약 51개 전부 통과
+  - release 단위시험·lint·두 APK assemble 158 tasks와 APK 이중 검증 통과
+- A에 보존형 설치했고 artifact와 설치 APK SHA-256은
+  `165C3C0E15483C548E46F674229521050ADCDE793246FF569B3E045C141FA359`
+  로 일치했다.
+- firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner와
+  전용 HOME을 유지했다.
+- 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
+- 동일 학습지 문제 4에서 기존 `28` 삭제→임시저장→재진입과 새 답안 입력은
+  사용자 실물 재확인 대상으로 둔다.

@@ -73,6 +73,11 @@ class WebDomScriptsTest {
         assertTrue(script.contains(
             "'.mq-editable-field,.mq-math-mode'",
         ))
+        assertTrue(script.contains("ensureMathQuillRuntime"))
+        assertTrue(script.contains("/js/mathquill/jquery-3.2.1.min.js"))
+        assertTrue(script.contains("/js/mathquill/mathquill.min.js"))
+        assertTrue(script.contains("matholicKioskMathShell"))
+        assertTrue(script.contains("inline.width !== '160px'"))
         assertTrue(script.contains("scheduleViewportMaintenance"))
         assertTrue(script.contains("'scroll',"))
     }

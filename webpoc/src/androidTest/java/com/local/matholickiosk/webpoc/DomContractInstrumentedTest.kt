@@ -833,10 +833,10 @@ class DomContractInstrumentedTest {
                   <button type="button">파이</button>
                 </div>
                 <div id="pretextarea-shell" style="position:relative">
-                  <span id="pretextarea-editor" class="mq-math-mode"
-                    style="display:inline;height:4px;min-height:0;width:12px">
-                    <span class="mq-root-block"></span>
-                  </span>
+                  <span id="pretextarea-editor"
+                    style="display:inline;width:160px;padding:8px;
+                      border-radius:6px;border:1px solid #d9d9d9;
+                      font-size:1.2em;text-align:center"></span>
                   <span id="pretextarea-clear" class="clear-control"
                     style="position:absolute">
                     <button type="button" aria-label="지우기"></button>
@@ -879,6 +879,67 @@ class DomContractInstrumentedTest {
             assertEquals("auto", proof.getString("pointerEvents"))
             assertTrue(proof.getBoolean("marked"))
             assertTrue(proof.getBoolean("clearHidden"))
+        }
+    }
+
+    @Test
+    fun testStudentExperiencePreloadsMathQuillRuntimeSequentially() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head>
+              <script>
+                window.matholicRuntimeOrder = [];
+                const nativeAppendChild =
+                  document.head.appendChild.bind(document.head);
+                document.head.appendChild = node => {
+                  if (
+                    node.tagName === 'SCRIPT' &&
+                    node.id.startsWith('matholic-kiosk-')
+                  ) {
+                    window.matholicRuntimeOrder.push(node.id);
+                    node.src = 'data:text/javascript,';
+                    const result = nativeAppendChild(node);
+                    setTimeout(() => {
+                      if (node.id === 'matholic-kiosk-jquery-runtime') {
+                        window.jQuery = {};
+                      } else if (
+                        node.id === 'matholic-kiosk-mathquill-runtime'
+                      ) {
+                        window.MathQuill = {};
+                      }
+                      node.dispatchEvent(new Event('load'));
+                    }, 20);
+                    return result;
+                  }
+                  return nativeAppendChild(node);
+                };
+              </script>
+            </head><body></body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            Thread.sleep(300)
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  order: window.matholicRuntimeOrder,
+                  jqueryReady: !!window.jQuery,
+                  mathQuillReady: !!window.MathQuill,
+                  promiseReused:
+                    !!window.__matholicKioskMathQuillRuntimePromise
+                }))()
+                """.trimIndent(),
+            )
+            val order = proof.getJSONArray("order")
+            assertEquals(2, order.length())
+            assertEquals("matholic-kiosk-jquery-runtime", order.getString(0))
+            assertEquals("matholic-kiosk-mathquill-runtime", order.getString(1))
+            assertTrue(proof.getBoolean("jqueryReady"))
+            assertTrue(proof.getBoolean("mathQuillReady"))
+            assertTrue(proof.getBoolean("promiseReused"))
         }
     }
 
@@ -995,6 +1056,110 @@ class DomContractInstrumentedTest {
             assertTrue(afterScroll.getDouble("actualWidth") >= 220.0)
             assertTrue(afterScroll.getDouble("actualHeight") >= 56.0)
             assertEquals("auto", afterScroll.getString("pointerEvents"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceAllowsDeletingExistingAnswerAfterVendorIgnoredEdits() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="answer-input-form-existing">
+                <div>
+                  <button type="button">루트</button>
+                  <button type="button">분수</button>
+                  <button type="button">파이</button>
+                </div>
+                <span id="existing-editor"
+                  class="mq-editable-field mq-math-mode">
+                  <span class="mq-textarea"><textarea></textarea></span>
+                  <span class="mq-root-block"></span>
+                </span>
+                <button type="button">입력기</button>
+              </div>
+              <script>
+                window.existingAnswerState = {
+                  prop: '28',
+                  latex: '28',
+                  ignoredEdits: 2,
+                  editCount: 0
+                };
+                window.recordExistingAnswerEdit = () => {
+                  const state = window.existingAnswerState;
+                  state.editCount += 1;
+                  if (state.ignoredEdits > 0) {
+                    state.ignoredEdits -= 1;
+                  } else {
+                    state.prop = state.latex === '' ? null : state.latex;
+                  }
+                };
+                const editor = document.getElementById('existing-editor');
+                editor.fieldApi = {
+                  latex: value => {
+                    if (value !== undefined) {
+                      window.existingAnswerState.latex = value;
+                    }
+                    return window.existingAnswerState.latex;
+                  },
+                  write: value => {
+                    window.existingAnswerState.latex += value;
+                    window.recordExistingAnswerEdit();
+                  },
+                  keystroke: key => {
+                    if (key === 'Backspace') {
+                      window.existingAnswerState.latex =
+                        window.existingAnswerState.latex.slice(0, -1);
+                    }
+                    window.recordExistingAnswerEdit();
+                  }
+                };
+                window.MathQuill = {
+                  getInterface: () => element => element.fieldApi || null
+                };
+                window.clearExistingAnswer = () => {
+                  const state = window.existingAnswerState;
+                  state.latex = '';
+                  window.recordExistingAnswerEdit();
+                  if (state.prop !== null && state.latex !== state.prop) {
+                    state.latex = state.prop;
+                  }
+                };
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            val beforeClear = evaluate(
+                webView,
+                """
+                (() => JSON.stringify(window.existingAnswerState))()
+                """.trimIndent(),
+            )
+            assertEquals("28", beforeClear.getString("prop"))
+            assertEquals("28", beforeClear.getString("latex"))
+            assertEquals(0, beforeClear.getInt("ignoredEdits"))
+            assertEquals(2, beforeClear.getInt("editCount"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  window.clearExistingAnswer();
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            val afterClear = evaluate(
+                webView,
+                """
+                (() => JSON.stringify(window.existingAnswerState))()
+                """.trimIndent(),
+            )
+            assertTrue(afterClear.isNull("prop"))
+            assertEquals("", afterClear.getString("latex"))
+            assertEquals(3, afterClear.getInt("editCount"))
         }
     }
 

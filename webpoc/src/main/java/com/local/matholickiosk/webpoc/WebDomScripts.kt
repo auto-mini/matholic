@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.6"
+    const val CONTRACT_VERSION = "web-2026-07-30.7"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -346,6 +346,70 @@ object WebDomScripts {
             }
             return true;
           };
+          const loadRuntimeScript = (id, source, ready) => {
+            if (ready()) return Promise.resolve(true);
+            return new Promise(resolve => {
+              let settled = false;
+              let poll = 0;
+              let timeout = 0;
+              const finish = result => {
+                if (settled) return;
+                settled = true;
+                clearInterval(poll);
+                clearTimeout(timeout);
+                resolve(result);
+              };
+              let script = document.getElementById(id);
+              if (!script) {
+                script = document.createElement('script');
+                script.id = id;
+                script.src = source;
+                script.async = false;
+                (document.head || document.documentElement).appendChild(script);
+              }
+              const check = () => {
+                if (ready()) finish(true);
+              };
+              script.addEventListener('load', check, { once: true });
+              script.addEventListener(
+                'error',
+                () => finish(false),
+                { once: true }
+              );
+              poll = setInterval(check, 50);
+              timeout = setTimeout(() => finish(ready()), 8000);
+              check();
+            });
+          };
+          const ensureMathQuillRuntime = () => {
+            if (window.MathQuill) return Promise.resolve(true);
+            if (window.__matholicKioskMathQuillRuntimePromise) {
+              return window.__matholicKioskMathQuillRuntimePromise;
+            }
+            const stylesheetId = 'matholic-kiosk-mathquill-style';
+            if (!document.getElementById(stylesheetId)) {
+              const stylesheet = document.createElement('link');
+              stylesheet.id = stylesheetId;
+              stylesheet.rel = 'stylesheet';
+              stylesheet.href = '/js/mathquill/mathquill.css';
+              (document.head || document.documentElement)
+                .appendChild(stylesheet);
+            }
+            const runtimePromise = loadRuntimeScript(
+              'matholic-kiosk-jquery-runtime',
+              '/js/mathquill/jquery-3.2.1.min.js',
+              () => !!window.jQuery
+            ).then(jqueryReady => {
+              if (!jqueryReady) return false;
+              return loadRuntimeScript(
+                'matholic-kiosk-mathquill-runtime',
+                '/js/mathquill/mathquill.min.js',
+                () => !!window.MathQuill
+              );
+            }).catch(() => false);
+            window.__matholicKioskMathQuillRuntimePromise = runtimePromise;
+            return runtimePromise;
+          };
           const hrefPath = element => {
             if (!element || !element.matches('a[href]')) return '';
             try {
@@ -503,6 +567,7 @@ object WebDomScripts {
           let mathModeReady = 0;
           let subjectiveTouchTargets = 0;
           if (isLearning) {
+            const mathQuillRuntimePromise = ensureMathQuillRuntime();
             const exactButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
             ).filter(visible);
@@ -670,6 +735,36 @@ object WebDomScripts {
                   editor.querySelector('.mq-root-block,.mq-textarea')
                 )
                 .forEach(editor => targets.add(editor));
+              Array.from(document.querySelectorAll('span')).filter(span => {
+                const inline = span.style;
+                const wrapper = span.parentElement;
+                if (
+                  inline.width !== '160px' ||
+                  inline.padding !== '8px' ||
+                  inline.borderRadius !== '6px' ||
+                  inline.textAlign !== 'center' ||
+                  !wrapper ||
+                  getComputedStyle(wrapper).position !== 'relative'
+                ) return false;
+                let toolbarScope = wrapper.parentElement;
+                for (let depth = 0; toolbarScope && depth < 3; depth += 1) {
+                  const labels = new Set(
+                    Array.from(toolbarScope.querySelectorAll(
+                      'button,[role="button"]'
+                    )).map(button => normalize(button.textContent))
+                  );
+                  if (
+                    labels.has('루트') &&
+                    labels.has('분수') &&
+                    labels.has('파이')
+                  ) return true;
+                  toolbarScope = toolbarScope.parentElement;
+                }
+                return false;
+              }).forEach(shell => {
+                shell.dataset.matholicKioskMathShell = 'true';
+                targets.add(shell);
+              });
 
               targets.forEach(target => {
                 const targetStyle = getComputedStyle(target);
@@ -883,7 +978,8 @@ object WebDomScripts {
                 let hiddenCount = 0;
                 Array.from(
                   scope?.querySelectorAll(
-                    '.mq-editable-field,.mq-math-mode'
+                    '.mq-editable-field,.mq-math-mode,' +
+                    '[data-matholic-kiosk-math-shell="true"]'
                   ) || []
                 ).forEach(editor => {
                   const parent = editor.parentElement;
@@ -1600,6 +1696,11 @@ object WebDomScripts {
               protectAnalysisDetails();
             };
             maintainLateStudentControls();
+            mathQuillRuntimePromise.then(runtimeReady => {
+              if (runtimeReady && document.body) {
+                maintainLateStudentControls();
+              }
+            });
             if (!window.__matholicKioskExperienceViewportGuard) {
               let viewportMaintenanceFrame = 0;
               const scheduleViewportMaintenance = () => {

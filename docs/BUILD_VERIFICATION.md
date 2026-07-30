@@ -5256,6 +5256,57 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   통과
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
 
+## Web POC RC55 MathQuill 동시 초기화와 기존 답안 복원 — 2026-07-30
+
+### 확정 원인
+
+- 2026-07-30 현재 공식 학습 페이지의 수식 입력기는 MathQuill 초기화 전
+  폭 160px, padding 8px인 일반 `span`이다. 이 단계에는 `.mq-*` class와
+  내부 textarea가 모두 없어 RC54 selector가 문제 4를 찾을 수 없었다.
+- 공식 MathQuill wrapper 여러 개가 동시에 mount되면 첫 wrapper가 jQuery
+  또는 MathQuill script element를 만든 직후 다른 wrapper가 같은 id를
+  발견한다. 공식 loader는 script의 실제 load 완료를 기다리지 않고 성공한
+  것으로 처리해 일부 wrapper가 MathQuill instance 없이 영구 정지했다.
+- 공식 wrapper는 편집기마다 첫 두 `edit` notification을 무시한다. 정상
+  instance에는 기존 안정화 단계가 이 두 notification을 먼저 소비하지만,
+  초기화되지 않은 문제 4에는 적용되지 않았다.
+- 문제 4의 `28`은 키오스크가 주입한 값이 아니라 기존 Matholic
+  `userAnswer.value`다. 초기화 실패로 사용자의 삭제가 React 답안 상태에
+  전달되지 않아 기존 `28`이 다시 화면에 투영되고 임시저장에도 그대로
+  남았다.
+
+### 수정
+
+- 학습 페이지에서 공식 `/js/mathquill/jquery-3.2.1.min.js` 로드 완료 후
+  `/js/mathquill/mathquill.min.js`를 순차 로드한다.
+- script element 존재가 아니라 `window.jQuery`와 `window.MathQuill`
+  실제 생성을 확인하며, 페이지 전체가 하나의 선로딩 Promise를 재사용한다.
+- 공식 초기화 전 일반 `span`의 inline style, 상대 위치 wrapper와
+  루트·분수·파이 toolbar 조합을 식별해 최소 220×56px 터치 영역을
+  즉시 보장한다.
+- 초기화 전 shell에 겹친 회색 clear control도 숨긴다.
+- Web 계약을 `web-2026-07-30.7`, 버전을
+  `0.4.0-rc55`/code 72로 올렸다.
+
+### 검증과 A 설치
+
+- 공식 초기화 전 class/textarea 없는 160px `span` fixture가 실제
+  220×56px 이상으로 확장되고 clear control이 숨겨짐: 통과
+- jQuery→MathQuill 순차 선로딩과 Promise 재사용 회귀시험: 통과
+- 기존 답안 `28`을 보존한 채 무시되는 첫 두 edit를 소비하고, 이후 사용자
+  삭제가 React 답안 상태를 빈 값으로 갱신하는 회귀시험: 통과
+- JVM 단위시험·debug assemble·계측 APK compile: 통과
+- Android 13 DOM 계약 계측시험 51개: 실패·오류·생략 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc55`/code 72를 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `165C3C0E15483C548E46F674229521050ADCDE793246FF569B3E045C141FA359`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
+- 설치 APK 해시가 artifact와 일치했다.
+- 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
+
 ## Web POC RC54 textarea 전 MathQuill 중간 상태 — 2026-07-30
 
 ### 사진으로 확인한 현상
