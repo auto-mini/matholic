@@ -15,7 +15,7 @@
   <text x="1122" y="283" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="23" font-weight="700">입력 완료</text>
 
   <rect x="18" y="402" width="1244" height="420" rx="24" fill="#fff" stroke="#9fb3c8" stroke-width="2"/>
-  <rect x="42" y="426" width="560" height="60" rx="12" fill="#dbeafe"/>
+  <rect x="82" y="426" width="480" height="60" rx="12" fill="#dbeafe"/>
   <text x="322" y="466" text-anchor="middle" fill="#173f6d" font-family="sans-serif" font-size="24" font-weight="700">숫자 · 소수점 · 부호</text>
   <rect x="620" y="426" width="350" height="60" rx="12" fill="#e8f5e9"/>
   <text x="795" y="466" text-anchor="middle" fill="#1b5e20" font-family="sans-serif" font-size="24" font-weight="700">수식 구조</text>
