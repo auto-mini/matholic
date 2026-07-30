@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.3"
+    const val CONTRACT_VERSION = "web-2026-07-30.4"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -449,6 +449,7 @@ object WebDomScripts {
               cursor: text !important;
               touch-action: manipulation !important;
               pointer-events: auto !important;
+              vertical-align: middle !important;
             }
             .mq-editable-field .mq-root-block {
               min-width: 1em !important;
@@ -500,6 +501,7 @@ object WebDomScripts {
           let mathModeSelections = 0;
           let mathModePending = 0;
           let mathModeReady = 0;
+          let subjectiveTouchTargets = 0;
           if (isLearning) {
             const exactButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
@@ -623,6 +625,67 @@ object WebDomScripts {
               return hidden;
             };
             hiddenControls += hideDirectMathHandwriting();
+
+            const ensureSubjectiveTouchTargets = () => {
+              const targets = new Set();
+              const containers = new Set();
+              Array.from(document.querySelectorAll(
+                'input[placeholder*="주관식 답"]'
+              )).forEach(input => {
+                targets.add(input);
+                const wrapper = input.closest('.ant-input-affix-wrapper');
+                if (wrapper) containers.add(wrapper);
+              });
+              Array.from(document.querySelectorAll('.mq-textarea')).forEach(
+                textareaWrapper => {
+                  const editor = textareaWrapper.closest(
+                    '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
+                  ) || textareaWrapper.parentElement;
+                  if (editor) targets.add(editor);
+                }
+              );
+              Array.from(document.querySelectorAll('.mq-editable-field'))
+                .forEach(editor => targets.add(editor));
+
+              targets.forEach(target => {
+                const targetStyle = getComputedStyle(target);
+                if (
+                  targetStyle.display !== 'none' &&
+                  targetStyle.visibility !== 'hidden'
+                ) {
+                  important(target, 'display', 'inline-block');
+                }
+                important(target, 'box-sizing', 'border-box');
+                important(target, 'min-width', '220px');
+                important(target, 'max-width', '100%');
+                important(target, 'min-height', '56px');
+                important(target, 'font-size', '22px');
+                important(target, 'line-height', '1.4');
+                important(target, 'pointer-events', 'auto');
+                important(target, 'touch-action', 'manipulation');
+                important(target, 'vertical-align', 'middle');
+                target.dataset.matholicKioskSubjectiveTouchTarget = 'true';
+              });
+              containers.forEach(container => {
+                important(container, 'box-sizing', 'border-box');
+                important(container, 'min-width', '220px');
+                important(container, 'max-width', '100%');
+                important(container, 'min-height', '56px');
+                important(container, 'overflow', 'visible');
+                container.dataset.matholicKioskSubjectiveTouchTarget = 'true';
+              });
+              [...targets, ...containers].forEach(target => {
+                const answerScope = target.closest(
+                  '[id^="answer-input-form-"]'
+                );
+                if (answerScope) {
+                  important(answerScope, 'min-height', '64px');
+                  important(answerScope, 'overflow', 'visible');
+                }
+              });
+              return targets.size + containers.size;
+            };
+            subjectiveTouchTargets = ensureSubjectiveTouchTargets();
 
             const hideLateStudentContent = () => {
               let hidden = 0;
@@ -1499,6 +1562,7 @@ object WebDomScripts {
               hiddenChrome += hideStudentChrome();
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
+              subjectiveTouchTargets = ensureSubjectiveTouchTargets();
               const lateMathMode = enforceMathAnswerMode();
               hiddenControls += lateMathMode.hidden;
               mathModeSelections += lateMathMode.selectedCount;
@@ -1560,7 +1624,7 @@ object WebDomScripts {
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
-            mathModePending, mathModeReady,
+            mathModePending, mathModeReady, subjectiveTouchTargets,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });

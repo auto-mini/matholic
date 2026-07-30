@@ -66,6 +66,9 @@ class WebDomScriptsTest {
         assertTrue(script.contains("hideMathClearControls"))
         assertTrue(script.contains("matholicKioskMathNavigationDismissGuard"))
         assertTrue(script.contains("data-matholic-kiosk-active"))
+        assertTrue(script.contains("ensureSubjectiveTouchTargets"))
+        assertTrue(script.contains("matholicKioskSubjectiveTouchTarget"))
+        assertTrue(script.contains("important(target, 'display', 'inline-block')"))
     }
 
     @Test

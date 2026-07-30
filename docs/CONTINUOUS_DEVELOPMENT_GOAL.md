@@ -1702,3 +1702,25 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않음
 - 실제 사이트의 회색 음영 제거와 답안제출 시 방향 키패드 미표시는 사용자
   실물 재확인 대기다.
+
+## Web POC RC52 전체답안 미초기화 주관식 터치 영역 — 2026-07-30
+
+- 문제 화면에서 한 번도 입력하지 않은 일부 주관식은 전체답안에서 MathQuill
+  클래스/display 초기화 전 인라인 상태로 나타나 터치 박스가 매우 작았다.
+- 내부 `.mq-textarea`를 기준으로 초기 편집기를 찾아 클래스 상태와 무관하게
+  `inline-block`, 최소 220×56px, pointer/touch와 글자 크기를 보장한다.
+- `answer-input-form-*` scope도 최소 높이 64px와 visible overflow를
+  적용하며 지연 생성·교체 DOM에도 반복 보정한다.
+- 검증:
+  - 4×12px 인라인 미초기화 전체답안 fixture가 문제 화면 선행 입력 없이
+    220×56px 이상으로 확장되고 click 가능함을 확인
+  - JVM 단위시험·debug assemble·lint 통과
+  - Android 13 DOM 계약 47개 전부 통과
+  - release 158 tasks와 APK 이중 검증 통과
+  - 복구 코드는 변경하지 않아 복구 35개는 재실행하지 않음
+- 원래 숨겨진 비활성 편집기는 `display:none`을 유지한다.
+- A에 Web POC `0.4.0-rc52`/code 69을 보존형 설치했다.
+  - APK SHA-256:
+    `A03F189545EAFC133821DC6EC54C3C94215AC01337E2CC1C5910C3266CAC1A34`
+  - 기존 데이터, credential bridge 권한, Device Owner·전용 HOME 유지
+- 실제 사이트의 미입력 주관식 전체답안 터치는 사용자 실물 재확인 대기다.

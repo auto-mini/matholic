@@ -741,6 +741,86 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceExpandsLazySubjectiveEditorInsideAnswerReview() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div class="ant-modal" role="dialog">
+                <div class="ant-modal-title">전체답안</div>
+                <div id="answer-input-form-review"
+                  style="height:8px;min-height:0;overflow:hidden">
+                  <span id="lazy-review-editor" class="mq-math-mode"
+                    style="display:inline;height:4px;min-height:0;width:12px"
+                    onclick="this.dataset.clicked='yes'">
+                    <span class="mq-textarea"><textarea></textarea></span>
+                    <span class="mq-root-block"></span>
+                  </span>
+                </div>
+                <div id="answer-input-form-hidden" style="display:none">
+                  <span id="hidden-review-editor"
+                    class="mq-editable-field mq-math-mode">
+                    <span class="mq-textarea"><textarea></textarea></span>
+                    <span class="mq-root-block"></span>
+                  </span>
+                </div>
+              </div>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            assertTrue(result.getInt("subjectiveTouchTargets") >= 1)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const scope = document.getElementById(
+                    'answer-input-form-review'
+                  );
+                  const editor = document.getElementById('lazy-review-editor');
+                  const hiddenEditor = document.getElementById(
+                    'hidden-review-editor'
+                  );
+                  editor.click();
+                  const editorStyle = getComputedStyle(editor);
+                  const scopeStyle = getComputedStyle(scope);
+                  return JSON.stringify({
+                    display: editorStyle.display,
+                    minWidth: parseFloat(editorStyle.minWidth),
+                    minHeight: parseFloat(editorStyle.minHeight),
+                    actualWidth: editor.getBoundingClientRect().width,
+                    actualHeight: editor.getBoundingClientRect().height,
+                    pointerEvents: editorStyle.pointerEvents,
+                    marked:
+                      editor.dataset.matholicKioskSubjectiveTouchTarget ===
+                        'true',
+                    clicked: editor.dataset.clicked === 'yes',
+                    scopeMinHeight: parseFloat(scopeStyle.minHeight),
+                    scopeOverflow: scopeStyle.overflow,
+                    hiddenEditorStillHidden:
+                      getComputedStyle(hiddenEditor).display === 'none' ||
+                      getComputedStyle(hiddenEditor.parentElement).display ===
+                        'none'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("inline-block", proof.getString("display"))
+            assertTrue(proof.getDouble("minWidth") >= 220.0)
+            assertTrue(proof.getDouble("minHeight") >= 56.0)
+            assertTrue(proof.getDouble("actualWidth") >= 220.0)
+            assertTrue(proof.getDouble("actualHeight") >= 56.0)
+            assertEquals("auto", proof.getString("pointerEvents"))
+            assertTrue(proof.getBoolean("marked"))
+            assertTrue(proof.getBoolean("clicked"))
+            assertTrue(proof.getDouble("scopeMinHeight") >= 64.0)
+            assertEquals("visible", proof.getString("scopeOverflow"))
+            assertTrue(proof.getBoolean("hiddenEditorStillHidden"))
+        }
+    }
+
+    @Test
     fun testStudentExperiencePrimesMathFieldSoFirstUserEditPersists() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

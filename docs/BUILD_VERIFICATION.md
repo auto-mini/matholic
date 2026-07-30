@@ -5207,3 +5207,58 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - firstInstallTime, 앱 데이터, credential bridge 권한, Kiosk Device Owner와
   전용 HOME을 보존했다. 설치 뒤 Kiosk 전경을 확인했다.
 - 실제 사이트 화면은 사용자가 주관식 숫자 입력과 답안제출에서 재확인한다.
+
+---
+
+## Web POC RC52 미초기화 전체답안 주관식 크기 — 2026-07-30
+
+### 사용자 확인과 원인
+
+- RC50에서 주관식 터치 불가, 회색 지우기 control과 방향 키패드 노출 조건은
+  대체로 해결됐다.
+- 일부 주관식은 문제 화면에서 한 번도 입력하지 않은 채 전체답안을 열면
+  입력란이 좁고 터치되지 않았다.
+- 같은 문제를 문제 화면에서 입력하거나 입력 후 지우면 전체답안 입력란도
+  정상화됐다. 이는 MathQuill 편집기 클래스와 display 초기화가 문제 화면의
+  첫 상호작용에 지연되어 있음을 보여준다.
+- RC50의 220×56px 규칙은 `.mq-editable-field`에만 적용됐다. 초기화 전
+  편집기가 `.mq-math-mode` 또는 내부 `.mq-textarea`만 가진 인라인
+  요소이면 `min-height`가 실제 터치 박스 높이에 반영되지 않았다.
+
+### 수정
+
+- `.mq-textarea`를 기준으로 초기화 전 편집기 root를 역추적한다.
+- `.mq-editable-field`, `.mq-math-mode`, MathQuill class 및 주관식
+  placeholder input에 다음 값을 적용한다.
+  - `display: inline-block`
+  - 최소 폭 220px, 최소 높이 56px
+  - `pointer-events: auto`, `touch-action: manipulation`
+  - 22px 글자와 1.4 line-height
+- Ant input wrapper는 기존 display 방식을 보존하면서 최소 220×56px와
+  visible overflow만 보장한다.
+- 가장 가까운 `answer-input-form-*` scope는 최소 높이 64px와 visible
+  overflow를 보장한다.
+- 초기 DOM뿐 아니라 MutationObserver가 감지한 지연 생성·교체 편집기에도
+  같은 보정을 반복 적용한다.
+- 표시 중인 편집기만 `inline-block`으로 전환한다. 원래 `display:none` 또는
+  `visibility:hidden`인 비활성 편집기는 노출하지 않는다.
+- Web 계약을 `web-2026-07-30.4`, 버전을
+  `0.4.0-rc52`/code 69로 올렸다.
+
+### 검증과 설치
+
+- 높이 4px, 폭 12px, `display:inline`인 미초기화 전체답안 주관식 fixture를
+  추가했다. 문제 화면 선행 입력 없이 실제 크기 220×56px 이상, scope
+  64px 이상, pointer와 click 동작을 확인했다.
+- Web POC JVM 단위시험·debug assemble·lint: 통과
+- Android 13 DOM 계약 계측시험 47개: 실패·오류 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
+- A에 Web POC `0.4.0-rc52`/code 69을 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `A03F189545EAFC133821DC6EC54C3C94215AC01337E2CC1C5910C3266CAC1A34`
+- firstInstallTime, 앱 데이터, credential bridge 권한, Kiosk Device Owner와
+  전용 HOME을 보존했다. 설치 APK 해시 일치와 Kiosk 전경을 확인했다.
+- 실제 사이트에서는 문제 화면에서 건드리지 않은 주관식이 포함된 학습지로
+  전체답안을 바로 열어 입력란 크기와 터치를 재확인한다.
