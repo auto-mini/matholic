@@ -6,6 +6,11 @@ import org.junit.Test
 
 class JavaScriptDialogPolicyTest {
     @Test
+    fun `native dialog actions stay disarmed past a duplicate tap sequence`() {
+        assertTrue(JavaScriptDialogPolicy.ACTION_ARM_DELAY_MS >= 500L)
+    }
+
+    @Test
     fun `active student confirmation can use native origin-free dialog`() {
         assertTrue(
             JavaScriptDialogPolicy.canReplaceBrowserDialog(

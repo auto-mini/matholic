@@ -54,6 +54,9 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholicKioskReviewScrollUserOverride"))
         assertTrue(script.contains("touchstart"))
         assertTrue(script.contains("resetHiddenReviewScrollState"))
+        assertTrue(script.contains("matholicKioskAnswerSubmitReentryGuard"))
+        assertTrue(script.contains("matholicKioskSubmitReentryBlocked"))
+        assertTrue(script.contains("stopImmediatePropagation"))
     }
 
     @Test

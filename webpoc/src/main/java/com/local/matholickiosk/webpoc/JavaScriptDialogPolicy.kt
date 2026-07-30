@@ -2,6 +2,7 @@ package com.local.matholickiosk.webpoc
 
 object JavaScriptDialogPolicy {
     const val MAX_MESSAGE_LENGTH = 500
+    const val ACTION_ARM_DELAY_MS = 800L
 
     fun canReplaceBrowserDialog(
         state: WebPocState,

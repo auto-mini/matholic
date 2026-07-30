@@ -369,6 +369,78 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun recoveryRendererRecycleRecreatesActivityWithFreshWebView() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            lateinit var discardedWebView: WebView
+            scenario.onUiInitialized { activity ->
+                discardedWebView = activity.findViewById(R.id.web_view)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.RECOVERY_REQUIRED)
+                }
+                MainActivity::class.java.getDeclaredField(
+                    "recoveryRendererRecycleAttempted",
+                ).apply {
+                    isAccessible = true
+                    setBoolean(activity, true)
+                }
+                MainActivity::class.java.getDeclaredField(
+                    "recoveryRendererRecyclePending",
+                ).apply {
+                    isAccessible = true
+                    setBoolean(activity, true)
+                }
+                writeState(WebPocState.RECOVERY_REQUIRED)
+                assertTrue(
+                    activity.findViewById<WebView>(R.id.web_view).webViewClient
+                        .onRenderProcessGone(discardedWebView, null),
+                )
+            }
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(UI_TIMEOUT_SECONDS)
+            var freshWebViewObserved = false
+            while (System.nanoTime() < deadline && !freshWebViewObserved) {
+                scenario.onActivity { activity ->
+                    val current = activity.findViewById<WebView?>(R.id.web_view)
+                    freshWebViewObserved =
+                        current != null &&
+                        current !== discardedWebView &&
+                        activity.intent.getBooleanExtra(
+                            "com.local.matholickiosk.extra.RECOVERY_RENDERER_RECYCLED",
+                            false,
+                        )
+                }
+                if (!freshWebViewObserved) TimeUnit.MILLISECONDS.sleep(100)
+            }
+            assertTrue("recovery did not create a fresh WebView", freshWebViewObserved)
+        }
+    }
+
+    @Test
+    fun unresponsiveRendererCallbackDiscardsWebViewAndFailsClosed() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                writeState(WebPocState.ACTIVE)
+                val activeWebView = activity.findViewById<WebView>(R.id.web_view)
+                activeWebView.webViewRenderProcessClient
+                    ?.onRenderProcessUnresponsive(activeWebView, null)
+            }
+
+            assertTrueWithin(5) {
+                readState() == WebPocState.LOCKED &&
+                    preferences().getString(KEY_REASON, null) ==
+                    "WEB_PROCESS_UNRESPONSIVE"
+            }
+        }
+    }
+
+    @Test
     fun rendererCleanupFailureStillFailsClosedWithoutEscaping() {
         writeState(WebPocState.IDLE)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

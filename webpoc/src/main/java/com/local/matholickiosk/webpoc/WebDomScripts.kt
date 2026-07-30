@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-29.12"
+    const val CONTRACT_VERSION = "web-2026-07-30.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1036,6 +1036,27 @@ object WebDomScripts {
               }
               return null;
             };
+            if (!window.__matholicKioskAnswerSubmitReentryGuard) {
+              const submitLabels = new Set([
+                '답안제출', '답안 제출', '완료하기'
+              ]);
+              document.addEventListener('click', event => {
+                const control = event.target?.closest?.('button,[role="button"]');
+                if (!control || !submitLabels.has(normalize(control.textContent))) return;
+                const now = Date.now();
+                const previous = Number(
+                  window.__matholicKioskLastAnswerSubmitAt || '0'
+                );
+                if (now - previous < 1500) {
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  control.dataset.matholicKioskSubmitReentryBlocked = 'true';
+                  return;
+                }
+                window.__matholicKioskLastAnswerSubmitAt = now;
+              }, true);
+              window.__matholicKioskAnswerSubmitReentryGuard = true;
+            }
             if (!window.__matholicKioskReviewScrollIntentGuard) {
               const stopReviewAutoScroll = event => {
                 const scope = visibleReviewScopeContaining(event.target);

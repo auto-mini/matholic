@@ -33,6 +33,8 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebViewDatabase
+import android.webkit.WebViewRenderProcess
+import android.webkit.WebViewRenderProcessClient
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -113,10 +115,17 @@ class MainActivity : Activity() {
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
+    private var recoveryRendererRecycleAttempted = false
+    private var recoveryRendererRecyclePending = false
+    private var recoveryRecreatePending = false
+    private var rendererFailureReason: String? = null
+    private var rendererActionGeneration = 0
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(null)
+        recoveryRendererRecycleAttempted =
+            intent.getBooleanExtra(EXTRA_RECOVERY_RENDERER_RECYCLED, false)
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SECURE or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
@@ -418,6 +427,22 @@ class MainActivity : Activity() {
                 callback?.invoke(origin, false, false)
             }
         }
+        webView.setWebViewRenderProcessClient(
+            mainExecutor,
+            object : WebViewRenderProcessClient() {
+                override fun onRenderProcessUnresponsive(
+                    view: WebView,
+                    renderer: WebViewRenderProcess?,
+                ) {
+                    handleUnresponsiveWebRenderer(view, renderer)
+                }
+
+                override fun onRenderProcessResponsive(
+                    view: WebView,
+                    renderer: WebViewRenderProcess?,
+                ) = Unit
+            },
+        )
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -542,8 +567,18 @@ class MainActivity : Activity() {
             }
 
             override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                if (recoveryRendererRecyclePending) {
+                    rendererActionGeneration += 1
+                    view?.let(::discardUnusableWebView)
+                    recoveryRendererRecyclePending = false
+                    recreateForRecovery()
+                    return true
+                }
+                val reason = rendererFailureReason ?: "WEB_PROCESS_GONE"
+                rendererFailureReason = null
+                rendererActionGeneration += 1
                 view?.let(::discardUnusableWebView)
-                showLocked("WEB_PROCESS_GONE")
+                showLocked(reason)
                 return true
             }
         }
@@ -582,6 +617,24 @@ class MainActivity : Activity() {
             builder.setNegativeButton(android.R.string.cancel) { _, _ -> settle(false) }
         }
         val dialog = builder.create()
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.setOnShowListener {
+            val positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            val negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+            positive?.isEnabled = false
+            negative?.isEnabled = false
+            handler.postDelayed({
+                if (
+                    !destroyed &&
+                    activeJavaScriptDialog === dialog &&
+                    activeJavaScriptDialogResult === result &&
+                    dialog.isShowing
+                ) {
+                    positive?.isEnabled = true
+                    negative?.isEnabled = true
+                }
+            }, JavaScriptDialogPolicy.ACTION_ARM_DELAY_MS)
+        }
         dialog.setOnDismissListener {
             settle(false)
             if (activeJavaScriptDialog === dialog) activeJavaScriptDialog = null
@@ -787,7 +840,9 @@ class MainActivity : Activity() {
         transition(WebPocState.RECOVERY_REQUIRED)
         showBlocking(getString(R.string.status_logout))
         if (!navigateOrLock(WebSecurityPolicy.COURSE_URL)) return
-        scheduleTimeout(PAGE_TIMEOUT_MS, "RECOVERY_TIMEOUT")
+        scheduleTimeout(PAGE_TIMEOUT_MS, "RECOVERY_TIMEOUT") {
+            recycleRendererAndRetryRecovery("RECOVERY_TIMEOUT")
+        }
     }
 
     private fun startLogin() {
@@ -1591,6 +1646,8 @@ class MainActivity : Activity() {
     private fun restartForRecovery() {
         cancelTimeout()
         wipeRuntimeSecrets()
+        intent.removeExtra(EXTRA_RECOVERY_RENDERER_RECYCLED)
+        recoveryRendererRecycleAttempted = false
         transition(WebPocState.RECOVERY_REQUIRED)
         recreate()
     }
@@ -1787,6 +1844,122 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun handleUnresponsiveWebRenderer(
+        view: WebView?,
+        renderer: WebViewRenderProcess?,
+    ) {
+        if (
+            destroyed ||
+            isTerminalState() ||
+            view == null ||
+            webViewReference !== view ||
+            recoveryRendererRecyclePending ||
+            rendererFailureReason != null
+        ) return
+
+        if (state == WebPocState.RECOVERY_REQUIRED && !recoveryRendererRecycleAttempted) {
+            recycleRendererAndRetryRecovery("WEB_PROCESS_UNRESPONSIVE", view, renderer)
+        } else {
+            terminateRendererAndFail(view, renderer, "WEB_PROCESS_UNRESPONSIVE")
+        }
+    }
+
+    private fun recycleRendererAndRetryRecovery(
+        timeoutReason: String,
+        view: WebView? = webViewReference,
+        renderer: WebViewRenderProcess? = null,
+    ) {
+        if (
+            destroyed ||
+            state != WebPocState.RECOVERY_REQUIRED ||
+            recoveryRendererRecyclePending ||
+            recoveryRecreatePending
+        ) return
+        if (recoveryRendererRecycleAttempted) {
+            terminateRendererAndFail(view, renderer, timeoutReason)
+            return
+        }
+
+        recoveryRendererRecycleAttempted = true
+        recoveryRendererRecyclePending = true
+        cancelTimeout()
+        if (view == null) {
+            recoveryRendererRecyclePending = false
+            recreateForRecovery()
+            return
+        }
+        showBlocking("웹 세션을 새로 준비하고 있습니다")
+        val generation = ++rendererActionGeneration
+        val targetRenderer = renderer ?: runCatching {
+            view.webViewRenderProcess
+        }.getOrNull()
+        val terminationRequested = runCatching {
+            targetRenderer?.terminate() == true
+        }.getOrDefault(false)
+        if (!terminationRequested) {
+            view?.let(::discardUnusableWebView)
+            recoveryRendererRecyclePending = false
+            recreateForRecovery()
+            return
+        }
+
+        handler.postDelayed({
+            if (
+                !destroyed &&
+                generation == rendererActionGeneration &&
+                recoveryRendererRecyclePending
+            ) {
+                view?.let(::discardUnusableWebView)
+                recoveryRendererRecyclePending = false
+                recreateForRecovery()
+            }
+        }, RENDERER_TERMINATION_WAIT_MS)
+    }
+
+    private fun terminateRendererAndFail(
+        view: WebView?,
+        renderer: WebViewRenderProcess?,
+        reason: String,
+    ) {
+        if (destroyed || isTerminalState() || rendererFailureReason != null) return
+        rendererFailureReason = reason
+        cancelTimeout()
+        val generation = ++rendererActionGeneration
+        val terminationRequested = runCatching {
+            renderer?.terminate() == true
+        }.getOrDefault(false)
+        if (!terminationRequested) {
+            view?.let(::discardUnusableWebView)
+            rendererFailureReason = null
+            showLocked(reason)
+            return
+        }
+
+        handler.postDelayed({
+            if (
+                !destroyed &&
+                generation == rendererActionGeneration &&
+                rendererFailureReason == reason
+            ) {
+                view?.let(::discardUnusableWebView)
+                rendererFailureReason = null
+                showLocked(reason)
+            }
+        }, RENDERER_TERMINATION_WAIT_MS)
+    }
+
+    private fun recreateForRecovery() {
+        if (destroyed || recoveryRecreatePending) return
+        recoveryRecreatePending = true
+        transition(WebPocState.RECOVERY_REQUIRED)
+        intent.putExtra(EXTRA_RECOVERY_RENDERER_RECYCLED, true)
+        handler.post {
+            if (!destroyed && recoveryRecreatePending) {
+                recreate()
+            }
+        }
+    }
+
     private fun dpToPx(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
@@ -1925,7 +2098,10 @@ class MainActivity : Activity() {
             val activeGate3 = gate3Session
             when {
                 adminRecoveryResultDelivered -> clearSetupFields()
-                adminRecoverySession && !isFinishing -> {
+                adminRecoverySession &&
+                    !isFinishing &&
+                    !isChangingConfigurations &&
+                    !recoveryRecreatePending -> {
                     finishAdminRecoveryWithFailure("ADMIN_RECOVERY_BACKGROUND")
                 }
                 secureKioskSession && !isFinishing -> {
@@ -2004,6 +2180,8 @@ class MainActivity : Activity() {
             "com.local.matholickiosk.kiosk.credentials"
         const val EXTRA_CREDENTIAL_HANDLE =
             "com.local.matholickiosk.extra.CREDENTIAL_HANDLE"
+        const val EXTRA_RECOVERY_RENDERER_RECYCLED =
+            "com.local.matholickiosk.extra.RECOVERY_RENDERER_RECYCLED"
         const val COLUMN_EXPECTED_NAME = "expected_name"
         const val COLUMN_USERNAME = "username"
         const val COLUMN_PASSWORD = "password"
@@ -2026,6 +2204,7 @@ class MainActivity : Activity() {
         const val LOGIN_TIMEOUT_MS = 30_000L
         const val GATE3_LOGIN_RESULT_TIMEOUT_MS = 60_000L
         const val LOGOUT_TIMEOUT_MS = 20_000L
+        const val RENDERER_TERMINATION_WAIT_MS = 2_000L
         const val PROBE_DELAY_MS = 600L
         const val LOGIN_DOM_PROBE_DELAY_MS = 400L
         const val LOGIN_STABILITY_DELAY_MS = 800L

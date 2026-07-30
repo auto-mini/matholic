@@ -5013,3 +5013,74 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 사용자 실물 확인에서 전면·후면 안내 전환, 상단 중복 제거, 중앙 위치 안내,
   우측 하단 카메라·관리자 아이콘을 모두 통과했다.
 - 검증 완료 후 자동시험용 에뮬레이터를 종료했다.
+
+---
+
+## Web POC RC47 제출 연타·복구 렌더러 보강 — 2026-07-30
+
+### 장애 원인
+
+- 전체답안 화면을 자동으로 최종 제출 위치까지 이동시키는 동안 답안 제출
+  계열 버튼에 재진입 방지가 없었다. 따라서 같은 위치를 연속 터치하면 새로
+  노출된 최종 제출 동작까지 전달될 수 있었다.
+- 제출 후 결과를 수집하는 동안 전체 화면 결과 차폐막이 Web 터치를 막는다.
+  이 상태에서 WebView 렌더러가 응답하지 않으면 화면은 멎은 것처럼 보이지만
+  별도 네이티브 UI인 `채점 끝내기`는 계속 동작한다.
+- 기존 로그아웃과 관리자 복구는 같은 WebView 렌더러에 `loadUrl`을 다시
+  요청했다. 렌더러 자체가 멎은 경우 로그아웃 시간 초과와 복구 시간 초과가
+  같은 원인으로 연속 발생했다.
+- 실제 장애 당시 터치 이벤트와 WebView stack은 보존되지 않아 최초 불필요
+  터치의 정확한 좌표까지 사후 확정할 수는 없다. 다만 제출 관통 경로와
+  동일 렌더러 복구의 구조적 결함은 코드와 계측시험으로 확인했다.
+
+### 수정
+
+- 의미상 제출 버튼(`답안제출`, `답안 제출`, `완료하기`)의 두 번째 클릭을
+  1.5초 동안 capture 단계에서 차단한다.
+- 앱이 표시하는 JavaScript 확인창은 바깥 터치로 닫히지 않게 하고, 열린 뒤
+  0.8초 동안 확인·취소 버튼을 비활성화한다.
+- `WebViewRenderProcessClient`로 렌더러 무응답을 감시한다.
+  - 일반 학생 세션에서는 렌더러를 종료하고 기존 실패폐쇄 잠금으로 전환한다.
+  - 로그아웃·관리자 복구에서는 멎은 렌더러를 폐기하고 새 WebView로 한 번만
+    복구를 재시도한다.
+  - 복구 시간 초과도 같은 새 렌더러 1회 재시도를 거친 뒤에만 잠근다.
+- Web POC 계약을 `web-2026-07-30.1`, 버전을
+  `0.4.0-rc47`/code 64로 올렸다.
+
+### 자동 검증
+
+- Web POC JVM 단위시험·debug assemble·lint: 통과
+- Android 13 에뮬레이터:
+  - 전체 DOM 계약 계측시험 44개: 실패·오류 0
+  - 전체 복구 계측시험 35개: 실패·오류 0
+  - 제출 직후 같은 위치의 최종 제출이 차단되고 지연 후 정상 제출되는
+    회귀시험: 통과
+  - 복구 시 Activity와 WebView를 새로 만드는 회귀시험: 통과
+  - 렌더러 무응답 callback에서 기존 WebView를 폐기하고 실패폐쇄하는
+    결정론적 회귀시험: 통과
+- release 단위시험·lint·두 APK assemble 158 tasks: 통과
+- release APK의 버전, 권한, `debuggable=false`, v2 signer, 동일 signer,
+  debug signer 거부와 zipalign 이중 검증: 통과
+- 합성 페이지에서 플랫폼의 실제 renderer-unresponsive callback과 네이티브
+  JavaScript 확인창을 안정적으로 발생시키지는 못했다. 무응답 처리 자체는
+  결정론적 callback 시험으로, 제출 관통은 실제 WebView 터치 계측으로
+  검증했다.
+
+### A 기기 보존형 설치
+
+- 설치 전:
+  - Kiosk `0.6.0-rc39`/code 44
+  - Web POC `0.4.0-rc46`/code 63
+- 설치 후:
+  - Kiosk `0.6.0-rc39`/code 44
+  - Web POC `0.4.0-rc47`/code 64
+- Web POC artifact/설치 APK SHA-256:
+  `A1AB886B7F372AA5DFEC84B1D009F73B89C4B074D43A4640F47E3CBB325B1ED2`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- `adb install -r` 성공. firstInstallTime과 앱 데이터, credential bridge
+  권한, Kiosk Device Owner와 전용 HOME을 보존했다.
+- 업데이트 과정에서 기존 Web POC와 멎은 sandbox renderer 프로세스가
+  종료됐고, 설치 뒤에는 Kiosk만 전경에서 동작함을 확인했다.
+- 실제 학생 계정의 제출→결과→안전 종료 종단간 확인은 PIN과 계정 정보를
+  다루지 않고 사용자 실물 재확인으로 남겼다.

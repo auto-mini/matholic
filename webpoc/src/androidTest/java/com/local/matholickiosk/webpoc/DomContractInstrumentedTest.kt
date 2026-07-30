@@ -1001,6 +1001,57 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceBlocksSubmitTapThroughIntoNewReviewModal() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <button id="answer-submit" onclick="
+                document.body.dataset.answerSubmits =
+                  String(Number(document.body.dataset.answerSubmits || '0') + 1);
+                document.getElementById('review').style.display = 'block';
+              ">답안제출</button>
+              <div id="review" class="ant-modal" role="dialog" style="display:none">
+                <div class="ant-modal-title">전체답안</div>
+                <button id="final-submit" onclick="
+                  document.body.dataset.finalSubmits =
+                    String(Number(document.body.dataset.finalSubmits || '0') + 1);
+                ">답안 제출</button>
+              </div>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const first = document.getElementById('answer-submit');
+                  const finalButton = document.getElementById('final-submit');
+                  first.click();
+                  finalButton.click();
+                  const immediateFinalSubmits =
+                    Number(document.body.dataset.finalSubmits || '0');
+                  window.__matholicKioskLastAnswerSubmitAt = Date.now() - 2000;
+                  finalButton.click();
+                  return JSON.stringify({
+                    answerSubmits: Number(document.body.dataset.answerSubmits || '0'),
+                    immediateFinalSubmits,
+                    finalSubmits: Number(document.body.dataset.finalSubmits || '0'),
+                    reentryBlocked:
+                      finalButton.dataset.matholicKioskSubmitReentryBlocked === 'true'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals(1, proof.getInt("answerSubmits"))
+            assertEquals(0, proof.getInt("immediateFinalSubmits"))
+            assertEquals(1, proof.getInt("finalSubmits"))
+            assertTrue(proof.getBoolean("reentryBlocked"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceScrollsReviewHidesUploadAndKeepsFinalSubmitInFlow() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
