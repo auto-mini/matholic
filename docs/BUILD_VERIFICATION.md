@@ -5630,6 +5630,7 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 설치 후 Kiosk가 전경으로 정상 복귀했고 설치 APK 해시가 artifact와
   일치했다.
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
+
 - A에 Web POC `0.4.0-rc52`/code 69을 보존형 설치했다.
 - artifact/설치 APK SHA-256:
   `A03F189545EAFC133821DC6EC54C3C94215AC01337E2CC1C5910C3266CAC1A34`
@@ -5679,3 +5680,70 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 설치 후 Kiosk가 전경으로 정상 복귀했고 설치 APK 해시가 artifact와
   일치했다.
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
+
+## Web POC RC65 하단 주관식 수식 키패드 — 2026-07-30
+
+### 반영
+
+- 검수안 `docs/KEYPAD_DESIGN_REVIEW.svg`의 세 구역을 실제 학습 페이지
+  하단 고정 패널로 구현했다.
+- 숫자 구역은 가운데 정렬된 4×3 배열
+  `1 2 3 부호 / 4 5 6 . / 7 8 9 0`을 유지한다.
+- 수식 구조는 루트·분수·파이만 제공하고, 편집 구역은 상하좌우 이동,
+  한 칸 삭제와 2회 확인형 전체 지움을 제공한다.
+- 세 구역의 제목 폭과 본문 폭을 일치시키고 구역 사이 간격을 같은 값으로
+  유지한다. 숫자·수식·편집 구역 비율은 검수안의 480:350:250이다.
+- 편집기를 사용자가 직접 터치했을 때만 열고, 프로그램 focus·답안제출
+  진입만으로는 열지 않는다. 바깥 영역 또는 답안제출을 터치하면 닫힌다.
+- 키패드가 정상 생성된 경우에만 Android 기본 키보드를 억제한다. 공식
+  toolbar 또는 MathQuill 연결을 찾지 못하면 기존 입력 방식을 유지한다.
+- `입력기` 버튼 유무에 의존하지 않고, 표시 중인 MathQuill 편집기와
+  루트·분수·파이 도구만 있어도 키패드를 준비한다.
+- 키패드가 입력칸을 가리면 가까운 내부 스크롤부터 이동하고, 그 영역의
+  끝에 도달하면 남은 이동량을 상위 스크롤과 페이지에 전달한다.
+- Web DOM 계약은 `web-2026-07-30.13`, 버전은
+  `0.4.0-rc65`/code 82이다.
+
+### 자동 검증
+
+- Android 13 DOM 계약 계측시험 56/56 통과:
+  - 키 21개와 4×3 숫자 배열
+  - 세 구역의 좌우 간격 동일
+  - 숫자 제목과 숫자 grid 좌우선 일치
+  - 직접 터치 전 숨김, 직접 터치 시 표시, 바깥·제출 터치 시 숨김
+  - 숫자·부호·소수점·루트·분수·파이·방향·삭제·전체 지움 동작
+  - 키패드 생성 실패 시 기본 입력 유지
+  - 중첩 스크롤의 끝에서도 편집기와 키패드 사이 15px 이상 확보
+- `scripts/build.ps1`: 네 모듈 JVM 113개, debug lint와 네 APK assemble,
+  204 tasks 통과. JVM 실패·오류·생략 0, lint 오류 0.
+- `scripts/build-release.ps1`: Kiosk/Web JVM 시험, release lint,
+  release APK assemble와 저장 전·후 APK 검증, 158 tasks 통과.
+- 릴리스 signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- Kiosk APK SHA-256:
+  `3EDD580A3FDD1ECCF367F39C40F2F010F9063328004B57CDA287E1E8D85F6AD4`
+- Web APK SHA-256:
+  `58F92D218A1757259CAD21CCC9A74B288CE9B4489F32875FCC73299B1F2736AD`
+
+### A 설치 상태
+
+- A에 Web `0.4.0-rc65`/code 82 release APK를 `adb install -r`로
+  보존형 설치했다.
+- 설치 전 임시 계측용 RC64 debug의 `DEBUGGABLE` flag가 설치 후
+  제거됐음을 확인했다.
+- Web firstInstallTime `2026-07-28 13:12:16`과
+  `ceDataInode=28569`를 보존했다.
+- Kiosk `0.6.0-rc43`, Device Owner, 전용 HOME과 Lock Task
+  `LOCKED`를 유지했고 Kiosk가 전경임을 확인했다.
+- 계측시험 패키지 `com.local.matholickiosk.webpoc.test`는 제거했다.
+
+### 제한과 현장 확인
+
+- 전체 `RecoveryInstrumentedTest`는 실제 프록시/WebView 준비 단계가 길어
+  제한시간 안에 완료되지 않았다. 밝기 적용·복원 단일 계측은 통과했으며,
+  전체 복구 suite 통과로 보고하지 않는다.
+- 실제 학습지에서 주관식 입력칸 직접 터치, 모든 키, 임시저장 후 재진입,
+  전체답안의 저장 답안 표시·수정과 키패드 위치는 사용자 확인이 남는다.
+- Kiosk 계측시험은 실제 Room 학생·반 데이터를 건드릴 수 있어 최종 설치
+  단계에서 A에 재실행하지 않았다. 편의성 구현 시점의 Kiosk 42/42 통과와
+  최종 JVM·lint·release 빌드 통과를 유지 근거로 사용한다.
