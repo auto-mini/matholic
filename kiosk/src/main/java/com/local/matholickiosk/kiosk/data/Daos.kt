@@ -38,6 +38,35 @@ interface StudentDao {
 
     @Query(
         """
+        SELECT DISTINCT s.* FROM students s
+        LEFT JOIN class_memberships cm
+          ON cm.studentId = s.studentId AND cm.classId = :classId
+        LEFT JOIN session_students ss
+          ON ss.studentId = s.studentId AND ss.sessionId = :sessionId
+        WHERE s.studentId = :studentId
+          AND s.isActive = 1
+          AND (cm.classId IS NOT NULL OR ss.sessionId IS NOT NULL)
+        LIMIT 1
+        """,
+    )
+    fun findEligibleById(studentId: String, classId: String, sessionId: String): StudentEntity?
+
+    @Query(
+        """
+        SELECT DISTINCT s.* FROM students s
+        LEFT JOIN class_memberships cm
+          ON cm.studentId = s.studentId AND cm.classId = :classId
+        LEFT JOIN session_students ss
+          ON ss.studentId = s.studentId AND ss.sessionId = :sessionId
+        WHERE s.isActive = 1
+          AND (cm.classId IS NOT NULL OR ss.sessionId IS NOT NULL)
+        ORDER BY s.displayNameExact
+        """,
+    )
+    fun listEligibleForSession(classId: String, sessionId: String): List<StudentEntity>
+
+    @Query(
+        """
         SELECT s.* FROM students s
         INNER JOIN class_memberships cm ON cm.studentId = s.studentId
         WHERE cm.classId = :classId AND s.isActive = 1

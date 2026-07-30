@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -1748,7 +1749,16 @@ class MainActivity : Activity() {
         blocker.visibility = View.VISIBLE
         progress.visibility = View.GONE
         gate3AbortButton.visibility = View.GONE
-        blockerMessage.text = getString(R.string.status_locked_with_code, reason)
+        Log.w(DIAGNOSTIC_LOG_TAG, "event=WEB_LOCK reason=$reason")
+        blockerMessage.text = if (
+            reason.startsWith("NETWORK_") ||
+            reason == "HTTP_ERROR" ||
+            reason == "TLS_ERROR"
+        ) {
+            getString(R.string.status_network_disconnected_with_code, reason)
+        } else {
+            getString(R.string.status_locked_with_code, reason)
+        }
         recoveryButton.visibility = View.VISIBLE
         if (adminRecoverySession) {
             finishAdminRecoveryWithFailure(reason)
@@ -2198,6 +2208,7 @@ class MainActivity : Activity() {
     )
 
     private companion object {
+        const val DIAGNOSTIC_LOG_TAG = "LearningDiagnostics"
         const val ACTION_START_SECURE_SESSION =
             "com.local.matholickiosk.action.START_SECURE_WEB_SESSION"
         const val ACTION_RECOVER_WEB_SESSION =

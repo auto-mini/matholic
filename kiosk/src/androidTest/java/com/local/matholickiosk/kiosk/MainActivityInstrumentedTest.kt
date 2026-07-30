@@ -431,7 +431,7 @@ class MainActivityInstrumentedTest {
             }
             waitUntil(scenario) { activity ->
                 activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
-                    activity.findViewById<android.widget.Spinner>(R.id.class_spinner).count == 2 &&
+                    activity.findViewById<android.widget.Spinner>(R.id.class_spinner).count == 14 &&
                     activity.findViewById<android.widget.TextView>(R.id.class_roster_text)
                         .text
                         .toString() != "소속 학생 불러오는 중"

@@ -627,6 +627,82 @@ object WebDomScripts {
               width: 42px !important;
               height: 42px !important;
             }
+            .matholic-kiosk-answer-guide {
+              margin: 10px 0 14px !important;
+              padding: 12px 16px !important;
+              border: 2px solid #2f6f9f !important;
+              border-radius: 12px !important;
+              background: #eef7ff !important;
+              color: #173f6d !important;
+              font-size: 18px !important;
+              font-weight: 800 !important;
+              line-height: 1.35 !important;
+            }
+            .matholic-kiosk-problem-map {
+              position: fixed !important;
+              top: 68px !important;
+              right: 24px !important;
+              z-index: 2147481900 !important;
+              width: 318px !important;
+              padding: 10px !important;
+              border: 2px solid #173f6d !important;
+              border-radius: 16px !important;
+              background: rgba(255, 255, 255, 0.98) !important;
+              box-shadow: 0 6px 18px rgba(16, 42, 67, 0.24) !important;
+            }
+            .matholic-kiosk-problem-map > button {
+              width: 100% !important;
+              min-height: 52px !important;
+              background: #173f6d !important;
+              color: #fff !important;
+              font-size: 18px !important;
+              font-weight: 800 !important;
+            }
+            .matholic-kiosk-problem-map-grid {
+              display: none !important;
+              grid-template-columns: repeat(6, 1fr) !important;
+              gap: 6px !important;
+              padding-top: 8px !important;
+            }
+            .matholic-kiosk-problem-map[data-open="true"]
+              .matholic-kiosk-problem-map-grid {
+              display: grid !important;
+            }
+            .matholic-kiosk-problem-map-grid > button {
+              min-width: 0 !important;
+              min-height: 44px !important;
+              padding: 4px !important;
+              border: 2px solid #9fb3c8 !important;
+              border-radius: 10px !important;
+              background: #fff !important;
+              color: #102a43 !important;
+              font-size: 17px !important;
+              font-weight: 800 !important;
+            }
+            .matholic-kiosk-problem-map-grid > button[data-state="answered"] {
+              border-color: #1565c0 !important;
+              background: #dbeafe !important;
+            }
+            .matholic-kiosk-problem-map-grid > button[data-state="unknown"] {
+              border-color: #5d6b78 !important;
+              background: #e5e7eb !important;
+            }
+            .matholic-kiosk-problem-map-grid > button[data-current="true"] {
+              outline: 4px solid #f59e0b !important;
+              outline-offset: 1px !important;
+            }
+            .matholic-kiosk-problem-map-legend {
+              display: none !important;
+              padding-top: 8px !important;
+              color: #334e68 !important;
+              font-size: 13px !important;
+              font-weight: 700 !important;
+              text-align: center !important;
+            }
+            .matholic-kiosk-problem-map[data-open="true"]
+              .matholic-kiosk-problem-map-legend {
+              display: block !important;
+            }
           ` : `
             header, nav, [role="navigation"] {
               display: none !important;
@@ -642,6 +718,7 @@ object WebDomScripts {
           let mathModeRemounted = 0;
           let subjectiveTouchTargets = 0;
           let problemNavigationEnhancements = 0;
+          let problemStateMapEnhancements = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
             const navigationDirection = control => {
@@ -875,6 +952,212 @@ object WebDomScripts {
               }
             };
             enhanceProblemNavigation();
+            const problemNumberCluster = document.querySelector(
+              '.matholic-kiosk-problem-number'
+            );
+            const problemSelectorRoot = problemNumberCluster?.querySelector(
+              '.ant-select,select,[role="combobox"]'
+            );
+            const readCurrentProblemNumber = () => Number(normalize(
+                document.querySelector(
+                  '.matholic-kiosk-problem-number .ant-select-selection-item'
+                )?.textContent ||
+                document.querySelector(
+                  '.matholic-kiosk-problem-number select'
+                )?.value ||
+                document.querySelector(
+                  '.matholic-kiosk-problem-number [role="combobox"]'
+                )?.textContent
+              ).match(/\d+/)?.[0] || '0');
+            const currentProblemNumber = readCurrentProblemNumber();
+            const numberTokens = normalize(
+              problemNumberCluster?.textContent
+            ).match(/\d+/g) || [];
+            const totalProblems = Number(
+              numberTokens[numberTokens.length - 1] || '0'
+            );
+            const problemStates =
+              window.__matholicKioskProblemStates ||
+              (window.__matholicKioskProblemStates = {});
+            const answerState = scope => {
+              if (!scope) return 'unanswered';
+              const unknownControl = Array.from(scope.querySelectorAll(
+                'button,[role="button"]'
+              )).find(control => {
+                if (normalize(control.textContent) !== '모름') return false;
+                return control.getAttribute('aria-pressed') === 'true' ||
+                  control.getAttribute('aria-selected') === 'true' ||
+                  /(?:^|\s)(?:active|selected|checked)(?:\s|${'$'})/i.test(
+                    control.className || ''
+                  );
+              });
+              if (unknownControl) return 'unknown';
+              const valuedInput = Array.from(scope.querySelectorAll(
+                'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]),textarea'
+              )).some(input => normalize(input.value).length > 0);
+              const checkedChoice = !!scope.querySelector(
+                'input:checked,.ant-radio-checked,.ant-checkbox-checked,' +
+                '[aria-checked="true"]'
+              );
+              const mathValue = Array.from(scope.querySelectorAll(
+                '.mq-editable-field'
+              )).some(editor => {
+                const field = (() => {
+                  try {
+                    return window.MathQuill?.getInterface?.(2)?.(editor) ||
+                      window.MathQuill?.getInterface?.(1)?.(editor);
+                  } catch (_) {
+                    return null;
+                  }
+                })();
+                try {
+                  return normalize(field?.latex?.()).length > 0;
+                } catch (_) {
+                  return normalize(editor.textContent).length > 0;
+                }
+              });
+              return valuedInput || checkedChoice || mathValue ?
+                'answered' : 'unanswered';
+            };
+            const currentAnswerScope = Array.from(document.querySelectorAll(
+              '[id^="answer-input-form-"]'
+            )).find(visible) || document.querySelector('main') || document.body;
+            if (
+              Number.isInteger(currentProblemNumber) &&
+              currentProblemNumber > 0 &&
+              currentProblemNumber <= 999
+            ) {
+              const detected = answerState(currentAnswerScope);
+              if (
+                problemStates[currentProblemNumber] !== 'unknown' ||
+                detected === 'unknown'
+              ) {
+                problemStates[currentProblemNumber] = detected;
+              }
+            }
+            const reviewForms = Array.from(document.querySelectorAll(
+              '[id^="answer-input-form-"]'
+            )).filter(visible);
+            if (reviewForms.length > 1) {
+              reviewForms.forEach((form, index) => {
+                problemStates[index + 1] = answerState(form);
+              });
+            }
+            const navigateToProblem = number => {
+              const nativeSelect = problemSelectorRoot?.matches?.('select') ?
+                problemSelectorRoot :
+                problemSelectorRoot?.querySelector?.('select');
+              if (nativeSelect) {
+                const option = Array.from(nativeSelect.options).find(candidate =>
+                  Number(normalize(candidate.textContent)) === number
+                );
+                if (!option) return;
+                nativeSelect.value = option.value;
+                nativeSelect.dispatchEvent(new Event('input', { bubbles: true }));
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+              }
+              const surface = problemNumberCluster?.querySelector(
+                '.ant-select-selector,[role="combobox"]'
+              ) || problemSelectorRoot;
+              surface?.click?.();
+              setTimeout(() => {
+                const option = Array.from(document.querySelectorAll(
+                  '.ant-select-item-option,[role="option"]'
+                )).filter(visible).find(candidate =>
+                  Number(normalize(candidate.textContent)) === number
+                );
+                option?.click?.();
+              }, 0);
+            };
+            let problemMap = document.querySelector(
+              '.matholic-kiosk-problem-map'
+            );
+            if (
+              problemNumberCluster &&
+              Number.isInteger(totalProblems) &&
+              totalProblems > 1 &&
+              totalProblems <= 100
+            ) {
+              if (!problemMap) {
+                problemMap = document.createElement('section');
+                problemMap.className = 'matholic-kiosk-problem-map';
+                problemMap.dataset.open = 'false';
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.addEventListener('click', () => {
+                  problemMap.dataset.open =
+                    problemMap.dataset.open === 'true' ? 'false' : 'true';
+                });
+                const grid = document.createElement('div');
+                grid.className = 'matholic-kiosk-problem-map-grid';
+                const legend = document.createElement('div');
+                legend.className = 'matholic-kiosk-problem-map-legend';
+                legend.textContent =
+                  '파랑: 답변 · 회색: 모름 · 테두리: 현재 문제';
+                problemMap.append(toggle, grid, legend);
+                document.body.appendChild(problemMap);
+              }
+              const modalOpen = Array.from(document.querySelectorAll(
+                '.ant-modal-wrap,.ant-modal[role="dialog"]'
+              )).some(visible);
+              important(problemMap, 'display', modalOpen ? 'none' : 'block');
+              const toggle = problemMap.firstElementChild;
+              const answeredCount = Array.from(
+                { length: totalProblems },
+                (_, index) => problemStates[index + 1]
+              ).filter(state => state === 'answered' || state === 'unknown').length;
+              toggle.textContent = `답안 현황 ${'$'}{answeredCount}/${'$'}{totalProblems}`;
+              const grid = problemMap.querySelector(
+                '.matholic-kiosk-problem-map-grid'
+              );
+              if (grid.children.length !== totalProblems) {
+                grid.replaceChildren();
+                for (let number = 1; number <= totalProblems; number += 1) {
+                  const button = document.createElement('button');
+                  button.type = 'button';
+                  button.textContent = String(number);
+                  button.setAttribute('aria-label', `${'$'}{number}번 문제로 이동`);
+                  button.addEventListener('click', () => {
+                    problemMap.dataset.open = 'false';
+                    navigateToProblem(number);
+                  });
+                  grid.appendChild(button);
+                }
+              }
+              Array.from(grid.children).forEach((button, index) => {
+                const number = index + 1;
+                button.dataset.state = problemStates[number] || 'unchecked';
+                button.dataset.current =
+                  number === currentProblemNumber ? 'true' : 'false';
+              });
+              problemStateMapEnhancements = 1;
+            }
+            if (!window.__matholicKioskProblemStateTracking) {
+              document.addEventListener('click', event => {
+                const control = event.target?.closest?.(
+                  'button,[role="button"]'
+                );
+                if (normalize(control?.textContent) !== '모름') return;
+                const selected = readCurrentProblemNumber();
+                if (selected > 0) problemStates[selected] = 'unknown';
+              }, true);
+              const markCurrentAnswered = event => {
+                const scope = event.target?.closest?.(
+                  '[id^="answer-input-form-"]'
+                ) || event.target?.closest?.(
+                  '[id^="answer-input-form-"],main'
+                );
+                if (!scope) return;
+                const selected = readCurrentProblemNumber();
+                if (selected > 0) {
+                  problemStates[selected] = answerState(scope);
+                }
+              };
+              document.addEventListener('input', markCurrentAnswered, true);
+              document.addEventListener('change', markCurrentAnswered, true);
+              window.__matholicKioskProblemStateTracking = true;
+            }
             const exactButtons = Array.from(
               document.querySelectorAll('button,[role="button"]')
             ).filter(visible);
@@ -885,6 +1168,18 @@ object WebDomScripts {
                 important(button, 'min-height', '60px');
                 important(button, 'font-size', '20px');
                 important(button, 'margin-bottom', '19px');
+                if (
+                  !button.previousElementSibling?.classList?.contains(
+                    'matholic-kiosk-answer-guide'
+                  )
+                ) {
+                  const guide = document.createElement('div');
+                  guide.className = 'matholic-kiosk-answer-guide';
+                  guide.setAttribute('role', 'note');
+                  guide.textContent =
+                    '풀지 못한 문제는 빈칸으로 두지 말고 ‘모름’으로 입력하세요.';
+                  button.parentElement?.insertBefore(guide, button);
+                }
                 let actionLine = button.parentElement;
                 for (let depth = 0; actionLine && depth < 4; depth += 1) {
                   const texts = Array.from(
@@ -2170,6 +2465,7 @@ object WebDomScripts {
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
             mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets, problemNavigationEnhancements,
+            problemStateMapEnhancements,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });

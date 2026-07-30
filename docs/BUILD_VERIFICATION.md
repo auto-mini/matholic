@@ -5256,6 +5256,54 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   통과
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
 
+## 수업 편의성 묶음 RC43/RC63 — 2026-07-30
+
+### 반영
+
+- `월1`~`토2` 고정 12개 반을 누락 시 자동 생성하고 2×6 빠른선택 버튼으로
+  표시한다. 고정 반은 삭제하지 못하며 별도 테스트반은 기존 방식으로
+  생성·삭제할 수 있다.
+- 수업 시작 전 Device Owner·Lock Task 정책, 카메라, 배터리, 저장 공간,
+  프린터 확인 안내를 표시한다. 보안 정책 실패는 차단하고 카메라 실패는
+  PIN 인증 후 현재 수업 소속·보강 학생만 수동 선택할 수 있다.
+- 선택 반 학생 전원의 QR을 원자적으로 회전하고 A4 한 장에 55×80mm 카드
+  최대 9장을 배치하는 일괄 재발급·인쇄를 추가했다. 실행 전 기존 카드
+  무효화를 명시적으로 확인한다.
+- 문제 번호 배지 옆에 접이식 답안 현황 지도를 추가했다. 답변, `모름`,
+  현재 문제를 구분하고 `모름`은 완료 답변으로 집계한다.
+- 답안 제출 앞에 “풀지 못한 문제는 빈칸으로 두지 말고 ‘모름’으로
+  입력” 안내를 표시한다.
+- 네트워크·TLS·HTTP 연결 실패는 전용 답안 보호 화면과 비식별 상태 코드로
+  처리한다. 수업 시작 전 기존 Web 안전정리를 공식 접속·DOM 구조·로그인
+  잔여 상태 사전점검 및 WebView 준비 단계에 사용한다.
+- 주관식 키패드는 앱에 구현하지 않고
+  `docs/KEYPAD_DESIGN_REVIEW.svg` 검수안만 추가했다.
+
+### 검증과 A 설치
+
+- Kiosk/Web JVM 단위시험: 통과
+- Kiosk/Web Android Lint debug: 통과
+- Android 13 Kiosk 전체 계측 42/42: 통과
+- Android 13 Web 전체 계측 92/92: 통과
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- 릴리스 서명 SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- Kiosk APK SHA-256:
+  `3EDD580A3FDD1ECCF367F39C40F2F010F9063328004B57CDA287E1E8D85F6AD4`
+- Web APK SHA-256:
+  `443CFD50280670D4B2D508124374EF1771E00808A8FDC62661F3CF8ABA82D316`
+- A에 Kiosk `0.6.0-rc43`/code 48, Web `0.4.0-rc63`/code 80을
+  `adb install -r`로 보존형 설치했다.
+- Kiosk firstInstallTime `2026-07-24 12:52:28`, Web firstInstallTime
+  `2026-07-28 13:12:16`을 보존했다.
+- 설치 후 Device Owner, 전용 HOME, Lock Task `LOCKED`, Kiosk/Web
+  allowlist와 Kiosk 전경을 확인했다.
+- 설치 직후 FATAL EXCEPTION은 없었다. exit-info의 최신 Kiosk 종료는
+  APK 교체 과정의 `USER REQUESTED/FORCE STOP`이다.
+- 실제 학습지에서 답안 현황 지도, 저장 답안 재판독, 수동 학생 선택,
+  반 전체 QR의 실제 프린터 출력은 현장 확인이 남는다.
+
 ## 화면 제품명 중립화 RC41/RC62 — 2026-07-30
 
 ### 변경

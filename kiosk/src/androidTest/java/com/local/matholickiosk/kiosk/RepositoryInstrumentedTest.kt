@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
+import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.qr.QrParseResult
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
@@ -358,5 +359,83 @@ class RepositoryInstrumentedTest {
         val auditText = auditEvents.joinToString()
         assertFalse(auditText.contains("new-user"))
         assertFalse(auditText.contains("new-password"))
+    }
+
+    @Test
+    fun fixedClassesAreSeededIdempotentlyAndExtraClassesRemainSupported() {
+        val fixed = listOf("월1", "월2", "화1")
+
+        repository.ensureClasses(fixed)
+        repository.ensureClasses(fixed)
+        repository.createClass("테스트반")
+
+        val names = repository.listClasses().map { it.className }
+        assertEquals(4, names.size)
+        assertTrue(names.containsAll(fixed + "테스트반"))
+    }
+
+    @Test
+    fun manualStudentSelectionAcceptsOnlyCurrentClassAndTemporaryStudents() {
+        val classId = repository.createClass("월1")
+        val member = repository.registerStudent(
+            "가상학생-소속",
+            "member-user".toCharArray(),
+            "member-password".toCharArray(),
+        )
+        val temporary = repository.registerStudent(
+            "가상학생-보강",
+            "temporary-user".toCharArray(),
+            "temporary-password".toCharArray(),
+        )
+        val outsider = repository.registerStudent(
+            "가상학생-외부",
+            "outsider-user".toCharArray(),
+            "outsider-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(member.studentId))
+        repository.startSession(classId, setOf(temporary.studentId))
+
+        val eligible = repository.listEligibleStudentsForActiveSession()
+        assertEquals(
+            setOf(member.studentId, temporary.studentId),
+            eligible.mapTo(mutableSetOf(), ValidatedStudent::studentId),
+        )
+        assertNotNull(repository.validateManualStudentForActiveSession(member.studentId))
+        assertNotNull(repository.validateManualStudentForActiveSession(temporary.studentId))
+        assertNull(repository.validateManualStudentForActiveSession(outsider.studentId))
+    }
+
+    @Test
+    fun classBatchReissueRotatesEveryMemberQrAtomically() {
+        val classId = repository.createClass("월1")
+        val first = repository.registerStudent(
+            "가상학생-1",
+            "first-user".toCharArray(),
+            "first-password".toCharArray(),
+        )
+        val second = repository.registerStudent(
+            "가상학생-2",
+            "second-user".toCharArray(),
+            "second-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(first.studentId, second.studentId))
+
+        val issued = repository.reissueClassQrBatch(classId)
+
+        assertEquals(2, issued.size)
+        assertFalse(
+            database.studentDao().findById(first.studentId)!!
+                .qrTokenHash.contentEquals(first.issuedQr.hash),
+        )
+        assertFalse(
+            database.studentDao().findById(second.studentId)!!
+                .qrTokenHash.contentEquals(second.issuedQr.hash),
+        )
+        issued.forEach {
+            assertTrue(QrTokenCodec().parse(it.issuedQr.payload) is QrParseResult.Valid)
+        }
+        val audit = database.auditDao().latest(10)
+        assertTrue(audit.any { it.eventType == "CLASS_QR_BATCH_REISSUED" })
+        assertFalse(audit.joinToString().contains("가상학생"))
     }
 }

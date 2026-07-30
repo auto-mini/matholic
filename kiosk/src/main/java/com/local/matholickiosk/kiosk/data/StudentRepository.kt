@@ -19,6 +19,12 @@ data class ValidatedStudent(
     val displayNameExact: String,
 )
 
+data class BatchIssuedQr(
+    val studentId: String,
+    val displayNameExact: String,
+    val issuedQr: IssuedQrToken,
+)
+
 class DecryptedCredentials(
     val username: CharArray,
     val password: CharArray,
@@ -36,6 +42,31 @@ class StudentRepository(
     private val appVersion: String,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
 ) {
+    fun ensureClasses(classNames: List<String>) {
+        val normalized = classNames.map(String::trim)
+        require(normalized.all(String::isNotEmpty)) { "Class names are required" }
+        require(normalized.distinct().size == normalized.size) {
+            "Class names must be unique"
+        }
+        database.runInTransaction {
+            normalized.forEach { className ->
+                if (database.classDao().findActiveByName(className) == null) {
+                    val now = nowEpochMs()
+                    database.classDao().upsert(
+                        ClassGroupEntity(
+                            classId = UUID.randomUUID().toString(),
+                            className = className,
+                            isActive = true,
+                            createdAtEpochMs = now,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    audit("FIXED_CLASS_CREATED", null, null, null)
+                }
+            }
+        }
+    }
+
     fun createClass(className: String): String {
         val normalized = className.trim()
         require(normalized.isNotEmpty()) { "Class name is required" }
@@ -119,6 +150,53 @@ class StudentRepository(
             audit("QR_REISSUED", null, studentId, null)
         }
         return issued
+    }
+
+    fun reissueClassQrBatch(classId: String): List<BatchIssuedQr> {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 반 QR을 일괄 재발급할 수 없습니다."
+        }
+        val group = requireNotNull(database.classDao().findActiveById(classId)) {
+            "Active class not found"
+        }
+        val students = database.studentDao().listActiveForClass(group.classId)
+        require(students.isNotEmpty()) { "선택한 반에 소속 학생이 없습니다." }
+        val issued = students.map { student ->
+            BatchIssuedQr(
+                studentId = student.studentId,
+                displayNameExact = student.displayNameExact,
+                issuedQr = qrCodec.issue(),
+            )
+        }
+        try {
+            database.runInTransaction {
+                val now = nowEpochMs()
+                issued.forEach { item ->
+                    val student = requireNotNull(
+                        database.studentDao().findById(item.studentId),
+                    ) {
+                        "Student not found"
+                    }
+                    require(student.isActive) { "Student is inactive" }
+                    database.studentDao().update(
+                        student.copy(
+                            qrTokenHash = item.issuedQr.hash,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                }
+                audit("CLASS_QR_BATCH_REISSUED", issued.size.toString(), null, null)
+            }
+            return issued
+        } catch (failure: Throwable) {
+            issued.forEach { it.issuedQr.hash.fill(0) }
+            throw failure
+        }
+    }
+
+    fun recordClassQrBatchPrintRequested(count: Int) {
+        require(count > 0) { "Batch QR count must be positive" }
+        audit("CLASS_QR_BATCH_PRINT_REQUESTED", count.toString(), null, null)
     }
 
     fun updateStudentProfile(
@@ -348,6 +426,44 @@ class StudentRepository(
         }
         audit("QR_ACCEPTED", null, student.studentId, session.sessionId)
         return ValidatedStudent(student.studentId, student.displayNameExact)
+    }
+
+    fun validateManualStudentForActiveSession(studentId: String): ValidatedStudent? {
+        val session = database.sessionDao().get()
+        if (
+            session?.sessionId == null ||
+            session.classId == null ||
+            session.state != KioskState.QR_READY.name
+        ) {
+            audit("MANUAL_STUDENT_REJECTED", "SESSION_NOT_READY", null, session?.sessionId)
+            return null
+        }
+        val student = database.studentDao().findEligibleById(
+            studentId = studentId,
+            classId = session.classId,
+            sessionId = session.sessionId,
+        )
+        if (student == null) {
+            audit("MANUAL_STUDENT_REJECTED", "OUTSIDE_CURRENT_CLASS", null, session.sessionId)
+            return null
+        }
+        audit("MANUAL_STUDENT_ACCEPTED", null, student.studentId, session.sessionId)
+        return ValidatedStudent(student.studentId, student.displayNameExact)
+    }
+
+    fun listEligibleStudentsForActiveSession(): List<ValidatedStudent> {
+        val session = database.sessionDao().get()
+        require(
+            session?.sessionId != null &&
+                session.classId != null &&
+                session.state == KioskState.QR_READY.name
+        ) {
+            "수동 선택이 가능한 수업 상태가 아닙니다."
+        }
+        return database.studentDao().listEligibleForSession(
+            classId = session.classId,
+            sessionId = session.sessionId,
+        ).map { ValidatedStudent(it.studentId, it.displayNameExact) }
     }
 
     fun recordQrRejection(reasonCode: String) {

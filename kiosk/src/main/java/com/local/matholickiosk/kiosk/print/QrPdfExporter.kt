@@ -22,7 +22,7 @@ object QrPdfExporter {
     ): File {
         val directory = File(context.cacheDir, EXPORT_DIRECTORY).apply { mkdirs() }
         cleanupExpired(directory)
-        val output = File(directory, "matholic-qr-card-${System.currentTimeMillis()}.pdf")
+        val output = File(directory, "student-qr-card-${System.currentTimeMillis()}.pdf")
         val attributes = PrintAttributes.Builder()
             .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
             .setResolution(PrintAttributes.Resolution("pdf", "pdf", 300, 300))

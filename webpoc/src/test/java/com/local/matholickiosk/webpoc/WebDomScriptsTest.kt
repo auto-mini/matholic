@@ -92,6 +92,11 @@ class WebDomScriptsTest {
         assertTrue(script.contains("현재 문제 번호 선택"))
         assertTrue(script.contains(".ant-select-selection-item"))
         assertTrue(script.contains("visibleButtonInside"))
+        assertTrue(script.contains("matholic-kiosk-problem-map"))
+        assertTrue(script.contains("matholicKioskProblemStates"))
+        assertTrue(script.contains("답안 현황"))
+        assertTrue(script.contains("풀지 못한 문제는 빈칸으로 두지 말고"))
+        assertTrue(script.contains("problemStateMapEnhancements"))
     }
 
     @Test

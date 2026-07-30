@@ -3,7 +3,7 @@
     <string name="app_name">학습</string>
     <string name="setup_title">학습 계정 확인</string>
     <string name="setup_message">시험계정만 입력하세요. 입력값은 저장되지 않으며 로그인 시도는 자동 재시도하지 않습니다.</string>
-    <string name="expected_name_hint">매쓰홀릭에 표시되는 이름(정확히)</string>
+    <string name="expected_name_hint">학습 서비스에 표시되는 이름(정확히)</string>
     <string name="username_hint">시험계정 아이디</string>
     <string name="password_hint">시험계정 비밀번호</string>
     <string name="start_login">시험 로그인 시작</string>
@@ -12,6 +12,7 @@
     <string name="status_login">로그인·학생 확인 중</string>
     <string name="status_logout">입력을 차단하고 로그아웃 확인 중</string>
     <string name="status_locked_with_code">화면이 잠겼습니다\n선생님 확인이 필요합니다\n\n상태 코드: %1$s</string>
+    <string name="status_network_disconnected_with_code">인터넷 또는 공식 학습 서비스 연결이 끊겼습니다.\n답안을 보호하기 위해 화면을 잠갔습니다.\n선생님을 불러주세요.\n\n상태 코드: %1$s</string>
     <string name="status_maintenance_with_code">공식 웹 화면 구조가 승인본과 다릅니다.\n자동화를 중단했습니다.\n\n상태 코드: %1$s</string>
     <string name="status_active">시험계정 확인 완료</string>
     <string name="retry_safe_state">안전 상태 다시 확인</string>

@@ -403,6 +403,78 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceShowsProblemStateMapAndUnknownAnswerGuidance() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex">
+                  <button aria-label="이전 문제">&lt;</button>
+                  <div id="problem-number">
+                    <select id="problem-selector">
+                      <option>1</option>
+                      <option selected>2</option>
+                      <option>3</option>
+                    </select>
+                    <span>/ 3</span>
+                  </div>
+                  <button aria-label="다음 문제">&gt;</button>
+                </div>
+                <div id="answer-input-form-2">
+                  <input id="subjective-answer" value="7">
+                  <button id="unknown">모름</button>
+                </div>
+                <button id="submit">답안제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(1, result.getInt("problemStateMapEnhancements"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const map = document.querySelector(
+                    '.matholic-kiosk-problem-map'
+                  );
+                  const toggle = map.firstElementChild;
+                  toggle.click();
+                  const buttons = Array.from(map.querySelectorAll(
+                    '.matholic-kiosk-problem-map-grid button'
+                  ));
+                  const before = buttons[1].dataset.state;
+                  document.getElementById('unknown').click();
+                  return JSON.stringify({
+                    mapCount: document.querySelectorAll(
+                      '.matholic-kiosk-problem-map'
+                    ).length,
+                    buttonCount: buttons.length,
+                    current: buttons[1].dataset.current,
+                    before,
+                    trackedUnknown:
+                      window.__matholicKioskProblemStates[2],
+                    guideText: document.querySelector(
+                      '.matholic-kiosk-answer-guide'
+                    )?.textContent || '',
+                    open: map.dataset.open
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals(1, proof.getInt("mapCount"))
+            assertEquals(3, proof.getInt("buttonCount"))
+            assertEquals("true", proof.getString("current"))
+            assertEquals("answered", proof.getString("before"))
+            assertEquals("unknown", proof.getString("trackedUnknown"))
+            assertTrue(proof.getString("guideText").contains("모름"))
+            assertEquals("true", proof.getString("open"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceHidesGlobalChromeAndUnwantedAnswerControls() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

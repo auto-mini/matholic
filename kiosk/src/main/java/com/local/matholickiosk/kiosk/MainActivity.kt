@@ -4,9 +4,12 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -23,6 +26,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -48,10 +52,15 @@ import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
 import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
+import com.local.matholickiosk.kiosk.domain.FixedClassSlots
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.domain.RefreshableSelectionState
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
+import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
+import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
+import com.local.matholickiosk.kiosk.print.BatchQrCard
+import com.local.matholickiosk.kiosk.print.BatchQrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
 import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
@@ -83,6 +92,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var adminPanel: LinearLayout
     private lateinit var classNameInput: EditText
     private lateinit var classSpinner: Spinner
+    private lateinit var quickClassGrid: GridLayout
     private lateinit var classRosterText: TextView
     private lateinit var manageClassMembersButton: Button
     private lateinit var deleteClassButton: Button
@@ -100,6 +110,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var qrImage: ImageView
     private lateinit var printQrButton: Button
     private lateinit var exportQrPdfButton: Button
+    private lateinit var batchQrButton: Button
     private lateinit var pairPcButton: Button
     private lateinit var sendPcPdfButton: Button
     private lateinit var scannerPanel: FrameLayout
@@ -148,6 +159,9 @@ class MainActivity : ComponentActivity() {
     @Volatile
     private var pcPairingMode = false
     private var pairedPcDisplayName: String? = null
+    private val quickClassButtons = linkedMapOf<String, Button>()
+    private var manualStudentSelectionOnly = false
+    private var manualStudentSelectionFlowActive = false
 
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -290,6 +304,7 @@ class MainActivity : ComponentActivity() {
         adminPanel = findViewById(R.id.admin_panel)
         classNameInput = findViewById(R.id.class_name_input)
         classSpinner = findViewById(R.id.class_spinner)
+        quickClassGrid = findViewById(R.id.quick_class_grid)
         classRosterText = findViewById(R.id.class_roster_text)
         manageClassMembersButton = findViewById(R.id.manage_class_members_button)
         deleteClassButton = findViewById(R.id.delete_class_button)
@@ -307,6 +322,7 @@ class MainActivity : ComponentActivity() {
         qrImage = findViewById(R.id.qr_image)
         printQrButton = findViewById(R.id.print_qr_button)
         exportQrPdfButton = findViewById(R.id.export_qr_pdf_button)
+        batchQrButton = findViewById(R.id.batch_qr_button)
         pairPcButton = findViewById(R.id.pair_pc_button)
         sendPcPdfButton = findViewById(R.id.send_pc_pdf_button)
         scannerPanel = findViewById(R.id.scanner_panel)
@@ -334,6 +350,7 @@ class MainActivity : ComponentActivity() {
             deactivateStudentButton,
             printQrButton,
             exportQrPdfButton,
+            batchQrButton,
             pairPcButton,
             sendPcPdfButton,
             addTemporaryButton,
@@ -361,6 +378,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         findViewById<Button>(R.id.create_class_button).setOnClickListener { createClass() }
+        configureQuickClassButtons()
         registerStudentButton.setOnClickListener { showRegisterStudentDialog() }
         manageClassMembersButton.setOnClickListener { showClassMembershipDialog() }
         deleteClassButton.setOnClickListener { confirmDeleteClass() }
@@ -370,6 +388,7 @@ class MainActivity : ComponentActivity() {
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
         printQrButton.setOnClickListener { confirmQrPrint() }
         exportQrPdfButton.setOnClickListener { confirmQrPdfExport() }
+        batchQrButton.setOnClickListener { confirmBatchQrPrint() }
         pairPcButton.setOnClickListener { startPcPairingScanner() }
         sendPcPdfButton.setOnClickListener { confirmPcPdfTransfer() }
         addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
@@ -669,6 +688,7 @@ class MainActivity : ComponentActivity() {
         val studentSelectionSnapshot = studentSelectionState.snapshotSelection()
         ioExecutor.execute {
             val result = runCatching {
+                studentRepository.ensureClasses(FixedClassSlots.names)
                 val loadedClasses = studentRepository.listClasses()
                     .map { Choice(it.classId, it.className) }
                 val loadedStudents = studentRepository.listStudents()
@@ -761,7 +781,56 @@ class MainActivity : ComponentActivity() {
         updateSessionAdminControls(snapshot.session)
         updateStudentManagementControls()
         updateClassRosterUi()
+        updateQuickClassButtons()
         adminMessage.text = message.orEmpty()
+    }
+
+    private fun configureQuickClassButtons() {
+        quickClassGrid.removeAllViews()
+        quickClassButtons.clear()
+        FixedClassSlots.names.forEach { className ->
+            val button = Button(this).apply {
+                text = className
+                minHeight = dp(52)
+                textSize = 16f
+                filterTouchesWhenObscured = true
+                setOnClickListener { selectQuickClass(className) }
+            }
+            val params = GridLayout.LayoutParams().apply {
+                width = 0
+                height = GridLayout.LayoutParams.WRAP_CONTENT
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                setMargins(dp(3), dp(3), dp(3), dp(3))
+            }
+            quickClassGrid.addView(button, params)
+            quickClassButtons[className] = button
+        }
+    }
+
+    private fun selectQuickClass(className: String) {
+        val index = classes.indexOfFirst { it.label == className }
+        if (index < 0) {
+            adminMessage.text = "$className 반을 준비하고 있습니다. 잠시 후 다시 누르세요."
+            refreshAdminData()
+            return
+        }
+        classSpinner.setSelection(index)
+    }
+
+    private fun updateQuickClassButtons() {
+        val selectedName = classes.getOrNull(classSpinner.selectedItemPosition)?.label
+        quickClassButtons.forEach { (className, button) ->
+            button.isEnabled = currentSession?.sessionId == null || className == selectedName
+            button.alpha = if (className == selectedName) 1f else 0.72f
+            button.setTypeface(
+                button.typeface,
+                if (className == selectedName) {
+                    android.graphics.Typeface.BOLD
+                } else {
+                    android.graphics.Typeface.NORMAL
+                },
+            )
+        }
     }
 
     private fun adminRefreshFailureMessage(completedMessage: String?): String =
@@ -818,6 +887,11 @@ class MainActivity : ComponentActivity() {
         val selected = classes.getOrNull(classSpinner.selectedItemPosition)
         if (selected == null) {
             adminMessage.text = "삭제할 반을 선택하세요."
+            return
+        }
+        if (FixedClassSlots.contains(selected.label)) {
+            adminMessage.text =
+                "${selected.label}은 고정 빠른선택 반이라 삭제할 수 없습니다. 테스트반만 삭제할 수 있습니다."
             return
         }
         AlertDialog.Builder(this)
@@ -948,6 +1022,7 @@ class MainActivity : ComponentActivity() {
             !classRosterState.hasLoadFailure
         manageClassMembersButton.isEnabled = classReady && currentSession?.sessionId == null
         deleteClassButton.isEnabled = classReady &&
+            selectedClass?.label?.let(FixedClassSlots::contains) == false &&
             (currentSession?.sessionId == null || activeClassId != selectedClass?.id)
         addTemporaryButton.isEnabled = classReady && students.any {
             it.id !in classRosterState.membershipStudentIds
@@ -961,6 +1036,10 @@ class MainActivity : ComponentActivity() {
         } else {
             "현재 수업 보강 학생 추가"
         }
+        batchQrButton.isEnabled = classReady &&
+            currentSession?.sessionId == null &&
+            classRosterState.membershipStudentIds.isNotEmpty()
+        updateQuickClassButtons()
     }
 
     private fun showRegisterStudentDialog() {
@@ -969,12 +1048,12 @@ class MainActivity : ComponentActivity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PERSON_NAME,
         )
         val usernameInput = dialogTextInput(
-            hint = "매쓰홀릭 아이디",
+            hint = "학습 계정 아이디",
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
             sensitive = true,
         )
         val passwordInput = dialogTextInput(
-            hint = "매쓰홀릭 비밀번호",
+            hint = "학습 계정 비밀번호",
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
             sensitive = true,
         )
@@ -1178,12 +1257,12 @@ class MainActivity : ComponentActivity() {
             return
         }
         val usernameInput = dialogTextInput(
-            hint = "새 매쓰홀릭 아이디",
+            hint = "새 학습 계정 아이디",
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
             sensitive = true,
         )
         val passwordInput = dialogTextInput(
-            hint = "새 매쓰홀릭 비밀번호",
+            hint = "새 학습 계정 비밀번호",
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
             sensitive = true,
         )
@@ -1338,6 +1417,102 @@ class MainActivity : ComponentActivity() {
         deactivateStudentButton.isEnabled = available && hasStudents
     }
 
+    private fun confirmBatchQrPrint() {
+        val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
+        if (selectedClass == null || classRosterState.membershipStudentIds.isEmpty()) {
+            adminMessage.text = "학생이 소속된 반을 선택하세요."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("${selectedClass.label} QR 전체 재발급")
+            .setMessage(
+                "선택 반 학생 전원의 기존 QR 카드가 즉시 무효화되고 새 카드가 발급됩니다.\n\n" +
+                    "A4 한 장에 55×80mm 카드가 최대 9장씩 배치됩니다. " +
+                    "인쇄를 취소하면 새 QR 원문을 다시 볼 수 없으므로 실제로 전부 다시 인쇄할 때만 진행하세요.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("전체 재발급 후 인쇄") { _, _ ->
+                prepareBatchQrPrint(selectedClass)
+            }
+            .show()
+    }
+
+    private fun prepareBatchQrPrint(selectedClass: Choice) {
+        batchQrButton.isEnabled = false
+        adminMessage.text = "${selectedClass.label} QR 전체 재발급·인쇄 문서 생성 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                val issued = studentRepository.reissueClassQrBatch(selectedClass.id)
+                val cards = mutableListOf<BatchQrCard>()
+                try {
+                    issued.forEach { item ->
+                        cards += BatchQrCard(
+                            displayName = item.displayNameExact,
+                            qrBitmap = QrImageRenderer.render(
+                                payload = item.issuedQr.payload,
+                                sizePixels = QR_SIZE_PIXELS,
+                            ),
+                        )
+                        item.issuedQr.hash.fill(0)
+                    }
+                    studentRepository.recordClassQrBatchPrintRequested(cards.size)
+                    cards.toList()
+                } catch (failure: Throwable) {
+                    cards.forEach { card ->
+                        if (!card.qrBitmap.isRecycled) {
+                            card.qrBitmap.eraseColor(android.graphics.Color.WHITE)
+                            card.qrBitmap.recycle()
+                        }
+                    }
+                    issued.forEach { it.issuedQr.hash.fill(0) }
+                    throw failure
+                }
+            }
+            runOnUiThread {
+                if (destroyed) {
+                    result.getOrNull()?.forEach { card ->
+                        QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
+                    }
+                    return@runOnUiThread
+                }
+                result.fold(
+                    onSuccess = { cards ->
+                        val adapter = BatchQrPrintDocumentAdapter(this, cards)
+                        val attributes = PrintAttributes.Builder()
+                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
+                            .setResolution(
+                                PrintAttributes.Resolution("print", "print", 300, 300),
+                            )
+                            .setMinMargins(PrintAttributes.Margins(500, 500, 500, 500))
+                            .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
+                            .build()
+                        runCatching {
+                            getSystemService(PrintManager::class.java).print(
+                                "${selectedClass.label} 학생 QR 카드",
+                                adapter,
+                                attributes,
+                            )
+                        }.onSuccess {
+                            adminMessage.text =
+                                "${selectedClass.label} 새 QR ${cards.size}장을 인쇄 서비스로 전달했습니다."
+                        }.onFailure {
+                            cards.forEach { card ->
+                                QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
+                            }
+                            adminMessage.text =
+                                "인쇄 화면을 열지 못했습니다. 기존 QR은 이미 무효화되었습니다. 다시 전체 재발급하세요."
+                        }
+                        updateClassRosterUi()
+                    },
+                    onFailure = {
+                        batchQrButton.isEnabled = true
+                        adminMessage.text = it.message ?: "반 QR 일괄 재발급 실패"
+                    },
+                )
+            }
+        }
+    }
+
     private fun confirmQrPrint() {
         val preview = issuedQrPreview
         if (preview == null || preview.bitmap.isRecycled) {
@@ -1396,7 +1571,7 @@ class MainActivity : ComponentActivity() {
                             .build()
                         runCatching {
                             getSystemService(PrintManager::class.java).print(
-                                "매쓰홀릭 QR 카드",
+                                "학생 QR 카드",
                                 adapter,
                                 attributes,
                             )
@@ -1682,7 +1857,8 @@ class MainActivity : ComponentActivity() {
         pendingRecoveryAction = action
         adminMessage.text = when (action) {
             PendingRecoveryAction.None -> "Web 로그인 상태 안전 정리 중"
-            is PendingRecoveryAction.StartSession -> "Web 상태 확인 후 수업 시작 준비 중"
+            is PendingRecoveryAction.StartSession ->
+                "공식 웹 접속·화면 구조·로그인 상태 사전점검 중"
             PendingRecoveryAction.EndSession -> "Web 상태 정리 후 수업 안전 종료 중"
         }
         updateSessionAdminControls(currentSession)
@@ -1731,12 +1907,71 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "반 학생 또는 이번 수업 보강 학생을 한 명 이상 선택하세요."
             return
         }
-        launchWebSessionRecovery(
+        runSessionPreflight(
             PendingRecoveryAction.StartSession(
                 classId = selectedClass.id,
                 temporaryStudentIds = pendingTemporaryStudentIds,
             ),
         )
+    }
+
+    private fun runSessionPreflight(action: PendingRecoveryAction.StartSession) {
+        val status = lockTaskController.status()
+        val batteryIntent = registerReceiver(
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+        )
+        val batteryLevel = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val batteryScale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val batteryPercent = if (batteryLevel >= 0 && batteryScale > 0) {
+            (batteryLevel * 100 / batteryScale).coerceIn(0, 100)
+        } else {
+            null
+        }
+        val cameraHardware = packageManager.hasSystemFeature(
+            PackageManager.FEATURE_CAMERA_ANY,
+        )
+        val result = SessionPreflightPolicy.evaluate(
+            SessionPreflightInput(
+                deviceOwner = status.isDeviceOwner,
+                kioskPackagePermitted = status.isKioskPackagePermitted,
+                webAppProtected = status.isWebPocUninstallBlocked,
+                policyConfigurationFailed = dedicatedDevicePolicyFailed,
+                cameraPermissionGranted =
+                    checkSelfPermission(Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED,
+                cameraHardwareAvailable = cameraHardware,
+                batteryPercent = batteryPercent,
+                usableStorageBytes = filesDir.usableSpace,
+            ),
+        )
+        if (!result.canStart) {
+            adminMessage.text = "수업 시작 차단 · ${result.blockingReasons.joinToString(" ")}"
+            AlertDialog.Builder(this)
+                .setTitle("수업 사전점검 실패")
+                .setMessage(result.blockingReasons.joinToString("\n"))
+                .setPositiveButton("확인", null)
+                .show()
+            return
+        }
+        val checks = buildString {
+            append("필수 보안 정책: 정상\n")
+            append("공식 웹 접속·화면 구조: 시작 직전 안전검사\n")
+            append("로그인 잔여 상태: 시작 직전 안전정리\n")
+            if (result.warnings.isNotEmpty()) {
+                append("\n주의\n")
+                append(result.warnings.joinToString("\n") { "• $it" })
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("수업 시작 사전점검")
+            .setMessage(checks)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("웹 검사 후 시작") { _, _ ->
+                manualStudentSelectionOnly = result.manualStudentSelectionRequired
+                launchWebSessionRecovery(action)
+            }
+            .show()
     }
 
     private fun completeSessionStart(action: PendingRecoveryAction.StartSession) {
@@ -1961,7 +2196,13 @@ class MainActivity : ComponentActivity() {
         statusText.text = KioskState.QR_READY.name
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterDedicatedMode()
-        ensureCamera()
+        if (manualStudentSelectionOnly) {
+            scannerMessage.text =
+                "QR 카메라를 사용할 수 없습니다\n오른쪽 아래 관리자 버튼에서 학생을 수동 선택하세요"
+            statusText.text = "MANUAL_STUDENT_SELECTION"
+        } else {
+            ensureCamera()
+        }
     }
 
     private fun ensureCamera() {
@@ -2044,7 +2285,7 @@ class MainActivity : ComponentActivity() {
             "후면"
         }
         scannerInstruction.text = if (pcPairingMode) {
-            "PC의 매쓰홀릭 PDF 수신기에 표시된\n" +
+            "PC의 QR PDF 수신기에 표시된\n" +
                 "페어링 QR을 ${activeCameraLabel} 카메라 렌즈에 보여주세요"
         } else {
             "QR 카드를 ${activeCameraLabel} 카메라 렌즈에 보여주세요"
@@ -2384,7 +2625,7 @@ class MainActivity : ComponentActivity() {
                         when (result) {
                             AdminAuthResult.Success -> {
                                 dialog.dismiss()
-                                showAdmin()
+                                showAuthenticatedSessionActions()
                             }
                             AdminAuthResult.NotEnrolled -> {
                                 dialog.dismiss()
@@ -2404,6 +2645,124 @@ class MainActivity : ComponentActivity() {
             if (scannerVisible) qrAnalyzer?.setEnabled(true)
         }
         dialog.show()
+    }
+
+    private fun showAuthenticatedSessionActions() {
+        if (!scannerVisible || currentSession?.sessionId == null) {
+            showAdmin()
+            return
+        }
+        val className = classes.firstOrNull { it.id == currentSession?.classId }?.label
+            ?: "현재 수업"
+        qrAnalyzer?.setEnabled(false)
+        AlertDialog.Builder(this)
+            .setTitle("$className · 관리자 작업")
+            .setItems(arrayOf("학생 수동 선택", "관리자 화면 열기")) { _, which ->
+                when (which) {
+                    0 -> {
+                        manualStudentSelectionFlowActive = true
+                        loadManualStudentChoices(className)
+                    }
+                    else -> showAdmin()
+                }
+            }
+            .setNegativeButton("취소", null)
+            .setOnDismissListener {
+                if (scannerVisible && !manualStudentSelectionFlowActive) {
+                    qrAnalyzer?.setEnabled(!manualStudentSelectionOnly)
+                }
+            }
+            .show()
+    }
+
+    private fun loadManualStudentChoices(className: String) {
+        scannerMessage.text = "현재 수업 학생 명단을 확인하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.listEligibleStudentsForActiveSession()
+            }
+            runOnUiThread {
+                if (destroyed || !scannerVisible) return@runOnUiThread
+                result.fold(
+                    onSuccess = { choices ->
+                        if (choices.isEmpty()) {
+                            scannerMessage.text = "수동 선택할 수 있는 학생이 없습니다"
+                            finishManualStudentSelectionFlow()
+                        } else {
+                            showManualStudentDialog(className, choices)
+                        }
+                    },
+                    onFailure = {
+                        scannerMessage.text =
+                            it.message ?: "현재 수업 학생 명단을 불러오지 못했습니다"
+                        finishManualStudentSelectionFlow()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showManualStudentDialog(
+        className: String,
+        choices: List<ValidatedStudent>,
+    ) {
+        var selectionMade = false
+        AlertDialog.Builder(this)
+            .setTitle("$className · 학생 선택")
+            .setItems(choices.map(ValidatedStudent::displayNameExact).toTypedArray()) { _, which ->
+                selectionMade = true
+                validateManualStudent(choices[which].studentId)
+            }
+            .setNegativeButton("취소", null)
+            .setOnDismissListener {
+                if (!selectionMade) {
+                    finishManualStudentSelectionFlow()
+                    if (scannerMessage.text == "현재 수업 학생 명단을 확인하고 있습니다") {
+                        scannerMessage.text = ""
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun validateManualStudent(studentId: String) {
+        scannerMessage.text = "선택한 학생을 확인하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.validateManualStudentForActiveSession(studentId)
+            }
+            runOnUiThread {
+                if (destroyed || !scannerVisible) return@runOnUiThread
+                result.fold(
+                    onSuccess = { student ->
+                        if (student == null) {
+                            scannerMessage.text =
+                                "현재 수업에서 선택할 수 없는 학생입니다\n명단을 다시 확인하세요"
+                            finishManualStudentSelectionFlow()
+                        } else {
+                            scannerMessage.text =
+                                "${student.displayNameExact}\n수동 인증이 완료되었습니다"
+                            mainHandler.postDelayed({
+                                if (!destroyed && scannerVisible) {
+                                    launchSecureWebSession(student)
+                                }
+                            }, QR_ACCEPTED_DISPLAY_MS)
+                        }
+                    },
+                    onFailure = {
+                        scannerMessage.text = "학생 수동 인증에 실패했습니다"
+                        finishManualStudentSelectionFlow()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun finishManualStudentSelectionFlow() {
+        manualStudentSelectionFlowActive = false
+        if (scannerVisible) {
+            qrAnalyzer?.setEnabled(!manualStudentSelectionOnly)
+        }
     }
 
     private fun stopCamera() {

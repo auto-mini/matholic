@@ -128,7 +128,7 @@ class QrPrintDocumentAdapterInstrumentedTest {
         assertEquals(Intent.ACTION_SEND, share.action)
         assertEquals("application/pdf", share.type)
         assertEquals(uri, share.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java))
-        assertEquals("매쓰홀릭 QR 카드 · 가상학생 전체이름", share.getStringExtra(Intent.EXTRA_SUBJECT))
+        assertEquals("학생 QR 카드 · 가상학생 전체이름", share.getStringExtra(Intent.EXTRA_SUBJECT))
         assertTrue(share.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
         assertEquals(1, share.clipData?.itemCount)
         assertEquals(uri, share.clipData?.getItemAt(0)?.uri)

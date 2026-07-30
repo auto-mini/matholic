@@ -98,7 +98,7 @@ class QrPrintDocumentAdapter(
         page in start..end
 
     companion object {
-        private const val FILE_NAME = "matholic-qr-card.pdf"
+        private const val FILE_NAME = "student-qr-card.pdf"
     }
 }
 
@@ -161,6 +161,29 @@ internal object QrPrintCardRenderer {
             "인쇄 가능 영역이 55×80mm QR 카드보다 작습니다."
         }
         val layout = layout(contentRect)
+        drawCard(
+            canvas = canvas,
+            card = layout.card,
+            displayName = displayName,
+            qrBitmap = qrBitmap,
+        )
+    }
+
+    fun drawCard(
+        canvas: Canvas,
+        card: RectF,
+        displayName: String,
+        qrBitmap: Bitmap,
+    ) {
+        val qrSize = qrSizePoints()
+        val qrLeft = card.centerX() - qrSize.width / 2f
+        val qrTop = card.top + millimetersToPoints(QR_TOP_MM)
+        val layout = CardLayout(
+            card = card,
+            qr = RectF(qrLeft, qrTop, qrLeft + qrSize.width, qrTop + qrSize.height),
+            nameBaseline = card.top + millimetersToPoints(NAME_BASELINE_MM),
+            maximumNameWidth = card.width() - millimetersToPoints(NAME_SIDE_MARGIN_MM * 2f),
+        )
 
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
