@@ -5256,6 +5256,51 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   통과
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
 
+## Web POC RC56 실패 편집기 React 답안 재연결 — 2026-07-30
+
+### 사용자 재확인과 남은 원인
+
+- RC55에서 답안제출창의 얇은 칸은 정상 크기로 복구됐다.
+- 임시저장 후 재진입하면 문제 화면에는 기존 답안이 보이지만 답안제출창에는
+  보이지 않고, 넓어진 칸에도 입력할 수 없었다.
+- 이는 크기 문제가 아니라 제출창의 React 수식 컴포넌트가 존재한 상태에서
+  내부 MathQuill ref만 `null`로 고정된 별도 장애다.
+- RC55의 runtime 선로딩은 이후 mount 경쟁을 예방하지만 이미 mount에
+  실패한 컴포넌트의 effect를 다시 실행시키지는 못했다.
+
+### 수정
+
+- 초기화 전 공식 `span`에서 React Fiber 상위 컴포넌트의 현재 `latex`와
+  `onLatexChange` binding을 확인한다.
+- MathQuill runtime이 준비된 뒤 실패한 `span`에만 새 MathField를 생성하고
+  기존 임시답안을 `latex`로 복원한다.
+- 새 편집기의 edit를 원래 React `onLatexChange`로 전달해 삭제와 입력이
+  임시저장 대상 답안 상태에 반영되게 한다.
+- 원래 ref가 `null`인 루트·분수·파이 버튼도 복구 MathField의 `cmd`와
+  `focus`에 연결한다.
+- 정상 `.mq-editable-field`, 숨겨진 편집기, 객관식과 일반 입력에는
+  적용하지 않는다.
+- Web 계약을 `web-2026-07-30.8`, 버전을
+  `0.4.0-rc56`/code 73으로 올렸다.
+
+### 검증과 A 설치
+
+- 초기화 실패 편집기와 기존 임시답안 `28` fixture에서 다음을 확인했다.
+  - MathField 생성 후 `28` 표시
+  - 삭제 edit가 React 답안 상태 `null`로 전달
+  - 루트 입력이 새 답안으로 전달되고 focus 복구
+- JVM 단위시험·debug 앱·계측 APK compile: 통과
+- Android 13 DOM 계약 계측시험 52개: 실패·생략 0
+- Android 13 전체 계측시험 89개: 실패·생략 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc56`/code 73을 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `04E6E9520176D8917A9FC8D886AB6D2C456CE40C7CC5F2421320A9739CCA9F06`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
+- 설치 APK 해시가 artifact와 일치했고 Kiosk가 전경으로 복귀했다.
+
 ## Web POC RC55 MathQuill 동시 초기화와 기존 답안 복원 — 2026-07-30
 
 ### 확정 원인

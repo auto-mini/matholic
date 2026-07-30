@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.7"
+    const val CONTRACT_VERSION = "web-2026-07-30.8"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -565,6 +565,7 @@ object WebDomScripts {
           let mathModeSelections = 0;
           let mathModePending = 0;
           let mathModeReady = 0;
+          let mathModeRescued = 0;
           let subjectiveTouchTargets = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
@@ -808,6 +809,106 @@ object WebDomScripts {
               return targets.size + containers.size + answerScopes.length;
             };
             subjectiveTouchTargets = ensureSubjectiveTouchTargets();
+
+            const mathBindingFor = shell => {
+              const fiberKey = Object.getOwnPropertyNames(shell).find(
+                key => key.startsWith('__reactFiber${'$'}') ||
+                  key.startsWith('__reactInternalInstance${'$'}')
+              );
+              let fiber = fiberKey ? shell[fiberKey] : null;
+              for (let depth = 0; fiber && depth < 8; depth += 1) {
+                const candidates = [fiber, fiber.alternate].filter(Boolean);
+                for (const candidate of candidates) {
+                  const props =
+                    candidate.memoizedProps || candidate.pendingProps;
+                  if (
+                    props &&
+                    typeof props.onLatexChange === 'function' &&
+                    Object.prototype.hasOwnProperty.call(props, 'latex')
+                  ) return props;
+                }
+                fiber = fiber.return;
+              }
+              return null;
+            };
+            const bindRescuedMathToolbar = (shell, field) => {
+              const commandFor = new Map([
+                ['루트', 'sqrt'],
+                ['분수', 'frac'],
+                ['파이', 'pi']
+              ]);
+              let scope = shell.parentElement;
+              for (let depth = 0; scope && depth < 4; depth += 1) {
+                const buttons = Array.from(
+                  scope.querySelectorAll('button,[role="button"]')
+                ).filter(button => commandFor.has(normalize(button.textContent)));
+                const labels = new Set(
+                  buttons.map(button => normalize(button.textContent))
+                );
+                if ([...commandFor.keys()].every(label => labels.has(label))) {
+                  buttons.forEach(button => {
+                    if (
+                      button.dataset.matholicKioskRescuedMathBound === 'true'
+                    ) return;
+                    button.addEventListener('click', () => {
+                      const command = commandFor.get(
+                        normalize(button.textContent)
+                      );
+                      if (!command) return;
+                      try {
+                        field.cmd(command);
+                        field.focus?.();
+                      } catch (_) {}
+                    });
+                    button.dataset.matholicKioskRescuedMathBound = 'true';
+                  });
+                  return;
+                }
+                scope = scope.parentElement;
+              }
+            };
+            const rescueUninitializedMathShells = () => {
+              const factory = window.MathQuill?.getInterface?.(2);
+              if (
+                typeof factory !== 'function' ||
+                typeof factory.MathField !== 'function'
+              ) return 0;
+              let rescued = 0;
+              Array.from(document.querySelectorAll(
+                '[data-matholic-kiosk-math-shell="true"]'
+              )).filter(shell =>
+                visible(shell) &&
+                !shell.classList.contains('mq-editable-field') &&
+                shell.dataset.matholicKioskMathRescuePending !== 'true'
+              ).forEach(shell => {
+                const binding = mathBindingFor(shell);
+                if (!binding) return;
+                shell.dataset.matholicKioskMathRescuePending = 'true';
+                try {
+                  let suppressEdit = true;
+                  let field = null;
+                  field = factory.MathField(shell, {
+                    restrictMismatchedBrackets: true,
+                    handlers: {
+                      edit: () => {
+                        if (suppressEdit || !field) return;
+                        const currentBinding = mathBindingFor(shell) || binding;
+                        currentBinding.onLatexChange(field.latex());
+                      }
+                    }
+                  });
+                  field.latex(binding.latex == null ? '' : String(binding.latex));
+                  suppressEdit = false;
+                  shell.dataset.matholicKioskMathRescued = 'true';
+                  shell.dataset.matholicKioskMathStabilized = 'true';
+                  bindRescuedMathToolbar(shell, field);
+                  rescued += 1;
+                } catch (_) {
+                  delete shell.dataset.matholicKioskMathRescuePending;
+                }
+              });
+              return rescued;
+            };
 
             const hideLateStudentContent = () => {
               let hidden = 0;
@@ -1688,6 +1789,7 @@ object WebDomScripts {
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
               subjectiveTouchTargets = ensureSubjectiveTouchTargets();
+              mathModeRescued += rescueUninitializedMathShells();
               const lateMathMode = enforceMathAnswerMode();
               hiddenControls += lateMathMode.hidden;
               mathModeSelections += lateMathMode.selectedCount;
@@ -1775,7 +1877,8 @@ object WebDomScripts {
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
-            mathModePending, mathModeReady, subjectiveTouchTargets,
+            mathModePending, mathModeReady, mathModeRescued,
+            subjectiveTouchTargets,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });

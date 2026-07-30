@@ -944,6 +944,157 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceRescuesFailedMathQuillWithExistingTemporaryAnswer() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="failed-answer-form">
+                <div>
+                  <button id="failed-root" type="button">루트</button>
+                  <button type="button">분수</button>
+                  <button type="button">파이</button>
+                </div>
+                <div style="position:relative">
+                  <span id="failed-editor"
+                    style="display:inline;width:160px;padding:8px;
+                      border-radius:6px;border:1px solid #d9d9d9;
+                      font-size:1.2em;text-align:center"></span>
+                  <span style="position:absolute">
+                    <button type="button" aria-label="지우기"></button>
+                  </span>
+                </div>
+                <button type="button">입력기</button>
+              </div>
+              <script>
+                const failedShell = document.getElementById('failed-editor');
+                window.rescuedAnswerState = {
+                  value: '28',
+                  lastCommand: null,
+                  focusCount: 0
+                };
+                const failedBinding = {
+                  latex: '28',
+                  onLatexChange: value => {
+                    window.rescuedAnswerState.value =
+                      value === '' ? null : value;
+                    failedBinding.latex = value;
+                  }
+                };
+                failedShell['__reactFiber${'$'}fixture'] = {
+                  return: {
+                    memoizedProps: failedBinding,
+                    return: null
+                  }
+                };
+                let failedLatex = '';
+                let failedEditHandler = null;
+                const failedField = {
+                  latex: value => {
+                    if (value !== undefined) failedLatex = value;
+                    return failedLatex;
+                  },
+                  cmd: command => {
+                    window.rescuedAnswerState.lastCommand = command;
+                    failedLatex = command;
+                    failedEditHandler();
+                  },
+                  focus: () => {
+                    window.rescuedAnswerState.focusCount += 1;
+                  },
+                  simulateEdit: value => {
+                    failedLatex = value;
+                    failedEditHandler();
+                  }
+                };
+                const failedFactory = element =>
+                  element === failedShell ? failedField : null;
+                failedFactory.MathField = (element, options) => {
+                  element.classList.add(
+                    'mq-editable-field',
+                    'mq-math-mode'
+                  );
+                  const textareaShell = document.createElement('span');
+                  textareaShell.className = 'mq-textarea';
+                  textareaShell.appendChild(
+                    document.createElement('textarea')
+                  );
+                  element.appendChild(textareaShell);
+                  const rootBlock = document.createElement('span');
+                  rootBlock.className = 'mq-root-block';
+                  element.appendChild(rootBlock);
+                  failedEditHandler = options.handlers.edit;
+                  window.rescuedMathField = failedField;
+                  return failedField;
+                };
+                window.MathQuill = {
+                  getInterface: () => failedFactory
+                };
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            assertEquals(1, result.getInt("mathModeRescued"))
+            val restored = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  latex: window.rescuedMathField.latex(),
+                  value: window.rescuedAnswerState.value,
+                  editable: document.getElementById('failed-editor')
+                    .classList.contains('mq-editable-field')
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("28", restored.getString("latex"))
+            assertEquals("28", restored.getString("value"))
+            assertTrue(restored.getBoolean("editable"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  window.rescuedMathField.simulateEdit('');
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            val cleared = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  latex: window.rescuedMathField.latex(),
+                  value: window.rescuedAnswerState.value
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("", cleared.getString("latex"))
+            assertTrue(cleared.isNull("value"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('failed-root').click();
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            val commanded = evaluate(
+                webView,
+                """
+                (() => JSON.stringify(window.rescuedAnswerState))()
+                """.trimIndent(),
+            )
+            assertEquals("sqrt", commanded.getString("lastCommand"))
+            assertEquals("sqrt", commanded.getString("value"))
+            assertTrue(commanded.getInt("focusCount") > 0)
+        }
+    }
+
+    @Test
     fun testStudentExperienceInitializesSubjectiveEditorWhenScrolledIntoView() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
