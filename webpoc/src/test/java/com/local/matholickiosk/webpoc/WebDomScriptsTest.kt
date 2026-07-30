@@ -57,6 +57,12 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholicKioskAnswerSubmitReentryGuard"))
         assertTrue(script.contains("matholicKioskSubmitReentryBlocked"))
         assertTrue(script.contains("stopImmediatePropagation"))
+        assertTrue(script.contains("restoreMathInputInteraction"))
+        assertTrue(script.contains("min-height: 56px"))
+        assertFalse(script.contains(
+            "scope.style.setProperty('pointer-events', 'none', 'important')",
+        ))
+        assertFalse(script.contains(".mq-editable-field ~ button"))
     }
 
     @Test

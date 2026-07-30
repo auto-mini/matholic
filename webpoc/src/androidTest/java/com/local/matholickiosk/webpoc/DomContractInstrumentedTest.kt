@@ -408,12 +408,12 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('handwriting-icon')).display === 'none',
                   answerHelpVisible:
                     getComputedStyle(document.getElementById('answer-help')).display !== 'none',
-                  basicHidden: getComputedStyle(document.getElementById('basic')).display === 'none',
+                  basicVisible: getComputedStyle(document.getElementById('basic')).display !== 'none',
                   fractionVisible:
                     getComputedStyle(document.getElementById('fraction')).display !== 'none',
                   mathClicked: document.getElementById('math').dataset.clicked === 'yes',
-                  inputMenuHidden:
-                    getComputedStyle(document.getElementById('input-menu')).display === 'none',
+                  inputMenuVisible:
+                    getComputedStyle(document.getElementById('input-menu')).display !== 'none',
                   directHandwritingHidden:
                     getComputedStyle(document.getElementById('direct-handwriting')).display === 'none',
                   videoHidden: getComputedStyle(document.getElementById('video-panel')).display === 'none',
@@ -430,10 +430,10 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("handwritingHidden"))
             assertTrue(proof.getBoolean("handwritingIconHidden"))
             assertTrue(proof.getBoolean("answerHelpVisible"))
-            assertTrue(proof.getBoolean("basicHidden"))
+            assertTrue(proof.getBoolean("basicVisible"))
             assertTrue(proof.getBoolean("fractionVisible"))
             assertTrue(proof.getBoolean("mathClicked"))
-            assertTrue(proof.getBoolean("inputMenuHidden"))
+            assertTrue(proof.getBoolean("inputMenuVisible"))
             assertTrue(proof.getBoolean("directHandwritingHidden"))
             assertTrue(proof.getBoolean("videoHidden"))
             assertTrue(proof.getBoolean("imageVideoHidden"))
@@ -494,12 +494,12 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('late-math-tooltip')).display === 'none',
                   chromeHidden:
                     getComputedStyle(document.getElementById('late-global-line')).display === 'none',
-                  inputMenuHidden:
-                    getComputedStyle(document.getElementById('late-input-menu')).display === 'none',
+                  inputMenuVisible:
+                    getComputedStyle(document.getElementById('late-input-menu')).display !== 'none',
                   mathClicked:
                     document.getElementById('late-math').dataset.clicked === 'yes',
-                  basicHidden:
-                    getComputedStyle(document.getElementById('late-basic')).display === 'none',
+                  basicVisible:
+                    getComputedStyle(document.getElementById('late-basic')).display !== 'none',
                   fractionVisible:
                     getComputedStyle(document.getElementById('late-fraction')).display !== 'none'
                 }))()
@@ -509,9 +509,9 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("reportHidden"))
             assertTrue(lateProof.getBoolean("mathTooltipHidden"))
             assertTrue(lateProof.getBoolean("chromeHidden"))
-            assertTrue(lateProof.getBoolean("inputMenuHidden"))
+            assertTrue(lateProof.getBoolean("inputMenuVisible"))
             assertTrue(lateProof.getBoolean("mathClicked"))
-            assertTrue(lateProof.getBoolean("basicHidden"))
+            assertTrue(lateProof.getBoolean("basicVisible"))
             assertTrue(lateProof.getBoolean("fractionVisible"))
 
             evaluate(
@@ -551,7 +551,7 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperienceBlocksAnswerInputUntilMathFieldIsReady() {
+    fun testStudentExperienceKeepsAnswerInputInteractiveWhileMathFieldSettles() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -599,15 +599,19 @@ class DomContractInstrumentedTest {
                   fieldNotReady:
                     !document.getElementById('math-editor')
                       .classList.contains('mq-editable-field'),
-                  inputBlocked:
+                  inputEnabled:
                     getComputedStyle(document.getElementById('answer-input-form-0'))
-                      .pointerEvents === 'none'
+                      .pointerEvents !== 'none',
+                  notMarkedBusy:
+                    document.getElementById('answer-input-form-0')
+                      .getAttribute('aria-busy') !== 'true'
                 }))()
                 """.trimIndent(),
             )
             assertTrue(initialProof.getBoolean("toolbarMounted"))
             assertTrue(initialProof.getBoolean("fieldNotReady"))
-            assertTrue(initialProof.getBoolean("inputBlocked"))
+            assertTrue(initialProof.getBoolean("inputEnabled"))
+            assertTrue(initialProof.getBoolean("notMarkedBusy"))
 
             evaluate(
                 webView,
@@ -655,6 +659,84 @@ class DomContractInstrumentedTest {
             )
             assertTrue(settledProof.getBoolean("fieldReady"))
             assertTrue(settledProof.getBoolean("inputEnabled"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceRestoresRc47BlockedScopeAndKeepsMathControlsTouchable() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="answer-input-form-0"
+                  data-matholic-kiosk-math-pending="true"
+                  data-matholic-kiosk-previous-pointer-events=""
+                  data-matholic-kiosk-previous-pointer-priority=""
+                  data-matholic-kiosk-previous-aria-busy="__missing__"
+                  aria-busy="true"
+                  style="pointer-events:none!important">
+                  <span id="math-editor" class="mq-editable-field mq-math-mode">
+                    <span class="mq-textarea"><textarea></textarea></span>
+                    <span class="mq-root-block"></span>
+                  </span>
+                  <button id="root" onclick="this.dataset.clicked='yes'">루트</button>
+                  <button id="fraction" onclick="this.dataset.clicked='yes'">분수</button>
+                  <button id="pi" onclick="this.dataset.clicked='yes'">파이</button>
+                  <button id="input-menu">입력기</button>
+                </div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  ['root', 'fraction', 'pi'].forEach(id =>
+                    document.getElementById(id).click()
+                  );
+                  const scope = document.getElementById('answer-input-form-0');
+                  const editor = document.getElementById('math-editor');
+                  const editorStyle = getComputedStyle(editor);
+                  const controls = ['root', 'fraction', 'pi'].map(id => {
+                    const control = document.getElementById(id);
+                    const style = getComputedStyle(control);
+                    return {
+                      display: style.display,
+                      pointerEvents: style.pointerEvents,
+                      clicked: control.dataset.clicked === 'yes'
+                    };
+                  });
+                  return JSON.stringify({
+                    scopePointerEvents: getComputedStyle(scope).pointerEvents,
+                    busyRemoved: !scope.hasAttribute('aria-busy'),
+                    pendingMarkerRemoved:
+                      !scope.hasAttribute('data-matholic-kiosk-math-pending'),
+                    editorMinHeight: parseFloat(editorStyle.minHeight),
+                    editorPointerEvents: editorStyle.pointerEvents,
+                    controls,
+                    navigationCount:
+                      document.querySelectorAll('.matholic-kiosk-math-nav').length
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertFalse(proof.getString("scopePointerEvents") == "none")
+            assertTrue(proof.getBoolean("busyRemoved"))
+            assertTrue(proof.getBoolean("pendingMarkerRemoved"))
+            assertTrue(proof.getDouble("editorMinHeight") >= 56.0)
+            assertEquals("auto", proof.getString("editorPointerEvents"))
+            val controls = proof.getJSONArray("controls")
+            repeat(controls.length()) { index ->
+                val control = controls.getJSONObject(index)
+                assertFalse(control.getString("display") == "none")
+                assertFalse(control.getString("pointerEvents") == "none")
+                assertTrue(control.getBoolean("clicked"))
+            }
+            assertEquals(1, proof.getInt("navigationCount"))
         }
     }
 
@@ -768,7 +850,7 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperiencePrimesEveryMountedMathFieldAndHidesClearControl() {
+    fun testStudentExperiencePrimesEveryMountedMathFieldWithoutHidingSiblingControl() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -872,7 +954,7 @@ class DomContractInstrumentedTest {
             assertEquals("4", first.getString("persisted"))
             assertEquals(0, first.getInt("ignoredEdits"))
             assertEquals(3, first.getInt("editCount"))
-            assertEquals("none", first.getString("clearDisplay"))
+            assertFalse(first.getString("clearDisplay") == "none")
 
             evaluate(
                 webView,

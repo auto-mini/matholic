@@ -5084,3 +5084,74 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   종료됐고, 설치 뒤에는 Kiosk만 전경에서 동작함을 확인했다.
 - 실제 학생 계정의 제출→결과→안전 종료 종단간 확인은 PIN과 계정 정보를
   다루지 않고 사용자 실물 재확인으로 남겼다.
+
+---
+
+## Web POC RC48 주관식 입력 터치 복구 — 2026-07-30
+
+### 확인된 원인
+
+- RC47까지는 주관식 수식 편집기 준비 과정에서 다음 조건 중 하나라도
+  충족되지 않으면 답안 scope 전체에
+  `pointer-events: none !important`를 적용했다.
+  - MathQuill 편집기 DOM 생성
+  - 루트·분수·파이 toolbar와 방향 키패드 연결
+  - 첫 입력 보존을 위한 MathQuill 안정화
+- 실제 사이트는 수식 메뉴, toolbar, 편집기 DOM이 비동기로 순차 생성된다.
+  합성시험과 다른 시점에 안정화 검사가 실행되면 scope 전체가 무기한
+  터치 불가로 남았다.
+- 같은 scope 안의 입력창, 루트·분수·파이와 입력기 버튼이 모두 영향을
+  받으므로 사용자가 보고한 주관식 전용 장애와 일치한다.
+- `.mq-editable-field ~ button` 규칙도 편집기 뒤의 모든 형제 버튼을 숨기는
+  과도한 선택자였다. 사이트 DOM 배치에 따라 정상 수식 버튼까지 숨길 수
+  있었다.
+- 기존 계측시험은 앱과 같은 순서로 준비되는 합성 MathQuill만 사용했고
+  “준비 중에는 답안 scope가 터치 불가여야 한다”를 정상으로 단정해 실제
+  비동기 DOM 실패를 가렸다.
+
+### 수정
+
+- 수식 편집기 준비 실패가 사용자 입력을 차단하지 않도록 전체
+  `pointer-events: none` 설정을 제거했다.
+- RC47이 이미 남긴 pending marker, `pointer-events`와 `aria-busy`는 새
+  스크립트 실행 시 즉시 원래 값으로 복구한다.
+- 수식 편집기가 실제로 준비되기 전에는 `기본`과 `입력기` 경로를 유지한다.
+  준비가 확인된 뒤에만 기존 수식 전용 화면 정리를 적용한다.
+- `.mq-editable-field ~ button`과 절대 위치 형제 버튼 전체 숨김 CSS를
+  제거해 루트·분수·파이 및 사이트 자체 보조 버튼을 보존한다.
+- MathQuill 편집기는 최소 높이 56px, 최소 폭 220px, 22px 글자와
+  `pointer-events: auto`를 적용한다.
+- toolbar가 편집기 scope 밖에 지연 생성되는 경우에도 보이는
+  루트·분수·파이 묶음을 찾아 방향 키패드를 연결한다.
+- Web 계약을 `web-2026-07-30.2`, 버전을
+  `0.4.0-rc48`/code 65로 올렸다.
+
+### 검증
+
+- Web POC JVM 단위시험·debug assemble·lint: 통과
+- Android 13 DOM 계약 계측시험 45개: 실패·오류 0
+  - 수식 편집기 준비 중에도 scope 터치 유지
+  - RC47 pending scope의 pointer/ARIA 원복
+  - 편집기 최소 높이 56px
+  - 루트·분수·파이 표시·pointer·click 유지
+  - 방향 키패드 생성
+- Android 13 복구 계측시험 35개: `OK`
+  - 최초 도구 호출은 3분 제한을 넘겼으나 기기 실행은 계속됐고
+    245.392초에 35개 전부 통과한 결과를 확인했다.
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+
+### A 기기 보존형 설치
+
+- 설치 전 Web POC: `0.4.0-rc47`/code 64
+- 설치 후 Web POC: `0.4.0-rc48`/code 65
+- artifact/설치 APK SHA-256:
+  `939351DAA3F6E6EC822000CD704CD489A09700BF5613068776E9F19E706FA9AF`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- `adb install -r` 성공. firstInstallTime `2026-07-28 13:12:16`, 앱 데이터,
+  credential bridge 권한, Kiosk Device Owner와 전용 HOME을 보존했다.
+- 설치 APK를 기기에서 직접 `sha256sum`한 값이 artifact와 일치했다.
+- 설치 뒤 Kiosk가 전경이고 기존 Web POC 프로세스가 종료됐음을 확인했다.
+- 실제 사이트의 주관식 숫자·루트·분수·파이·방향 이동과 제출→안전 종료
+  종단간 동작은 사용자가 실물에서 재확인한다.

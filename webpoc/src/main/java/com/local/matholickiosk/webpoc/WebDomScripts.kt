@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.1"
+    const val CONTRACT_VERSION = "web-2026-07-30.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -439,12 +439,20 @@ object WebDomScripts {
               width: 220px !important;
               max-width: 100% !important;
             }
-            .mq-editable-field ~ div[style*="position: absolute"] > button {
-              display: none !important;
+            .mq-editable-field {
+              min-width: 220px !important;
+              max-width: 100% !important;
+              min-height: 56px !important;
+              padding: 12px 14px !important;
+              font-size: 22px !important;
+              line-height: 1.4 !important;
+              cursor: text !important;
+              touch-action: manipulation !important;
+              pointer-events: auto !important;
             }
-            .mq-editable-field ~ button {
-              display: none !important;
-              pointer-events: none !important;
+            .mq-editable-field .mq-root-block {
+              min-width: 1em !important;
+              min-height: 28px !important;
             }
             .matholic-kiosk-math-nav {
               position: fixed !important;
@@ -775,9 +783,9 @@ object WebDomScripts {
                 );
                 return [...toolbarLabels].every(label => labels.has(label));
               };
-              const mathEditorReady = scope => !!scope?.querySelector(
-                '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
-              );
+              const mathEditorReady = scope => Array.from(
+                scope?.querySelectorAll('.mq-editable-field') || []
+              ).some(visible);
               const ensureMathNavigation = scope => {
                 const editor = scope?.querySelector('.mq-editable-field');
                 if (!editor) return false;
@@ -786,12 +794,23 @@ object WebDomScripts {
                   existing.matholicKioskScope = scope;
                   return true;
                 }
-                const toolbarButtons = Array.from(
+                let toolbarButtons = Array.from(
                   scope.querySelectorAll('button,[role="button"]')
                 ).filter(button => toolbarLabels.has(normalize(button.textContent)));
-                const labels = new Set(
+                let labels = new Set(
                   toolbarButtons.map(button => normalize(button.textContent))
                 );
+                if (![...toolbarLabels].every(label => labels.has(label))) {
+                  toolbarButtons = Array.from(
+                    document.querySelectorAll('button,[role="button"]')
+                  ).filter(button =>
+                    visible(button) &&
+                    toolbarLabels.has(normalize(button.textContent))
+                  );
+                  labels = new Set(
+                    toolbarButtons.map(button => normalize(button.textContent))
+                  );
+                }
                 if (![...toolbarLabels].every(label => labels.has(label))) return false;
                 const toolbar = toolbarButtons[0]?.parentElement;
                 if (!toolbar?.parentElement) return false;
@@ -884,26 +903,8 @@ object WebDomScripts {
                   return false;
                 }
               };
-              const setMathInputBlocked = (scope, blocked) => {
+              const restoreMathInputInteraction = scope => {
                 if (!scope) return;
-                if (blocked) {
-                  if (scope.dataset.matholicKioskMathPending !== 'true') {
-                    scope.dataset.matholicKioskPreviousPointerEvents =
-                      scope.style.getPropertyValue('pointer-events');
-                    scope.dataset.matholicKioskPreviousPointerPriority =
-                      scope.style.getPropertyPriority('pointer-events');
-                    scope.dataset.matholicKioskPreviousAriaBusy =
-                      scope.hasAttribute('aria-busy') ?
-                        scope.getAttribute('aria-busy') : '__missing__';
-                    scope.dataset.matholicKioskMathPending = 'true';
-                    scope.style.setProperty('pointer-events', 'none', 'important');
-                    scope.setAttribute('aria-busy', 'true');
-                  }
-                  if (scope.contains(document.activeElement)) {
-                    document.activeElement?.blur?.();
-                  }
-                  return;
-                }
                 if (scope.dataset.matholicKioskMathPending !== 'true') return;
                 const previousPointer =
                   scope.dataset.matholicKioskPreviousPointerEvents || '';
@@ -942,13 +943,12 @@ object WebDomScripts {
                 const editorReady = mathEditorReady(answerScope);
                 const editorPrepared =
                   editorReady && prepareMathEditor(answerScope);
-                setMathInputBlocked(answerScope, !editorPrepared);
+                restoreMathInputInteraction(answerScope);
                 if (editorPrepared) {
                   readyCount += 1;
                 } else {
                   pendingCount += 1;
                 }
-                if (hide(button)) hidden += 1;
                 if (
                   !componentMounted &&
                   wasVisible &&
@@ -957,14 +957,15 @@ object WebDomScripts {
                   button.dataset.matholicKioskMenuOpened = 'true';
                   button.click();
                 }
+                if ((componentMounted || editorReady) && hide(button)) hidden += 1;
               });
               Array.from(document.querySelectorAll(
                 '[data-matholic-kiosk-math-pending="true"]'
               )).forEach(scope => {
+                restoreMathInputInteraction(scope);
                 if (observedScopes.has(scope)) return;
                 if (mathEditorReady(scope)) {
                   if (prepareMathEditor(scope)) {
-                    setMathInputBlocked(scope, false);
                     readyCount += 1;
                   } else {
                     pendingCount += 1;
@@ -1000,11 +1001,16 @@ object WebDomScripts {
                     selectedCount += 1;
                   }
                 });
-              answerModeButtons
-                .filter(element => normalize(element.textContent) === '기본')
-                .forEach(element => {
-                  if (hide(element)) hidden += 1;
-                });
+              if (
+                Array.from(document.querySelectorAll('.mq-editable-field'))
+                  .some(visible)
+              ) {
+                answerModeButtons
+                  .filter(element => normalize(element.textContent) === '기본')
+                  .forEach(element => {
+                    if (hide(element)) hidden += 1;
+                  });
+              }
               if (
                 !Array.from(document.querySelectorAll('.mq-editable-field')).some(visible)
               ) {
