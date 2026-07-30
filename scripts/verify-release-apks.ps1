@@ -124,8 +124,13 @@ try {
         -ExpectedPackage 'com.local.matholickiosk.kiosk' `
         -ExpectedVersion $ExpectedKioskVersion `
         -ExpectedAppLabel '채점 관리' `
-        -RequiredPermissions @('android.permission.CAMERA', 'android.permission.INTERNET') `
-        -ForbiddenPermissions @('android.permission.ACCESS_NETWORK_STATE')
+        -RequiredPermissions @(
+            'android.permission.CAMERA',
+            'android.permission.ACCESS_NETWORK_STATE',
+            'android.permission.INTERNET',
+            'android.permission.VIBRATE'
+        ) `
+        -ForbiddenPermissions @()
     Assert-ApkManifest `
         -ApkPath $stagedWebPocApk `
         -ExpectedPackage 'com.local.matholickiosk.webpoc' `
@@ -133,6 +138,7 @@ try {
         -ExpectedAppLabel '학습' `
         -RequiredPermissions @(
             'android.permission.INTERNET',
+            'android.permission.ACCESS_NETWORK_STATE',
             'com.local.matholickiosk.permission.CREDENTIAL_BRIDGE'
         ) `
         -ForbiddenPermissions @()
