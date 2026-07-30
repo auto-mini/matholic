@@ -5,7 +5,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$WebPocApk,
     [string]$ExpectedKioskVersion = '0.6.0-rc43',
-    [string]$ExpectedWebPocVersion = '0.4.0-rc64'
+    [string]$ExpectedWebPocVersion = '0.4.0-rc65'
 )
 
 $ErrorActionPreference = 'Stop'

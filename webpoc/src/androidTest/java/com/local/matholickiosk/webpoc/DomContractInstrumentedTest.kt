@@ -2130,6 +2130,102 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceScrollsFocusedMathFieldAboveBottomKeypad() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="scroll-root" style="height:700px;overflow-y:auto">
+                <div style="height:600px"></div>
+                <div id="answer-input-form-0">
+                  <div>
+                    <button>루트</button>
+                    <button>분수</button>
+                    <button>파이</button>
+                  </div>
+                  <span id="math-editor" class="mq-editable-field mq-math-mode">
+                    <span class="mq-textarea"><textarea></textarea></span>
+                    <span class="mq-root-block"></span>
+                  </span>
+                </div>
+                <div style="height:600px"></div>
+              </div>
+              <script>
+                const editor = document.getElementById('math-editor');
+                let latex = '';
+                editor.fieldApi = {
+                  latex: value => {
+                    if (value !== undefined) latex = value;
+                    return latex;
+                  },
+                  write: value => { latex += value; },
+                  keystroke: key => {
+                    if (key === 'Backspace') latex = latex.slice(0, -1);
+                  },
+                  focus: () => {}
+                };
+                window.MathQuill = {
+                  getInterface: () => element => element.fieldApi || null
+                };
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('math-editor').dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
+                  return JSON.stringify({ activated: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(100)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const editor = document.getElementById('math-editor');
+                  const keypad = document.querySelector(
+                    '.matholic-kiosk-math-nav'
+                  );
+                  if (!editor || !keypad) {
+                    return JSON.stringify({
+                      editorPresent: !!editor,
+                      keypadPresent: !!keypad,
+                      scrollTop: document.getElementById(
+                        'scroll-root'
+                      )?.scrollTop || 0
+                    });
+                  }
+                  const editorRect = editor.getBoundingClientRect();
+                  const keypadRect = keypad.getBoundingClientRect();
+                  return JSON.stringify({
+                    editorPresent: true,
+                    keypadPresent: true,
+                    scrollTop: document.getElementById('scroll-root').scrollTop,
+                    editorBottom: editorRect.bottom,
+                    keypadTop: keypadRect.top,
+                    clearGap: keypadRect.top - editorRect.bottom
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue("editor missing: $proof", proof.getBoolean("editorPresent"))
+            assertTrue("keypad missing: $proof", proof.getBoolean("keypadPresent"))
+            assertTrue("scroll did not move: $proof", proof.getDouble("scrollTop") > 0.0)
+            assertTrue(
+                "editor remains behind keypad: $proof",
+                proof.getDouble("editorBottom") <= proof.getDouble("keypadTop") - 15.0,
+            )
+            assertTrue("keypad gap too small: $proof", proof.getDouble("clearGap") >= 15.0)
+        }
+    }
+
+    @Test
     fun testStudentExperienceBlocksSubmitTapThroughIntoNewReviewModal() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

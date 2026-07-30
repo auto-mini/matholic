@@ -1885,6 +1885,7 @@ object WebDomScripts {
                   const overlap = editorRect.bottom - (keypadRect.top - 16);
                   if (overlap <= 0) return;
                   let scrollingParent = editor.parentElement;
+                  let remaining = overlap;
                   while (
                     scrollingParent &&
                     scrollingParent !== document.body &&
@@ -1897,20 +1898,25 @@ object WebDomScripts {
                       /^(auto|scroll|overlay)$/.test(overflowY) &&
                       scrollingParent.scrollHeight >
                         scrollingParent.clientHeight + 2
-                    ) break;
+                    ) {
+                      const previousScrollTop = scrollingParent.scrollTop;
+                      scrollingParent.scrollTop += remaining;
+                      remaining -= Math.max(
+                        0,
+                        scrollingParent.scrollTop - previousScrollTop
+                      );
+                      if (remaining <= 0.5) return;
+                    }
                     scrollingParent = scrollingParent.parentElement;
                   }
-                  if (
-                    scrollingParent &&
-                    scrollingParent !== document.body &&
-                    scrollingParent !== document.documentElement
-                  ) {
-                    scrollingParent.scrollTop += overlap;
-                  } else {
+                  if (remaining > 0.5) {
                     try {
-                      window.scrollBy({ top: overlap, behavior: 'auto' });
+                      window.scrollBy({
+                        top: remaining,
+                        behavior: 'auto'
+                      });
                     } catch (_) {
-                      window.scrollBy(0, overlap);
+                      window.scrollBy(0, remaining);
                     }
                   }
                 });
@@ -2356,6 +2362,18 @@ object WebDomScripts {
                   button.click();
                 }
                 if ((componentMounted || editorReady) && hide(button)) hidden += 1;
+              });
+              Array.from(
+                document.querySelectorAll('.mq-editable-field')
+              ).filter(visible).forEach(editor => {
+                const answerScope = answerScopeFor(editor);
+                if (!answerScope || observedScopes.has(answerScope)) return;
+                observedScopes.add(answerScope);
+                if (prepareMathEditor(answerScope)) {
+                  readyCount += 1;
+                } else {
+                  pendingCount += 1;
+                }
               });
               Array.from(document.querySelectorAll(
                 '[data-matholic-kiosk-math-pending="true"]'
