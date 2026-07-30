@@ -7,7 +7,7 @@
   <text x="72" y="139" fill="#334e68" font-family="sans-serif" font-size="22" font-weight="700">4번 문제</text>
   <text x="72" y="188" fill="#102a43" font-family="sans-serif" font-size="26">답을 수식으로 입력하세요.</text>
   <rect x="72" y="225" width="760" height="94" rx="14" fill="#fff" stroke="#1565c0" stroke-width="4"/>
-  <text x="104" y="283" fill="#102a43" font-family="serif" font-size="34">√(  )  +  π</text>
+  <text x="104" y="283" fill="#102a43" font-family="serif" font-size="34">−√□</text>
   <line x1="267" y1="248" x2="267" y2="299" stroke="#f59e0b" stroke-width="4"/>
   <rect x="858" y="225" width="164" height="94" rx="14" fill="#e5e7eb" stroke="#64748b" stroke-width="2"/>
   <text x="940" y="283" text-anchor="middle" fill="#334155" font-family="sans-serif" font-size="23" font-weight="700">모름</text>
@@ -16,7 +16,7 @@
 
   <rect x="18" y="402" width="1244" height="372" rx="24" fill="#fff" stroke="#9fb3c8" stroke-width="2"/>
   <rect x="42" y="426" width="560" height="60" rx="12" fill="#dbeafe"/>
-  <text x="322" y="466" text-anchor="middle" fill="#173f6d" font-family="sans-serif" font-size="20" font-weight="700">숫자 · 기본 연산</text>
+  <text x="322" y="466" text-anchor="middle" fill="#173f6d" font-family="sans-serif" font-size="20" font-weight="700">숫자 · 소수점 · 부호</text>
   <rect x="620" y="426" width="350" height="60" rx="12" fill="#e8f5e9"/>
   <text x="795" y="466" text-anchor="middle" fill="#1b5e20" font-family="sans-serif" font-size="20" font-weight="700">수식 구조</text>
   <rect x="988" y="426" width="250" height="60" rx="12" fill="#fff3e0"/>
@@ -32,20 +32,20 @@
       <rect x="318" y="666" width="126" height="70" rx="12"/><rect x="456" y="666" width="146" height="70" rx="12"/>
     </g>
     <g fill="#102a43">
-      <text x="105" y="547">1</text><text x="243" y="547">2</text><text x="381" y="547">3</text><text x="529" y="547">+</text>
-      <text x="105" y="629">4</text><text x="243" y="629">5</text><text x="381" y="629">6</text><text x="529" y="629">−</text>
-      <text x="105" y="711">7</text><text x="243" y="711">8</text><text x="381" y="711">9</text><text x="529" y="711">0  ·  .</text>
+      <text x="105" y="547">1</text><text x="243" y="547">2</text><text x="381" y="547">3</text><text x="529" y="547">부호</text>
+      <text x="105" y="629">4</text><text x="243" y="629">5</text><text x="381" y="629">6</text><text x="529" y="629">.</text>
+      <text x="105" y="711">7</text><text x="243" y="711">8</text><text x="381" y="711">9</text><text x="529" y="711">0</text>
     </g>
 
     <g fill="#f1f8f2" stroke="#81c784" stroke-width="2">
-      <rect x="620" y="502" width="106" height="70" rx="12"/><rect x="738" y="502" width="106" height="70" rx="12"/><rect x="856" y="502" width="114" height="70" rx="12"/>
-      <rect x="620" y="584" width="106" height="70" rx="12"/><rect x="738" y="584" width="106" height="70" rx="12"/><rect x="856" y="584" width="114" height="70" rx="12"/>
-      <rect x="620" y="666" width="165" height="70" rx="12"/><rect x="797" y="666" width="173" height="70" rx="12"/>
+      <rect x="620" y="502" width="350" height="70" rx="12"/>
+      <rect x="620" y="584" width="350" height="70" rx="12"/>
+      <rect x="620" y="666" width="350" height="70" rx="12"/>
     </g>
     <g fill="#1b5e20">
-      <text x="673" y="547">√□</text><text x="791" y="547">□/□</text><text x="913" y="547">π</text>
-      <text x="673" y="629">( )</text><text x="791" y="629">×</text><text x="913" y="629">÷</text>
-      <text x="703" y="711">□²</text><text x="884" y="711">부호 ±</text>
+      <text x="795" y="547">루트  √□</text>
+      <text x="795" y="629">분수  □/□</text>
+      <text x="795" y="711">파이  π</text>
     </g>
 
     <g fill="#fff8ed" stroke="#f59e0b" stroke-width="2">
@@ -59,5 +59,5 @@
     </g>
   </g>
 
-  <text x="42" y="793" fill="#486581" font-family="sans-serif" font-size="14">검수 포인트: 70px 이상 터치 영역 · 입력칸을 가리지 않는 하단 고정형 · 수식 구조와 커서 이동 분리 · 전체 지움은 별도 확인</text>
+  <text x="42" y="793" fill="#486581" font-family="sans-serif" font-size="14">입력키: 0~9 · 소수점 · 부호 · 루트 · 분수 · 파이만 제공 / 방향·삭제는 수식 편집 전용 / 전체 지움은 별도 확인</text>
 </svg>
