@@ -192,7 +192,7 @@ A의 개발자 옵션과 USB 디버깅은 껐고 생산 잠금 물리 실기를 
 
 ### 현재 PC 설치 상태
 
-- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.0`
+- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.1`
 - 설치 파일:
   `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
 - 수신 폴더:
@@ -241,3 +241,29 @@ QR 재발급은 기존 QR을 즉시 무효화한다. 전송만 다시 해야 한
 
 2026-07-29 실물 검증에서는 수신 PDF의 신규 QR로 로그인·문제 화면·채점
 끝내기·`QR_READY` 왕복을 통과했고, 재발급 전 QR 무효화도 통과했다.
+
+## ADB 전용 비공개 진단 로그
+
+Kiosk rc45와 Web rc68부터 사용자 화면이나 공유 저장소에 진단 로그를
+노출하지 않으면서, USB 디버깅을 승인한 관리 PC에서만 구조화된 최근
+기록을 확인할 수 있다. receiver는 시스템 `android.permission.DUMP`로
+보호되므로 일반 앱 UID의 요청은 Android가 거부한다.
+
+```powershell
+$nonce = [guid]::NewGuid().ToString('N').ToUpperInvariant()
+adb -s R54TB029FHZ shell am broadcast `
+  -a com.local.matholickiosk.kiosk.action.DUMP_PRIVATE_DIAGNOSTICS `
+  --es nonce $nonce `
+  -n com.local.matholickiosk.kiosk/.AdbDiagnosticDumpReceiver
+
+$nonce = [guid]::NewGuid().ToString('N').ToUpperInvariant()
+adb -s R54TB029FHZ shell am broadcast `
+  -a com.local.matholickiosk.webpoc.action.DUMP_PRIVATE_DIAGNOSTICS `
+  --es nonce $nonce `
+  -n com.local.matholickiosk.webpoc/.AdbDiagnosticDumpReceiver
+```
+
+출력은 nonce가 포함된 `BEGIN`/`END` 경계 안의 최근 최대 200줄로 제한된다.
+학생 이름·아이디·비밀번호·QR 원문·답안·점수·오답 번호·문항 내용이
+나오면 정상 동작으로 간주하지 말고 해당 출력을 공유하지 않은 채 릴리스를
+중단한다. 실제 장애를 만들기 위한 실패주입은 이 조회 절차에 포함되지 않는다.

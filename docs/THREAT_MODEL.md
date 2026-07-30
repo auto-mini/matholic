@@ -9,7 +9,10 @@
 - Probe와 매쓰홀릭은 서로 다른 Android 앱/UID다.
 - Probe는 Android 접근성 서비스가 제공하는 `com.matholic.mathapp` 창만 읽는다.
 - redacted 보고서는 앱 private storage에 먼저 저장되며, 사용자가 Storage Access Framework로 선택한 위치에만 내보낸다.
-- PC/ADB는 설치와 비민감 기기 기준정보 확인에만 사용한다. 계정, 화면 원문, 로그캣, `uiautomator dump`를 수집하지 않는다.
+- PC/ADB는 설치, 비민감 기기 기준정보 확인과 구조화된 비공개 진단 로그
+  회수에만 사용한다. 계정, 화면 원문과 `uiautomator dump`를 수집하지 않는다.
+  진단 로그는 `android.permission.DUMP`가 있는 ADB shell만 요청할 수 있고
+  학생 식별정보·자격정보·QR·답안·점수·문항 내용을 구조적으로 거부한다.
 - Web POC의 WebView는 별도 앱 UID 안에서 공식 웹에 접속한다. 상위 탐색은 승인된 세 host만 허용하고 다른 링크, TLS 오류와 Safe Browsing 경고는 실패 폐쇄한다.
 - 사용자 확인에 따르면 공급사에 자동화 사용 가능 여부를 문의해 허용 답변을 받았다. 답변 원본은 별도로 보관하는 것이 좋다.
 
@@ -22,6 +25,7 @@
 | 학생명 등 접근성 text 유출 | 고정 UI 문구 allowlist 외 길이+세션 salt fingerprint로 즉시 치환 | 길이와 동일 세션 내 동일성은 진단 목적으로 남음 |
 | 보고서 외부 유출 | 앱 private storage, 명시적 내보내기, 인터넷 권한 없음 | 사용자가 내보낸 파일의 이후 취급은 별도 통제 필요 |
 | ADB 캡처 요청의 외부 악용 | 동적 receiver를 `RECEIVER_NOT_EXPORTED`로 등록하고 debug 앱 UID의 `run-as` 요청만 사용 | USB 디버깅이 허용된 신뢰 PC는 redacted 캡처를 유발할 수 있음 |
+| 비공개 운영 로그의 일반 앱 노출 | release receiver에 시스템 `android.permission.DUMP` 강제, 허용 필드·형식 검사, 파일별 최근 200줄 제한, 사용자 UI·공유 기능 없음 | USB 디버깅을 승인한 PC의 ADB shell은 구조화된 로그를 읽을 수 있으므로 승인 PC를 신뢰 경계로 관리해야 함 |
 | 스크린샷/최근 앱 미리보기 | Probe Activity에 `FLAG_SECURE` | 매쓰홀릭 자체 화면은 Probe가 통제하지 못함 |
 | UI 변경으로 오계정/오동작 | version과 의미 기반 fingerprint를 함께 요구, 알 수 없는 상태는 중단 | 같은 버전의 서버 UI 변경 가능 |
 | 좌표 오작동 | bounds는 진단 전용, selector 좌표 사용 금지 | 의미 노드가 없으면 Gate 1 FAIL |

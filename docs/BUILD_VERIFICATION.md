@@ -5859,5 +5859,104 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   설치하면서 프로세스가 교체된 데 따른 예상 안전 복구 상태다.
 - 관리자 PIN을 입력하는 수동 복구는 사용자 부재 중 수행하지 않았다.
 - 기존 학생·반·QR의 화면상 보존과 신규 편의 기능의 실제 현장 동작은
-  [현장 검증 체크리스트](RC44_RC67_FIELD_VERIFICATION_CHECKLIST.md)에 따라
+  [현장 검증 체크리스트](RC45_RC68_FIELD_VERIFICATION_CHECKLIST.md)에 따라
   검증해야 한다.
+
+## 자동/현장 검증 분리와 RC45/RC68 교정 — 2026-07-31
+
+### 검증 책임 분리
+
+- 현장 체크리스트 168개 항목을 빠짐없이 분류했다.
+  - `자동` 13개
+  - `공동` 49개
+  - `사용자` 106개
+  - 담당 미지정 0개
+- 자동 13개 중 현재 상태에서 판정 가능한 12개를 완료했다.
+- 남은 자동 1개는 모든 현장 흐름 종료 뒤의 `최종 오류 코드 없음`이므로
+  사용자·공동 흐름을 마치기 전에는 완료로 표시하지 않는다.
+- 사용자 항목 106개는 서로 독립된 106번 조작이 아니라 여섯 개 실제
+  사용 흐름에서 묶어 확인하도록 재구성했다.
+
+### 발견·교정한 결함
+
+- 설치돼 있던 Windows PDF 수신기가 현재 소스보다 오래된 산출물이었다.
+  최신 산출물로 보존 업데이트하고 기존 receiver ID, 페어링 secret, 포트와
+  수신 폴더를 유지했다.
+- 수신기 EXE의 `--smoke-check`가 즉시 종료할 뿐 실제 전송을 검사하지 않는
+  결함을 수정했다. 이제 암호화 PDF 전송, 인증 ACK, 저장 내용과 임시 파일
+  정리까지 실제 실행한다.
+- 수신기 버전을 `0.1.1`로 올리고 엔트리포인트 회귀시험을 추가했다.
+- Kiosk와 Web의 private 진단 로그는 사용자 UI가 없고 release 앱에
+  `run-as`도 사용할 수 없어 Codex가 장애 분석에 회수할 통로가 없었다.
+  시스템 `android.permission.DUMP`로 보호된 ADB shell 전용 receiver를
+  추가했다.
+- 진단 출력은 대문자 16진수 nonce, 허용된 구조의 최근 최대 200줄/파일만
+  통과시킨다. 학생 식별정보·자격정보·QR·답안·점수·오답 번호·문항
+  내용은 구조적으로 출력 대상에서 제외한다.
+- 릴리스 검사기에 두 receiver의 존재, `exported=true`,
+  `android.permission.DUMP`와 정확한 action 이름을 강제했다.
+- 운영 문서의 진단 action 이름과 PowerShell nonce 예시를 실제 계약과
+  일치하도록 교정했다.
+
+### 자동 검증
+
+- `scripts/build.ps1`: 204 tasks, PASS
+  - 네 Android 모듈 JVM 시험
+  - debug lint
+  - debug APK assemble
+- `scripts/build-release.ps1`: 158 tasks, PASS
+  - Kiosk/Web JVM 시험
+  - release lint
+  - 서명 release APK assemble
+  - 산출물 저장 전·후 이중 검증
+- Android 13 에뮬레이터 전체 계측:
+  - Kiosk 44/44, PASS
+  - Web 94/94, PASS
+- Windows PDF 수신기:
+  - pytest 11/11, PASS
+  - versioned EXE와 설치 EXE의 실제 smoke check, PASS
+  - smoke PDF 잔류 없음
+- release 검증:
+  - version, permission, `debuggable=false`, zipalign, v2 서명과 signer 1,
+    두 APK 동일 signer, ADB 진단 receiver 보안 계약, PASS
+  - signer SHA-256:
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- 첫 릴리스 검증 시 XML 속성 순서에 의존한 신규 검사식이 실패했다.
+  receiver 블록을 분리해 각 속성을 독립 검사하도록 수정한 뒤 전체 릴리스
+  빌드에서 통과했다.
+
+### A·PC 비파괴 검증
+
+- A 설치본:
+  - Kiosk `0.6.0-rc45` / code 50
+  - Web `0.4.0-rc68` / code 85
+- artifact와 A 설치 APK SHA-256:
+  - Kiosk:
+    `A882C4D371D45B927E67CF7B1B011D6B590EDC4BFFE963D425B23347E9077A83`
+  - Web:
+    `D04F149D8B1A4708719BD0E9678980E507B07477AA8EF4C5FE0333B91CF08B3A`
+- `firstInstallTime`과 `ceDataInode`가 설치 전후 동일하다.
+  - Kiosk: `2026-07-24 12:52:28`, inode `3236`
+  - Web: `2026-07-28 13:12:16`, inode `28569`
+- Device Owner, 전용 HOME, `LOCKED`, Kiosk top resumed activity 유지: PASS
+- 카메라 2개, Kiosk 카메라 권한, USB 전원과 배터리 기준 상태: PASS
+- ADB private 진단:
+  - Kiosk/Web 각각 `BEGIN`·`END`, 총 경계 4개
+  - 현재 저장된 허용 이벤트 0개
+  - 금지 정보 패턴 0개
+- Windows PDF 수신기:
+  - TCP 48129 listen, Startup 바로가기, 실행 경로: PASS
+  - 방화벽 `Private`/Inbound/TCP 48129/해당 EXE만 허용: PASS
+  - artifact와 설치 EXE SHA-256:
+    `8F1F95543C76AEDE16CF845760B123743693467F78B273A6D37C4B38695F50B4`
+
+### 남은 현장 검증
+
+- A는 보존 설치 뒤 예상된 `RECOVERY_REQUIRED` 상태다.
+- 관리자 PIN 안전 복구, 기존 학생·반·QR 화면 확인, Matholic 실서버
+  로그인·풀이·제출, 실물 QR·소리·진동·터치 체감은 자동 판정하지 않았다.
+- 다음 사용자 접근 시
+  [RC45/RC68 현장 검증 체크리스트](RC45_RC68_FIELD_VERIFICATION_CHECKLIST.md)의
+  여섯 흐름을 수행한다.
+- 공장초기화, 앱 데이터 삭제, Device Owner 변경, QR 재발급, 실물 인쇄와
+  실패주입은 이번 자동 검증에서 수행하지 않았다.

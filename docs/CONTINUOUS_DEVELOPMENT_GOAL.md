@@ -1925,3 +1925,15 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   Lock Task `LOCKED`와 두 앱 allowlist를 유지했다.
 - 실제 학습 페이지의 버튼·문제번호 표시는 사용자 실물 재확인 대상으로
   둔다.
+
+## 2026-07-31 현재 인계 기준
+
+- 현재 설치 기준은 Kiosk `0.6.0-rc45`/code 50,
+  Web `0.4.0-rc68`/code 85와 Windows PDF 수신기 `0.1.1`이다.
+- 자동 검증과 현장 검증의 책임 분리, 이번 교정 내용, APK/EXE 해시와
+  실제 검증 결과는 `docs/BUILD_VERIFICATION.md`의
+  `자동/현장 검증 분리와 RC45/RC68 교정` 절을 단일 근거로 사용한다.
+- 다음 현장 조작은
+  `docs/RC45_RC68_FIELD_VERIFICATION_CHECKLIST.md`의 여섯 흐름을 따른다.
+- A의 현재 상태는 보존 설치 뒤 `RECOVERY_REQUIRED`다. 사용자 조작 전까지
+  이를 오류나 `QR_READY` 완료 상태로 바꾸어 보고하지 않는다.
