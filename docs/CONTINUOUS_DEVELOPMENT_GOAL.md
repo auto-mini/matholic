@@ -1827,3 +1827,28 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
   전용 HOME을 유지했고 Kiosk 전경 복귀를 확인했다.
 - 동일 학습지에서 임시저장→나가기→답안제출창의 기존 답안 표시·수정은
   사용자 실물 재확인 대상으로 둔다.
+
+## Web POC RC57 공식 입력기 재마운트 — 2026-07-30
+
+- RC56의 별도 MathField 복구는 공식 React ref와 임시저장 생명주기를
+  완전히 되살리지 못해 실기 임시저장 장애가 계속됐다.
+- 공식 상태 경로가 `onChange → userAnswers/setTemp → saveTempAnswer`임을
+  최신 자산에서 확인했다.
+- 실패한 답안은 기존 번호와 값을 보존한 채 공식 `onChange`로
+  `EQ → ONE → EQ` 전환한다.
+- 실패 DOM의 실제 unmount 후 EQ를 복원하므로 공식 MathQuill ref,
+  toolbar와 임시저장 배열이 하나의 정상 컴포넌트로 다시 연결된다.
+- Web POC 버전은 `0.4.0-rc57`/code 74,
+  Web 계약은 `web-2026-07-30.9`이다.
+- 검증:
+  - 기존 28 보존 공식 재마운트와 임시저장 배열 반영 통과
+  - 재마운트 후 35 수정과 빈 값 삭제 반영 통과
+  - Android 13 DOM 계약 52개 전부 통과
+  - release 단위시험·lint·두 APK assemble 158 tasks와 APK 이중 검증 통과
+- A에 보존형 설치했고 artifact와 설치 APK SHA-256은
+  `2972A4B7F378FCA1946EC481124D3A22A914733AC3DD02301A87D773FF2D16EF`
+  로 일치했다.
+- firstInstallTime, credential bridge 권한, Kiosk RC39 Device Owner와
+  전용 HOME을 유지했고 Kiosk 전경 복귀를 확인했다.
+- 동일 학습지의 임시저장→재진입→전체답안 확인은 사용자 실물 재확인
+  대상으로 둔다.

@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.8"
+    const val CONTRACT_VERSION = "web-2026-07-30.9"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -565,7 +565,7 @@ object WebDomScripts {
           let mathModeSelections = 0;
           let mathModePending = 0;
           let mathModeReady = 0;
-          let mathModeRescued = 0;
+          let mathModeRemounted = 0;
           let subjectiveTouchTargets = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
@@ -810,7 +810,7 @@ object WebDomScripts {
             };
             subjectiveTouchTargets = ensureSubjectiveTouchTargets();
 
-            const mathBindingFor = shell => {
+            const mathAnswerBindingFor = shell => {
               const fiberKey = Object.getOwnPropertyNames(shell).find(
                 key => key.startsWith('__reactFiber${'$'}') ||
                   key.startsWith('__reactInternalInstance${'$'}')
@@ -823,91 +823,61 @@ object WebDomScripts {
                     candidate.memoizedProps || candidate.pendingProps;
                   if (
                     props &&
-                    typeof props.onLatexChange === 'function' &&
-                    Object.prototype.hasOwnProperty.call(props, 'latex')
-                  ) return props;
+                    typeof props.onChange === 'function' &&
+                    props.userAnswer &&
+                    props.userAnswer.number !== undefined
+                  ) {
+                    return {
+                      onChange: props.onChange,
+                      userAnswer: props.userAnswer
+                    };
+                  }
                 }
                 fiber = fiber.return;
               }
               return null;
             };
-            const bindRescuedMathToolbar = (shell, field) => {
-              const commandFor = new Map([
-                ['루트', 'sqrt'],
-                ['분수', 'frac'],
-                ['파이', 'pi']
-              ]);
-              let scope = shell.parentElement;
-              for (let depth = 0; scope && depth < 4; depth += 1) {
-                const buttons = Array.from(
-                  scope.querySelectorAll('button,[role="button"]')
-                ).filter(button => commandFor.has(normalize(button.textContent)));
-                const labels = new Set(
-                  buttons.map(button => normalize(button.textContent))
-                );
-                if ([...commandFor.keys()].every(label => labels.has(label))) {
-                  buttons.forEach(button => {
-                    if (
-                      button.dataset.matholicKioskRescuedMathBound === 'true'
-                    ) return;
-                    button.addEventListener('click', () => {
-                      const command = commandFor.get(
-                        normalize(button.textContent)
-                      );
-                      if (!command) return;
-                      try {
-                        field.cmd(command);
-                        field.focus?.();
-                      } catch (_) {}
-                    });
-                    button.dataset.matholicKioskRescuedMathBound = 'true';
-                  });
-                  return;
-                }
-                scope = scope.parentElement;
-              }
-            };
-            const rescueUninitializedMathShells = () => {
-              const factory = window.MathQuill?.getInterface?.(2);
-              if (
-                typeof factory !== 'function' ||
-                typeof factory.MathField !== 'function'
-              ) return 0;
-              let rescued = 0;
+            const remountUninitializedMathShells = () => {
+              if (!window.MathQuill) return 0;
+              let remounted = 0;
               Array.from(document.querySelectorAll(
                 '[data-matholic-kiosk-math-shell="true"]'
               )).filter(shell =>
                 visible(shell) &&
                 !shell.classList.contains('mq-editable-field') &&
-                shell.dataset.matholicKioskMathRescuePending !== 'true'
+                shell.dataset.matholicKioskMathRemountPending !== 'true'
               ).forEach(shell => {
-                const binding = mathBindingFor(shell);
+                const binding = mathAnswerBindingFor(shell);
                 if (!binding) return;
-                shell.dataset.matholicKioskMathRescuePending = 'true';
+                const answer = binding.userAnswer;
+                shell.dataset.matholicKioskMathRemountPending = 'true';
                 try {
-                  let suppressEdit = true;
-                  let field = null;
-                  field = factory.MathField(shell, {
-                    restrictMismatchedBrackets: true,
-                    handlers: {
-                      edit: () => {
-                        if (suppressEdit || !field) return;
-                        const currentBinding = mathBindingFor(shell) || binding;
-                        currentBinding.onLatexChange(field.latex());
-                      }
-                    }
+                  binding.onChange(answer.number, {
+                    value: answer.value == null ? null : answer.value,
+                    type: 'ONE'
                   });
-                  field.latex(binding.latex == null ? '' : String(binding.latex));
-                  suppressEdit = false;
-                  shell.dataset.matholicKioskMathRescued = 'true';
-                  shell.dataset.matholicKioskMathStabilized = 'true';
-                  bindRescuedMathToolbar(shell, field);
-                  rescued += 1;
+                  const startedAt = Date.now();
+                  const restoreMathType = () => {
+                    if (!shell.isConnected) {
+                      binding.onChange(answer.number, {
+                        value: answer.value == null ? null : answer.value,
+                        type: 'EQ'
+                      });
+                      return;
+                    }
+                    if (Date.now() - startedAt < 2000) {
+                      setTimeout(restoreMathType, 40);
+                    } else {
+                      delete shell.dataset.matholicKioskMathRemountPending;
+                    }
+                  };
+                  setTimeout(restoreMathType, 40);
+                  remounted += 1;
                 } catch (_) {
-                  delete shell.dataset.matholicKioskMathRescuePending;
+                  delete shell.dataset.matholicKioskMathRemountPending;
                 }
               });
-              return rescued;
+              return remounted;
             };
 
             const hideLateStudentContent = () => {
@@ -1789,7 +1759,7 @@ object WebDomScripts {
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
               subjectiveTouchTargets = ensureSubjectiveTouchTargets();
-              mathModeRescued += rescueUninitializedMathShells();
+              mathModeRemounted += remountUninitializedMathShells();
               const lateMathMode = enforceMathAnswerMode();
               hiddenControls += lateMathMode.hidden;
               mathModeSelections += lateMathMode.selectedCount;
@@ -1877,7 +1847,7 @@ object WebDomScripts {
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
-            mathModePending, mathModeReady, mathModeRescued,
+            mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'

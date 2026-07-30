@@ -5301,6 +5301,46 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
 - 설치 APK 해시가 artifact와 일치했고 Kiosk가 전경으로 복귀했다.
 
+## Web POC RC57 공식 컴포넌트 재마운트와 임시저장 — 2026-07-30
+
+### RC56 실기 결과와 확정된 상태 경로
+
+- RC56에서도 임시저장이 정상 동작하지 않았다.
+- 공식 최신 자산에서 문제 화면과 전체답안은 동일한 `userAnswers`와
+  `updateUserAnswer`를 사용함을 확인했다.
+- 정상 변경 경로는 `onChange → setUserAnswers → setTemp`이며 임시저장은
+  이 `setTemp` 배열을 `saveTempAnswer`에 전달한다.
+- RC56은 실패 DOM에 별도 MathField를 붙였기 때문에 공식 컴포넌트의
+  내부 ref와 전체 생명주기를 되살리지 못했다.
+
+### 수정
+
+- 초기화 실패 `span`의 React 상위 컴포넌트에서 공식 `userAnswer`와
+  `onChange`를 찾는다.
+- 기존 `number`와 `value`를 그대로 유지한 채 `type: ONE`으로 전환한다.
+- 실패 `span`이 실제 unmount된 것을 확인한 뒤 같은 값으로 `type: EQ`를
+  적용해 공식 수식 컴포넌트를 새로 mount한다.
+- 새 공식 컴포넌트가 MathQuill ref, 수식 toolbar, `userAnswers`와
+  임시저장용 `setTemp` 배열을 모두 원래 경로로 연결한다.
+- Web 계약을 `web-2026-07-30.9`, 버전을
+  `0.4.0-rc57`/code 74로 올렸다.
+
+### 검증과 A 설치
+
+- 기존 답안 `28`을 유지한 공식 `EQ → ONE → EQ` 재마운트: 통과
+- 재마운트 뒤 `userAnswers`와 임시저장 배열에 `28` 유지: 통과
+- 이후 `35` 수정과 빈 값 삭제가 두 상태에 동일하게 반영: 통과
+- JVM 단위시험·debug 앱·계측 APK compile: 통과
+- Android 13 DOM 계약 계측시험 52개: 실패·생략 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc57`/code 74를 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `2972A4B7F378FCA1946EC481124D3A22A914733AC3DD02301A87D773FF2D16EF`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
+- 설치 APK 해시가 artifact와 일치했고 Kiosk가 전경으로 복귀했다.
+
 ## Web POC RC55 MathQuill 동시 초기화와 기존 답안 복원 — 2026-07-30
 
 ### 확정 원인

@@ -944,7 +944,7 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperienceRescuesFailedMathQuillWithExistingTemporaryAnswer() {
+    fun testStudentExperienceRemountsFailedMathQuillIntoOfficialTempState() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -968,95 +968,138 @@ class DomContractInstrumentedTest {
               </div>
               <script>
                 const failedShell = document.getElementById('failed-editor');
-                window.rescuedAnswerState = {
+                window.remountedAnswerState = {
+                  number: 4,
                   value: '28',
-                  lastCommand: null,
-                  focusCount: 0
+                  type: 'EQ',
+                  originalType: 'EQ'
                 };
-                const failedBinding = {
-                  latex: '28',
-                  onLatexChange: value => {
-                    window.rescuedAnswerState.value =
-                      value === '' ? null : value;
-                    failedBinding.latex = value;
+                window.remountedTempAnswer = {
+                  number: 4,
+                  userAnswerValue: '28'
+                };
+                window.remountCalls = [];
+                const officialOnChange = (number, update) => {
+                  window.remountCalls.push({
+                    number,
+                    type: update.type || null,
+                    value: update.value
+                  });
+                  window.remountedAnswerState = {
+                    ...window.remountedAnswerState,
+                    ...update,
+                    value: update.value === null ? null :
+                      (update.value ?? '')
+                  };
+                  window.remountedTempAnswer = {
+                    number,
+                    userAnswerValue:
+                      window.remountedAnswerState.value
+                  };
+                  if (update.type === 'ONE') {
+                    failedShell.remove();
+                    const input = document.createElement('input');
+                    input.id = 'temporary-standard-input';
+                    document.getElementById('failed-answer-form')
+                      .appendChild(input);
+                  } else if (update.type === 'EQ') {
+                    document.getElementById(
+                      'temporary-standard-input'
+                    )?.remove();
+                    const editor = document.createElement('span');
+                    editor.id = 'official-remounted-editor';
+                    editor.className =
+                      'mq-editable-field mq-math-mode';
+                    editor.dataset.latex =
+                      window.remountedAnswerState.value || '';
+                    document.getElementById('failed-answer-form')
+                      .appendChild(editor);
                   }
                 };
                 failedShell['__reactFiber${'$'}fixture'] = {
                   return: {
-                    memoizedProps: failedBinding,
+                    memoizedProps: {
+                      userAnswer: window.remountedAnswerState,
+                      onChange: officialOnChange
+                    },
                     return: null
                   }
                 };
-                let failedLatex = '';
-                let failedEditHandler = null;
-                const failedField = {
-                  latex: value => {
-                    if (value !== undefined) failedLatex = value;
-                    return failedLatex;
-                  },
-                  cmd: command => {
-                    window.rescuedAnswerState.lastCommand = command;
-                    failedLatex = command;
-                    failedEditHandler();
-                  },
-                  focus: () => {
-                    window.rescuedAnswerState.focusCount += 1;
-                  },
-                  simulateEdit: value => {
-                    failedLatex = value;
-                    failedEditHandler();
-                  }
+                window.simulateOfficialMathEdit = value => {
+                  officialOnChange(4, {
+                    value: value === '' ? null : value
+                  });
                 };
-                const failedFactory = element =>
-                  element === failedShell ? failedField : null;
-                failedFactory.MathField = (element, options) => {
-                  element.classList.add(
-                    'mq-editable-field',
-                    'mq-math-mode'
-                  );
-                  const textareaShell = document.createElement('span');
-                  textareaShell.className = 'mq-textarea';
-                  textareaShell.appendChild(
-                    document.createElement('textarea')
-                  );
-                  element.appendChild(textareaShell);
-                  const rootBlock = document.createElement('span');
-                  rootBlock.className = 'mq-root-block';
-                  element.appendChild(rootBlock);
-                  failedEditHandler = options.handlers.edit;
-                  window.rescuedMathField = failedField;
-                  return failedField;
-                };
-                window.MathQuill = {
-                  getInterface: () => failedFactory
-                };
+                window.MathQuill = {};
               </script>
             </body></html>
             """.trimIndent(),
         ) { webView ->
             val result = evaluate(webView, WebDomScripts.applyStudentExperience)
             assertTrue(result.getBoolean("ok"))
-            assertEquals(1, result.getInt("mathModeRescued"))
-            val restored = evaluate(
+            assertEquals(1, result.getInt("mathModeRemounted"))
+            Thread.sleep(300)
+            val remounted = evaluate(
                 webView,
                 """
                 (() => JSON.stringify({
-                  latex: window.rescuedMathField.latex(),
-                  value: window.rescuedAnswerState.value,
-                  editable: document.getElementById('failed-editor')
-                    .classList.contains('mq-editable-field')
+                  calls: window.remountCalls,
+                  state: window.remountedAnswerState,
+                  temp: window.remountedTempAnswer,
+                  editorLatex: document.getElementById(
+                    'official-remounted-editor'
+                  )?.dataset.latex || null
                 }))()
                 """.trimIndent(),
             )
-            assertEquals("28", restored.getString("latex"))
-            assertEquals("28", restored.getString("value"))
-            assertTrue(restored.getBoolean("editable"))
+            val calls = remounted.getJSONArray("calls")
+            assertEquals(2, calls.length())
+            assertEquals("ONE", calls.getJSONObject(0).getString("type"))
+            assertEquals("EQ", calls.getJSONObject(1).getString("type"))
+            assertEquals("28", calls.getJSONObject(0).getString("value"))
+            assertEquals("28", calls.getJSONObject(1).getString("value"))
+            assertEquals(
+                "EQ",
+                remounted.getJSONObject("state").getString("type"),
+            )
+            assertEquals(
+                "28",
+                remounted.getJSONObject("temp").getString("userAnswerValue"),
+            )
+            assertEquals("28", remounted.getString("editorLatex"))
 
             evaluate(
                 webView,
                 """
                 (() => {
-                  window.rescuedMathField.simulateEdit('');
+                  window.simulateOfficialMathEdit('35');
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            val edited = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  state: window.remountedAnswerState,
+                  temp: window.remountedTempAnswer
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals(
+                "35",
+                edited.getJSONObject("state").getString("value"),
+            )
+            assertEquals(
+                "35",
+                edited.getJSONObject("temp").getString("userAnswerValue"),
+            )
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  window.simulateOfficialMathEdit('');
                   return JSON.stringify({ ok: true });
                 })()
                 """.trimIndent(),
@@ -1065,32 +1108,15 @@ class DomContractInstrumentedTest {
                 webView,
                 """
                 (() => JSON.stringify({
-                  latex: window.rescuedMathField.latex(),
-                  value: window.rescuedAnswerState.value
+                  state: window.remountedAnswerState,
+                  temp: window.remountedTempAnswer
                 }))()
                 """.trimIndent(),
             )
-            assertEquals("", cleared.getString("latex"))
-            assertTrue(cleared.isNull("value"))
-
-            evaluate(
-                webView,
-                """
-                (() => {
-                  document.getElementById('failed-root').click();
-                  return JSON.stringify({ ok: true });
-                })()
-                """.trimIndent(),
+            assertTrue(cleared.getJSONObject("state").isNull("value"))
+            assertTrue(
+                cleared.getJSONObject("temp").isNull("userAnswerValue"),
             )
-            val commanded = evaluate(
-                webView,
-                """
-                (() => JSON.stringify(window.rescuedAnswerState))()
-                """.trimIndent(),
-            )
-            assertEquals("sqrt", commanded.getString("lastCommand"))
-            assertEquals("sqrt", commanded.getString("value"))
-            assertTrue(commanded.getInt("focusCount") > 0)
         }
     }
 

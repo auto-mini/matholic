@@ -78,9 +78,9 @@ class WebDomScriptsTest {
         assertTrue(script.contains("/js/mathquill/mathquill.min.js"))
         assertTrue(script.contains("matholicKioskMathShell"))
         assertTrue(script.contains("inline.width !== '160px'"))
-        assertTrue(script.contains("rescueUninitializedMathShells"))
-        assertTrue(script.contains("mathBindingFor"))
-        assertTrue(script.contains("mathModeRescued"))
+        assertTrue(script.contains("remountUninitializedMathShells"))
+        assertTrue(script.contains("mathAnswerBindingFor"))
+        assertTrue(script.contains("mathModeRemounted"))
         assertTrue(script.contains("scheduleViewportMaintenance"))
         assertTrue(script.contains("'scroll',"))
     }
