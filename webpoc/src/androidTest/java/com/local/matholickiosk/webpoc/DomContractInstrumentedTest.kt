@@ -850,7 +850,7 @@ class DomContractInstrumentedTest {
     }
 
     @Test
-    fun testStudentExperiencePrimesEveryMountedMathFieldWithoutHidingSiblingControl() {
+    fun testStudentExperiencePrimesEveryMountedMathFieldAndHidesOnlyLocalClear() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -936,6 +936,7 @@ class DomContractInstrumentedTest {
                 webView,
                 "window.typeStudentDigit('4'); JSON.stringify({typed:true})",
             )
+            evaluate(webView, WebDomScripts.applyStudentExperience)
             val first = evaluate(
                 webView,
                 """
@@ -954,7 +955,7 @@ class DomContractInstrumentedTest {
             assertEquals("4", first.getString("persisted"))
             assertEquals(0, first.getInt("ignoredEdits"))
             assertEquals(3, first.getInt("editCount"))
-            assertFalse(first.getString("clearDisplay") == "none")
+            assertEquals("none", first.getString("clearDisplay"))
 
             evaluate(
                 webView,
@@ -1040,10 +1041,23 @@ class DomContractInstrumentedTest {
                 webView,
                 """
                 (() => {
+                  const navigation = document.querySelector(
+                    '.matholic-kiosk-math-nav'
+                  );
                   const buttons = Array.from(document.querySelectorAll(
                     '.matholic-kiosk-math-nav button'
                   ));
+                  const hiddenBeforeDirectInput =
+                    getComputedStyle(navigation).display === 'none';
+                  document.getElementById('math-editor').dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
+                  const visibleWhileDirectlyEditing =
+                    getComputedStyle(navigation).display === 'grid';
                   buttons.forEach(button => button.click());
+                  document.body.dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
                   return JSON.stringify({
                     count: buttons.length,
                     labels: buttons.map(button => button.textContent).join(''),
@@ -1058,7 +1072,11 @@ class DomContractInstrumentedTest {
                     ),
                     navCount: document.querySelectorAll(
                       '.matholic-kiosk-math-nav'
-                    ).length
+                    ).length,
+                    hiddenBeforeDirectInput,
+                    visibleWhileDirectlyEditing,
+                    hiddenAfterOutsideTouch:
+                      getComputedStyle(navigation).display === 'none'
                   });
                 })()
                 """.trimIndent(),
@@ -1079,6 +1097,78 @@ class DomContractInstrumentedTest {
             assertEquals("Left", proof.getJSONArray("keys").getString(1))
             assertEquals("Down", proof.getJSONArray("keys").getString(2))
             assertEquals("Right", proof.getJSONArray("keys").getString(3))
+            assertTrue(proof.getBoolean("hiddenBeforeDirectInput"))
+            assertTrue(proof.getBoolean("visibleWhileDirectlyEditing"))
+            assertTrue(proof.getBoolean("hiddenAfterOutsideTouch"))
+        }
+    }
+
+    @Test
+    fun testStudentExperienceDismissesMathNavigationWhenAnswerSubmitIsTouched() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <div id="answer-input-form-0">
+                <div>
+                  <button>루트</button>
+                  <button>분수</button>
+                  <button>파이</button>
+                </div>
+                <span id="math-editor" class="mq-editable-field mq-math-mode">
+                  <span class="mq-textarea"><textarea></textarea></span>
+                  <span class="mq-root-block"></span>
+                </span>
+                <button>입력기</button>
+              </div>
+              <button id="answer-submit">답안제출</button>
+              <script>
+                const editor = document.getElementById('math-editor');
+                let latex = '';
+                editor.fieldApi = {
+                  latex: value => {
+                    if (value !== undefined) latex = value;
+                    return latex;
+                  },
+                  write: value => { latex += value; },
+                  keystroke: key => {
+                    if (key === 'Backspace') latex = latex.slice(0, -1);
+                  },
+                  focus: () => {}
+                };
+                window.MathQuill = {
+                  getInterface: () => element => element.fieldApi || null
+                };
+              </script>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const navigation = document.querySelector(
+                    '.matholic-kiosk-math-nav'
+                  );
+                  document.getElementById('math-editor').dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
+                  const visibleDuringEdit =
+                    getComputedStyle(navigation).display === 'grid';
+                  document.getElementById('answer-submit').dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
+                  return JSON.stringify({
+                    visibleDuringEdit,
+                    hiddenOnSubmitTouch:
+                      getComputedStyle(navigation).display === 'none'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("visibleDuringEdit"))
+            assertTrue(proof.getBoolean("hiddenOnSubmitTouch"))
         }
     }
 

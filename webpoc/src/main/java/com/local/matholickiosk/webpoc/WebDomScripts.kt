@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.2"
+    const val CONTRACT_VERSION = "web-2026-07-30.3"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -459,7 +459,7 @@ object WebDomScripts {
               left: calc(16px + 35mm) !important;
               top: calc(88px + 35mm) !important;
               z-index: 2147482500 !important;
-              display: grid !important;
+              display: none !important;
               grid-template-columns: repeat(3, 54px) !important;
               grid-template-rows: repeat(2, 54px) !important;
               grid-template-areas:
@@ -474,6 +474,9 @@ object WebDomScripts {
               background: rgba(255, 255, 255, 0.96) !important;
               box-shadow: 0 5px 18px rgba(16, 42, 67, 0.28) !important;
               overflow: visible !important;
+            }
+            .matholic-kiosk-math-nav[data-matholic-kiosk-active="true"] {
+              display: grid !important;
             }
             .matholic-kiosk-math-nav > button {
               width: 54px !important;
@@ -786,12 +789,120 @@ object WebDomScripts {
               const mathEditorReady = scope => Array.from(
                 scope?.querySelectorAll('.mq-editable-field') || []
               ).some(visible);
+              const hideMathClearControls = scope => {
+                let hiddenCount = 0;
+                Array.from(
+                  scope?.querySelectorAll('.mq-editable-field') || []
+                ).forEach(editor => {
+                  const parent = editor.parentElement;
+                  if (!parent) return;
+                  const siblings = Array.from(parent.children);
+                  const editorIndex = siblings.indexOf(editor);
+                  if (editorIndex < 0) return;
+                  siblings.slice(editorIndex + 1).forEach(sibling => {
+                    const directControl = sibling.matches?.(
+                      'button,[role="button"]'
+                    );
+                    const siblingIdentity = normalize(
+                      typeof sibling.className === 'string' ?
+                        sibling.className : ''
+                    ).toLowerCase();
+                    const localAuxiliaryWrapper =
+                      sibling.style?.position === 'absolute' ||
+                      /(?:clear|close|remove|delete|지우|삭제)/i.test(
+                        siblingIdentity
+                      );
+                    const candidates = directControl ? [sibling] :
+                      localAuxiliaryWrapper ? Array.from(
+                        sibling.querySelectorAll?.(
+                          'button,[role="button"]'
+                        ) || []
+                      ) : [];
+                    candidates.forEach(control => {
+                      if (control.dataset.matholicKioskCursorKey) return;
+                      const text = normalize(control.textContent);
+                      if (
+                        toolbarLabels.has(text) ||
+                        ['입력기', '답안제출', '답안 제출', '완료하기']
+                          .includes(text)
+                      ) return;
+                      const identity = normalize([
+                        control.getAttribute('aria-label') || '',
+                        control.getAttribute('title') || '',
+                        typeof control.className === 'string' ?
+                          control.className : '',
+                        typeof sibling.className === 'string' ?
+                          sibling.className : ''
+                      ].join(' ')).toLowerCase();
+                      const explicitClear =
+                        ['×', '✕', '지우기', '삭제', '입력 지우기']
+                          .includes(text) ||
+                        /(?:clear|close|remove|delete|지우|삭제)/i.test(identity);
+                      const emptyLocalAuxiliary =
+                        text === '' &&
+                        (
+                          sibling === control ||
+                          sibling.style?.position === 'absolute'
+                        );
+                      if (
+                        (explicitClear || emptyLocalAuxiliary) &&
+                        hide(control)
+                      ) {
+                        hiddenCount += 1;
+                      }
+                    });
+                  });
+                });
+                return hiddenCount;
+              };
+              const dismissMathNavigation = () => {
+                const navigation = document.querySelector(
+                  '.matholic-kiosk-math-nav'
+                );
+                if (!navigation) return;
+                delete navigation.dataset.matholicKioskActive;
+                navigation.setAttribute('aria-hidden', 'true');
+              };
+              const activateMathNavigation = (navigation, scope) => {
+                navigation.matholicKioskScope = scope;
+                navigation.dataset.matholicKioskActive = 'true';
+                navigation.setAttribute('aria-hidden', 'false');
+              };
+              const bindMathNavigationActivation = (
+                editor,
+                scope,
+                navigation
+              ) => {
+                if (
+                  editor.dataset.matholicKioskNavigationBound !== 'true'
+                ) {
+                  const activate = () =>
+                    activateMathNavigation(navigation, scope);
+                  editor.addEventListener('pointerdown', activate);
+                  editor.addEventListener('click', activate);
+                  editor.addEventListener('focusin', activate);
+                  editor.dataset.matholicKioskNavigationBound = 'true';
+                }
+                if (!window.__matholicKioskMathNavigationDismissGuard) {
+                  document.addEventListener('pointerdown', event => {
+                    if (
+                      event.target?.closest?.(
+                        '.mq-editable-field,.matholic-kiosk-math-nav'
+                      )
+                    ) return;
+                    dismissMathNavigation();
+                  }, true);
+                  window.__matholicKioskMathNavigationDismissGuard = true;
+                }
+              };
               const ensureMathNavigation = scope => {
                 const editor = scope?.querySelector('.mq-editable-field');
                 if (!editor) return false;
-                const existing = document.querySelector('.matholic-kiosk-math-nav');
-                if (existing) {
-                  existing.matholicKioskScope = scope;
+                let navigation = document.querySelector(
+                  '.matholic-kiosk-math-nav'
+                );
+                if (navigation) {
+                  bindMathNavigationActivation(editor, scope, navigation);
                   return true;
                 }
                 let toolbarButtons = Array.from(
@@ -814,11 +925,11 @@ object WebDomScripts {
                 if (![...toolbarLabels].every(label => labels.has(label))) return false;
                 const toolbar = toolbarButtons[0]?.parentElement;
                 if (!toolbar?.parentElement) return false;
-                const navigation = document.createElement('div');
+                navigation = document.createElement('div');
                 navigation.className = 'matholic-kiosk-math-nav';
                 navigation.setAttribute('role', 'group');
                 navigation.setAttribute('aria-label', '수식 커서 이동');
-                navigation.matholicKioskScope = scope;
+                navigation.setAttribute('aria-hidden', 'true');
                 [
                   ['↑', 'Up', '커서 위쪽', 'up'],
                   ['←', 'Left', '커서 왼쪽', 'left'],
@@ -861,6 +972,7 @@ object WebDomScripts {
                   navigation.appendChild(button);
                 });
                 document.body.appendChild(navigation);
+                bindMathNavigationActivation(editor, scope, navigation);
                 return true;
               };
               const prepareMathEditor = scope => {
@@ -1011,10 +1123,11 @@ object WebDomScripts {
                     if (hide(element)) hidden += 1;
                   });
               }
+              hidden += hideMathClearControls(document);
               if (
                 !Array.from(document.querySelectorAll('.mq-editable-field')).some(visible)
               ) {
-                document.querySelector('.matholic-kiosk-math-nav')?.remove();
+                dismissMathNavigation();
               }
               return { hidden, selectedCount, pendingCount, readyCount };
             };

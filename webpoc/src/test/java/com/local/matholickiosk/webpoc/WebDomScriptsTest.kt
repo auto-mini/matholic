@@ -63,6 +63,9 @@ class WebDomScriptsTest {
             "scope.style.setProperty('pointer-events', 'none', 'important')",
         ))
         assertFalse(script.contains(".mq-editable-field ~ button"))
+        assertTrue(script.contains("hideMathClearControls"))
+        assertTrue(script.contains("matholicKioskMathNavigationDismissGuard"))
+        assertTrue(script.contains("data-matholic-kiosk-active"))
     }
 
     @Test
