@@ -4,11 +4,18 @@ param(
     [string]$KioskApk,
     [Parameter(Mandatory = $true)]
     [string]$WebPocApk,
-    [string]$ExpectedKioskVersion = '0.6.0-rc39',
-    [string]$ExpectedWebPocVersion = '0.4.0-rc60'
+    [string]$ExpectedKioskVersion = '0.6.0-rc41',
+    [string]$ExpectedWebPocVersion = '0.4.0-rc62'
 )
 
 $ErrorActionPreference = 'Stop'
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+$originalApkAnalyzerOpts = $env:APKANALYZER_OPTS
+$env:APKANALYZER_OPTS = (
+    "$originalApkAnalyzerOpts -Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8"
+).Trim()
 $javaRoot = 'C:\Users\user\AppData\Local\Android\jdks\jdk-17.0.19+10'
 $sdkRoot = 'C:\Users\user\AppData\Local\Android\Sdk'
 $apksigner = Join-Path $sdkRoot 'build-tools\37.0.0\apksigner.bat'
@@ -58,6 +65,7 @@ function Assert-ApkManifest(
     [string]$ApkPath,
     [string]$ExpectedPackage,
     [string]$ExpectedVersion,
+    [string]$ExpectedAppLabel,
     [string[]]$RequiredPermissions,
     [string[]]$ForbiddenPermissions
 ) {
@@ -71,6 +79,16 @@ function Assert-ApkManifest(
     }
     if ($versionName -ne $ExpectedVersion) {
         throw "Unexpected versionName in ${ApkPath}: $versionName"
+    }
+    $appLabel = (
+        & $apkanalyzer resources value `
+            --config default `
+            --type string `
+            --name app_name `
+            $ApkPath
+    ) -join ''
+    if ($appLabel.Trim() -ne $ExpectedAppLabel) {
+        throw "Unexpected application label in ${ApkPath}: $appLabel"
     }
     if ($debuggable -ne 'false') {
         throw "Release APK must not be debuggable: $ApkPath"
@@ -105,12 +123,14 @@ try {
         -ApkPath $stagedKioskApk `
         -ExpectedPackage 'com.local.matholickiosk.kiosk' `
         -ExpectedVersion $ExpectedKioskVersion `
+        -ExpectedAppLabel '채점 관리' `
         -RequiredPermissions @('android.permission.CAMERA', 'android.permission.INTERNET') `
         -ForbiddenPermissions @('android.permission.ACCESS_NETWORK_STATE')
     Assert-ApkManifest `
         -ApkPath $stagedWebPocApk `
         -ExpectedPackage 'com.local.matholickiosk.webpoc' `
         -ExpectedVersion $ExpectedWebPocVersion `
+        -ExpectedAppLabel '학습' `
         -RequiredPermissions @(
             'android.permission.INTERNET',
             'com.local.matholickiosk.permission.CREDENTIAL_BRIDGE'
@@ -127,5 +147,10 @@ try {
     }
     if (Test-Path -LiteralPath $verificationRoot) {
         [System.IO.Directory]::Delete($verificationRoot, $false)
+    }
+    if ($null -eq $originalApkAnalyzerOpts) {
+        Remove-Item Env:APKANALYZER_OPTS -ErrorAction SilentlyContinue
+    } else {
+        $env:APKANALYZER_OPTS = $originalApkAnalyzerOpts
     }
 }

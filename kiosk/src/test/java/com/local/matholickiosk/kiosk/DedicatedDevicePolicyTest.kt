@@ -22,7 +22,7 @@ class DedicatedDevicePolicyTest {
     @Test
     fun lockedDeviceAndAdministratorExitHaveDistinctStatus() {
         assertEquals(
-            "전용기기 잠금 활성",
+            "보안 적용",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,
@@ -34,7 +34,7 @@ class DedicatedDevicePolicyTest {
             ),
         )
         assertEquals(
-            "전용기기 · 관리자 잠금 해제",
+            "보안 일시 해제",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,
@@ -50,7 +50,7 @@ class DedicatedDevicePolicyTest {
     @Test
     fun missingDeviceOwnerIsReportedWithoutPretendingToBeLocked() {
         assertEquals(
-            "전용기기 잠금 미설정",
+            "보안 미설정",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = false,
@@ -66,7 +66,7 @@ class DedicatedDevicePolicyTest {
     @Test
     fun missingWebPocUninstallProtectionIsReportedAsPolicyError() {
         assertEquals(
-            "전용기기 정책 오류",
+            "보안 정책 오류",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,

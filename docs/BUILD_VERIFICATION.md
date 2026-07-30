@@ -5256,6 +5256,44 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   통과
 - 복구 코드는 변경하지 않아 RC48에서 통과한 복구 35개는 재실행하지 않았다.
 
+## 화면 제품명 중립화 RC41/RC62 — 2026-07-30
+
+### 변경
+
+- Android 앱 라벨을 Kiosk는 `채점 관리`, Web은 `학습`으로 바꿨다.
+- 관리자 헤더의 제품명과 `Gate 5`, Web 설정 화면의 `Web POC`와
+  `Gate 3` 표기를 제거했다.
+- `전용기기 잠금`과 `채점기가 잠겼습니다`처럼 키오스크 운용을 직접
+  드러내는 상태 문구를 `보안 적용`, `화면이 잠겼습니다` 등으로 중립화했다.
+- QR 모양 앱 아이콘을 일반 문서 확인 아이콘으로 교체했다.
+- 패키지명, Device Owner, 전용 HOME, allowlist와 Lock Task 보안 경계는
+  변경하지 않았다.
+- release 검증이 APK 리소스의 `app_name`을 직접 읽어 Kiosk `채점 관리`,
+  Web `학습`을 강제하도록 보강했다. Windows CP949 환경에서도 한글 라벨을
+  정확히 검사하도록 `apkanalyzer` 출력 인코딩을 UTF-8로 고정했다.
+
+### 검증과 A 설치
+
+- 중립화 1차 변경 기준 Android 13 Kiosk 계측 39개와 Web 계측 91개,
+  합계 130개: 실패·오류 0.
+- 마지막 상태 문구 중립화 후 release 단위시험·lint·두 APK assemble
+  158 tasks와 저장 전·후 APK 서명/버전/권한/앱 라벨 검증: 통과.
+- Kiosk `0.6.0-rc41`/code 46, Web `0.4.0-rc62`/code 79를 A에
+  보존형 설치했다.
+- Kiosk firstInstallTime `2026-07-24 12:52:28`, Web firstInstallTime
+  `2026-07-28 13:12:16`과 credential bridge 권한을 보존했다.
+- A에서 Kiosk Device Owner, 두 앱 allowlist와 Lock Task `LOCKED`를
+  재확인했다.
+- 최종 release SHA-256:
+  - Kiosk:
+    `2F6388ECA4E60748186321E3A73C862CD2325450569708B5716B655B90916BC0`
+  - Web:
+    `F39A3F083B1D6C8E136ABA8F9CC6CC7BBB409CF87658522401F10BEE68E2DBA6`
+- A에서 다시 추출한 설치 APK 두 개의 SHA-256이 각 release artifact와
+  일치했고 Kiosk 전경도 확인했다.
+- `FLAG_SECURE` 때문에 화면 캡처는 검게 저장되며, 에뮬레이터 UI 계층에서
+  관리자 헤더 `채점 관리`와 기존 제품명 부재를 확인했다.
+
 ## Web POC RC59 문제 이동 UI와 학생 세션 밝기 — 2026-07-30
 
 ### 변경

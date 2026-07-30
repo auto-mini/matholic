@@ -208,7 +208,7 @@ class MainActivity : ComponentActivity() {
                         } else {
                             statusText.text = KioskState.LOCKED.name
                             showAuthentication(enrollment = false)
-                            authError.text = "채점기가 잠겼습니다 · $failureReason"
+                            authError.text = "화면이 잠겼습니다 · $failureReason"
                         }
                     },
                     onFailure = {
@@ -650,7 +650,7 @@ class MainActivity : ComponentActivity() {
 
     private fun updateDedicatedDeviceStatus(administratorUnlocked: Boolean) {
         deviceModeText.text = if (dedicatedDevicePolicyFailed) {
-            "전용기기 정책 오류"
+            "보안 정책 오류"
         } else {
             DedicatedDevicePolicy.statusLabel(
                 status = lockTaskController.status(),
@@ -2339,7 +2339,7 @@ class MainActivity : ComponentActivity() {
                 if (destroyed) return@runOnUiThread
                 statusText.text = KioskState.LOCKED.name
                 showAuthentication(enrollment = false)
-                authError.text = "채점기가 잠겼습니다 · $reason"
+                authError.text = "화면이 잠겼습니다 · $reason"
             }
         }
     }

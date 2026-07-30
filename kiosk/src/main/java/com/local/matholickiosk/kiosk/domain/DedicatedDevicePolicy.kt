@@ -28,12 +28,12 @@ object DedicatedDevicePolicy {
         administratorUnlocked: Boolean,
     ): String =
         when {
-            !status.isDeviceOwner -> "전용기기 잠금 미설정"
+            !status.isDeviceOwner -> "보안 미설정"
             !status.isKioskPackagePermitted || !status.isWebPocUninstallBlocked ->
-                "전용기기 정책 오류"
+                "보안 정책 오류"
             administratorUnlocked && status.mode == DedicatedDeviceMode.NONE ->
-                "전용기기 · 관리자 잠금 해제"
-            status.mode == DedicatedDeviceMode.LOCKED -> "전용기기 잠금 활성"
-            else -> "전용기기 잠금 준비 중"
+                "보안 일시 해제"
+            status.mode == DedicatedDeviceMode.LOCKED -> "보안 적용"
+            else -> "보안 준비 중"
         }
 }
