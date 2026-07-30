@@ -5301,6 +5301,38 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
 - 설치 APK 해시가 artifact와 일치했고 Kiosk가 전경으로 복귀했다.
 
+## Web POC RC58 답안창 초기 렌더 유예 — 2026-07-30
+
+### RC57 실기와 원인
+
+- 답안제출 버튼 직후 화면 구조가 비정상적으로 변했다.
+- 창 계층을 읽은 결과 Web POC는 전경에서 살아 있었고 별도 시스템 팝업이나
+  키보드가 화면을 덮은 상태는 아니었다.
+- RC57은 답안창이 mount된 직후 MathQuill effect가 실행되기 전의 정상
+  `span`까지 실패로 판정해 여러 수식 입력기를 동시에 재마운트했다.
+
+### 수정과 검증
+
+- 초기 공식 `span`마다 최초 관찰 시각을 기록한다.
+- 1.5초 동안은 크기와 터치 영역만 보장하고 type 변경은 하지 않는다.
+- 그 안에 `.mq-editable-field`가 생기면 실패 시각을 제거하고 끝낸다.
+- 1.5초 뒤에도 표시 중이며 class 없는 개별 입력기만 RC57의 공식
+  `EQ → ONE → EQ` 재마운트를 실행한다.
+- Web 계약을 `web-2026-07-30.10`, 버전을
+  `0.4.0-rc58`/code 75로 올렸다.
+- 유예 직후 재마운트 0회, 지속 실패 뒤 재마운트 1회: 통과
+- 기존 28 유지, 35 수정과 빈 값 삭제의 임시저장 배열 반영: 통과
+- JVM 단위시험·debug 앱·계측 APK compile: 통과
+- Android 13 DOM 계약 계측시험 52개: 실패·생략 0
+- release 단위시험·lint·두 APK assemble 158 tasks 및 APK 이중 검증:
+  통과
+- A에 Web POC `0.4.0-rc58`/code 75를 보존형 설치했다.
+- artifact/설치 APK SHA-256:
+  `B92DBC3900EADFF4855673B70F2945C4929577423B5B76895B5F7A228C7374DD`
+- firstInstallTime `2026-07-28 13:12:16`, credential bridge 권한,
+  Kiosk RC39 Device Owner와 전용 HOME을 보존했다.
+- 설치 APK 해시가 artifact와 일치했고 Kiosk가 전경으로 복귀했다.
+
 ## Web POC RC57 공식 컴포넌트 재마운트와 임시저장 — 2026-07-30
 
 ### RC56 실기 결과와 확정된 상태 경로

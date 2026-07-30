@@ -1035,9 +1035,26 @@ class DomContractInstrumentedTest {
             </body></html>
             """.trimIndent(),
         ) { webView ->
-            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
-            assertTrue(result.getBoolean("ok"))
-            assertEquals(1, result.getInt("mathModeRemounted"))
+            val initial = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(initial.getBoolean("ok"))
+            assertEquals(0, initial.getInt("mathModeRemounted"))
+            val agedFailure = evaluate(
+                webView,
+                """
+                (() => {
+                  const shell = document.getElementById('failed-editor');
+                  shell.dataset.matholicKioskMathShellSeenAt =
+                    String(Date.now() - 2000);
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(agedFailure.getBoolean("ok"))
+            val recovered = evaluate(
+                webView,
+                WebDomScripts.applyStudentExperience,
+            )
+            assertEquals(1, recovered.getInt("mathModeRemounted"))
             Thread.sleep(300)
             val remounted = evaluate(
                 webView,

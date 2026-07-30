@@ -81,6 +81,8 @@ class WebDomScriptsTest {
         assertTrue(script.contains("remountUninitializedMathShells"))
         assertTrue(script.contains("mathAnswerBindingFor"))
         assertTrue(script.contains("mathModeRemounted"))
+        assertTrue(script.contains("matholicKioskMathShellSeenAt"))
+        assertTrue(script.contains("now - firstSeen < 1500"))
         assertTrue(script.contains("scheduleViewportMaintenance"))
         assertTrue(script.contains("'scroll',"))
     }

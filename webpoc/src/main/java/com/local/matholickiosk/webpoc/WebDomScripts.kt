@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-30.9"
+    const val CONTRACT_VERSION = "web-2026-07-30.10"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -842,11 +842,25 @@ object WebDomScripts {
               let remounted = 0;
               Array.from(document.querySelectorAll(
                 '[data-matholic-kiosk-math-shell="true"]'
-              )).filter(shell =>
-                visible(shell) &&
-                !shell.classList.contains('mq-editable-field') &&
-                shell.dataset.matholicKioskMathRemountPending !== 'true'
-              ).forEach(shell => {
+              )).forEach(shell => {
+                if (
+                  !visible(shell) ||
+                  shell.classList.contains('mq-editable-field')
+                ) {
+                  delete shell.dataset.matholicKioskMathShellSeenAt;
+                  return;
+                }
+                const now = Date.now();
+                const firstSeen = Number(
+                  shell.dataset.matholicKioskMathShellSeenAt || now
+                );
+                if (!shell.dataset.matholicKioskMathShellSeenAt) {
+                  shell.dataset.matholicKioskMathShellSeenAt = String(now);
+                }
+                if (
+                  now - firstSeen < 1500 ||
+                  shell.dataset.matholicKioskMathRemountPending === 'true'
+                ) return;
                 const binding = mathAnswerBindingFor(shell);
                 if (!binding) return;
                 const answer = binding.userAnswer;
