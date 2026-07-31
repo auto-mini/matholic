@@ -3048,7 +3048,11 @@ class MainActivity : ComponentActivity() {
                     }
                     stopCamera()
                     diagnosticLog.record("REMOTE_QR_TEST_ACCEPTED")
-                    validateQr(tokenHash)
+                    validateQr(
+                        tokenHash,
+                        requiredDisplayNameExact =
+                            RemoteQrTestAccountPolicy.REQUIRED_DISPLAY_NAME_EXACT,
+                    )
                 }
                 if (!posted) tokenHash.fill(0)
             }
@@ -3309,14 +3313,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun validateQr(tokenHash: ByteArray) {
+    private fun validateQr(
+        tokenHash: ByteArray,
+        requiredDisplayNameExact: String? = null,
+    ) {
         qrGuidanceGeneration += 1
         scannerMessage.text = "확인되었습니다"
         statusText.text = KioskState.QR_VALIDATING.name
         executeSensitive(
             cleanup = { tokenHash.fill(0) },
         ) {
-            val result = runCatching { studentRepository.validateForActiveSession(tokenHash) }
+            val result = runCatching {
+                studentRepository.validateForActiveSession(
+                    tokenHash = tokenHash,
+                    requiredDisplayNameExact = requiredDisplayNameExact,
+                )
+            }
             runOnUiThread {
                 if (!scannerVisible || destroyed) return@runOnUiThread
                 result.fold(

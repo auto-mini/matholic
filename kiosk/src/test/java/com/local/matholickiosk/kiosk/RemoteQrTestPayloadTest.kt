@@ -2,6 +2,7 @@ package com.local.matholickiosk.kiosk
 
 import java.util.Base64
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -25,5 +26,10 @@ class RemoteQrTestPayloadTest {
                 supportActive = true,
             ),
         )
+    }
+
+    @Test
+    fun remoteAccountPolicyUsesTheExactTestDisplayName() {
+        assertEquals("테스트", RemoteQrTestAccountPolicy.REQUIRED_DISPLAY_NAME_EXACT)
     }
 }

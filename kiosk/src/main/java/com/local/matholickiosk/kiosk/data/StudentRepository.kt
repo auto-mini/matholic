@@ -726,7 +726,10 @@ class StudentRepository(
         }
     }
 
-    fun validateForActiveSession(tokenHash: ByteArray): ValidatedStudent? {
+    fun validateForActiveSession(
+        tokenHash: ByteArray,
+        requiredDisplayNameExact: String? = null,
+    ): ValidatedStudent? {
         val session = database.sessionDao().get()
         if (
             session?.sessionId == null ||
@@ -747,6 +750,18 @@ class StudentRepository(
                 "QR_REJECTED",
                 if (known == null) "UNKNOWN_OR_REVOKED" else "OUTSIDE_CURRENT_CLASS",
                 known?.studentId,
+                session.sessionId,
+            )
+            return null
+        }
+        if (
+            requiredDisplayNameExact != null &&
+            student.displayNameExact != requiredDisplayNameExact
+        ) {
+            audit(
+                "QR_REJECTED",
+                "REQUIRED_DISPLAY_NAME_MISMATCH",
+                student.studentId,
                 session.sessionId,
             )
             return null

@@ -137,6 +137,56 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun requiredDisplayNameRejectsAnotherEligibleStudentWithoutMarkingQrUsed() {
+        val classId = repository.createClass("원격시험반")
+        val testStudent = repository.registerStudent(
+            "테스트",
+            "test-user".toCharArray(),
+            "test-password".toCharArray(),
+        )
+        val anotherStudent = repository.registerStudent(
+            "다른학생",
+            "another-user".toCharArray(),
+            "another-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(
+            classId,
+            setOf(testStudent.studentId, anotherStudent.studentId),
+        )
+        repository.startSession(classId)
+
+        assertNull(
+            repository.validateForActiveSession(
+                tokenHash = anotherStudent.issuedQr.hash,
+                requiredDisplayNameExact = "테스트",
+            ),
+        )
+        assertNull(database.qrCardStatusDao().find(anotherStudent.studentId)?.lastUsedAtEpochMs)
+        assertNotNull(
+            repository.validateForActiveSession(
+                tokenHash = testStudent.issuedQr.hash,
+                requiredDisplayNameExact = "테스트",
+            ),
+        )
+        assertNotNull(database.qrCardStatusDao().find(testStudent.studentId)?.lastUsedAtEpochMs)
+
+        val auditEvents = database.auditDao().latest(20)
+        assertTrue(
+            auditEvents.any {
+                it.eventType == "QR_REJECTED" &&
+                    it.reasonCode == "REQUIRED_DISPLAY_NAME_MISMATCH" &&
+                    it.subjectStudentId == anotherStudent.studentId
+            },
+        )
+        assertFalse(
+            auditEvents.any {
+                it.eventType == "QR_ACCEPTED" &&
+                    it.subjectStudentId == anotherStudent.studentId
+            },
+        )
+    }
+
+    @Test
     fun activeClassNamesAreUniqueButDeletedNamesCanBeReused() {
         val originalClassId = repository.createClass("Synthetic Class")
 

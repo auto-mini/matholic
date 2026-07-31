@@ -17,6 +17,10 @@ internal object RemoteQrTestPayload {
     }
 }
 
+internal object RemoteQrTestAccountPolicy {
+    const val REQUIRED_DISPLAY_NAME_EXACT = "테스트"
+}
+
 internal object RemoteQrTestBridge {
     private var owner: Any? = null
     private var listener: ((ByteArray) -> Unit)? = null
