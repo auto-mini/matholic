@@ -17,6 +17,7 @@ from matholic_pdf_receiver.protocol import encode_pairing
 from matholic_pdf_receiver.server import ReceiveEvent, ReceiverState, ThreadedReceiverServer
 
 APP_TITLE = "매쓰홀릭 PDF 수신기"
+PAIRING_QR_PREVIEW_PX = 240
 
 
 def _tray_image() -> Image.Image:
@@ -105,7 +106,10 @@ class ReceiverApplication:
         qr.add_data(pairing_text)
         qr.make(fit=True)
         qr_image = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-        qr_image.thumbnail((400, 400), Image.Resampling.NEAREST)
+        qr_image.thumbnail(
+            (PAIRING_QR_PREVIEW_PX, PAIRING_QR_PREVIEW_PX),
+            Image.Resampling.NEAREST,
+        )
         self.qr_photo = ImageTk.PhotoImage(qr_image)
         ttk.Label(frame, image=self.qr_photo).pack(pady=8)
 
@@ -124,24 +128,6 @@ class ReceiverApplication:
             font=("Malgun Gothic", 11),
         ).pack(anchor=tk.W, pady=(5, 0))
 
-        ttk.Label(
-            frame,
-            textvariable=self.status_var,
-            font=("Malgun Gothic", 13, "bold"),
-            foreground="#102A43",
-        ).pack(pady=6)
-        ttk.Label(
-            frame,
-            text=f"저장 폴더: {self.config.receive_dir}",
-            justify=tk.CENTER,
-            wraplength=540,
-            font=("Malgun Gothic", 10),
-        ).pack(pady=(0, 12))
-        ttk.Button(frame, text="수신 폴더 열기", command=self.open_folder).pack(
-            ipadx=18,
-            ipady=5,
-        )
-        ttk.Separator(frame).pack(fill=tk.X, pady=14)
         ttk.Label(
             frame,
             text="학생 CSV 암호화 전송",
@@ -166,6 +152,24 @@ class ReceiverApplication:
             text="대기 취소",
             command=self.clear_csv,
         ).pack(side=tk.LEFT, padx=4, ipadx=12, ipady=4)
+        ttk.Separator(frame).pack(fill=tk.X, pady=14)
+        ttk.Label(
+            frame,
+            textvariable=self.status_var,
+            font=("Malgun Gothic", 13, "bold"),
+            foreground="#102A43",
+        ).pack(pady=6)
+        ttk.Label(
+            frame,
+            text=f"저장 폴더: {self.config.receive_dir}",
+            justify=tk.CENTER,
+            wraplength=540,
+            font=("Malgun Gothic", 10),
+        ).pack(pady=(0, 12))
+        ttk.Button(frame, text="수신 폴더 열기", command=self.open_folder).pack(
+            ipadx=18,
+            ipady=5,
+        )
         ttk.Label(
             frame,
             text=(

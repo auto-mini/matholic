@@ -192,7 +192,7 @@ A의 개발자 옵션과 USB 디버깅은 껐고 생산 잠금 물리 실기를 
 
 ### 현재 PC 설치 상태
 
-- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.1`
+- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.3`
 - 설치 파일:
   `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
 - 수신 폴더:

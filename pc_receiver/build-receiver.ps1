@@ -11,7 +11,7 @@ $buildRoot = Join-Path $env:LOCALAPPDATA 'CodexBuild\matholic-receiver-package'
 $workPath = Join-Path $buildRoot 'work'
 $distPath = Join-Path $buildRoot 'dist'
 $executable = Join-Path $distPath 'MatholicPdfReceiver.exe'
-$artifact = Join-Path $repositoryRoot 'artifacts\matholic-pdf-receiver-0.1.1.exe'
+$artifact = Join-Path $repositoryRoot 'artifacts\matholic-pdf-receiver-0.1.3.exe'
 $checksum = Join-Path $repositoryRoot 'artifacts\PC_RECEIVER_SHA256.txt'
 
 if (-not (Test-Path -LiteralPath $PythonPath)) {
@@ -46,7 +46,7 @@ try {
     Copy-Item -LiteralPath $executable -Destination $artifact -Force
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact).Hash
     Set-Content -LiteralPath $checksum -Encoding ascii -Value (
-        "$hash  matholic-pdf-receiver-0.1.1.exe"
+        "$hash  matholic-pdf-receiver-0.1.3.exe"
     )
     Write-Output "PC receiver artifact: $artifact"
     Write-Output "SHA-256: $hash"
