@@ -84,8 +84,7 @@ function Capture-Screen {
         throw 'Screenshot is empty. Remote support may have expired.'
     }
     $signature = [System.IO.File]::ReadAllBytes($resolvedOutput)[0..7]
-    $expected = [byte[]](137, 80, 78, 71, 13, 10, 26, 10)
-    if (-not [System.Linq.Enumerable]::SequenceEqual[byte]($signature, $expected)) {
+    if ([Convert]::ToHexString($signature) -ne '89504E470D0A1A0A') {
         throw 'Captured file is not a valid PNG.'
     }
     return $file
