@@ -1147,7 +1147,9 @@ class DomContractInstrumentedTest {
                     <button id="late-report">오류신고</button>
                     <div id="late-math-tooltip" class="ant-tooltip" role="tooltip">수식</div>
                     <div id="answer-input-form-late">
-                      <input id="late-basic-answer" placeholder="주관식 답은 여기에">
+                      <span class="ant-input-affix-wrapper">
+                        <input id="late-basic-answer" placeholder="주관식 답은 여기에">
+                      </span>
                       <button id="late-input-menu"
                         onclick="document.getElementById('late-mode-menu').style.display='block'">입력기</button>
                       <ul id="late-mode-menu" style="display:none">
@@ -1190,6 +1192,8 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('late-input-menu')).display !== 'none',
                   inputMenuPrehidden:
                     getComputedStyle(document.getElementById('late-input-menu')).visibility === 'hidden',
+                  inputMenuPaintConcealed:
+                    getComputedStyle(document.getElementById('late-input-menu')).opacity === '0',
                   answerScopePrimed:
                     getComputedStyle(document.getElementById('answer-input-form-late')).opacity === '0',
                   answerScopeBlocked:
@@ -1224,6 +1228,7 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("chromeHidden"))
             assertTrue(lateProof.getBoolean("inputMenuVisible"))
             assertTrue(lateProof.getBoolean("inputMenuPrehidden"))
+            assertTrue(lateProof.getBoolean("inputMenuPaintConcealed"))
             assertTrue(lateProof.getBoolean("answerScopePrimed"))
             assertTrue(lateProof.getBoolean("answerScopeBlocked"))
             assertTrue(lateProof.getBoolean("basicInputPrehidden"))

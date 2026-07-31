@@ -96,7 +96,7 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholicKioskSubjectiveTouchTarget"))
         assertTrue(script.contains("matholicKioskSubjectiveTouchScope"))
         assertTrue(script.contains(
-            "[id^=\"answer-input-form-\"]:has(input[placeholder*=\"주관식 답\"]",
+            "div:has(> .ant-input-affix-wrapper input[placeholder*=\"주관식 답\"]",
         ))
         assertFalse(script.contains(
             "div:has(input[placeholder*=\"주관식 답\"]",

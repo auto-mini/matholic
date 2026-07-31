@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.21"
+    const val CONTRACT_VERSION = "web-2026-08-01.22"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -583,9 +583,9 @@ object WebDomScripts {
             input[placeholder*="주관식 답"]:not([
               data-matholic-kiosk-basic-fallback="true"
             ]),
-            [id^="answer-input-form-"]:has(input[placeholder*="주관식 답"]:not([
+            div:has(> .ant-input-affix-wrapper input[placeholder*="주관식 답"]:not([
               data-matholic-kiosk-basic-fallback="true"
-            ])) button.ant-dropdown-trigger {
+            ])) > button.ant-dropdown-trigger {
               opacity: 0 !important;
               pointer-events: none !important;
             }
