@@ -30,6 +30,41 @@ class PcReceiverPairing(
         displayName = displayName,
     )
 
+    fun withHost(updatedHost: String): PcReceiverPairing = PcReceiverPairing(
+        receiverId = receiverId.copyOf(),
+        secret = secret.copyOf(),
+        host = updatedHost,
+        port = port,
+        displayName = displayName,
+    )
+
+    fun encode(): String {
+        val hostBytes = host.toByteArray(StandardCharsets.US_ASCII)
+        val nameBytes = displayName.toByteArray(StandardCharsets.UTF_8)
+        require(hostBytes.size in 1..255 && nameBytes.size in 1..255) {
+            "PC pairing fields are too large"
+        }
+        val payload = ByteBuffer
+            .allocate(FIXED_BYTES + hostBytes.size + 1 + nameBytes.size)
+            .order(ByteOrder.BIG_ENDIAN)
+            .put(VERSION.toByte())
+            .put(receiverId)
+            .put(secret)
+            .putShort(port.toShort())
+            .put(hostBytes.size.toByte())
+            .put(hostBytes)
+            .put(nameBytes.size.toByte())
+            .put(nameBytes)
+            .array()
+        return try {
+            PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(payload)
+        } finally {
+            payload.fill(0)
+            hostBytes.fill(0)
+            nameBytes.fill(0)
+        }
+    }
+
     fun clearSensitiveData() {
         receiverId.fill(0)
         secret.fill(0)

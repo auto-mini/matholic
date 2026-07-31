@@ -17,6 +17,20 @@ class PcPairingStore(
 
     fun save(rawPairing: String): PcReceiverPairing {
         val pairing = PcReceiverPairing.decode(rawPairing)
+        return try {
+            saveEncrypted(rawPairing)
+            pairing
+        } catch (error: Exception) {
+            pairing.clearSensitiveData()
+            throw error
+        }
+    }
+
+    fun save(pairing: PcReceiverPairing) {
+        saveEncrypted(pairing.encode())
+    }
+
+    private fun saveEncrypted(rawPairing: String) {
         val plaintext = rawPairing.toByteArray(Charsets.UTF_8)
         try {
             val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -27,10 +41,6 @@ class PcPairingStore(
                 .putString(IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
                 .apply()
             ciphertext.fill(0)
-            return pairing
-        } catch (error: Exception) {
-            pairing.clearSensitiveData()
-            throw error
         } finally {
             plaintext.fill(0)
         }

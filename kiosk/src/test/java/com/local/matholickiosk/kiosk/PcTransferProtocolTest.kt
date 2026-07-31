@@ -31,6 +31,24 @@ class PcTransferProtocolTest {
     }
 
     @Test
+    fun `updated host encoding round trips without changing identity or secret`() {
+        val original = PcReceiverPairing.decode(pairingText)
+        val updated = original.withHost("192.168.219.230")
+        val decoded = PcReceiverPairing.decode(updated.encode())
+        try {
+            assertEquals("192.168.219.230", decoded.host)
+            assertEquals(original.port, decoded.port)
+            assertEquals(original.displayName, decoded.displayName)
+            assertArrayEquals(original.receiverId, decoded.receiverId)
+            assertArrayEquals(original.secret, decoded.secret)
+        } finally {
+            original.clearSensitiveData()
+            updated.clearSensitiveData()
+            decoded.clearSensitiveData()
+        }
+    }
+
+    @Test
     fun `matches Python encrypted request and authenticated ack vectors`() {
         val pairing = PcReceiverPairing.decode(pairingText)
         try {

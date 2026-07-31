@@ -84,9 +84,12 @@ import com.local.matholickiosk.kiosk.qr.clearSensitiveData
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import com.local.matholickiosk.kiosk.transfer.PcPairingStore
 import com.local.matholickiosk.kiosk.transfer.PcControlClient
+import com.local.matholickiosk.kiosk.transfer.PcEndpointResolver
 import com.local.matholickiosk.kiosk.transfer.PcPdfSender
 import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
+import com.local.matholickiosk.kiosk.transfer.PcSubnetCandidates
 import java.io.File
+import java.net.Inet4Address
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -154,6 +157,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var diagnosticLog: PrivateDiagnosticLog
     private val pcPdfSender = PcPdfSender()
     private val pcControlClient = PcControlClient()
+    private val pcEndpointResolver = PcEndpointResolver()
 
     private var authEnrollmentMode = false
     private var authBusy = false
@@ -730,9 +734,8 @@ class MainActivity : ComponentActivity() {
         if (!::pcPairingStore.isInitialized || pcControlExecutor.isShutdown) return
         runCatching {
             pcControlExecutor.execute {
-                val pairing = runCatching { pcPairingStore.load() }.getOrNull() ?: return@execute
-                try {
-                    runCatching {
+                runCatching {
+                    withReachablePairedPc { pairing ->
                         pcControlClient.sendStatus(
                             pairing = pairing,
                             state = state,
@@ -740,11 +743,71 @@ class MainActivity : ComponentActivity() {
                             notify = notify,
                         )
                     }
-                } finally {
-                    pairing.clearSensitiveData()
                 }
             }
         }
+    }
+
+    private fun <T> withReachablePairedPc(
+        operation: (PcReceiverPairing) -> T,
+    ): T {
+        val original = requireNotNull(pcPairingStore.load()) {
+            "저장된 PC 페어링이 없습니다."
+        }
+        var recovered: PcReceiverPairing? = null
+        try {
+            return try {
+                operation(original)
+            } catch (firstFailure: Exception) {
+                val candidateHosts = pcRecoveryCandidateHosts(original)
+                val resolved = try {
+                    pcEndpointResolver.resolve(original, candidateHosts)
+                } catch (recoveryFailure: Exception) {
+                    firstFailure.addSuppressed(recoveryFailure)
+                    throw firstFailure
+                }
+                recovered = resolved
+                pcPairingStore.save(resolved)
+                diagnosticLog.record("PC_ENDPOINT_RECOVERED")
+                try {
+                    operation(resolved)
+                } catch (retryFailure: Exception) {
+                    retryFailure.addSuppressed(firstFailure)
+                    throw retryFailure
+                }
+            }
+        } finally {
+            original.clearSensitiveData()
+            recovered?.clearSensitiveData()
+        }
+    }
+
+    private fun pcRecoveryCandidateHosts(pairing: PcReceiverPairing): List<String> {
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val network = requireNotNull(connectivity?.activeNetwork) {
+            "활성 네트워크가 없습니다."
+        }
+        val capabilities = requireNotNull(connectivity.getNetworkCapabilities(network)) {
+            "활성 네트워크 상태를 확인하지 못했습니다."
+        }
+        require(capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            "PC 주소 자동 복구는 같은 Wi-Fi에서만 수행합니다."
+        }
+        val link = requireNotNull(
+            connectivity.getLinkProperties(network)
+                ?.linkAddresses
+                ?.firstOrNull { address ->
+                    address.address is Inet4Address &&
+                        address.address.isSiteLocalAddress
+                },
+        ) {
+            "Wi-Fi 사설 IPv4 주소를 확인하지 못했습니다."
+        }
+        return PcSubnetCandidates.samePrivateSubnet(
+            localAddress = requireNotNull(link.address.hostAddress),
+            prefixLength = link.prefixLength,
+            previousHost = pairing.host,
+        )
     }
 
     private fun configureDedicatedDevice() {
@@ -1641,24 +1704,14 @@ class MainActivity : ComponentActivity() {
         adminMessage.text = "지정 PC에서 암호화된 학생 CSV를 가져오는 중"
         runCatching {
             pcControlExecutor.execute {
-                val pairing = runCatching { pcPairingStore.load() }.getOrNull()
-                if (pairing == null) {
-                    runOnUiThread {
-                        importStudentCsvButton.isEnabled = true
-                        adminMessage.text = "저장된 PC 페어링을 확인하지 못했습니다."
-                    }
-                    return@execute
-                }
                 val download = try {
-                    pcControlClient.fetchStudentCsv(pairing)
+                    withReachablePairedPc(pcControlClient::fetchStudentCsv)
                 } catch (failure: Throwable) {
                     runOnUiThread {
                         importStudentCsvButton.isEnabled = true
                         adminMessage.text = failure.message ?: "PC에서 CSV를 가져오지 못했습니다."
                     }
                     return@execute
-                } finally {
-                    pairing.clearSensitiveData()
                 }
                 if (download == null) {
                     runOnUiThread {
@@ -2238,7 +2291,6 @@ class MainActivity : ComponentActivity() {
             cleanup = { QrPdfExporter.releaseSensitiveBitmap(exportBitmap) },
         ) {
             var exportFile: File? = null
-            var pairing: PcReceiverPairing? = null
             val result = runCatching {
                 studentRepository.recordQrExportRequested(preview.studentId)
                 exportFile = QrPdfExporter.consumeSensitiveBitmap(exportBitmap) { ownedBitmap ->
@@ -2248,18 +2300,17 @@ class MainActivity : ComponentActivity() {
                         qrBitmap = ownedBitmap,
                     )
                 }
-                pairing = requireNotNull(pcPairingStore.load()) {
-                    "저장된 PC 페어링이 없습니다."
+                val pcName = withReachablePairedPc { pairing ->
+                    pcPdfSender.send(
+                        pairing = pairing,
+                        pdfFile = requireNotNull(exportFile),
+                        filename = "${preview.exactName} QR.pdf",
+                    )
+                    pairing.displayName
                 }
-                pcPdfSender.send(
-                    pairing = requireNotNull(pairing),
-                    pdfFile = requireNotNull(exportFile),
-                    filename = "${preview.exactName} QR.pdf",
-                )
                 studentRepository.markCardsDelivered(setOf(preview.studentId))
-                requireNotNull(pairing).displayName
+                pcName
             }
-            pairing?.clearSensitiveData()
             exportFile?.delete()
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
@@ -2500,16 +2551,13 @@ class MainActivity : ComponentActivity() {
         runCatching {
             pcControlExecutor.execute {
                 val pcReachable = runCatching {
-                    val pairing = requireNotNull(pcPairingStore.load())
-                    try {
+                    withReachablePairedPc { pairing ->
                         pcControlClient.sendStatus(
                             pairing,
                             state = "자가진단 중",
                             studentName = null,
                             notify = false,
                         )
-                    } finally {
-                        pairing.clearSensitiveData()
                     }
                 }.isSuccess
                 runOnUiThread {

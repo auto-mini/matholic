@@ -26,6 +26,7 @@
 | 보고서 외부 유출 | 앱 private storage, 명시적 내보내기, 인터넷 권한 없음 | 사용자가 내보낸 파일의 이후 취급은 별도 통제 필요 |
 | ADB 캡처 요청의 외부 악용 | 동적 receiver를 `RECEIVER_NOT_EXPORTED`로 등록하고 debug 앱 UID의 `run-as` 요청만 사용 | USB 디버깅이 허용된 신뢰 PC는 redacted 캡처를 유발할 수 있음 |
 | 비공개 운영 로그의 일반 앱 노출 | release receiver에 시스템 `android.permission.DUMP` 강제, 허용 필드·형식 검사, 파일별 최근 200줄 제한, 사용자 UI·공유 기능 없음 | USB 디버깅을 승인한 PC의 ADB shell은 구조화된 로그를 읽을 수 있으므로 승인 PC를 신뢰 경계로 관리해야 함 |
+| DHCP 주소 변경 뒤 지정 PC 오인 연결 | 저장 주소 실패 시 현재 Wi-Fi의 RFC1918 주소와 같은 `/24`의 최대 254개 후보만 조사하고, 기존 페어링 키의 challenge-response 인증에 성공한 수신기만 채택한다. 복구 상태에는 학생 이름을 넣지 않고 PC 알림도 만들지 않으며 새 주소는 기존 암호화 저장소에 갱신한다. | 현재 사설 `/24`의 TCP 48129 후보에는 연결 시도가 발생한다. 네트워크가 다른 `/24`로 바뀌었거나 PC·수신기 설정이 교체된 경우에는 자동 복구하지 못하므로 수동 재페어링이 필요하다. |
 | 스크린샷/최근 앱 미리보기 | Probe Activity에 `FLAG_SECURE` | 매쓰홀릭 자체 화면은 Probe가 통제하지 못함 |
 | UI 변경으로 오계정/오동작 | version과 의미 기반 fingerprint를 함께 요구, 알 수 없는 상태는 중단 | 같은 버전의 서버 UI 변경 가능 |
 | 좌표 오작동 | bounds는 진단 전용, selector 좌표 사용 금지 | 의미 노드가 없으면 Gate 1 FAIL |

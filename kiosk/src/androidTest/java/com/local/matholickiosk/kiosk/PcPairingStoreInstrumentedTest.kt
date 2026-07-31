@@ -23,15 +23,26 @@ class PcPairingStoreInstrumentedTest {
 
         val saved = store.save(raw)
         val loaded = store.load()
+        val updated = saved.withHost("192.168.219.230")
         try {
             assertEquals("MATHOLIC-PC", saved.displayName)
             assertEquals("192.168.219.224", loaded?.host)
             assertEquals(48129, loaded?.port)
             assertArrayEquals(saved.receiverId, loaded?.receiverId)
             assertArrayEquals(saved.secret, loaded?.secret)
+            store.save(updated)
+            val recovered = store.load()
+            try {
+                assertEquals("192.168.219.230", recovered?.host)
+                assertArrayEquals(saved.receiverId, recovered?.receiverId)
+                assertArrayEquals(saved.secret, recovered?.secret)
+            } finally {
+                recovered?.clearSensitiveData()
+            }
         } finally {
             saved.clearSensitiveData()
             loaded?.clearSensitiveData()
+            updated.clearSensitiveData()
             store.clear()
         }
         assertNull(store.load())
