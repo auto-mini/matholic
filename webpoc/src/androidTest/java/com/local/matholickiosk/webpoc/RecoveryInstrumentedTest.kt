@@ -22,6 +22,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -418,7 +419,7 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
-    fun unresponsiveRendererCallbackDiscardsWebViewAndFailsClosed() {
+    fun persistentUnresponsiveRendererExpiresGraceAndFailsClosed() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onUiInitialized { activity ->
@@ -430,12 +431,53 @@ class RecoveryInstrumentedTest {
                 val activeWebView = activity.findViewById<WebView>(R.id.web_view)
                 activeWebView.webViewRenderProcessClient
                     ?.onRenderProcessUnresponsive(activeWebView, null)
+
+                assertEquals(WebPocState.ACTIVE, readState())
+                assertSame(
+                    activeWebView,
+                    MainActivity::class.java.getDeclaredField("unresponsiveWebView")
+                        .apply { isAccessible = true }
+                        .get(activity),
+                )
+                MainActivity::class.java.getDeclaredMethod(
+                    "expireUnresponsiveRendererGrace",
+                ).apply { isAccessible = true }
+                    .invoke(activity)
             }
 
             assertTrueWithin(5) {
                 readState() == WebPocState.LOCKED &&
                     preferences().getString(KEY_REASON, null) ==
                     "WEB_PROCESS_UNRESPONSIVE"
+            }
+        }
+    }
+
+    @Test
+    fun responsiveRendererCallbackCancelsGraceWithoutLocking() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                writeState(WebPocState.ACTIVE)
+                val activeWebView = activity.findViewById<WebView>(R.id.web_view)
+                val client = activeWebView.webViewRenderProcessClient
+                client?.onRenderProcessUnresponsive(activeWebView, null)
+                client?.onRenderProcessResponsive(activeWebView, null)
+
+                assertNull(
+                    MainActivity::class.java.getDeclaredField("unresponsiveWebView")
+                        .apply { isAccessible = true }
+                        .get(activity),
+                )
+                MainActivity::class.java.getDeclaredMethod(
+                    "expireUnresponsiveRendererGrace",
+                ).apply { isAccessible = true }
+                    .invoke(activity)
+                assertEquals(WebPocState.ACTIVE, readState())
             }
         }
     }

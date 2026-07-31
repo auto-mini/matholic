@@ -128,6 +128,9 @@ class MainActivity : Activity() {
     private var recoveryRecreatePending = false
     private var rendererFailureReason: String? = null
     private var rendererActionGeneration = 0
+    private var unresponsiveRendererGeneration = 0
+    private var unresponsiveWebView: WebView? = null
+    private var unresponsiveRenderer: WebViewRenderProcess? = null
     private var originalWindowBrightness =
         WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
     private var studentSessionBrightnessApplied = false
@@ -476,7 +479,9 @@ class MainActivity : Activity() {
                 override fun onRenderProcessResponsive(
                     view: WebView,
                     renderer: WebViewRenderProcess?,
-                ) = Unit
+                ) {
+                    handleResponsiveWebRenderer(view)
+                }
             },
         )
 
@@ -1904,6 +1909,9 @@ class MainActivity : Activity() {
     }
 
     private fun discardUnusableWebView(unusableWebView: WebView) {
+        if (unresponsiveWebView === unusableWebView) {
+            clearUnresponsiveRendererGrace()
+        }
         if (webViewReference === unusableWebView) {
             webViewReference = null
         }
@@ -1935,8 +1943,49 @@ class MainActivity : Activity() {
         if (state == WebPocState.RECOVERY_REQUIRED && !recoveryRendererRecycleAttempted) {
             recycleRendererAndRetryRecovery("WEB_PROCESS_UNRESPONSIVE", view, renderer)
         } else {
-            terminateRendererAndFail(view, renderer, "WEB_PROCESS_UNRESPONSIVE")
+            if (unresponsiveWebView === view) return
+            clearUnresponsiveRendererGrace()
+            unresponsiveWebView = view
+            unresponsiveRenderer = renderer
+            val generation = ++unresponsiveRendererGeneration
+            handler.postDelayed({
+                if (
+                    !destroyed &&
+                    generation == unresponsiveRendererGeneration &&
+                    unresponsiveWebView === view
+                ) {
+                    expireUnresponsiveRendererGrace()
+                }
+            }, ACTIVE_RENDERER_UNRESPONSIVE_GRACE_MS)
         }
+    }
+
+    private fun handleResponsiveWebRenderer(view: WebView?) {
+        if (view != null && unresponsiveWebView === view) {
+            clearUnresponsiveRendererGrace()
+        }
+    }
+
+    private fun expireUnresponsiveRendererGrace() {
+        val view = unresponsiveWebView ?: return
+        if (
+            destroyed ||
+            isTerminalState() ||
+            webViewReference !== view ||
+            rendererFailureReason != null
+        ) {
+            clearUnresponsiveRendererGrace()
+            return
+        }
+        val renderer = unresponsiveRenderer
+        clearUnresponsiveRendererGrace()
+        terminateRendererAndFail(view, renderer, "WEB_PROCESS_UNRESPONSIVE")
+    }
+
+    private fun clearUnresponsiveRendererGrace() {
+        unresponsiveRendererGeneration += 1
+        unresponsiveWebView = null
+        unresponsiveRenderer = null
     }
 
     private fun recycleRendererAndRetryRecovery(
@@ -2317,6 +2366,7 @@ class MainActivity : Activity() {
         destroyed = true
         cancelTimeout()
         cancelInactivityWarning()
+        clearUnresponsiveRendererGrace()
         try {
             if (networkCallbackRegistered) {
                 runCatching {
@@ -2410,6 +2460,7 @@ class MainActivity : Activity() {
         const val GATE3_LOGIN_RESULT_TIMEOUT_MS = 60_000L
         const val LOGOUT_TIMEOUT_MS = 20_000L
         const val RENDERER_TERMINATION_WAIT_MS = 2_000L
+        const val ACTIVE_RENDERER_UNRESPONSIVE_GRACE_MS = 12_000L
         const val PROBE_DELAY_MS = 600L
         const val LOGIN_DOM_PROBE_DELAY_MS = 400L
         const val LOGIN_STABILITY_DELAY_MS = 800L
