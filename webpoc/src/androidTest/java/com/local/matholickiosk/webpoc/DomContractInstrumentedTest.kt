@@ -477,6 +477,64 @@ class DomContractInstrumentedTest {
             assertEquals("true", proof.getString("mapOpen"))
             assertFalse(proof.getBoolean("selectorOpened"))
             assertTrue(proof.getBoolean("noHorizontalOverflow"))
+
+            val moving = evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('next').click();
+                  return JSON.stringify({
+                    label: document.getElementById('problem-number')
+                      .dataset.matholicKioskLabel,
+                    busy: document.getElementById('problem-number')
+                      .getAttribute('aria-busy'),
+                    target: window.__matholicKioskDirectionFeedback?.target
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("4 →5/10", moving.getString("label"))
+            assertEquals("true", moving.getString("busy"))
+            assertEquals(5, moving.getInt("target"))
+
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val maintained = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  label: document.getElementById('problem-number')
+                    .dataset.matholicKioskLabel
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("4 →5/10", maintained.getString("label"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.querySelector('.ant-select-selection-item')
+                    .textContent = '5';
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val settled = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  label: document.getElementById('problem-number')
+                    .dataset.matholicKioskLabel,
+                  busy: document.getElementById('problem-number')
+                    .hasAttribute('aria-busy'),
+                  feedbackPresent: !!window.__matholicKioskDirectionFeedback
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("5 ↓/10", settled.getString("label"))
+            assertFalse(settled.getBoolean("busy"))
+            assertFalse(settled.getBoolean("feedbackPresent"))
         }
     }
 

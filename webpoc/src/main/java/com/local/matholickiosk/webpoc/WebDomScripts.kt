@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.15"
+    const val CONTRACT_VERSION = "web-2026-08-01.16"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1107,6 +1107,33 @@ object WebDomScripts {
                 important(button, 'height', '58px');
                 important(button, 'min-height', '58px');
                 important(button, 'max-height', '58px');
+                if (
+                  button.dataset
+                    .matholicKioskDirectionFeedbackBound !== 'true'
+                ) {
+                  button.addEventListener('click', () => {
+                    const selected = readCurrentProblemNumber();
+                    const tokens = normalize(
+                      currentProblemNumberCluster()?.textContent
+                    ).match(/\d+/g) || [];
+                    const total = Number(tokens[tokens.length - 1] || '0');
+                    const target = direction === 'next' ?
+                      selected + 1 : selected - 1;
+                    if (
+                      !Number.isInteger(selected) || selected < 1 ||
+                      !Number.isInteger(total) || total < 1 ||
+                      target < 1 || target > total
+                    ) return;
+                    window.__matholicKioskDirectionFeedback = {
+                      selected,
+                      target,
+                      startedAt: Date.now()
+                    };
+                    updateProblemNumberLabel(selected, total, target);
+                  });
+                  button.dataset.matholicKioskDirectionFeedbackBound =
+                    'true';
+                }
               });
               numberCluster.classList.add(
                 'matholic-kiosk-problem-number'
@@ -1495,12 +1522,26 @@ object WebDomScripts {
               Number.isInteger(totalProblems) &&
               totalProblems > 0
             ) {
+              const directionFeedback =
+                window.__matholicKioskDirectionFeedback;
+              let directionTarget = 0;
+              if (
+                directionFeedback &&
+                Date.now() - Number(directionFeedback.startedAt || 0) <=
+                  5_000 &&
+                Number(directionFeedback.selected) === currentProblemNumber &&
+                Number(directionFeedback.target) !== currentProblemNumber
+              ) {
+                directionTarget = Number(directionFeedback.target);
+              } else if (directionFeedback) {
+                delete window.__matholicKioskDirectionFeedback;
+              }
               updateProblemNumberLabel(
                 currentProblemNumber,
                 totalProblems,
                 Number(
                   window.__matholicKioskProblemNavigationController?.target || 0
-                )
+                ) || directionTarget
               );
             }
             const problemStates =
