@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.16"
+    const val CONTRACT_VERSION = "web-2026-08-01.17"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1026,8 +1026,28 @@ object WebDomScripts {
             main { margin-top: 0 !important; padding-top: 16px !important; }
           `;
 
+          const localizeEmptyListState = () => {
+            const message = isDiagnostic ?
+              '진단평가가 없습니다' :
+              isWorkbook ? '학습지가 없습니다' : '';
+            if (!message) return 0;
+            let localized = 0;
+            Array.from(document.querySelectorAll(
+              '.ant-empty-description'
+            )).filter(visible).forEach(element => {
+              const text = normalize(element.textContent).toLowerCase();
+              if (text !== '' && text !== 'no data') return;
+              if (normalize(element.textContent) !== message) {
+                element.textContent = message;
+              }
+              localized += 1;
+            });
+            return localized;
+          };
+
           let enhancedButtons = 0;
           let hiddenControls = 0;
+          let emptyStateLocalizations = localizeEmptyListState();
           let mathModeSelections = 0;
           let mathModePending = 0;
           let mathModeReady = 0;
@@ -3682,6 +3702,10 @@ object WebDomScripts {
             const maintainLateStudentControls = () => {
               resetHiddenReviewScrollState();
               hiddenChrome += hideStudentChrome();
+              emptyStateLocalizations = Math.max(
+                emptyStateLocalizations,
+                localizeEmptyListState()
+              );
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
               subjectiveTouchTargets = ensureSubjectiveTouchTargets();
@@ -3819,6 +3843,7 @@ object WebDomScripts {
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning, contentReady,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
+            emptyStateLocalizations,
             mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets, problemNavigationEnhancements,
             problemStateMapEnhancements, longProblemScrollEnhancements,

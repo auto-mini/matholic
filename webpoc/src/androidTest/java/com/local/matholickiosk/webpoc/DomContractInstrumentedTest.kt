@@ -539,6 +539,41 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceLocalizesEmptyWorkbookAndDiagnosticLists() {
+        listOf(
+            "https://im.matholic.com/workbook" to "학습지가 없습니다",
+            "https://im.matholic.com/diagnostic" to "진단평가가 없습니다",
+        ).forEach { (url, expected) ->
+            withFixture(
+                url,
+                """
+                <!doctype html><html><body>
+                  <main>
+                    <div class="ant-empty">
+                      <div class="ant-empty-description">No data</div>
+                    </div>
+                  </main>
+                </body></html>
+                """.trimIndent(),
+            ) { webView ->
+                val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+                assertTrue(result.getBoolean("ok"))
+                assertEquals(1, result.getInt("emptyStateLocalizations"))
+                val proof = evaluate(
+                    webView,
+                    """
+                    (() => JSON.stringify({
+                      text: document.querySelector('.ant-empty-description')
+                        .textContent.trim()
+                    }))()
+                    """.trimIndent(),
+                )
+                assertEquals(expected, proof.getString("text"))
+            }
+        }
+    }
+
+    @Test
     fun testStudentExperienceHidesDirectionsForSingleProblem() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
