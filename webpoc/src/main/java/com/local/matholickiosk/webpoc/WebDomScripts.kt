@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-31.1"
+    const val CONTRACT_VERSION = "web-2026-07-31.3"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -737,10 +737,11 @@ object WebDomScripts {
               justify-content: center !important;
               flex: 0 0 auto !important;
               gap: 0 !important;
-              min-width: 156px !important;
+              width: 100% !important;
+              min-width: 0 !important;
               min-height: 62px !important;
               margin: 0 !important;
-              padding: 8px 14px !important;
+              padding: 8px 6px !important;
               border: 2px solid #173f6d !important;
               border-radius: 16px !important;
               background: #173f6d !important;
@@ -756,7 +757,7 @@ object WebDomScripts {
             .matholic-kiosk-problem-number::before {
               content: attr(data-matholic-kiosk-label) !important;
               color: #fff !important;
-              font-size: 23px !important;
+              font-size: 20px !important;
               font-weight: 800 !important;
               line-height: 1 !important;
               white-space: pre !important;
@@ -791,29 +792,43 @@ object WebDomScripts {
               font-weight: 800 !important;
             }
             [data-matholic-kiosk-problem-navigation="true"] {
+              display: grid !important;
+              grid-template-columns: 52px minmax(0, 1fr) 52px !important;
+              align-items: center !important;
               width: 100% !important;
               max-width: 100% !important;
-              justify-content: center !important;
-              gap: 16px !important;
-              padding-inline: 12px !important;
-              overflow: hidden !important;
+              justify-content: stretch !important;
+              gap: 6px !important;
+              padding-inline: 0 !important;
+              overflow: visible !important;
+              box-sizing: border-box !important;
+            }
+            [data-matholic-kiosk-problem-direction-host] {
+              width: 52px !important;
+              min-width: 52px !important;
+              max-width: 52px !important;
+              overflow: visible !important;
             }
             [data-matholic-kiosk-problem-direction] {
-              width: 84px !important;
-              min-width: 84px !important;
-              max-width: 84px !important;
-              height: 72px !important;
-              min-height: 72px !important;
-              max-height: 72px !important;
-              padding: 8px !important;
-              border-radius: 15px !important;
-              font-size: 32px !important;
+              width: 52px !important;
+              min-width: 52px !important;
+              max-width: 52px !important;
+              height: 58px !important;
+              min-height: 58px !important;
+              max-height: 58px !important;
+              padding: 6px !important;
+              border: 2px solid #9fb3c8 !important;
+              border-radius: 14px !important;
+              background: #fff !important;
+              color: #173f6d !important;
+              font-size: 28px !important;
               line-height: 1 !important;
               touch-action: manipulation !important;
+              box-sizing: border-box !important;
             }
             [data-matholic-kiosk-problem-direction] svg {
-              width: 34px !important;
-              height: 34px !important;
+              width: 30px !important;
+              height: 30px !important;
             }
             .matholic-kiosk-problem-map {
               position: relative !important;
@@ -999,6 +1014,15 @@ object WebDomScripts {
                 numberCluster.contains(next)
               ) return false;
               navigation.dataset.matholicKioskProblemNavigation = 'true';
+              const previousHost = directChildInside(navigation, previous);
+              const nextHost = directChildInside(navigation, next);
+              if (previousHost) {
+                previousHost.dataset.matholicKioskProblemDirectionHost =
+                  'previous';
+              }
+              if (nextHost) {
+                nextHost.dataset.matholicKioskProblemDirectionHost = 'next';
+              }
               [
                 [previous, 'previous', '이전 문제'],
                 [next, 'next', '다음 문제']
@@ -1006,12 +1030,12 @@ object WebDomScripts {
                 button.dataset.matholicKioskProblemDirection = direction;
                 button.setAttribute('aria-label', label);
                 button.setAttribute('title', label);
-                important(button, 'width', '84px');
-                important(button, 'min-width', '84px');
-                important(button, 'max-width', '84px');
-                important(button, 'height', '72px');
-                important(button, 'min-height', '72px');
-                important(button, 'max-height', '72px');
+                important(button, 'width', '52px');
+                important(button, 'min-width', '52px');
+                important(button, 'max-width', '52px');
+                important(button, 'height', '58px');
+                important(button, 'min-height', '58px');
+                important(button, 'max-height', '58px');
               });
               numberCluster.classList.add(
                 'matholic-kiosk-problem-number'
@@ -1291,7 +1315,7 @@ object WebDomScripts {
                 problemStates[index + 1] = answerState(form);
               });
             }
-            const navigateToProblem = number => {
+            const selectProblemDirectly = number => {
               const liveSelectorRoot = currentProblemSelectorRoot();
               const liveNumberCluster = currentProblemNumberCluster();
               const nativeSelect = liveSelectorRoot?.matches?.('select') ?
@@ -1305,11 +1329,12 @@ object WebDomScripts {
                 nativeSelect.value = option.value;
                 nativeSelect.dispatchEvent(new Event('input', { bubbles: true }));
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                return;
+                return true;
               }
               const surface = liveNumberCluster?.querySelector(
                 '.ant-select-selector,[role="combobox"]'
               ) || liveSelectorRoot;
+              if (!surface) return false;
               surface?.click?.();
               setTimeout(() => {
                 const option = Array.from(document.querySelectorAll(
@@ -1319,6 +1344,123 @@ object WebDomScripts {
                 );
                 option?.click?.();
               }, 0);
+              return true;
+            };
+            const problemNavigationController =
+              window.__matholicKioskProblemNavigationController ||
+              (window.__matholicKioskProblemNavigationController = {
+                target: 0,
+                attempts: 0,
+                lastSelected: 0,
+                staleChecks: 0,
+                timer: 0
+              });
+            const clearProblemNavigation = () => {
+              if (problemNavigationController.timer) {
+                clearTimeout(problemNavigationController.timer);
+              }
+              problemNavigationController.target = 0;
+              problemNavigationController.attempts = 0;
+              problemNavigationController.lastSelected = 0;
+              problemNavigationController.staleChecks = 0;
+              problemNavigationController.timer = 0;
+            };
+            const scheduleProblemNavigation = delay => {
+              if (problemNavigationController.timer) {
+                clearTimeout(problemNavigationController.timer);
+              }
+              problemNavigationController.timer = setTimeout(
+                continueProblemNavigation,
+                delay
+              );
+            };
+            const continueProblemNavigation = () => {
+              problemNavigationController.timer = 0;
+              const target = Number(problemNavigationController.target || 0);
+              const selected = readCurrentProblemNumber();
+              const liveTotalTokens = normalize(
+                currentProblemNumberCluster()?.textContent
+              ).match(/\d+/g) || [];
+              const liveTotal = Number(
+                liveTotalTokens[liveTotalTokens.length - 1] || totalProblems
+              );
+              if (
+                !Number.isInteger(target) ||
+                target < 1 ||
+                !Number.isInteger(selected) ||
+                selected < 1 ||
+                !Number.isInteger(liveTotal) ||
+                target > liveTotal
+              ) {
+                clearProblemNavigation();
+                return;
+              }
+              if (selected === target) {
+                clearProblemNavigation();
+                return;
+              }
+              if (
+                problemNavigationController.attempts >=
+                  Math.max(liveTotal * 3, 8)
+              ) {
+                selectProblemDirectly(target);
+                clearProblemNavigation();
+                return;
+              }
+              if (
+                problemNavigationController.attempts > 0 &&
+                problemNavigationController.lastSelected === selected
+              ) {
+                problemNavigationController.staleChecks += 1;
+                if (problemNavigationController.staleChecks <= 6) {
+                  scheduleProblemNavigation(200);
+                  return;
+                }
+              } else {
+                problemNavigationController.lastSelected = selected;
+                problemNavigationController.staleChecks = 0;
+              }
+              const direction = target > selected ? 'next' : 'previous';
+              const directionButton = document.querySelector(
+                `[data-matholic-kiosk-problem-direction="${'$'}{direction}"]`
+              );
+              if (
+                !directionButton ||
+                directionButton.disabled ||
+                directionButton.getAttribute('aria-disabled') === 'true'
+              ) {
+                selectProblemDirectly(target);
+                clearProblemNavigation();
+                return;
+              }
+              problemNavigationController.lastSelected = selected;
+              problemNavigationController.staleChecks = 0;
+              problemNavigationController.attempts += 1;
+              directionButton.click();
+              scheduleProblemNavigation(250);
+            };
+            const navigateToProblem = number => {
+              if (
+                !Number.isInteger(number) ||
+                number < 1 ||
+                number > totalProblems
+              ) return;
+              if (number === readCurrentProblemNumber()) {
+                clearProblemNavigation();
+                return;
+              }
+              const selectorRoot = currentProblemSelectorRoot();
+              if (
+                selectorRoot?.matches?.('select') ||
+                selectorRoot?.querySelector?.('select')
+              ) {
+                clearProblemNavigation();
+                selectProblemDirectly(number);
+                return;
+              }
+              clearProblemNavigation();
+              problemNavigationController.target = number;
+              continueProblemNavigation();
             };
             const navigateToUnanswered = direction => {
               const selectedProblemNumber = readCurrentProblemNumber();

@@ -393,10 +393,10 @@ class DomContractInstrumentedTest {
                 })()
                 """.trimIndent(),
             )
-            assertEquals("84px", proof.getString("previousWidth"))
-            assertEquals("72px", proof.getString("previousHeight"))
-            assertEquals("84px", proof.getString("nextWidth"))
-            assertEquals("72px", proof.getString("nextHeight"))
+            assertEquals("52px", proof.getString("previousWidth"))
+            assertEquals("58px", proof.getString("previousHeight"))
+            assertEquals("52px", proof.getString("nextWidth"))
+            assertEquals("58px", proof.getString("nextHeight"))
             assertEquals("이전 문제", proof.getString("previousLabel"))
             assertEquals("다음 문제", proof.getString("nextLabel"))
             assertTrue(proof.getBoolean("numberClass"))
@@ -405,6 +405,105 @@ class DomContractInstrumentedTest {
             assertEquals("문제 4 ↓ / 10", proof.getString("numberDisplayLabel"))
             assertEquals("현재 문제 번호 선택", proof.getString("numberLabel"))
             assertTrue(proof.getBoolean("selectorOpened"))
+            assertTrue(proof.getBoolean("noHorizontalOverflow"))
+        }
+    }
+
+    @Test
+    fun testProblemMapUsesNativeDirectionButtonsWhenAntSelectorIgnoresClick() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex;width:330px">
+                  <button id="previous" aria-label="이전 문제"
+                    onclick="window.moveProblem(-1)">&lt;</button>
+                  <div id="problem-number">
+                    <div class="ant-select">
+                      <div class="ant-select-selector" role="combobox">
+                        <span id="selected-problem"
+                          class="ant-select-selection-item">1</span>
+                      </div>
+                    </div>
+                    <span>/ 5</span>
+                  </div>
+                  <button id="next" aria-label="다음 문제"
+                    onclick="window.moveProblem(1)">&gt;</button>
+                </div>
+                <div id="answer-input-form-1"><input value="7"></div>
+                <script>
+                  window.problemNumber = 1;
+                  window.directionClicks = 0;
+                  window.problemMovePending = false;
+                  window.moveProblem = function(delta) {
+                    if (window.problemMovePending) return;
+                    window.problemMovePending = true;
+                    window.directionClicks += 1;
+                    setTimeout(function() {
+                      window.problemNumber = Math.max(
+                        1,
+                        Math.min(5, window.problemNumber + delta)
+                      );
+                      document.getElementById('selected-problem').textContent =
+                        String(window.problemNumber);
+                      window.problemMovePending = false;
+                    }, 600);
+                  };
+                </script>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const map = document.querySelector('.matholic-kiosk-problem-map');
+                  map.firstElementChild.click();
+                  map.querySelectorAll(
+                    '.matholic-kiosk-problem-map-grid button'
+                  )[3].click();
+                  return JSON.stringify({ started: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(3_000)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const navigation = document.getElementById('problem-navigation');
+                  const previous = document.getElementById('previous');
+                  const next = document.getElementById('next');
+                  const navigationRect = navigation.getBoundingClientRect();
+                  const previousRect = previous.getBoundingClientRect();
+                  const nextRect = next.getBoundingClientRect();
+                  return JSON.stringify({
+                    selected: document.getElementById('selected-problem').textContent,
+                    directionClicks: window.directionClicks,
+                    pendingTarget:
+                      window.__matholicKioskProblemNavigationController.target,
+                    previousVisible:
+                      previousRect.left >= navigationRect.left &&
+                      previousRect.right <= navigationRect.right,
+                    nextVisible:
+                      nextRect.left >= navigationRect.left &&
+                      nextRect.right <= navigationRect.right,
+                    noHorizontalOverflow:
+                      document.documentElement.scrollWidth <=
+                        document.documentElement.clientWidth
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("4", proof.getString("selected"))
+            assertEquals(3, proof.getInt("directionClicks"))
+            assertEquals(0, proof.getInt("pendingTarget"))
+            assertTrue(proof.getBoolean("previousVisible"))
+            assertTrue(proof.getBoolean("nextVisible"))
             assertTrue(proof.getBoolean("noHorizontalOverflow"))
         }
     }
