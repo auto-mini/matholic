@@ -3504,6 +3504,132 @@ class DomContractInstrumentedTest {
         }
     }
 
+    @Test
+    fun testClippedProblemImageExtendsRootScrollAndResetsOnProblemChange() {
+        withFixture(
+            "https://im.matholic.com/learningV2/virtual",
+            """
+            <!doctype html><html><body style="margin:0;overflow:hidden">
+              <div id="root" style="height:800px;overflow-y:auto">
+                <div>
+                  <button aria-label="이전 문제">&lt;</button>
+                  <div>
+                    <select aria-label="문제 번호">
+                      <option selected>15</option>
+                      <option>16</option>
+                    </select>
+                    <span>/25</span>
+                  </div>
+                  <button aria-label="다음 문제">&gt;</button>
+                </div>
+                <main style="height:820px">
+                  <picture class="no-select" style="display:block;width:560px;pointer-events:none;touch-action:none">
+                    <img id="problem-image" class="no-select"
+                      src="https://image.matholic.com/units/virtual.webp"
+                      style="display:block;width:560px;height:900px;pointer-events:none;touch-action:none">
+                  </picture>
+                </main>
+              </div>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val initial = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertEquals(1, initial.getInt("longProblemScrollEnhancements"))
+            val scrollable = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('root');
+                  const image = document.getElementById('problem-image');
+                  root.scrollTop = root.scrollHeight;
+                  return JSON.stringify({
+                    marked: root.dataset.matholicKioskLongPageScroll === 'true',
+                    extra: Number(root.dataset.matholicKioskLongPageExtra || '0'),
+                    maxScroll: root.scrollHeight - root.clientHeight,
+                    rootTouchAction: getComputedStyle(root).touchAction,
+                    mediaTouchAction: getComputedStyle(image).touchAction,
+                    mediaPointerEvents: getComputedStyle(image).pointerEvents,
+                    controllerExists: !!window
+                      .__matholicKioskLongPageScrollController,
+                    scrollTop: root.scrollTop
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(scrollable.getBoolean("marked"))
+            assertTrue(scrollable.getInt("extra") > 0)
+            assertTrue(scrollable.getInt("maxScroll") > 20)
+            assertEquals("pan-y", scrollable.getString("rootTouchAction"))
+            assertEquals("pan-y", scrollable.getString("mediaTouchAction"))
+            assertEquals("auto", scrollable.getString("mediaPointerEvents"))
+            assertTrue(scrollable.getBoolean("controllerExists"))
+            assertTrue(scrollable.getInt("scrollTop") > 0)
+
+            val drag = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('root');
+                  const controller = window
+                    .__matholicKioskLongPageScrollController;
+                  root.scrollTop = 0;
+                  controller.start(root, 700);
+                  controller.move(300);
+                  controller.end();
+                  return JSON.stringify({ scrollTop: root.scrollTop });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(drag.getInt("scrollTop") > 0)
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.querySelector('select').selectedIndex = -1;
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val transientlyMissingNumber = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  scrollTop: document.getElementById('root').scrollTop
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(transientlyMissingNumber.getInt("scrollTop") > 0)
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const select = document.querySelector('select');
+                  select.selectedIndex = 1;
+                  select.dispatchEvent(new Event('change', { bubbles: true }));
+                  document.getElementById('problem-image').style.height = '400px';
+                  return JSON.stringify({ ok: true });
+                })()
+                """.trimIndent(),
+            )
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val reset = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  marked: document.getElementById('root').dataset
+                    .matholicKioskLongPageScroll === 'true',
+                  scrollTop: document.getElementById('root').scrollTop
+                }))()
+                """.trimIndent(),
+            )
+            assertFalse(reset.getBoolean("marked"))
+            assertEquals(0, reset.getInt("scrollTop"))
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun withFixture(baseUrl: String, html: String, block: (WebView) -> Unit) {
         val loaded = CountDownLatch(1)

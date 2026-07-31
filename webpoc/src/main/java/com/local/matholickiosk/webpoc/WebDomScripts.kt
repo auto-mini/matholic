@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.8"
+    const val CONTRACT_VERSION = "web-2026-08-01.14"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -494,6 +494,24 @@ object WebDomScripts {
               max-width: 100% !important;
               overflow-x: hidden !important;
               padding-top: 24px !important;
+            }
+            #root[data-matholic-kiosk-long-page-scroll="true"] {
+              overflow-y: auto !important;
+              overflow-x: hidden !important;
+              overscroll-behavior-y: contain !important;
+              touch-action: pan-y !important;
+              -webkit-overflow-scrolling: touch !important;
+            }
+            #root[data-matholic-kiosk-long-page-scroll="true"]::after {
+              content: "" !important;
+              display: block !important;
+              width: 1px !important;
+              height: var(--matholic-kiosk-long-page-extra, 0px) !important;
+              pointer-events: none !important;
+            }
+            [data-matholic-kiosk-long-page-media="true"] {
+              touch-action: pan-y !important;
+              pointer-events: auto !important;
             }
             [title*="답안 필기"],
             [aria-label*="답안 필기"],
@@ -1017,6 +1035,7 @@ object WebDomScripts {
           let subjectiveTouchTargets = 0;
           let problemNavigationEnhancements = 0;
           let problemStateMapEnhancements = 0;
+          let longProblemScrollEnhancements = 0;
           let mathKeypadEnhancements = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
@@ -1293,6 +1312,146 @@ object WebDomScripts {
                   '.matholic-kiosk-problem-number [role="combobox"]'
                 )?.textContent
               ).match(/\d+/)?.[0] || '0');
+            const ensureLongProblemTouchGuard = () => {
+              if (window.__matholicKioskLongPageScrollController) return;
+              const controller = {
+                root: null,
+                startY: 0,
+                startScrollTop: 0,
+                start(root, clientY) {
+                  if (!root || !Number.isFinite(clientY)) return false;
+                  this.root = root;
+                  this.startY = clientY;
+                  this.startScrollTop = root.scrollTop;
+                  return true;
+                },
+                move(clientY) {
+                  if (!this.root || !Number.isFinite(clientY)) return false;
+                  this.root.scrollTop =
+                    this.startScrollTop + this.startY - clientY;
+                  return true;
+                },
+                end() {
+                  this.root = null;
+                }
+              };
+              document.addEventListener('touchstart', event => {
+                const media = event.target?.closest?.(
+                  '[data-matholic-kiosk-long-page-media="true"]'
+                );
+                const root = media?.closest?.(
+                  '#root[data-matholic-kiosk-long-page-scroll="true"]'
+                );
+                if (!root || event.touches.length !== 1) return;
+                controller.start(root, event.touches[0].clientY);
+              }, { capture: true, passive: false });
+              document.addEventListener('touchmove', event => {
+                if (
+                  event.touches.length !== 1 ||
+                  !controller.move(event.touches[0].clientY)
+                ) return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+              }, { capture: true, passive: false });
+              const finishTouch = () => controller.end();
+              document.addEventListener(
+                'touchend',
+                finishTouch,
+                { capture: true, passive: true }
+              );
+              document.addEventListener(
+                'touchcancel',
+                finishTouch,
+                { capture: true, passive: true }
+              );
+              window.__matholicKioskLongPageScrollController = controller;
+            };
+            ensureLongProblemTouchGuard();
+            const enhanceLongProblemScrolling = () => {
+              const current = readCurrentProblemNumber();
+              document.querySelectorAll(
+                '[data-matholic-kiosk-long-page-media="true"]'
+              ).forEach(element => {
+                delete element.dataset.matholicKioskLongPageMedia;
+              });
+              const root = document.getElementById('root');
+              if (!root) return 0;
+              const previousProblem = Number(
+                root.dataset.matholicKioskLongPageProblemNumber || '0'
+              );
+              if (Number.isInteger(current) && current > 0) {
+                if (previousProblem !== current) root.scrollTop = 0;
+                root.dataset.matholicKioskLongPageProblemNumber =
+                  String(current);
+              }
+              const problemImages = Array.from(
+                root.querySelectorAll('picture.no-select > img.no-select')
+              ).filter(image => {
+                if (!visible(image)) return false;
+                const rect = image.getBoundingClientRect();
+                if (rect.width < 300 || rect.height < 300) return false;
+                try {
+                  return new URL(image.currentSrc || image.src, location.href)
+                    .hostname === 'image.matholic.com';
+                } catch (_) {
+                  return false;
+                }
+              });
+              const clippedImage = problemImages
+                .filter(image =>
+                  image.getBoundingClientRect().bottom >
+                    window.innerHeight + 16
+                )
+                .sort((left, right) =>
+                  right.getBoundingClientRect().bottom -
+                    left.getBoundingClientRect().bottom
+                )[0] || null;
+              if (!clippedImage) {
+                delete root.dataset.matholicKioskLongPageScroll;
+                delete root.dataset.matholicKioskLongPageExtra;
+                root.style.removeProperty(
+                  '--matholic-kiosk-long-page-extra'
+                );
+                return 0;
+              }
+              const previousExtra = Number(
+                root.dataset.matholicKioskLongPageExtra || '0'
+              );
+              const baseMaxScroll = Math.max(
+                0,
+                root.scrollHeight - root.clientHeight - previousExtra
+              );
+              const requiredMaxScroll = Math.max(
+                0,
+                Math.ceil(
+                  clippedImage.getBoundingClientRect().bottom -
+                    window.innerHeight + 24 + root.scrollTop
+                )
+              );
+              const extra = Math.max(
+                0,
+                requiredMaxScroll - baseMaxScroll
+              );
+              root.dataset.matholicKioskLongPageScroll = 'true';
+              root.dataset.matholicKioskLongPageExtra = String(extra);
+              const extraCss = `${'$'}{extra}px`;
+              if (
+                root.style.getPropertyValue(
+                  '--matholic-kiosk-long-page-extra'
+                ) !== extraCss
+              ) {
+                root.style.setProperty(
+                  '--matholic-kiosk-long-page-extra',
+                  extraCss
+                );
+              }
+              clippedImage.dataset.matholicKioskLongPageMedia = 'true';
+              const picture = clippedImage.closest('picture.no-select');
+              if (picture) {
+                picture.dataset.matholicKioskLongPageMedia = 'true';
+              }
+              return 1;
+            };
             const currentProblemNumber = readCurrentProblemNumber();
             const numberTokens = normalize(
               problemNumberCluster?.textContent
@@ -3493,6 +3652,10 @@ object WebDomScripts {
               mathModeReady = lateMathMode.readyCount;
               protectAnalysisDetails();
               enhanceProblemNavigation();
+              longProblemScrollEnhancements = Math.max(
+                longProblemScrollEnhancements,
+                enhanceLongProblemScrolling()
+              );
             };
             maintainLateStudentControls();
             mathQuillRuntimePromise.then(runtimeReady => {
@@ -3617,7 +3780,8 @@ object WebDomScripts {
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
             mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets, problemNavigationEnhancements,
-            problemStateMapEnhancements, mathKeypadEnhancements,
+            problemStateMapEnhancements, longProblemScrollEnhancements,
+            mathKeypadEnhancements,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
           });
