@@ -18,7 +18,8 @@ import numpy as np
 import pypdfium2 as pdfium
 from pypdf import PdfReader
 
-cv2.setLogLevel(0)
+if hasattr(cv2, "setLogLevel"):
+    cv2.setLogLevel(0)
 
 
 EXPECTED_DISPLAY_NAME = "테스트"
