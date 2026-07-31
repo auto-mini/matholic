@@ -18,6 +18,7 @@ artifacts/
 *.p12
 *.pfx
 *.clixml
+*.dpapi
 keystore.properties
 secrets.properties
 *.env

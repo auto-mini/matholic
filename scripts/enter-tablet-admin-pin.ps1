@@ -1,15 +1,21 @@
 param(
-    [string]$Serial = 'R54TB029FHZ'
+    [string]$Serial = 'R54TB029FHZ',
+
+    [switch]$RequireStoredPin
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot 'admin-pin-store.ps1')
+
 $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
 $securePin = $null
-$pinPointer = [IntPtr]::Zero
-$pinText = $null
+$pinBytes = $null
 $shell = $null
+$credentialPath = Get-MatholicAdminPinCredentialPath
+$useStoredPin = [IO.File]::Exists($credentialPath)
+$nonInteractive = $RequireStoredPin -or $useStoredPin
 
 function Wait-ForAcknowledgement {
     param([string]$Message)
@@ -19,7 +25,9 @@ function Wait-ForAcknowledgement {
 }
 
 try {
-    $Host.UI.RawUI.WindowTitle = '매쓰홀릭 A 기기 관리자 PIN 전송'
+    try {
+        $Host.UI.RawUI.WindowTitle = '매쓰홀릭 A 기기 관리자 PIN 전송'
+    } catch { }
     if (-not (Test-Path -LiteralPath $adb)) {
         throw "ADB를 찾을 수 없습니다: $adb"
     }
@@ -40,16 +48,22 @@ try {
         throw '키오스크 관리자 PIN 화면을 확인할 수 없습니다.'
     }
 
-    Clear-Host
-    Write-Host '매쓰홀릭 A 기기 관리자 PIN 전송' -ForegroundColor Cyan
-    Write-Host 'PIN은 화면에 표시되거나 파일·로그로 저장되지 않습니다.'
-    Write-Host '잘못 입력했다면 Enter를 누르기 전 Ctrl+C로 취소하세요.'
-    Write-Host ''
-    $securePin = Read-Host '6~12자리 숫자 PIN' -AsSecureString
-    $pinPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePin)
-    $pinText = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pinPointer)
-    if ($pinText -notmatch '^\d{6,12}$') {
-        throw 'PIN은 6~12자리 숫자여야 합니다. 기기에는 아무 것도 전송하지 않았습니다.'
+    if ($useStoredPin) {
+        [byte[]]$pinBytes = Unprotect-MatholicAdminPin `
+            -Serial $Serial `
+            -Path $credentialPath
+    } else {
+        if ($RequireStoredPin) {
+            throw '저장된 관리자 PIN 파일이 없어 자동 입력을 중단했습니다.'
+        }
+        Clear-Host
+        Write-Host '매쓰홀릭 A 기기 관리자 PIN 전송' -ForegroundColor Cyan
+        Write-Host 'PIN은 화면에 표시되거나 파일·로그로 저장되지 않습니다.'
+        Write-Host '잘못 입력했다면 Enter를 누르기 전 Ctrl+C로 취소하세요.'
+        Write-Host ''
+        $securePin = Read-Host '6~12자리 숫자 PIN' -AsSecureString
+        [byte[]]$pinBytes = ConvertFrom-MatholicSecurePin `
+            -SecurePin $securePin
     }
 
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -72,7 +86,8 @@ try {
     $shell.StandardInput.WriteLine('input tap 1000 625')
     $shell.StandardInput.WriteLine('input keyevent KEYCODE_MOVE_END')
     1..12 | ForEach-Object { $shell.StandardInput.WriteLine('input keyevent KEYCODE_DEL') }
-    foreach ($digit in $pinText.ToCharArray()) {
+    foreach ($digitByte in $pinBytes) {
+        $digit = [char]$digitByte
         $shell.StandardInput.WriteLine("input keyevent KEYCODE_$digit")
     }
     $shell.StandardInput.WriteLine('sleep 0.2')
@@ -92,17 +107,23 @@ try {
 
     Write-Host ''
     Write-Host 'PIN을 A 기기로 전송했습니다.' -ForegroundColor Green
-    Write-Host 'PIN 값은 저장하지 않았습니다.'
-    Wait-ForAcknowledgement -Message '이 창을 닫으려면 Enter'
+    if ($useStoredPin) {
+        Write-Output 'PIN_SOURCE=DPAPI_FILE'
+        Write-Output 'PIN_SENT=TRUE'
+    } else {
+        Write-Host 'PIN 값은 저장하지 않았습니다.'
+        Wait-ForAcknowledgement -Message '이 창을 닫으려면 Enter'
+    }
 } catch {
     Write-Host ''
     Write-Host $_.Exception.Message -ForegroundColor Red
-    Wait-ForAcknowledgement -Message '이 창을 닫으려면 Enter'
+    if (-not $nonInteractive) {
+        Wait-ForAcknowledgement -Message '이 창을 닫으려면 Enter'
+    }
     exit 1
 } finally {
-    $pinText = $null
-    if ($pinPointer -ne [IntPtr]::Zero) {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pinPointer)
+    if ($null -ne $pinBytes) {
+        [Array]::Clear($pinBytes, 0, $pinBytes.Length)
     }
     if ($null -ne $securePin) {
         $securePin.Dispose()
