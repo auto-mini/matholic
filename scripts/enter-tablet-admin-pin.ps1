@@ -16,12 +16,82 @@ $shell = $null
 $credentialPath = Get-MatholicAdminPinCredentialPath
 $useStoredPin = [IO.File]::Exists($credentialPath)
 $nonInteractive = $RequireStoredPin -or $useStoredPin
+$uiDumpPath = '/sdcard/Download/matholic-admin-pin-ui.xml'
 
 function Wait-ForAcknowledgement {
     param([string]$Message)
 
     Write-Host ''
     [void](Read-Host $Message)
+}
+
+function Get-VisibleUiNode {
+    param(
+        [string]$ResourceId,
+        [string]$ClassName,
+        [string]$Text,
+        [Nullable[bool]]$Password
+    )
+
+    try {
+        & $adb -s $Serial shell uiautomator dump $uiDumpPath *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'A 기기 화면 구조를 확인하지 못했습니다.'
+        }
+        $xmlText = (& $adb -s $Serial exec-out cat $uiDumpPath 2>$null) -join "`n"
+        if (
+            $LASTEXITCODE -ne 0 -or
+            [string]::IsNullOrWhiteSpace($xmlText) -or
+            $xmlText -notmatch '^<\?xml'
+        ) {
+            throw 'A 기기 화면 구조를 읽지 못했습니다.'
+        }
+        [xml]$document = $xmlText
+        return @($document.SelectNodes('//node')) |
+            Where-Object {
+                $_.GetAttribute('visible-to-user') -ne 'false' -and
+                (
+                    [string]::IsNullOrEmpty($ResourceId) -or
+                    $_.GetAttribute('resource-id') -eq $ResourceId
+                ) -and
+                (
+                    [string]::IsNullOrEmpty($ClassName) -or
+                    $_.GetAttribute('class') -eq $ClassName
+                ) -and
+                (
+                    [string]::IsNullOrEmpty($Text) -or
+                    $_.GetAttribute('text') -eq $Text
+                ) -and
+                (
+                    $null -eq $Password -or
+                    $_.GetAttribute('password') -eq $Password.ToString().ToLowerInvariant()
+                )
+            } |
+            Select-Object -First 1
+    } finally {
+        & $adb -s $Serial shell rm -f $uiDumpPath 2>$null | Out-Null
+    }
+}
+
+function Get-UiNodeCenter {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Node
+    )
+
+    $bounds = $Node.GetAttribute('bounds')
+    $match = [regex]::Match($bounds, '^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$')
+    if (-not $match.Success) {
+        throw 'A 기기 입력 위치를 확인하지 못했습니다.'
+    }
+    return @{
+        X = [int](
+            ([int]$match.Groups[1].Value + [int]$match.Groups[3].Value) / 2
+        )
+        Y = [int](
+            ([int]$match.Groups[2].Value + [int]$match.Groups[4].Value) / 2
+        )
+    }
 }
 
 try {
@@ -47,6 +117,27 @@ try {
     if ($LASTEXITCODE -ne 0 -or $resumed -notmatch 'com\.local\.matholickiosk\.kiosk/\.MainActivity') {
         throw '키오스크 관리자 PIN 화면을 확인할 수 없습니다.'
     }
+    $pinNode = Get-VisibleUiNode -ResourceId 'com.local.matholickiosk.kiosk:id/pin_input'
+    if ($null -eq $pinNode) {
+        $pinNode = Get-VisibleUiNode `
+            -ClassName 'android.widget.EditText' `
+            -Password $true
+    }
+    $submitNode = Get-VisibleUiNode -ResourceId 'com.local.matholickiosk.kiosk:id/auth_submit'
+    if ($null -eq $submitNode) {
+        $submitNode = Get-VisibleUiNode -ResourceId 'android:id/button1'
+    }
+    if ($null -eq $submitNode) {
+        $submitNode = Get-VisibleUiNode -ClassName 'android.widget.Button' -Text '인증'
+    }
+    if ($null -eq $pinNode -or $null -eq $submitNode) {
+        throw '현재 화면은 관리자 PIN 입력 화면이 아닙니다.'
+    }
+    if ($submitNode.GetAttribute('enabled') -ne 'true') {
+        throw '관리자 인증 버튼이 아직 활성화되지 않았습니다.'
+    }
+    $pinCenter = Get-UiNodeCenter -Node $pinNode
+    $submitCenter = Get-UiNodeCenter -Node $submitNode
 
     if ($useStoredPin) {
         [byte[]]$pinBytes = Unprotect-MatholicAdminPin `
@@ -82,8 +173,7 @@ try {
 
     # Keep the PIN out of process arguments and logs. Commands travel only through
     # the already-authorized ADB shell stdin, one key event at a time.
-    $shell.StandardInput.WriteLine('input keyevent KEYCODE_BACK')
-    $shell.StandardInput.WriteLine('input tap 1000 625')
+    $shell.StandardInput.WriteLine("input tap $($pinCenter.X) $($pinCenter.Y)")
     $shell.StandardInput.WriteLine('input keyevent KEYCODE_MOVE_END')
     1..12 | ForEach-Object { $shell.StandardInput.WriteLine('input keyevent KEYCODE_DEL') }
     foreach ($digitByte in $pinBytes) {
@@ -93,7 +183,7 @@ try {
     $shell.StandardInput.WriteLine('sleep 0.2')
     $shell.StandardInput.WriteLine('input keyevent KEYCODE_BACK')
     $shell.StandardInput.WriteLine('sleep 0.2')
-    $shell.StandardInput.WriteLine('input tap 1000 772')
+    $shell.StandardInput.WriteLine("input tap $($submitCenter.X) $($submitCenter.Y)")
     $shell.StandardInput.WriteLine('exit')
     $shell.StandardInput.Close()
     if (-not $shell.WaitForExit(10000)) {
@@ -104,7 +194,6 @@ try {
         $errorText = $shell.StandardError.ReadToEnd().Trim()
         throw "ADB PIN 전송이 실패했습니다. $errorText"
     }
-
     Write-Host ''
     Write-Host 'PIN을 A 기기로 전송했습니다.' -ForegroundColor Green
     if ($useStoredPin) {
