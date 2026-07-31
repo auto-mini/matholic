@@ -6016,8 +6016,12 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 일회용 학생의 비밀번호 변경·비활성화에 실행취소가 없는 것: PASS
 - 짧은 확인음: A의 알림·벨소리 음량을 켠 뒤 크기·길이 PASS
 - 오른손 키패드 프리셋 저장: PASS
+- `릴리스 테스트` 반 Web 검사 후 안전 시작과 `QR_READY`: PASS
+- S1 완료 직후 ADB:
+  - Kiosk MainActivity 전경·resumed: PASS
+  - Lock Task `LOCKED`: PASS
+  - Web private 진단 이벤트와 Matholic 관련 crash: 없음
 - 아직 확인하지 않은 항목:
-  - T1 수업 시작과 최종 `QR_READY`
   - CSV 변경 학생 카드의 `출력 필요`
   - 기본 피드백값과 QR·완료·오류별 실제 피드백
 - 현재 private 진단에는 DHCP 복구의 `PC_ENDPOINT_RECOVERED`만 있으며,
