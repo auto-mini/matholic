@@ -2420,6 +2420,9 @@ class MainActivity : Activity() {
         ignoreWebViewCleanupFailure { activeWebView.clearHistory() }
         ignoreWebViewCleanupFailure { activeWebView.clearCache(true) }
         ignoreWebViewCleanupFailure { activeWebView.clearSslPreferences() }
+        ignoreWebViewCleanupFailure {
+            (activeWebView.parent as? ViewGroup)?.removeView(activeWebView)
+        }
         ignoreWebViewCleanupFailure { activeWebView.removeAllViews() }
         ignoreWebViewCleanupFailure { activeWebView.destroy() }
     }

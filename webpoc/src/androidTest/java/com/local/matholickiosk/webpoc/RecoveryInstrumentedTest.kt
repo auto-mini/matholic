@@ -564,12 +564,12 @@ class RecoveryInstrumentedTest {
                 assertTrue(runCatching { cleanup.invoke(activity, replacement) }.isSuccess)
                 assertTrue(replacement.blankLoadAttempted)
                 assertEquals(1, replacement.destroyCalls)
+                assertNull(replacement.parent)
 
                 MainActivity::class.java.getDeclaredField("webViewReference").apply {
                     isAccessible = true
                     set(activity, null)
                 }
-                (replacement.parent as? FrameLayout)?.removeView(replacement)
             }
         }
     }
