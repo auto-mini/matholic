@@ -335,6 +335,73 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceMakesObjectiveChoicesLargeAndWrapSafe() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main style="width:220px">
+                <div class="ant-radio-group" id="choices">
+                  <label class="ant-radio-button-wrapper" tabindex="0">1</label>
+                  <label class="ant-radio-button-wrapper">2</label>
+                  <label class="ant-radio-button-wrapper">3</label>
+                  <label class="ant-radio-button-wrapper">4</label>
+                  <label class="ant-radio-button-wrapper">5</label>
+                </div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const group = document.getElementById('choices');
+                  const choice = group.firstElementChild;
+                  const groupStyle = getComputedStyle(group);
+                  const choiceStyle = getComputedStyle(choice);
+                  choice.classList.add('ant-radio-button-wrapper-checked');
+                  const selectedStyle = getComputedStyle(choice);
+                  const selectedBackground = selectedStyle.backgroundColor;
+                  const selectedColor = selectedStyle.color;
+                  choice.classList.remove('ant-radio-button-wrapper-checked');
+                  choice.focus();
+                  const clearedStyle = getComputedStyle(choice);
+                  return JSON.stringify({
+                    display: groupStyle.display,
+                    wrap: groupStyle.flexWrap,
+                    groupWidth: group.getBoundingClientRect().width,
+                    groupHeight: group.getBoundingClientRect().height,
+                    choiceWidth: choice.getBoundingClientRect().width,
+                    choiceHeight: choice.getBoundingClientRect().height,
+                    radius: choiceStyle.borderRadius,
+                    selectedBackground,
+                    selectedColor,
+                    clearedBackground: clearedStyle.backgroundColor,
+                    clearedColor: clearedStyle.color,
+                    separatorHidden:
+                      getComputedStyle(choice, '::before').display === 'none'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("flex", proof.getString("display"))
+            assertEquals("wrap", proof.getString("wrap"))
+            assertTrue(proof.getDouble("choiceWidth") >= 64.0)
+            assertTrue(proof.getDouble("choiceHeight") >= 56.0)
+            assertTrue(proof.getDouble("groupWidth") <= 220.0)
+            assertTrue(proof.getDouble("groupHeight") > proof.getDouble("choiceHeight"))
+            assertEquals("12px", proof.getString("radius"))
+            assertEquals("rgb(21, 101, 192)", proof.getString("selectedBackground"))
+            assertEquals("rgb(255, 255, 255)", proof.getString("selectedColor"))
+            assertEquals("rgb(255, 255, 255)", proof.getString("clearedBackground"))
+            assertEquals("rgb(16, 42, 67)", proof.getString("clearedColor"))
+            assertTrue(proof.getBoolean("separatorHidden"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceMovesProblemSelectorAndEnlargesUnlabelledIconButtons() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

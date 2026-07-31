@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.6"
+    const val CONTRACT_VERSION = "web-2026-08-01.8"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -510,6 +510,46 @@ object WebDomScripts {
               font-size: 18px !important;
               line-height: 1.25 !important;
               touch-action: manipulation !important;
+            }
+            .ant-radio-group:has(.ant-radio-button-wrapper) {
+              display: flex !important;
+              flex-wrap: wrap !important;
+              align-items: stretch !important;
+              gap: 8px !important;
+              width: 100% !important;
+              max-width: 100% !important;
+            }
+            .ant-radio-group:has(.ant-radio-button-wrapper)
+              .ant-radio-button-wrapper {
+              display: inline-flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              min-width: 64px !important;
+              min-height: 56px !important;
+              height: auto !important;
+              margin-left: 0 !important;
+              padding: 8px 16px !important;
+              border: 2px solid #9fb3c8 !important;
+              border-radius: 12px !important;
+              background: #fff !important;
+              color: #102a43 !important;
+              font-size: 20px !important;
+              font-weight: 700 !important;
+              line-height: 1 !important;
+              text-align: center !important;
+              touch-action: manipulation !important;
+            }
+            .ant-radio-group:has(.ant-radio-button-wrapper)
+              .ant-radio-button-wrapper::before {
+              display: none !important;
+            }
+            .ant-radio-group:has(.ant-radio-button-wrapper)
+              .ant-radio-button-wrapper-checked:not(
+                .ant-radio-button-wrapper-disabled
+              ) {
+              border-color: #1565c0 !important;
+              background: #1565c0 !important;
+              color: #fff !important;
             }
             input, textarea, [contenteditable="true"] {
               min-height: 48px !important;
