@@ -19,8 +19,8 @@ $credentialPath = Join-Path $SigningRoot 'matholic-kiosk-release.credential.clix
 $artifactRoot = Join-Path $projectRoot 'artifacts'
 $kioskApk = Join-Path $buildRoot 'kiosk\outputs\apk\release\kiosk-release.apk'
 $webPocApk = Join-Path $buildRoot 'webpoc\outputs\apk\release\webpoc-release.apk'
-$kioskArtifact = Join-Path $artifactRoot 'matholic-kiosk-0.6.0-rc47-release.apk'
-$webPocArtifact = Join-Path $artifactRoot 'matholic-webpoc-0.4.0-rc68-release.apk'
+$kioskArtifact = Join-Path $artifactRoot 'matholic-kiosk-0.6.0-rc48-release.apk'
+$webPocArtifact = Join-Path $artifactRoot 'matholic-webpoc-0.4.0-rc69-release.apk'
 $checksumFile = Join-Path $artifactRoot 'RELEASE_SHA256SUMS.txt'
 
 foreach ($path in @($javaRoot, $sdkRoot, $keystorePath, $credentialPath)) {
