@@ -739,6 +739,108 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testProblemMapUsesAntSelectorForDirectJump() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex;width:330px">
+                  <button id="previous" aria-label="이전 문제"
+                    onclick="window.directionClicks += 1">&lt;</button>
+                  <div id="problem-number">
+                    <div class="ant-select">
+                      <div id="problem-selector" class="ant-select-selector"
+                           role="combobox">
+                        <span id="selected-problem"
+                          class="ant-select-selection-item">1</span>
+                      </div>
+                    </div>
+                    <span>/ 5</span>
+                  </div>
+                  <button id="next" aria-label="다음 문제"
+                    onclick="window.directionClicks += 1">&gt;</button>
+                </div>
+                <div id="answer-input-form-1"><input value="7"></div>
+                <script>
+                  window.directionClicks = 0;
+                  window.directSelections = 0;
+                  window.hiddenSelections = 0;
+                  const selector = document.getElementById('problem-selector');
+                  selector['__reactProps${'$'}fixture'] = {
+                    onMouseDown: function() {
+                      if (document.querySelector('.rc-virtual-list-holder')) return;
+                      const hiddenOption = document.createElement('div');
+                      hiddenOption.setAttribute('role', 'option');
+                      hiddenOption.style.width = '0';
+                      hiddenOption.style.height = '30px';
+                      hiddenOption.textContent = '5';
+                      hiddenOption.onclick = function() {
+                        window.hiddenSelections += 1;
+                      };
+                      document.body.appendChild(hiddenOption);
+                      const holder = document.createElement('div');
+                      holder.className = 'rc-virtual-list-holder';
+                      holder.style.width = '120px';
+                      holder.style.height = '200px';
+                      for (let number = 1; number <= 5; number += 1) {
+                        const option = document.createElement('div');
+                        option.className = 'ant-select-item-option';
+                        option.style.width = '100px';
+                        option.style.height = '30px';
+                        option.textContent = String(number);
+                        option.onclick = function() {
+                          document.getElementById('selected-problem').textContent =
+                            String(number);
+                          window.directSelections += 1;
+                          holder.remove();
+                        };
+                        holder.appendChild(option);
+                      }
+                      document.body.appendChild(holder);
+                    }
+                  };
+                </script>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.querySelectorAll(
+                    '.matholic-kiosk-problem-map-grid button'
+                  )[4].click();
+                  return JSON.stringify({ started: true });
+                })()
+                """.trimIndent(),
+            )
+            Thread.sleep(1_000)
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  selected: document.getElementById('selected-problem').textContent,
+                  directSelections: window.directSelections,
+                  hiddenSelections: window.hiddenSelections,
+                  directionClicks: window.directionClicks,
+                  pendingTarget:
+                    window.__matholicKioskProblemNavigationController.target
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("5", proof.getString("selected"))
+            assertEquals(1, proof.getInt("directSelections"))
+            assertEquals(0, proof.getInt("hiddenSelections"))
+            assertEquals(0, proof.getInt("directionClicks"))
+            assertEquals(0, proof.getInt("pendingTarget"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceShowsWorkingInFlowProblemStateMap() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

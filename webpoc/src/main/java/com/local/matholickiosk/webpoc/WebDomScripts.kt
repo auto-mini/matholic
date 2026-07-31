@@ -1651,15 +1651,62 @@ object WebDomScripts {
                 '.ant-select-selector,[role="combobox"]'
               ) || liveSelectorRoot;
               if (!surface) return false;
-              surface?.click?.();
-              setTimeout(() => {
+              const reactPropsKey = Object.keys(surface).find(key =>
+                key.startsWith('__reactProps')
+              );
+              const reactProps = reactPropsKey ? surface[reactPropsKey] : null;
+              if (
+                typeof reactProps?.onMouseDown !== 'function' &&
+                typeof reactProps?.onClick !== 'function'
+              ) return false;
+              const syntheticPointer = {
+                button: 0,
+                target: surface,
+                currentTarget: surface,
+                preventDefault() {},
+                stopPropagation() {}
+              };
+              try {
+                reactProps.onMouseDown?.(syntheticPointer);
+                reactProps.onClick?.(syntheticPointer);
+              } catch (_) {
+                return false;
+              }
+              const clickMatchingOption = () => {
                 const option = Array.from(document.querySelectorAll(
                   '.ant-select-item-option,[role="option"]'
-                )).filter(visible).find(candidate =>
+                )).filter(candidate => {
+                  if (!visible(candidate)) return false;
+                  const rect = candidate.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                }).find(candidate =>
                   Number(normalize(candidate.textContent)) === number
                 );
-                option?.click?.();
-              }, 0);
+                if (!option) return false;
+                option.click();
+                return true;
+              };
+              const chooseProblemOption = attempt => {
+                if (clickMatchingOption()) return;
+                const virtualHolder = Array.from(
+                  document.querySelectorAll('.rc-virtual-list-holder')
+                ).find(visible);
+                if (virtualHolder) {
+                  const maxScroll = Math.max(
+                    0,
+                    virtualHolder.scrollHeight - virtualHolder.clientHeight
+                  );
+                  virtualHolder.scrollTop = totalProblems > 1 ?
+                    maxScroll * (number - 1) / (totalProblems - 1) : 0;
+                  virtualHolder.dispatchEvent(
+                    new Event('scroll', { bubbles: true })
+                  );
+                }
+                if (attempt < 6) {
+                  setTimeout(() => chooseProblemOption(attempt + 1), 50);
+                }
+              };
+              setTimeout(() => chooseProblemOption(0), 0);
               return true;
             };
             const problemNavigationController =
@@ -1785,6 +1832,10 @@ object WebDomScripts {
                 totalProblems,
                 number
               );
+              if (selectProblemDirectly(number)) {
+                scheduleProblemNavigation(800);
+                return;
+              }
               continueProblemNavigation();
             };
             const navigateToUnanswered = direction => {
