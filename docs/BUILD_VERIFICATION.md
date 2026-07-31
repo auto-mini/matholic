@@ -6088,3 +6088,52 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   초기화됐다. 제한시간 안에 두 번 눌렀을 때만 입력값이 지워졌다.
 - 답안은 제출하지 않고 비운 뒤 목록으로 복귀해 정상 로그아웃했다. A는
   `QR_READY`이며 이번 조작에서 잠금·오류 코드·ANR·crash는 발생하지 않았다.
+
+## Web POC RC102~RC105 주관식 전환 잔상 제거 — 2026-08-01
+
+### 프레임 단위 재현과 수정
+
+- 정확히 검증된 표시명 `테스트` QR의 10문항 과제만 사용했다.
+- RC102 화면을 약 38fps로 녹화해 객관식에서 주관식으로 바뀔 때 매쓰홀릭의
+  기본 입력 placeholder와 `입력기` 버튼이 약 0.15초 먼저 나타나는 현상을
+  재현했다. 정지 화면만으로는 보이지 않던 실제 잔상이었다.
+- RC103은 답안 영역을 수식 편집기 준비 전까지 가리는 방식으로 잔상을 한
+  프레임, 약 0.025초로 줄였으나 완전히 없애지 못해 채택하지 않았다.
+- RC104는 기본 입력 요소를 최초 paint 전부터 `visibility:hidden`으로
+  가렸다. 잔상은 없어졌지만 매쓰홀릭의 수식 모드 전환 코드도 그 요소를
+  비가시 상태로 판단해 수식 편집기를 만들지 못하는 회귀가 A에서 확인되어
+  채택하지 않았다.
+- RC105는 기본 입력 요소의 레이아웃과 자동 전환 대상 판정은 유지하면서
+  `opacity:0`과 입력 차단만 적용한다. 수식 편집기가 준비되지 않는 경우에는
+  500ms 뒤 기존 기본 입력기를 다시 사용할 수 있게 하는 fallback도 유지했다.
+
+### 자동·릴리스 검증
+
+- Web JVM 단위시험과 Android instrumentation test 소스 컴파일 30 tasks:
+  PASS
+- 정식 release 빌드 158 tasks, Web/Kiosk JVM 시험, release lint, 두 release
+  APK assemble, 저장 전·후 버전·비디버그·서명 검증: PASS
+- Android instrumentation test APK를 A에서 실행하는 검증은 release 앱을
+  debug signer 앱으로 교체할 수 있어 수행하지 않았다. 해당 fixture는
+  컴파일했으며 실제 정상 경로는 아래 A 실기 검증으로 확인했다.
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존 설치와 실기 결과
+
+- Web POC `0.4.0-rc105`/code 122를 동일 signer의 상위 버전으로 A에
+  보존 설치했다.
+- artifact와 A에서 다시 추출한 설치 APK SHA-256은 모두
+  `247E74C776A0826C29D7DF0C7F1F688813CEF2291131D03912C19777E0D7D6E9`로
+  일치했다.
+- Web UID `10293`, firstInstallTime `2026-07-28 13:12:16`, Kiosk Device
+  Owner와 Lock Task `LOCKED`를 유지했다.
+- RC105에서 36.491fps, 203프레임, 5.563초를 녹화했다. 1→2→3→4번 이동과
+  3.206~3.645초의 객관식→주관식 전환 전 프레임을 확인했으며 기본 입력
+  placeholder와 `입력기` 버튼의 선행 노출은 0회였다.
+- 최종 MathQuill 편집기가 정상 생성됐고 직접 눌렀을 때 자체 숫자·수식·이동
+  키패드가 열렸다. 숫자 `1` 입력으로 답안 현황이 2/10→3/10이 된 뒤 한 칸
+  삭제로 빈 값과 2/10을 복원했다.
+- 답안은 제출하지 않고 `채점 끝내기`로 정상 종료했으며 A는 `QR_READY`로
+  복귀했다. 관련 fatal exception, ANR, Web POC process crash는 없었다.
+- 원격 점검과 CDP 전달은 종료했고 기기의 임시 screenrecord도 삭제했다.
