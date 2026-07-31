@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.2"
+    const val CONTRACT_VERSION = "web-2026-08-01.4"
 
     val sanitizeLoginAndFingerprint: String =
         """
