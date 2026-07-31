@@ -6089,7 +6089,7 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 답안은 제출하지 않고 비운 뒤 목록으로 복귀해 정상 로그아웃했다. A는
   `QR_READY`이며 이번 조작에서 잠금·오류 코드·ANR·crash는 발생하지 않았다.
 
-## Web POC RC102~RC105 주관식 전환 잔상 제거 — 2026-08-01
+## Web POC RC102~RC107 주관식 전환 잔상 제거 — 2026-08-01
 
 ### 프레임 단위 재현과 수정
 
@@ -6137,3 +6137,43 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 답안은 제출하지 않고 `채점 끝내기`로 정상 종료했으며 A는 `QR_READY`로
   복귀했다. 관련 fatal exception, ANR, Web POC process crash는 없었다.
 - 원격 점검과 CDP 전달은 종료했고 기기의 임시 screenrecord도 삭제했다.
+
+### RC106 범위 축소 회귀와 RC107 최종 보강
+
+- RC105의 입력 메뉴 정적 selector가 페이지 상위 `div`까지 일치할 수 있어
+  RC106에서 답안 폼 ID 내부로만 제한했다. 그러나 실제 최초 입력 DOM에는
+  그 ID가 없었고, 36.20fps 녹화의 3.343초 한 프레임에서 `입력기` 버튼이
+  다시 나타났다. RC106은 채택하지 않았다.
+- 새 세션의 1번 문제에서 CDP MutationObserver를 먼저 설치한 뒤 4번
+  주관식까지 이동해 최초 DOM을 캡처했다. 실제 구조는 Ant 입력 wrapper와
+  `입력기` 버튼이 같은 `div`의 직계 자식인 형태였다.
+- RC107은 이 공통 부모 한 단계만 일치시키도록 selector를 제한했다. 페이지
+  전체 드롭다운에는 번지지 않으면서 초기 `입력기`만 paint 전에 가린다.
+- instrumentation fixture도 실제 Ant 입력 wrapper·형제 버튼 구조로 바꾸고,
+  입력칸은 자동 수식 전환 대상 판정이 가능하며 버튼은 opacity 0인지 함께
+  검사한다.
+
+### RC107 자동·A 실기 검증
+
+- Web JVM 단위시험과 Android instrumentation test 소스 컴파일 30 tasks:
+  PASS
+- 정식 release 빌드 158 tasks, Web/Kiosk JVM 시험, release lint, 두 release
+  APK assemble, 저장 전·후 버전·비디버그·서명 검증: PASS
+- Web POC `0.4.0-rc107`/code 124를 동일 signer의 상위 버전으로 A에
+  보존 설치했다.
+- artifact와 A에서 다시 추출한 설치 APK SHA-256은 모두
+  `A7E97C00A851FF925F864B220236150CCA27A72DE7C21C2C18D2AC1F08690397`로
+  일치했다.
+- Web UID `10293`, firstInstallTime `2026-07-28 13:12:16`, Kiosk Device
+  Owner와 Lock Task `LOCKED`를 유지했다.
+- RC107에서 39.768fps, 216프레임, 5.431초를 녹화해 1→2→3→4번 이동 전
+  프레임을 확인했다. 기본 입력 placeholder와 `입력기`의 선행 노출은 0회였고
+  최종 수식 편집기와 자체 키패드가 정상 생성됐다.
+- 정확한 `테스트` 계정의 10문항 현황판에서 번호 4 직접 이동, 4→5 다음
+  미입력, 5→4 이전 미입력을 확인했다. 25문항 현황판에서는 1~25 전체 표시,
+  25번 직접 이동, 24↔25 미입력 이동과 25→1 순환 이동을 확인했다.
+- 번호·답변·모름·현재 문제 상태는 서로 구분됐고 현황판이 답안 제출이나
+  `채점 끝내기`를 가리지 않았다.
+- 답안은 제출하거나 변경하지 않고 종료했다. 원격 점검 만료 뒤 QR 복귀
+  확인을 위해 5분만 다시 열었다가 즉시 비활성화했으며 최종 상태는
+  `QR_READY`다. 관련 fatal exception, ANR과 Web POC process crash는 없었다.
