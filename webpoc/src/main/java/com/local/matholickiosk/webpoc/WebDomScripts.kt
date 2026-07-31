@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.14"
+    const val CONTRACT_VERSION = "web-2026-08-01.15"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1399,12 +1399,12 @@ object WebDomScripts {
               });
               const clippedImage = problemImages
                 .filter(image =>
-                  image.getBoundingClientRect().bottom >
+                  image.getBoundingClientRect().bottom + root.scrollTop >
                     window.innerHeight + 16
                 )
                 .sort((left, right) =>
-                  right.getBoundingClientRect().bottom -
-                    left.getBoundingClientRect().bottom
+                  right.getBoundingClientRect().bottom + root.scrollTop -
+                    (left.getBoundingClientRect().bottom + root.scrollTop)
                 )[0] || null;
               if (!clippedImage) {
                 delete root.dataset.matholicKioskLongPageScroll;

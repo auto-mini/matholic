@@ -3565,6 +3565,24 @@ class DomContractInstrumentedTest {
             assertTrue(scrollable.getBoolean("controllerExists"))
             assertTrue(scrollable.getInt("scrollTop") > 0)
 
+            evaluate(webView, WebDomScripts.applyStudentExperience)
+            val stableAtBottom = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('root');
+                  return JSON.stringify({
+                    marked: root.dataset.matholicKioskLongPageScroll === 'true',
+                    extra: Number(root.dataset.matholicKioskLongPageExtra || '0'),
+                    scrollTop: root.scrollTop
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(stableAtBottom.getBoolean("marked"))
+            assertEquals(scrollable.getInt("extra"), stableAtBottom.getInt("extra"))
+            assertTrue(stableAtBottom.getInt("scrollTop") > 0)
+
             val drag = evaluate(
                 webView,
                 """
