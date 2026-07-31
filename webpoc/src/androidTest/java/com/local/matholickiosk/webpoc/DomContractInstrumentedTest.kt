@@ -1189,6 +1189,10 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('late-input-menu')).display !== 'none',
                   inputMenuPrehidden:
                     getComputedStyle(document.getElementById('late-input-menu')).visibility === 'hidden',
+                  answerScopePrimed:
+                    getComputedStyle(document.getElementById('answer-input-form-late')).opacity === '0',
+                  answerScopeBlocked:
+                    getComputedStyle(document.getElementById('answer-input-form-late')).pointerEvents === 'none',
                   toolbarPrehidden: Array.from(
                     document.querySelectorAll('#late-math-toolbar button')
                   ).every(button => getComputedStyle(button).visibility === 'hidden'),
@@ -1207,6 +1211,8 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("chromeHidden"))
             assertTrue(lateProof.getBoolean("inputMenuVisible"))
             assertTrue(lateProof.getBoolean("inputMenuPrehidden"))
+            assertTrue(lateProof.getBoolean("answerScopePrimed"))
+            assertTrue(lateProof.getBoolean("answerScopeBlocked"))
             assertTrue(lateProof.getBoolean("toolbarPrehidden"))
             assertTrue(lateProof.getBoolean("mathClicked"))
             assertTrue(lateProof.getBoolean("basicVisible"))
@@ -1245,6 +1251,27 @@ class DomContractInstrumentedTest {
             assertTrue(resurfacedProof.getBoolean("reportHidden"))
             assertTrue(resurfacedProof.getBoolean("mathTooltipHidden"))
             assertTrue(resurfacedProof.getBoolean("directHandwritingHidden"))
+            Thread.sleep(500)
+            val fallbackProof = evaluate(
+                webView,
+                """
+                (() => {
+                  const scope = document.getElementById('answer-input-form-late');
+                  const style = getComputedStyle(scope);
+                  return JSON.stringify({
+                    visible: style.opacity !== '0',
+                    interactive: style.pointerEvents !== 'none',
+                    ariaRestored: !scope.hasAttribute('aria-hidden'),
+                    markerRemoved:
+                      scope.dataset.matholicKioskAnswerScopePrimed !== 'true'
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(fallbackProof.getBoolean("visible"))
+            assertTrue(fallbackProof.getBoolean("interactive"))
+            assertTrue(fallbackProof.getBoolean("ariaRestored"))
+            assertTrue(fallbackProof.getBoolean("markerRemoved"))
         }
     }
 

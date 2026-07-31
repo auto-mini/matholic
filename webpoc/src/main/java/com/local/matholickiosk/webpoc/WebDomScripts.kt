@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.17"
+    const val CONTRACT_VERSION = "web-2026-08-01.18"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -2488,9 +2488,94 @@ object WebDomScripts {
               '유형동영상', '유형 동영상', '문항 동영상', '대표 유형 동영상'
             ]);
 
+            const mathAnswerScopeForControl = control => {
+              const identified = control?.closest?.(
+                '[id^="answer-input-form-"]'
+              );
+              if (identified) return identified;
+              let scope = control?.parentElement || null;
+              const fallback = scope;
+              for (let depth = 0; scope && depth < 5; depth += 1) {
+                if (
+                  scope === document.body ||
+                  scope === document.documentElement
+                ) break;
+                if (scope.querySelector(
+                  'input[placeholder*="주관식 답"],' +
+                  '.mq-editable-field,.mq-math-mode,[class*="mathquill"]'
+                )) return scope;
+                scope = scope.parentElement;
+              }
+              return fallback;
+            };
+            const primeMathAnswerScope = scope => {
+              if (
+                !scope ||
+                scope.dataset.matholicKioskAnswerScopePrimed === 'true'
+              ) return false;
+              scope.dataset.matholicKioskAnswerScopePrimed = 'true';
+              scope.dataset.matholicKioskPreviousAnswerOpacity =
+                scope.style.getPropertyValue('opacity');
+              scope.dataset.matholicKioskPreviousAnswerOpacityPriority =
+                scope.style.getPropertyPriority('opacity');
+              scope.dataset.matholicKioskPreviousAnswerPointerEvents =
+                scope.style.getPropertyValue('pointer-events');
+              scope.dataset.matholicKioskPreviousAnswerPointerPriority =
+                scope.style.getPropertyPriority('pointer-events');
+              scope.dataset.matholicKioskPreviousAnswerAriaHidden =
+                scope.hasAttribute('aria-hidden') ?
+                  scope.getAttribute('aria-hidden') || '' : '__missing__';
+              important(scope, 'opacity', '0');
+              important(scope, 'pointer-events', 'none');
+              scope.setAttribute('aria-hidden', 'true');
+              return true;
+            };
+            const restorePrimedMathAnswerScope = scope => {
+              if (
+                !scope ||
+                scope.dataset.matholicKioskAnswerScopePrimed !== 'true'
+              ) return false;
+              const restoreStyle = (
+                property,
+                valueKey,
+                priorityKey
+              ) => {
+                const value = scope.dataset[valueKey] || '';
+                const priority = scope.dataset[priorityKey] || '';
+                if (value) {
+                  scope.style.setProperty(property, value, priority);
+                } else {
+                  scope.style.removeProperty(property);
+                }
+                delete scope.dataset[valueKey];
+                delete scope.dataset[priorityKey];
+              };
+              restoreStyle(
+                'opacity',
+                'matholicKioskPreviousAnswerOpacity',
+                'matholicKioskPreviousAnswerOpacityPriority'
+              );
+              restoreStyle(
+                'pointer-events',
+                'matholicKioskPreviousAnswerPointerEvents',
+                'matholicKioskPreviousAnswerPointerPriority'
+              );
+              const previousAriaHidden =
+                scope.dataset.matholicKioskPreviousAnswerAriaHidden;
+              if (previousAriaHidden === '__missing__') {
+                scope.removeAttribute('aria-hidden');
+              } else if (previousAriaHidden !== undefined) {
+                scope.setAttribute('aria-hidden', previousAriaHidden);
+              }
+              delete scope.dataset.matholicKioskPreviousAnswerAriaHidden;
+              delete scope.dataset.matholicKioskAnswerScopePrimed;
+              return true;
+            };
+
             const primeAnswerModeChrome = (root = document) => {
               let hidden = 0;
               let selectedCount = 0;
+              let primedScopeCount = 0;
               const toolbarLabels = new Set(['루트', '분수', '파이']);
               const isInputMenuText = text =>
                 text === '입력기' || text.startsWith('입력기 ');
@@ -2555,6 +2640,13 @@ object WebDomScripts {
                 }
                 return false;
               });
+              Array.from(new Set(
+                inputMenuControls
+                  .map(mathAnswerScopeForControl)
+                  .filter(Boolean)
+              )).forEach(scope => {
+                if (primeMathAnswerScope(scope)) primedScopeCount += 1;
+              });
               modeControls
                 .filter(element =>
                   normalize(element.textContent) === '수식' &&
@@ -2596,7 +2688,7 @@ object WebDomScripts {
                     hidden += 1;
                   }
                 });
-              if (hidden > 0) {
+              if (hidden > 0 || primedScopeCount > 0) {
                 setTimeout(() => {
                   const editorReady = Array.from(
                     document.querySelectorAll('.mq-editable-field')
@@ -2629,9 +2721,12 @@ object WebDomScripts {
                     delete element.dataset
                       .matholicKioskPreviousVisibilityPriority;
                   });
+                  document.querySelectorAll(
+                    '[data-matholic-kiosk-answer-scope-primed="true"]'
+                  ).forEach(restorePrimedMathAnswerScope);
                 }, 500);
               }
-              return { hidden, selectedCount };
+              return { hidden, selectedCount, primedScopeCount };
             };
 
             const enforceMathAnswerMode = () => {
@@ -3334,6 +3429,7 @@ object WebDomScripts {
                   editorReady && prepareMathEditor(answerScope);
                 restoreMathInputInteraction(answerScope);
                 if (editorPrepared) {
+                  restorePrimedMathAnswerScope(answerScope);
                   readyCount += 1;
                 } else {
                   pendingCount += 1;
@@ -3355,6 +3451,7 @@ object WebDomScripts {
                 if (!answerScope || observedScopes.has(answerScope)) return;
                 observedScopes.add(answerScope);
                 if (prepareMathEditor(answerScope)) {
+                  restorePrimedMathAnswerScope(answerScope);
                   readyCount += 1;
                 } else {
                   pendingCount += 1;
@@ -3367,6 +3464,7 @@ object WebDomScripts {
                 if (observedScopes.has(scope)) return;
                 if (mathEditorReady(scope)) {
                   if (prepareMathEditor(scope)) {
+                    restorePrimedMathAnswerScope(scope);
                     readyCount += 1;
                   } else {
                     pendingCount += 1;
