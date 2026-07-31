@@ -1274,7 +1274,10 @@ class MainActivity : Activity() {
                 val path = result.optString("path")
                 updateStudentChrome(path)
                 if (studentContentRevealPending) {
-                    if (studentPathMatchesRevealTarget(path, pendingStudentRevealPath)) {
+                    if (
+                        result.optBoolean("contentReady") &&
+                        studentPathMatchesRevealTarget(path, pendingStudentRevealPath)
+                    ) {
                         studentContentRevealPasses += 1
                         if (studentContentRevealPasses >= STUDENT_REVEAL_STABLE_PASSES) {
                             val activeUrl = webView.url

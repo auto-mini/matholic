@@ -46,6 +46,16 @@ class WebDomScriptsTest {
         assertTrue(script.contains("전체답안"))
         assertFalse(script.contains("elementFromPoint"))
         assertTrue(script.contains("MutationObserver"))
+        assertTrue(script.contains("contentReady"))
+        assertTrue(script.contains("analysisReady"))
+        assertTrue(script.contains("mutationMaintenanceTimer"))
+        assertTrue(script.contains("record.addedNodes.length"))
+        assertTrue(script.contains("record.removedNodes.length"))
+        assertTrue(script.contains("clearTimeout(mutationMaintenanceTimer)"))
+        assertTrue(script.contains(
+            "attributeFilter: ['class', 'style', 'hidden']",
+        ))
+        assertFalse(script.contains("characterData: true"))
         assertTrue(script.contains(".ant-tooltip"))
         assertTrue(script.contains("hideLateStudentContent"))
         assertTrue(script.contains(".ant-modal-wrap"))

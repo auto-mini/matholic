@@ -484,6 +484,25 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceDoesNotRevealLoadingLearningShell() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div role="progressbar">로딩 중</div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertTrue(result.getBoolean("ok"))
+            assertTrue(result.getBoolean("learningPage"))
+            assertFalse(result.getBoolean("contentReady"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceHidesGlobalChromeAndUnwantedAnswerControls() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
@@ -543,6 +562,7 @@ class DomContractInstrumentedTest {
         ) { webView ->
             val result = evaluate(webView, WebDomScripts.applyStudentExperience)
             assertTrue(result.getBoolean("ok"))
+            assertTrue(result.getBoolean("contentReady"))
             val proof = evaluate(
                 webView,
                 """

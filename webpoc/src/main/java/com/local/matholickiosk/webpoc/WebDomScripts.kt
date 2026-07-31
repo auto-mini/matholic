@@ -3032,11 +3032,27 @@ object WebDomScripts {
               window.__matholicKioskExperienceViewportGuard = true;
             }
             if (!window.__matholicKioskExperienceObserver && document.body) {
-              const observer = new MutationObserver(maintainLateStudentControls);
+              let mutationMaintenanceTimer = 0;
+              const observer = new MutationObserver(records => {
+                const relevantChange = records.some(record =>
+                  (
+                    record.type === 'childList' &&
+                    (record.addedNodes.length > 0 || record.removedNodes.length > 0)
+                  ) ||
+                  record.type === 'attributes'
+                );
+                if (!relevantChange) return;
+                if (mutationMaintenanceTimer) {
+                  clearTimeout(mutationMaintenanceTimer);
+                }
+                mutationMaintenanceTimer = setTimeout(() => {
+                  mutationMaintenanceTimer = 0;
+                  maintainLateStudentControls();
+                }, 50);
+              });
               observer.observe(document.body, {
                 childList: true,
                 subtree: true,
-                characterData: true,
                 attributes: true,
                 attributeFilter: ['class', 'style', 'hidden']
               });
@@ -3079,10 +3095,20 @@ object WebDomScripts {
             window.__matholicKioskNavigationGuard = true;
           }
 
+          const analysisReady = Array.from(
+            document.querySelectorAll('h1,h2,h3,h4,[role="heading"]')
+          ).some(element =>
+            visible(element) && normalize(element.textContent).includes('종합분석')
+          );
+          const contentReady = !isLearning ||
+            enhancedButtons > 0 ||
+            subjectiveTouchTargets > 0 ||
+            problemNavigationEnhancements > 0 ||
+            analysisReady;
           return JSON.stringify({
             version, ok: true, path,
             listPage: isWorkbook || isDiagnostic,
-            learningPage: isLearning,
+            learningPage: isLearning, contentReady,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
             mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets, problemNavigationEnhancements,
