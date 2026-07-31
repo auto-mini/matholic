@@ -382,28 +382,35 @@ class DomContractInstrumentedTest {
                       number.classList.contains('matholic-kiosk-problem-number'),
                     numberPosition: numberStyle.position,
                     numberTop: numberStyle.top,
+                    numberDisplayLabel:
+                      number.dataset.matholicKioskLabel,
                     numberLabel: number.getAttribute('aria-label'),
-                    selectorOpened: document.body.dataset.selectorOpened === 'yes'
+                    selectorOpened: document.body.dataset.selectorOpened === 'yes',
+                    noHorizontalOverflow:
+                      document.documentElement.scrollWidth <=
+                        document.documentElement.clientWidth
                   });
                 })()
                 """.trimIndent(),
             )
-            assertEquals("112px", proof.getString("previousWidth"))
-            assertEquals("96px", proof.getString("previousHeight"))
-            assertEquals("112px", proof.getString("nextWidth"))
-            assertEquals("96px", proof.getString("nextHeight"))
+            assertEquals("84px", proof.getString("previousWidth"))
+            assertEquals("72px", proof.getString("previousHeight"))
+            assertEquals("84px", proof.getString("nextWidth"))
+            assertEquals("72px", proof.getString("nextHeight"))
             assertEquals("이전 문제", proof.getString("previousLabel"))
             assertEquals("다음 문제", proof.getString("nextLabel"))
             assertTrue(proof.getBoolean("numberClass"))
-            assertEquals("fixed", proof.getString("numberPosition"))
-            assertEquals("68px", proof.getString("numberTop"))
+            assertEquals("relative", proof.getString("numberPosition"))
+            assertEquals("0px", proof.getString("numberTop"))
+            assertEquals("문제 4 ↓ / 10", proof.getString("numberDisplayLabel"))
             assertEquals("현재 문제 번호 선택", proof.getString("numberLabel"))
             assertTrue(proof.getBoolean("selectorOpened"))
+            assertTrue(proof.getBoolean("noHorizontalOverflow"))
         }
     }
 
     @Test
-    fun testStudentExperienceShowsProblemStateMapAndUnknownAnswerGuidance() {
+    fun testStudentExperienceShowsWorkingInFlowProblemStateMap() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
@@ -463,9 +470,18 @@ class DomContractInstrumentedTest {
                     unansweredButtonCount: unansweredButtons.length,
                     selectedAfterNextUnanswered:
                       document.getElementById('problem-selector').value,
-                    guideText: document.querySelector(
+                    guidePresent: !!document.querySelector(
                       '.matholic-kiosk-answer-guide'
-                    )?.textContent || '',
+                    ),
+                    mapPosition: getComputedStyle(map).position,
+                    mapFollowsNavigation:
+                      document.getElementById('problem-navigation')
+                        .nextElementSibling === map,
+                    numberLabel: document.getElementById('problem-number')
+                      .dataset.matholicKioskLabel,
+                    legendItemCount: map.querySelectorAll(
+                      '.matholic-kiosk-problem-map-legend > span'
+                    ).length,
                     open: map.dataset.open
                   });
                 })()
@@ -478,8 +494,61 @@ class DomContractInstrumentedTest {
             assertEquals("unknown", proof.getString("trackedUnknown"))
             assertEquals(2, proof.getInt("unansweredButtonCount"))
             assertEquals("3", proof.getString("selectedAfterNextUnanswered"))
-            assertTrue(proof.getString("guideText").contains("모름"))
+            assertFalse(proof.getBoolean("guidePresent"))
+            assertEquals("relative", proof.getString("mapPosition"))
+            assertTrue(proof.getBoolean("mapFollowsNavigation"))
+            assertEquals("문제 2 ↓ / 3", proof.getString("numberLabel"))
+            assertEquals(3, proof.getInt("legendItemCount"))
             assertEquals("false", proof.getString("open"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('problem-navigation').outerHTML = `
+                    <div id="problem-navigation-new" style="display:flex">
+                      <button aria-label="이전 문제">&lt;</button>
+                      <div id="problem-number-new">
+                        <select id="problem-selector-new">
+                          <option selected>1</option>
+                          <option>2</option>
+                          <option>3</option>
+                        </select>
+                        <span>/ 3</span>
+                      </div>
+                      <button aria-label="다음 문제">&gt;</button>
+                    </div>`;
+                  return JSON.stringify({ replaced: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val rerendered = evaluate(
+                webView,
+                """
+                (() => {
+                  const map = document.querySelector(
+                    '.matholic-kiosk-problem-map'
+                  );
+                  map.querySelectorAll(
+                    '.matholic-kiosk-problem-map-grid button'
+                  )[2].click();
+                  return JSON.stringify({
+                    selected:
+                      document.getElementById('problem-selector-new').value,
+                    mapCount: document.querySelectorAll(
+                      '.matholic-kiosk-problem-map'
+                    ).length,
+                    followsCurrentNavigation:
+                      document.getElementById('problem-navigation-new')
+                        .nextElementSibling === map
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("3", rerendered.getString("selected"))
+            assertEquals(1, rerendered.getInt("mapCount"))
+            assertTrue(rerendered.getBoolean("followsCurrentNavigation"))
         }
     }
 
@@ -2016,8 +2085,8 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getInt("focusCount") >= 12)
             assertTrue(proof.getBoolean("parentIsBody"))
             assertEquals("fixed", proof.getString("position"))
-            assertEquals(18.0, proof.getDouble("left"), 0.6)
-            assertEquals(18.0, proof.getDouble("right"), 0.6)
+            assertEquals(14.0, proof.getDouble("left"), 0.6)
+            assertEquals(218.0, proof.getDouble("right"), 0.6)
             assertEquals(12.0, proof.getDouble("bottom"), 0.6)
             assertEquals(
                 proof.getDouble("firstGap"),
