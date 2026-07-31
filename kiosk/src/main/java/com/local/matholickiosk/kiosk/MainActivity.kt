@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var selfTestButton: Button
     private lateinit var feedbackSettingsButton: Button
     private lateinit var keypadLayoutButton: Button
+    private lateinit var remoteSupportButton: Button
     private lateinit var recoverSessionButton: Button
     private lateinit var adminMessage: TextView
     private lateinit var undoAdminButton: Button
@@ -155,6 +156,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var lockTaskController: KioskLockTaskController
     private lateinit var pcPairingStore: PcPairingStore
     private lateinit var diagnosticLog: PrivateDiagnosticLog
+    private lateinit var remoteSupportStore: RemoteSupportStore
+    private lateinit var remoteSupportWindowController: RemoteSupportWindowController
     private val pcPdfSender = PcPdfSender()
     private val pcControlClient = PcControlClient()
     private val pcEndpointResolver = PcEndpointResolver()
@@ -327,6 +330,13 @@ class MainActivity : ComponentActivity() {
             WindowManager.LayoutParams.FLAG_SECURE or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
         )
+        remoteSupportStore = RemoteSupportStore(this)
+        remoteSupportWindowController = RemoteSupportWindowController(
+            activity = this,
+            handler = mainHandler,
+            store = remoteSupportStore,
+            onStateChanged = ::updateRemoteSupportButton,
+        )
         setContentView(R.layout.activity_main)
         bindViews()
         configureSensitiveViews()
@@ -345,6 +355,7 @@ class MainActivity : ComponentActivity() {
         diagnosticLog = PrivateDiagnosticLog(this)
         QrPdfExporter.cleanupExpired(this)
         configureActions()
+        remoteSupportWindowController.start()
         loadInitialState()
     }
 
@@ -379,6 +390,7 @@ class MainActivity : ComponentActivity() {
         selfTestButton = findViewById(R.id.self_test_button)
         feedbackSettingsButton = findViewById(R.id.feedback_settings_button)
         keypadLayoutButton = findViewById(R.id.keypad_layout_button)
+        remoteSupportButton = findViewById(R.id.remote_support_button)
         recoverSessionButton = findViewById(R.id.recover_session_button)
         adminMessage = findViewById(R.id.admin_message)
         undoAdminButton = findViewById(R.id.undo_admin_button)
@@ -430,6 +442,7 @@ class MainActivity : ComponentActivity() {
             selfTestButton,
             feedbackSettingsButton,
             keypadLayoutButton,
+            remoteSupportButton,
             recoverSessionButton,
             cancelQrLoginButton,
             switchCameraButton,
@@ -477,6 +490,7 @@ class MainActivity : ComponentActivity() {
         selfTestButton.setOnClickListener { runOperationalSelfTest() }
         feedbackSettingsButton.setOnClickListener { showFeedbackSettings() }
         keypadLayoutButton.setOnClickListener { showKeypadLayoutSettings() }
+        remoteSupportButton.setOnClickListener { toggleRemoteSupport() }
         recoverSessionButton.setOnClickListener { confirmOneButtonRecovery() }
         cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
@@ -2634,6 +2648,77 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun toggleRemoteSupport() {
+        if (remoteSupportStore.activeUntilEpochMillis() != null) {
+            setRemoteSupportEnabled(enabled = false)
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("원격 점검 30분 시작")
+            .setMessage(
+                "원격 점검 중에는 이 PC의 승인된 USB 디버깅 연결로 " +
+                    "QR·학생 이름·학습 화면을 캡처하고 태블릿을 조작할 수 있습니다.\n\n" +
+                    "화면 오른쪽 위에 상태가 표시되며 30분 뒤 자동으로 다시 보호됩니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("시작") { _, _ ->
+                setRemoteSupportEnabled(enabled = true)
+            }
+            .show()
+    }
+
+    private fun setRemoteSupportEnabled(enabled: Boolean) {
+        val duration = RemoteSupportPolicy.DEFAULT_DURATION_MILLIS
+        if (enabled) {
+            remoteSupportStore.enable(duration)
+        } else {
+            remoteSupportStore.disable()
+        }
+        val webNotified = notifyWebRemoteSupport(
+            enabled = enabled,
+            durationSeconds = (duration / 1_000L).toInt(),
+        )
+        if (enabled && !webNotified) {
+            remoteSupportStore.disable()
+            remoteSupportWindowController.refresh()
+            diagnosticLog.record("REMOTE_SUPPORT_ENABLE_FAILED")
+            adminMessage.text =
+                "학습 앱에 원격 점검 상태를 전달하지 못해 시작을 취소했습니다."
+            return
+        }
+        remoteSupportWindowController.refresh()
+        diagnosticLog.record(
+            if (enabled) "REMOTE_SUPPORT_ENABLED" else "REMOTE_SUPPORT_DISABLED",
+        )
+        adminMessage.text = if (enabled) {
+            "원격 점검을 시작했습니다. 30분 뒤 화면 캡처가 자동으로 다시 차단됩니다."
+        } else if (!webNotified) {
+            "관리 화면 캡처를 차단했습니다. 학습 화면은 기존 만료 시각에 자동 차단됩니다."
+        } else {
+            "원격 점검을 종료하고 화면 캡처를 다시 차단했습니다."
+        }
+    }
+
+    private fun notifyWebRemoteSupport(
+        enabled: Boolean,
+        durationSeconds: Int,
+    ): Boolean {
+        val intent = Intent(ACTION_SET_WEB_REMOTE_SUPPORT)
+            .setComponent(ComponentName(WEB_PACKAGE, WEB_REMOTE_SUPPORT_RECEIVER))
+            .putExtra(EXTRA_REMOTE_SUPPORT_ENABLED, enabled)
+            .putExtra(EXTRA_REMOTE_SUPPORT_DURATION_SECONDS, durationSeconds)
+        return runCatching { sendBroadcast(intent) }.isSuccess
+    }
+
+    private fun updateRemoteSupportButton(active: Boolean) {
+        if (!::remoteSupportButton.isInitialized) return
+        remoteSupportButton.text = if (active) {
+            "원격 점검 종료"
+        } else {
+            "원격 점검 30분 시작"
+        }
+    }
+
     private fun selectedKeypadPreset(): String =
         getSharedPreferences(STUDENT_UI_PREFERENCES, Context.MODE_PRIVATE)
             .getString(KEY_KEYPAD_PRESET, KEYPAD_PRESET_RIGHT)
@@ -3628,6 +3713,9 @@ class MainActivity : ComponentActivity() {
         destroyed = true
         pendingCredentialBridgeId?.let(OneTimeCredentialBroker::revoke)
         pendingCredentialBridgeId = null
+        if (::remoteSupportWindowController.isInitialized) {
+            remoteSupportWindowController.stop()
+        }
         mainHandler.removeCallbacksAndMessages(null)
         stopCamera()
         qrAnalyzer?.close()
@@ -3765,5 +3853,12 @@ class MainActivity : ComponentActivity() {
         private const val KEYPAD_PRESET_RIGHT = "right"
         private const val KEYPAD_PRESET_LEFT = "left"
         private const val KEYPAD_PRESET_CENTER = "center"
+        private const val WEB_PACKAGE = "com.local.matholickiosk.webpoc"
+        private const val WEB_REMOTE_SUPPORT_RECEIVER =
+            "com.local.matholickiosk.webpoc.KioskRemoteSupportReceiver"
+        private const val ACTION_SET_WEB_REMOTE_SUPPORT =
+            "com.local.matholickiosk.action.SET_WEB_REMOTE_SUPPORT"
+        private const val EXTRA_REMOTE_SUPPORT_ENABLED = "enabled"
+        private const val EXTRA_REMOTE_SUPPORT_DURATION_SECONDS = "duration_seconds"
     }
 }

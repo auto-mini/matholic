@@ -10,7 +10,9 @@
 - Probe는 Android 접근성 서비스가 제공하는 `com.matholic.mathapp` 창만 읽는다.
 - redacted 보고서는 앱 private storage에 먼저 저장되며, 사용자가 Storage Access Framework로 선택한 위치에만 내보낸다.
 - PC/ADB는 설치, 비민감 기기 기준정보 확인과 구조화된 비공개 진단 로그
-  회수에만 사용한다. 계정, 화면 원문과 `uiautomator dump`를 수집하지 않는다.
+  회수에 사용한다. 기본 상태에서는 계정, 화면 원문과 `uiautomator dump`를
+  수집하지 않는다. 사용자가 승인한 시간 제한 원격 점검 중에는 승인 ADB가
+  현재 화면 한 장을 PC 로컬 임시 경로로 캡처할 수 있다.
   진단 로그는 `android.permission.DUMP`가 있는 ADB shell만 요청할 수 있고
   학생 식별정보·자격정보·QR·답안·점수·문항 내용을 구조적으로 거부한다.
 - Web POC의 WebView는 별도 앱 UID 안에서 공식 웹에 접속한다. 상위 탐색은 승인된 세 host만 허용하고 다른 링크, TLS 오류와 Safe Browsing 경고는 실패 폐쇄한다.
@@ -26,8 +28,9 @@
 | 보고서 외부 유출 | 앱 private storage, 명시적 내보내기, 인터넷 권한 없음 | 사용자가 내보낸 파일의 이후 취급은 별도 통제 필요 |
 | ADB 캡처 요청의 외부 악용 | 동적 receiver를 `RECEIVER_NOT_EXPORTED`로 등록하고 debug 앱 UID의 `run-as` 요청만 사용 | USB 디버깅이 허용된 신뢰 PC는 redacted 캡처를 유발할 수 있음 |
 | 비공개 운영 로그의 일반 앱 노출 | release receiver에 시스템 `android.permission.DUMP` 강제, 허용 필드·형식 검사, 파일별 최근 200줄 제한, 사용자 UI·공유 기능 없음 | USB 디버깅을 승인한 PC의 ADB shell은 구조화된 로그를 읽을 수 있으므로 승인 PC를 신뢰 경계로 관리해야 함 |
+| 원격 점검 화면의 민감정보 노출 | 기본 `FLAG_SECURE`, 관리자 경고, ADB receiver의 `android.permission.DUMP`, 같은 signer 앱 간 제어, 동일 부팅·최대 2시간 만료, 화면 상태 배지, 종료 시 PC 임시 캡처 삭제 | 점검 중 QR·학생 이름·학습 내용이 승인 PC와 Codex 화면에 보일 수 있으므로 관리자 PIN·비밀번호 입력 중에는 켜지 않고 승인 PC의 ADB 키를 신뢰 경계로 관리해야 함 |
 | DHCP 주소 변경 뒤 지정 PC 오인 연결 | 저장 주소 실패 시 현재 Wi-Fi의 RFC1918 주소와 같은 `/24`의 최대 254개 후보만 조사하고, 기존 페어링 키의 challenge-response 인증에 성공한 수신기만 채택한다. 복구 상태에는 학생 이름을 넣지 않고 PC 알림도 만들지 않으며 새 주소는 기존 암호화 저장소에 갱신한다. | 현재 사설 `/24`의 TCP 48129 후보에는 연결 시도가 발생한다. 네트워크가 다른 `/24`로 바뀌었거나 PC·수신기 설정이 교체된 경우에는 자동 복구하지 못하므로 수동 재페어링이 필요하다. |
-| 스크린샷/최근 앱 미리보기 | Probe Activity에 `FLAG_SECURE` | 매쓰홀릭 자체 화면은 Probe가 통제하지 못함 |
+| 스크린샷/최근 앱 미리보기 | 운영 앱은 기본 `FLAG_SECURE`; 원격 점검 중에만 일시 해제하고 최근 앱 제외는 유지 | 원격 점검을 시작한 승인 PC는 만료 전 현재 화면을 볼 수 있음 |
 | UI 변경으로 오계정/오동작 | version과 의미 기반 fingerprint를 함께 요구, 알 수 없는 상태는 중단 | 같은 버전의 서버 UI 변경 가능 |
 | 좌표 오작동 | bounds는 진단 전용, selector 좌표 사용 금지 | 의미 노드가 없으면 Gate 1 FAIL |
 | 세션 잔류 후 다음 학생 로그인 | 향후 상태 머신에서 로그아웃 및 빈 로그인 화면 검증 전 다음 로그인 금지 | Gate 1 Probe는 자동화를 수행하지 않음 |

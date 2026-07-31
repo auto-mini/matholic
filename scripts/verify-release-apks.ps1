@@ -4,8 +4,8 @@ param(
     [string]$KioskApk,
     [Parameter(Mandatory = $true)]
     [string]$WebPocApk,
-    [string]$ExpectedKioskVersion = '0.6.0-rc49',
-    [string]$ExpectedWebPocVersion = '0.4.0-rc71'
+    [string]$ExpectedKioskVersion = '0.6.0-rc51',
+    [string]$ExpectedWebPocVersion = '0.4.0-rc73'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -113,6 +113,46 @@ function Assert-ApkManifest(
     if ($diagnosticReceiver -notmatch [regex]::Escape($expectedDiagnosticAction)) {
         throw "Unexpected ADB diagnostic action in ${ApkPath}: $expectedDiagnosticAction"
     }
+    $remoteSupportReceiver = [regex]::Match(
+        $manifest,
+        '(?s)<receiver\b[^>]*AdbRemoteSupportReceiver[^>]*>.*?</receiver>'
+    ).Value
+    if (-not $remoteSupportReceiver) {
+        throw "ADB remote support receiver is missing from release APK: $ApkPath"
+    }
+    if (
+        $remoteSupportReceiver -notmatch 'android:exported=\"true\"' -or
+        $remoteSupportReceiver -notmatch 'android:permission=\"android.permission.DUMP\"'
+    ) {
+        throw "ADB remote support receiver must be exported and protected by android.permission.DUMP: $ApkPath"
+    }
+    $expectedRemoteSupportAction = "$ExpectedPackage.action.SET_REMOTE_SUPPORT"
+    if ($remoteSupportReceiver -notmatch [regex]::Escape($expectedRemoteSupportAction)) {
+        throw "Unexpected ADB remote support action in ${ApkPath}: $expectedRemoteSupportAction"
+    }
+    if ($ExpectedPackage -eq 'com.local.matholickiosk.webpoc') {
+        $kioskRemoteSupportReceiver = [regex]::Match(
+            $manifest,
+            '(?s)<receiver\b[^>]*KioskRemoteSupportReceiver[^>]*>.*?</receiver>'
+        ).Value
+        if (-not $kioskRemoteSupportReceiver) {
+            throw "Kiosk remote support receiver is missing from release APK: $ApkPath"
+        }
+        if (
+            $kioskRemoteSupportReceiver -notmatch 'android:exported=\"true\"' -or
+            $kioskRemoteSupportReceiver -notmatch (
+                'android:permission=\"com.local.matholickiosk.permission.REMOTE_SUPPORT_CONTROL\"'
+            )
+        ) {
+            throw "Kiosk remote support receiver must use the signature permission: $ApkPath"
+        }
+        if (
+            $kioskRemoteSupportReceiver -notmatch
+            'com.local.matholickiosk.action.SET_WEB_REMOTE_SUPPORT'
+        ) {
+            throw "Unexpected Kiosk remote support action in release APK: $ApkPath"
+        }
+    }
     foreach ($permission in $RequiredPermissions) {
         if ($permission -notin $permissions) {
             throw "Required permission missing from ${ApkPath}: $permission"
@@ -145,7 +185,8 @@ try {
             'android.permission.CAMERA',
             'android.permission.ACCESS_NETWORK_STATE',
             'android.permission.INTERNET',
-            'android.permission.VIBRATE'
+            'android.permission.VIBRATE',
+            'com.local.matholickiosk.permission.REMOTE_SUPPORT_CONTROL'
         ) `
         -ForbiddenPermissions @()
     Assert-ApkManifest `
@@ -156,7 +197,8 @@ try {
         -RequiredPermissions @(
             'android.permission.INTERNET',
             'android.permission.ACCESS_NETWORK_STATE',
-            'com.local.matholickiosk.permission.CREDENTIAL_BRIDGE'
+            'com.local.matholickiosk.permission.CREDENTIAL_BRIDGE',
+            'com.local.matholickiosk.permission.REMOTE_SUPPORT_CONTROL'
         ) `
         -ForbiddenPermissions @()
 

@@ -91,6 +91,8 @@ class MainActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val preferences by lazy { getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE) }
+    private lateinit var remoteSupportStore: RemoteSupportStore
+    private lateinit var remoteSupportWindowController: RemoteSupportWindowController
 
     private var state = WebPocState.IDLE
     private var expectedDisplayName: String? = null
@@ -157,6 +159,13 @@ class MainActivity : Activity() {
             WindowManager.LayoutParams.FLAG_SECURE or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
         )
+        remoteSupportStore = RemoteSupportStore(this)
+        remoteSupportWindowController = RemoteSupportWindowController(
+            activity = this,
+            handler = handler,
+            store = remoteSupportStore,
+        )
+        remoteSupportWindowController.start()
         if (preferences.getString(KEY_GATE3_STATUS, null) == GATE3_STATUS_RUNNING) {
             preferences.edit().putString(KEY_GATE3_STATUS, GATE3_STATUS_ABORTED).commit()
         }
@@ -208,6 +217,7 @@ class MainActivity : Activity() {
         registerBackHandler()
         hideSystemNavigation()
         uiInitialized = true
+        remoteSupportWindowController.refresh()
         showBlocking(getString(R.string.status_preparing))
     }
 
@@ -2367,6 +2377,9 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         destroyed = true
+        if (::remoteSupportWindowController.isInitialized) {
+            remoteSupportWindowController.stop()
+        }
         cancelTimeout()
         cancelInactivityWarning()
         clearUnresponsiveRendererGrace()

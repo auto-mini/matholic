@@ -100,6 +100,20 @@ Release RC 빌드:
 .\scripts\build-release.ps1
 ```
 
+승인된 USB ADB로 관리자 원격 점검을 시작하고 현재 화면을 PC 임시 경로에
+캡처하려면 다음을 사용한다. 별도 네트워크 포트를 열지 않으며 기본 60분,
+최대 120분 뒤 자동으로 `FLAG_SECURE`가 복원된다.
+
+```powershell
+.\scripts\remote-tablet.ps1 -Action Start -Minutes 60
+.\scripts\remote-tablet.ps1 -Action Capture
+.\scripts\remote-tablet.ps1 -Action Stop
+```
+
+관리자 화면에서도 30분 원격 점검을 시작·종료할 수 있다. 점검 중에는 화면
+오른쪽 위에 `원격 점검 중` 배지가 보이며 관리자 PIN이나 비밀번호를 입력할
+때는 사용하지 않는다.
+
 release 키 복구 확인, 공장초기화·운영 프로비저닝·관리자 Web 세션 복구 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다.
 사용자가 단독으로 수행한 120분 연속 운전과 실제 프린터 시험 절차·결과는 [docs/OPERATOR_ACCEPTANCE_CHECKLIST.md](docs/OPERATOR_ACCEPTANCE_CHECKLIST.md)에 기록했다.
 

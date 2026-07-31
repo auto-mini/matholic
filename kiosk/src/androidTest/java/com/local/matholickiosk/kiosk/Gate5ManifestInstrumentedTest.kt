@@ -77,6 +77,25 @@ class Gate5ManifestInstrumentedTest {
     }
 
     @Test
+    fun remoteSupportReceiverIsAdbOnlyAndControlIsVisibleInsideAdminPanel() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val receiver = context.packageManager.getReceiverInfo(
+            ComponentName(context, AdbRemoteSupportReceiver::class.java),
+            0,
+        )
+        assertTrue(receiver.exported)
+        assertEquals("android.permission.DUMP", receiver.permission)
+
+        var reachable = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val root = LayoutInflater.from(context).inflate(R.layout.activity_main, null, false)
+            reachable = root.findViewById<View>(R.id.remote_support_button)
+                .hasScrollViewAncestor()
+        }
+        assertTrue(reachable)
+    }
+
+    @Test
     fun pcTransferControlsRemainReachableInsideScrollableCardPanel() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         var pairReachable = false

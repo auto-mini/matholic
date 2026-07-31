@@ -23,7 +23,10 @@
 
 - `webpoc`에는 시험계정만 태블릿 화면에서 런타임 입력한다.
 - 자격정보와 예상 표시명은 파일, preference, saved state, 로그와 autofill에 저장하지 않는다.
-- WebView debugging, 디스크 cache, form data 저장, backup, 화면 캡처와 최근 앱 미리보기를 차단한다.
+- WebView debugging, 디스크 cache, form data 저장, backup과 최근 앱 미리보기를 차단한다.
+- 화면 캡처는 기본적으로 `FLAG_SECURE`로 차단한다. 관리자 또는
+  `android.permission.DUMP`를 가진 승인 ADB shell이 시간 제한 원격 점검을
+  명시적으로 시작한 동안에만 `FLAG_SECURE`를 해제하고 화면에 상태를 표시한다.
 - 상위 탐색은 공식 HTTPS의 `login.matholic.com`, `auth.matholic.com`, `im.matholic.com`만 허용한다.
 - 학생 사용 중 상위 탐색은 `im.matholic.com`의 학습지, 진단평가와 문제 경로로 더 좁게 제한하고 Android 뒤로가기를 소비한다.
 - 종합분석 DOM 계약을 확인한 경우에만 상세 결과를 불투명하게 가리고 틀린 문제 번호만 기기 화면에 표시한다. 계약이 바뀌면 상세 결과를 임의로 해석하지 않는다.
@@ -42,7 +45,9 @@
 - `kiosk`에서 `webpoc`으로 자격정보를 넘길 때 Intent extra, 파일, clipboard와 로그를 사용하지 않는다.
 - 앱 간 브리지는 signature 권한·호출 package allowlist·30초 TTL·1회 조회를 모두 적용한 메모리 전용 provider다.
 - 외부 알림은 현재 요구사항에서 제외한다. 감사기록에는 자격정보, QR 원문, 답안, 점수와 학습지 내용을 저장하지 않는다.
-- `FLAG_SECURE`, backup/device transfer 전면 제외와 cleartext 차단을 적용한다.
+- `FLAG_SECURE`, backup/device transfer 전면 제외와 cleartext 차단을
+  기본 적용한다. 원격 점검은 같은 부팅에서 최대 2시간만 유효하고 만료·명시
+  종료 시 캡처 차단을 복원한다.
 
 ## Gate 5 전용기기 통제
 
@@ -51,6 +56,10 @@
 - QR 대기, 관리자 PIN과 Web 채점 구간은 Lock Task를 유지하고 홈·최근 앱·알림창 기능을 허용하지 않는다.
 - 관리자 PIN 성공 뒤에만 Lock Task를 종료한다. 관리자 화면 이탈 시 PIN 화면과 Lock Task를 다시 적용한다.
 - 수업 잠금 중 다른 앱의 overlay 창 생성을 제한한다.
+- 원격 점검은 네트워크 포트를 열지 않고 기존에 승인된 USB ADB 또는 관리자
+  PIN 화면에서만 시작한다. 캡처 파일은 PC 로컬 임시 경로의 최신 파일 하나로
+  덮어쓰며 점검 종료 시 삭제한다. 관리자 PIN·비밀번호 입력 중에는 사용하지
+  않는다.
 - Device Owner 제거와 관리자 PIN 분실 복구는 공장초기화로만 수행한다. 기존 Keystore 키·자격정보·QR을 외부로 우회 백업하지 않는다.
 
 ## Release signing
