@@ -164,6 +164,7 @@ class MainActivity : Activity() {
             activity = this,
             handler = handler,
             store = remoteSupportStore,
+            onActiveChanged = WebView::setWebContentsDebuggingEnabled,
         )
         remoteSupportWindowController.start()
         if (preferences.getString(KEY_GATE3_STATUS, null) == GATE3_STATUS_RUNNING) {
@@ -411,7 +412,9 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     @Suppress("DEPRECATION")
     private fun configureWebView() {
-        WebView.setWebContentsDebuggingEnabled(false)
+        WebView.setWebContentsDebuggingEnabled(
+            remoteSupportStore.activeUntilEpochMillis() != null,
+        )
         with(webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true

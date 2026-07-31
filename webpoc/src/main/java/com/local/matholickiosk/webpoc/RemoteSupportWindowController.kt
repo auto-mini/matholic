@@ -15,6 +15,7 @@ internal class RemoteSupportWindowController(
     private val activity: Activity,
     private val handler: Handler,
     private val store: RemoteSupportStore,
+    private val onActiveChanged: (Boolean) -> Unit = {},
 ) : SharedPreferences.OnSharedPreferenceChangeListener {
     private var badge: TextView? = null
     private var started = false
@@ -30,6 +31,7 @@ internal class RemoteSupportWindowController(
     fun refresh() {
         handler.removeCallbacks(expireRunnable)
         val activeUntil = store.activeUntilEpochMillis()
+        onActiveChanged(activeUntil != null)
         if (activeUntil != null) {
             activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             showBadge()
@@ -48,6 +50,7 @@ internal class RemoteSupportWindowController(
         handler.removeCallbacks(expireRunnable)
         removeBadge()
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onActiveChanged(false)
     }
 
     override fun onSharedPreferenceChanged(
