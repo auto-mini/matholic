@@ -402,7 +402,7 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("numberClass"))
             assertEquals("relative", proof.getString("numberPosition"))
             assertEquals("0px", proof.getString("numberTop"))
-            assertEquals("문제 4 ↓ / 10", proof.getString("numberDisplayLabel"))
+            assertEquals("4 ↓/10", proof.getString("numberDisplayLabel"))
             assertEquals("현재 문제 번호 선택", proof.getString("numberLabel"))
             assertTrue(proof.getBoolean("selectorOpened"))
             assertTrue(proof.getBoolean("noHorizontalOverflow"))
@@ -596,7 +596,7 @@ class DomContractInstrumentedTest {
             assertFalse(proof.getBoolean("guidePresent"))
             assertEquals("relative", proof.getString("mapPosition"))
             assertTrue(proof.getBoolean("mapFollowsNavigation"))
-            assertEquals("문제 2 ↓ / 3", proof.getString("numberLabel"))
+            assertEquals("2 ↓/3", proof.getString("numberLabel"))
             assertEquals(3, proof.getInt("legendItemCount"))
             assertEquals("false", proof.getString("open"))
 

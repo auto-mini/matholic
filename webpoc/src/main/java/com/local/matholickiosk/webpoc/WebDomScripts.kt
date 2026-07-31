@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-07-31.3"
+    const val CONTRACT_VERSION = "web-2026-08-01.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1246,7 +1246,7 @@ object WebDomScripts {
               totalProblems > 0
             ) {
               problemNumberCluster.dataset.matholicKioskLabel =
-                `문제 ${'$'}{currentProblemNumber} ↓ / ${'$'}{totalProblems}`;
+                `${'$'}{currentProblemNumber} ↓/${'$'}{totalProblems}`;
             }
             const problemStates =
               window.__matholicKioskProblemStates ||
