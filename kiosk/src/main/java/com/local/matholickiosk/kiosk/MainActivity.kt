@@ -2815,11 +2815,13 @@ class MainActivity : ComponentActivity() {
                         }
                         sendPcPdfButton.isEnabled =
                             displayName != null && issuedQrPreview != null
+                        updateStudentManagementControls()
                     },
                     onFailure = {
                         pairedPcDisplayName = null
                         pairPcButton.text = "PC 무선 전송 페어링"
                         sendPcPdfButton.isEnabled = false
+                        updateStudentManagementControls()
                         adminMessage.text =
                             "저장된 PC 페어링을 확인하지 못했습니다. PC QR로 다시 페어링하세요."
                     },
