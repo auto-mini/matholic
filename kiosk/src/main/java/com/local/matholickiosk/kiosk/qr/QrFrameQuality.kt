@@ -31,10 +31,25 @@ class QrFrameQualityStabilizer(
 
     private var candidate: QrFrameQuality? = null
     private var consecutiveFrames = 0
+    private var lastDelivered: QrFrameQuality? = null
+    private var normalFrameObservedAfterDark = true
 
     fun accept(quality: QrFrameQuality?): QrFrameQuality? {
         if (quality == null) {
-            reset()
+            candidate = null
+            consecutiveFrames = 0
+            if (lastDelivered == QrFrameQuality.TOO_DARK) {
+                normalFrameObservedAfterDark = true
+            }
+            return null
+        }
+        if (
+            lastDelivered == QrFrameQuality.TOO_DARK &&
+            !normalFrameObservedAfterDark &&
+            quality != QrFrameQuality.TOO_DARK
+        ) {
+            candidate = null
+            consecutiveFrames = 0
             return null
         }
         if (quality != candidate) {
@@ -43,11 +58,16 @@ class QrFrameQualityStabilizer(
         } else {
             consecutiveFrames += 1
         }
-        return quality.takeIf { consecutiveFrames >= requiredConsecutiveFrames }
+        return quality.takeIf { consecutiveFrames >= requiredConsecutiveFrames }?.also {
+            lastDelivered = it
+            normalFrameObservedAfterDark = it != QrFrameQuality.TOO_DARK
+        }
     }
 
     fun reset() {
         candidate = null
         consecutiveFrames = 0
+        lastDelivered = null
+        normalFrameObservedAfterDark = true
     }
 }

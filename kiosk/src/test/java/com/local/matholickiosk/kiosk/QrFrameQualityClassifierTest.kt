@@ -53,4 +53,18 @@ class QrFrameQualityClassifierTest {
         assertNull(stabilizer.accept(QrFrameQuality.TOO_DARK))
         assertEquals(QrFrameQuality.TOO_DARK, stabilizer.accept(QrFrameQuality.TOO_DARK))
     }
+
+    @Test
+    fun `dark exposure recovery cannot become glare before a normal frame`() {
+        val stabilizer = QrFrameQualityStabilizer(requiredConsecutiveFrames = 3)
+
+        repeat(2) { assertNull(stabilizer.accept(QrFrameQuality.TOO_DARK)) }
+        assertEquals(QrFrameQuality.TOO_DARK, stabilizer.accept(QrFrameQuality.TOO_DARK))
+        repeat(5) { assertNull(stabilizer.accept(QrFrameQuality.GLARE)) }
+        repeat(5) { assertNull(stabilizer.accept(QrFrameQuality.LOW_CONTRAST)) }
+
+        assertNull(stabilizer.accept(null))
+        repeat(2) { assertNull(stabilizer.accept(QrFrameQuality.GLARE)) }
+        assertEquals(QrFrameQuality.GLARE, stabilizer.accept(QrFrameQuality.GLARE))
+    }
 }
