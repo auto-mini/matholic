@@ -385,6 +385,9 @@ class DomContractInstrumentedTest {
                     numberDisplayLabel:
                       number.dataset.matholicKioskLabel,
                     numberLabel: number.getAttribute('aria-label'),
+                    mapOpen: document.querySelector(
+                      '.matholic-kiosk-problem-map'
+                    )?.dataset.open,
                     selectorOpened: document.body.dataset.selectorOpened === 'yes',
                     noHorizontalOverflow:
                       document.documentElement.scrollWidth <=
@@ -403,8 +406,9 @@ class DomContractInstrumentedTest {
             assertEquals("relative", proof.getString("numberPosition"))
             assertEquals("0px", proof.getString("numberTop"))
             assertEquals("4 ↓/10", proof.getString("numberDisplayLabel"))
-            assertEquals("현재 문제 번호 선택", proof.getString("numberLabel"))
-            assertTrue(proof.getBoolean("selectorOpened"))
+            assertEquals("문제 목록 열기", proof.getString("numberLabel"))
+            assertEquals("true", proof.getString("mapOpen"))
+            assertFalse(proof.getBoolean("selectorOpened"))
             assertTrue(proof.getBoolean("noHorizontalOverflow"))
         }
     }

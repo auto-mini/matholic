@@ -118,7 +118,7 @@ class WebDomScriptsTest {
         assertTrue(script.contains("height: 58px"))
         assertTrue(script.contains("grid-template-columns: 52px minmax(0, 1fr) 52px"))
         assertTrue(script.contains("matholicKioskLabel"))
-        assertTrue(script.contains("현재 문제 번호 선택"))
+        assertTrue(script.contains("문제 목록 열기"))
         assertTrue(script.contains(".ant-select-selection-item"))
         assertTrue(script.contains("visibleButtonInside"))
         assertTrue(script.contains("matholic-kiosk-problem-map"))

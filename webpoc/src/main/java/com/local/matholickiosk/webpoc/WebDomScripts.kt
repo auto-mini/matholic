@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.1"
+    const val CONTRACT_VERSION = "web-2026-08-01.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -769,6 +769,7 @@ object WebDomScripts {
               width: 100% !important;
               height: 100% !important;
               opacity: 0 !important;
+              pointer-events: none !important;
             }
             .matholic-kiosk-problem-number .ant-select,
             .matholic-kiosk-problem-number .ant-select-selector,
@@ -1042,7 +1043,7 @@ object WebDomScripts {
               );
               numberCluster.setAttribute(
                 'aria-label',
-                '현재 문제 번호 선택'
+                '문제 목록 열기'
               );
               const selectorSurface = numberCluster.querySelector(
                 '.ant-select-selector,[role="combobox"],select'
@@ -1056,6 +1057,16 @@ object WebDomScripts {
                   .matholicKioskProblemNumberBound !== 'true'
               ) {
                 numberCluster.addEventListener('click', event => {
+                  const problemMap = document.querySelector(
+                    '.matholic-kiosk-problem-map'
+                  );
+                  if (problemMap) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    problemMap.dataset.open =
+                      problemMap.dataset.open === 'true' ? 'false' : 'true';
+                    return;
+                  }
                   if (
                     event.target?.closest?.(
                       '.ant-select-selector,[role="combobox"],select'
@@ -1065,7 +1076,7 @@ object WebDomScripts {
                     '.ant-select-selector,[role="combobox"],select'
                   ) || selectorRoot;
                   target.click();
-                });
+                }, true);
                 numberCluster.dataset
                   .matholicKioskProblemNumberBound = 'true';
               }
@@ -1246,7 +1257,9 @@ object WebDomScripts {
               totalProblems > 0
             ) {
               problemNumberCluster.dataset.matholicKioskLabel =
-                `${'$'}{currentProblemNumber} ↓/${'$'}{totalProblems}`;
+                totalProblems > 1
+                  ? `${'$'}{currentProblemNumber} ↓/${'$'}{totalProblems}`
+                  : `${'$'}{currentProblemNumber}/${'$'}{totalProblems}`;
             }
             const problemStates =
               window.__matholicKioskProblemStates ||
