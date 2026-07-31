@@ -6026,3 +6026,42 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   - 기본 피드백값과 QR·완료·오류별 실제 피드백
 - 현재 private 진단에는 DHCP 복구의 `PC_ENDPOINT_RECOVERED`만 있으며,
   Matholic 관련 crash 일치 항목은 없다.
+
+## Web POC RC102 학생 영역 탭과 실제 25문항 전수 검토 — 2026-08-01
+
+### 변경과 설치
+
+- 학습지·진단평가 상단 전환에서 현재 영역이 비활성 회색처럼 보이던 상태를
+  파란 배경·흰 글씨의 선택 상태로 바꿨다. 이동 가능한 다른 영역은 흰 배경과
+  짙은 글씨를 유지한다.
+- Web POC `0.4.0-rc102`/code 119를 동일 signer의 상위 버전으로 A에
+  보존 설치했다.
+- artifact와 A 설치 APK SHA-256은 모두
+  `C36306468FBB72E08E925F144B459C4FB94CD35BDBE060F5D2E7439E685E56E7`로
+  일치했다.
+- Web UID `10293`, firstInstallTime `2026-07-28 13:12:16`, Kiosk Device
+  Owner와 Lock Task `LOCKED`를 유지했다.
+
+### 자동·A 실기 검증
+
+- 정식 release 빌드 158 tasks, Web/Kiosk JVM 시험, release lint, 두 release
+  APK assemble, 저장 전·후 버전·비디버그·서명 검증: PASS
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+- 정확히 검증된 `테스트` QR만 사용해 로그인하고 학습지·진단평가를 양방향
+  전환했다. 선택 탭 강조, 빈 진단평가의 한글 안내, 동일 세션 유지와 정상
+  로그아웃을 실제 화면으로 확인했다.
+- 최초 25개 캡처 묶음은 파일명만 순번이었고 일부 다음 버튼 터치가 누락되어
+  실제 2번·6번 등이 중복된 사실을 발견했다. 이 묶음은 전수 검토 근거에서
+  제외했다.
+- 재수집은 DOM의 실제 현재 번호, 이동 controller 종료와 숨김 selector 종료가
+  모두 일치한 뒤에만 캡처하도록 했다. 1~25번 각각 한 장씩 중복·누락 없이
+  확인했다.
+- 25문항 전체에서 문제 본문, 문항 번호와 방향 버튼, 답안 현황, 객관식·주관식
+  답안 영역, 답안 제출과 채점 끝내기 사이의 겹침·가로 잘림을 발견하지
+  않았다. 긴 15·21번도 기존 세로 스크롤 경계를 유지했다.
+- 답안 입력·제출은 하지 않았고 문제 간 이동만 수행했다. 종료 뒤 A는
+  `QR_READY`, 원격 점검은 비활성 상태다.
+- 이번 실행 뒤 새 ANR, fatal exception, WebView 불응과 비정상 종료는 없다.
+  exit-info의 최신 Web POC 종료는 RC102 설치 시 Android의
+  `installPackageLI / FORCE STOP` 기록이다.
