@@ -5859,7 +5859,7 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   설치하면서 프로세스가 교체된 데 따른 예상 안전 복구 상태다.
 - 관리자 PIN을 입력하는 수동 복구는 사용자 부재 중 수행하지 않았다.
 - 기존 학생·반·QR의 화면상 보존과 신규 편의 기능의 실제 현장 동작은
-  [현장 검증 체크리스트](RC45_RC68_FIELD_VERIFICATION_CHECKLIST.md)에 따라
+  [현장 검증 체크리스트](RC47_RC68_FIELD_VERIFICATION_CHECKLIST.md)에 따라
   검증해야 한다.
 
 ## 자동/현장 검증 분리와 RC45/RC68 교정 — 2026-07-31
@@ -5956,7 +5956,69 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - 관리자 PIN 안전 복구, 기존 학생·반·QR 화면 확인, Matholic 실서버
   로그인·풀이·제출, 실물 QR·소리·진동·터치 체감은 자동 판정하지 않았다.
 - 다음 사용자 접근 시
-  [RC45/RC68 현장 검증 체크리스트](RC45_RC68_FIELD_VERIFICATION_CHECKLIST.md)의
-  여섯 흐름을 수행한다.
+  [RC47/RC68 현장 검증 체크리스트](RC47_RC68_FIELD_VERIFICATION_CHECKLIST.md)의
+  네 흐름을 수행한다.
 - 공장초기화, 앱 데이터 삭제, Device Owner 변경, QR 재발급, 실물 인쇄와
   실패주입은 이번 자동 검증에서 수행하지 않았다.
+
+## Kiosk RC47·Windows 수신기 0.1.3와 S1 현장 검증 — 2026-07-31
+
+### DHCP 주소 변경 뒤 지정 PC 복구
+
+- PC 재부팅 뒤 주소가 기존 `192.168.0.224`에서 `192.168.0.230`으로
+  바뀌어 A의 지정 PC 연결이 실패하는 현상을 실제 확인했다.
+- 저장된 PC와 같은 사설 `/24` 범위에서 인증된 상태 요청에 성공한
+  endpoint만 다시 저장하도록 Kiosk를 보강했다.
+- 탐색 상태에는 학생 이름과 알림 요청을 싣지 않고, 저장된 pairing secret의
+  인증에 성공한 수신기만 채택한다.
+- A에서 `PC_ENDPOINT_RECOVERED` 진단과 `.230` endpoint 복구를 확인했고,
+  운영 준비 자가진단 8개 항목이 모두 통과했다.
+- 구현 커밋: `ca32740`
+
+### Windows 수신기 1080p UI
+
+- 1080p 화면에서 큰 QR 미리보기 때문에 CSV 대기열 버튼이 창 아래로
+  잘리는 현상을 확인했다.
+- QR 미리보기를 240px로 줄이고 CSV 제어를 수신 폴더·상태보다 위로
+  이동했다.
+- Windows 수신기 `0.1.3`을 설치했고 receiver ID, pairing secret,
+  포트와 수신 폴더는 유지했다.
+- pytest 11/11과 PyInstaller 실행 파일 smoke check를 통과했다.
+- source/설치 EXE SHA-256:
+  `48E9DCF5182F15084DF48E53DB6FA9479F60A5938B32CD4B6EDACF508CB48DE3`
+- 구현 커밋: `c1785cc`
+
+### CSV 버튼 상태 경쟁과 Kiosk RC47
+
+- 자가진단 성공 뒤에도 CSV 가져오기 버튼이 비활성으로 남는 현상을
+  재현했다.
+- 관리자 데이터 조회와 PC pairing 상태 조회의 완료 순서가 바뀌면
+  pairing 성공 뒤 학생 관리 control을 다시 계산하지 않는 경쟁 조건이
+  원인이었다.
+- pairing 조회 성공·실패 뒤 control 상태를 다시 계산하도록 수정했다.
+- A에 Kiosk `0.6.0-rc47`/code 52를 보존 설치했다.
+  - `firstInstallTime` `2026-07-24 12:52:28` 유지
+  - `ceDataInode` `3236` 유지
+  - Device Owner, 전용 HOME, release signer와 설치 데이터 유지
+- artifact/설치 APK SHA-256:
+  `76BF27EFD4EF1F867B1B0CD213B345FCCC526817AAD98CAB06FCE54C2D97AAB3`
+- release 158 tasks와 APK 이중 검증을 통과했다.
+- 구현 커밋: `9bb44e1`
+
+### S1 현장 결과
+
+- 안전 복구, 기존 학생·반·소속·QR 이력, 다중 반 소속, 관리자 뒤로가기와
+  운영 준비 자가진단: PASS
+- 존재하지 않는 반 CSV 사전 거부: PASS
+- 일회용 CSV 학생 신규 생성·동일 아이디 갱신·T1/T2 다중 소속과
+  민감정보 비노출: PASS
+- 학생 추가·제거·이름 변경·테스트반 삭제의 실행취소와 30초 만료: PASS
+- 일회용 학생의 비밀번호 변경·비활성화에 실행취소가 없는 것: PASS
+- 짧은 확인음: A의 알림·벨소리 음량을 켠 뒤 크기·길이 PASS
+- 오른손 키패드 프리셋 저장: PASS
+- 아직 확인하지 않은 항목:
+  - T1 수업 시작과 최종 `QR_READY`
+  - CSV 변경 학생 카드의 `출력 필요`
+  - 기본 피드백값과 QR·완료·오류별 실제 피드백
+- 현재 private 진단에는 DHCP 복구의 `PC_ENDPOINT_RECOVERED`만 있으며,
+  Matholic 관련 crash 일치 항목은 없다.

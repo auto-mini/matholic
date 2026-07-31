@@ -1928,12 +1928,15 @@ Goal 실행을 요청한 현재 운영 기준이다. 사용자는 A 기기 옆�
 
 ## 2026-07-31 현재 인계 기준
 
-- 현재 설치 기준은 Kiosk `0.6.0-rc45`/code 50,
-  Web `0.4.0-rc68`/code 85와 Windows PDF 수신기 `0.1.1`이다.
+- 현재 설치 기준은 Kiosk `0.6.0-rc47`/code 52,
+  Web `0.4.0-rc68`/code 85와 Windows PDF 수신기 `0.1.3`이다.
 - 자동 검증과 현장 검증의 책임 분리, 이번 교정 내용, APK/EXE 해시와
   실제 검증 결과는 `docs/BUILD_VERIFICATION.md`의
-  `자동/현장 검증 분리와 RC45/RC68 교정` 절을 단일 근거로 사용한다.
+  `자동/현장 검증 분리와 RC45/RC68 교정` 및
+  `Kiosk RC47·Windows 수신기 0.1.3와 S1 현장 검증` 절을 근거로 사용한다.
 - 다음 현장 조작은
-  `docs/RC45_RC68_FIELD_VERIFICATION_CHECKLIST.md`의 여섯 흐름을 따른다.
-- A의 현재 상태는 보존 설치 뒤 `RECOVERY_REQUIRED`다. 사용자 조작 전까지
-  이를 오류나 `QR_READY` 완료 상태로 바꾸어 보고하지 않는다.
+  `docs/RC47_RC68_FIELD_VERIFICATION_CHECKLIST.md`의 네 흐름을 따른다.
+- S1의 안전 복구, 기존 데이터, 자가진단, CSV, 관리자 실행취소와
+  일회용 학생 변경 검증은 통과했다.
+- 다음 조작은 `릴리스 테스트` 반(T1)을 선택해 안전 시작하고 최종
+  `QR_READY`를 확인하는 것이다. 확인 전에는 S1 완료로 보고하지 않는다.
