@@ -113,6 +113,9 @@ Release RC 빌드:
 관리자 화면에서도 30분 원격 점검을 시작·종료할 수 있다. 점검 중에는 화면
 오른쪽 위에 `원격 점검 중` 배지가 보이며 관리자 PIN이나 비밀번호를 입력할
 때는 사용하지 않는다.
+승인 ADB의 실기 회귀에는 `TestQr` 동작으로 카메라가 이미 계산했을 때와 같은
+32바이트 QR 해시를 한 번 전달할 수 있다. 원격 점검이 활성이고 현재 수업이
+정확히 `QR_READY`일 때만 처리하며 QR 원문·계정정보는 전달하거나 기록하지 않는다.
 
 release 키 복구 확인, 공장초기화·운영 프로비저닝·관리자 Web 세션 복구 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다.
 사용자가 단독으로 수행한 120분 연속 운전과 실제 프린터 시험 절차·결과는 [docs/OPERATOR_ACCEPTANCE_CHECKLIST.md](docs/OPERATOR_ACCEPTANCE_CHECKLIST.md)에 기록했다.

@@ -81,6 +81,7 @@
             android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.local.matholickiosk.kiosk.action.SET_REMOTE_SUPPORT" />
+                <action android:name="com.local.matholickiosk.kiosk.action.TEST_QR_HASH" />
             </intent-filter>
         </receiver>
 

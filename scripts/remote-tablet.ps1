@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Start', 'Capture', 'Stop')]
+    [ValidateSet('Start', 'Capture', 'Stop', 'TestQr')]
     [string]$Action,
 
     [string]$Serial = 'R54TB029FHZ',
@@ -10,7 +10,9 @@ param(
 
     [string]$OutputPath = (
         Join-Path $env:LOCALAPPDATA 'MatholicRemote\A-latest.png'
-    )
+    ),
+
+    [string]$QrHashBase64
 )
 
 $ErrorActionPreference = 'Stop'
@@ -109,5 +111,18 @@ switch ($Action) {
             Remove-Item -LiteralPath $OutputPath -Force
         }
         Write-Output 'REMOTE_SUPPORT=INACTIVE'
+    }
+    'TestQr' {
+        if ($QrHashBase64 -notmatch '^[A-Za-z0-9+/]{43}=$') {
+            throw 'QrHashBase64 must encode exactly one 32-byte QR token hash.'
+        }
+        $output = & $adb -s $Serial shell am broadcast `
+            -a 'com.local.matholickiosk.kiosk.action.TEST_QR_HASH' `
+            -n 'com.local.matholickiosk.kiosk/.AdbRemoteSupportReceiver' `
+            --es token_hash_base64 $QrHashBase64 2>&1
+        if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'result=0') {
+            throw "Remote QR test command failed: $($output -join ' ')"
+        }
+        Write-Output 'REMOTE_QR_TEST=SUBMITTED'
     }
 }

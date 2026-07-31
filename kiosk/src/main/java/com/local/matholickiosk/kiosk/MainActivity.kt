@@ -353,6 +353,7 @@ class MainActivity : ComponentActivity() {
         )
         pcPairingStore = PcPairingStore(this)
         diagnosticLog = PrivateDiagnosticLog(this)
+        RemoteQrTestBridge.register(this, ::handleRemoteQrTest)
         QrPdfExporter.cleanupExpired(this)
         configureActions()
         remoteSupportWindowController.start()
@@ -3019,6 +3020,46 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleRemoteQrTest(tokenHash: ByteArray) {
+        if (destroyed || remoteSupportStore.activeUntilEpochMillis() == null) {
+            tokenHash.fill(0)
+            return
+        }
+        try {
+            ioExecutor.execute {
+                val session = runCatching { studentRepository.currentSession() }.getOrNull()
+                val posted = mainHandler.post {
+                    if (
+                        destroyed ||
+                        remoteSupportStore.activeUntilEpochMillis() == null ||
+                        session?.sessionId == null ||
+                        session.state != KioskState.QR_READY.name
+                    ) {
+                        tokenHash.fill(0)
+                        diagnosticLog.record("REMOTE_QR_TEST_REJECTED")
+                        return@post
+                    }
+                    currentSession = session
+                    showScanner()
+                    if (!scannerVisible) {
+                        tokenHash.fill(0)
+                        diagnosticLog.record("REMOTE_QR_TEST_REJECTED")
+                        return@post
+                    }
+                    stopCamera()
+                    diagnosticLog.record("REMOTE_QR_TEST_ACCEPTED")
+                    validateQr(tokenHash)
+                }
+                if (!posted) tokenHash.fill(0)
+            }
+        } catch (_: RuntimeException) {
+            tokenHash.fill(0)
+            if (!destroyed) {
+                diagnosticLog.record("REMOTE_QR_TEST_REJECTED")
+            }
+        }
+    }
+
     private fun ensureCamera() {
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             bindCamera()
@@ -3711,6 +3752,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         destroyed = true
+        RemoteQrTestBridge.unregister(this)
         pendingCredentialBridgeId?.let(OneTimeCredentialBroker::revoke)
         pendingCredentialBridgeId = null
         if (::remoteSupportWindowController.isInitialized) {
