@@ -20,6 +20,7 @@ class QrImageAnalyzer(
 ) : ImageAnalysis.Analyzer, Closeable {
     private val processing = AtomicBoolean(false)
     private val deliveryGate = QrDecisionDeliveryGate()
+    private val qualityStabilizer = QrFrameQualityStabilizer()
     private val scanner: BarcodeScanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
@@ -36,6 +37,7 @@ class QrImageAnalyzer(
         if (!value) {
             lastGuidance = null
             lastQuality = null
+            qualityStabilizer.reset()
         }
         deliveryGate.setEnabled(value)
     }
@@ -93,9 +95,9 @@ class QrImageAnalyzer(
                                     )
                                 }
                             }
-                            if (barcodes.isEmpty() && frameQuality != null) {
-                                deliverQuality(frameQuality)
-                            }
+                            qualityStabilizer.accept(
+                                frameQuality.takeIf { barcodes.isEmpty() },
+                            )?.let(::deliverQuality)
                             if (
                                 matholicQrDetected &&
                                 matholicGuidance != QrFrameGuidance.CENTERED

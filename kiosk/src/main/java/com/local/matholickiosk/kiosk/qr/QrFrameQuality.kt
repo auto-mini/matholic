@@ -14,10 +14,40 @@ object QrFrameQualityClassifier {
         val maximum = samples.max()
         val brightRatio = samples.count { it >= 245 }.toFloat() / samples.size
         return when {
-            mean < 42f -> QrFrameQuality.TOO_DARK
-            brightRatio >= 0.28f -> QrFrameQuality.GLARE
-            maximum - minimum < 38 -> QrFrameQuality.LOW_CONTRAST
+            mean < 50f -> QrFrameQuality.TOO_DARK
+            brightRatio >= 0.08f -> QrFrameQuality.GLARE
+            mean in 75f..220f && maximum - minimum < 38 -> QrFrameQuality.LOW_CONTRAST
             else -> null
         }
+    }
+}
+
+class QrFrameQualityStabilizer(
+    private val requiredConsecutiveFrames: Int = 3,
+) {
+    init {
+        require(requiredConsecutiveFrames > 0)
+    }
+
+    private var candidate: QrFrameQuality? = null
+    private var consecutiveFrames = 0
+
+    fun accept(quality: QrFrameQuality?): QrFrameQuality? {
+        if (quality == null) {
+            reset()
+            return null
+        }
+        if (quality != candidate) {
+            candidate = quality
+            consecutiveFrames = 1
+        } else {
+            consecutiveFrames += 1
+        }
+        return quality.takeIf { consecutiveFrames >= requiredConsecutiveFrames }
+    }
+
+    fun reset() {
+        candidate = null
+        consecutiveFrames = 0
     }
 }
