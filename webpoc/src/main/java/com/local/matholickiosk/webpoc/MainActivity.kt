@@ -1881,15 +1881,17 @@ class MainActivity : Activity() {
 
     private fun updateStudentChrome(path: String?) {
         val showNavigation = state == WebPocState.ACTIVE && StudentWebPolicy.isListPath(path)
+        val workbookSelected = path == StudentWebPolicy.WORKBOOK_PATH ||
+            path?.startsWith("${StudentWebPolicy.WORKBOOK_PATH}/") == true
+        val diagnosticSelected = path == StudentWebPolicy.DIAGNOSTIC_PATH ||
+            path?.startsWith("${StudentWebPolicy.DIAGNOSTIC_PATH}/") == true
         studentNavBar.visibility = if (showNavigation) View.VISIBLE else View.GONE
-        workbookButton.isEnabled = showNavigation && (
-            path == StudentWebPolicy.DIAGNOSTIC_PATH ||
-                path?.startsWith("${StudentWebPolicy.DIAGNOSTIC_PATH}/") == true
-            )
-        diagnosticButton.isEnabled = showNavigation && (
-            path == StudentWebPolicy.WORKBOOK_PATH ||
-                path?.startsWith("${StudentWebPolicy.WORKBOOK_PATH}/") == true
-            )
+        workbookButton.isSelected = showNavigation && workbookSelected
+        diagnosticButton.isSelected = showNavigation && diagnosticSelected
+        workbookButton.isEnabled = showNavigation && !workbookSelected
+        diagnosticButton.isEnabled = showNavigation && !diagnosticSelected
+        workbookButton.alpha = 1f
+        diagnosticButton.alpha = 1f
         val layoutParams = webView.layoutParams as FrameLayout.LayoutParams
         val topMargin = if (showNavigation) dpToPx(STUDENT_NAV_HEIGHT_DP) else 0
         if (layoutParams.topMargin != topMargin) {
