@@ -461,7 +461,7 @@ class DomContractInstrumentedTest {
         ) { webView ->
             val result = evaluate(webView, WebDomScripts.applyStudentExperience)
             assertTrue(result.getBoolean("ok"))
-            evaluate(
+            val started = evaluate(
                 webView,
                 """
                 (() => {
@@ -470,10 +470,18 @@ class DomContractInstrumentedTest {
                   map.querySelectorAll(
                     '.matholic-kiosk-problem-map-grid button'
                   )[3].click();
-                  return JSON.stringify({ started: true });
+                  return JSON.stringify({
+                    started: true,
+                    pendingLabel: document.getElementById('problem-number')
+                      .dataset.matholicKioskLabel,
+                    numberBusy: document.getElementById('problem-number')
+                      .getAttribute('aria-busy')
+                  });
                 })()
                 """.trimIndent(),
             )
+            assertEquals("1 →4/5", started.getString("pendingLabel"))
+            assertEquals("true", started.getString("numberBusy"))
             Thread.sleep(3_000)
             val proof = evaluate(
                 webView,
@@ -490,6 +498,10 @@ class DomContractInstrumentedTest {
                     directionClicks: window.directionClicks,
                     pendingTarget:
                       window.__matholicKioskProblemNavigationController.target,
+                    finalLabel: document.getElementById('problem-number')
+                      .dataset.matholicKioskLabel,
+                    numberBusy: document.getElementById('problem-number')
+                      .hasAttribute('aria-busy'),
                     previousVisible:
                       previousRect.left >= navigationRect.left &&
                       previousRect.right <= navigationRect.right,
@@ -506,6 +518,8 @@ class DomContractInstrumentedTest {
             assertEquals("4", proof.getString("selected"))
             assertEquals(3, proof.getInt("directionClicks"))
             assertEquals(0, proof.getInt("pendingTarget"))
+            assertEquals("4 ↓/5", proof.getString("finalLabel"))
+            assertFalse(proof.getBoolean("numberBusy"))
             assertTrue(proof.getBoolean("previousVisible"))
             assertTrue(proof.getBoolean("nextVisible"))
             assertTrue(proof.getBoolean("noHorizontalOverflow"))

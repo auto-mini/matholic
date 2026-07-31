@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.4"
+    const val CONTRACT_VERSION = "web-2026-08-01.5"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -1249,6 +1249,28 @@ object WebDomScripts {
             const totalProblems = Number(
               numberTokens[numberTokens.length - 1] || '0'
             );
+            const updateProblemNumberLabel = (current, total, target = 0) => {
+              const cluster = currentProblemNumberCluster();
+              if (
+                !cluster ||
+                !Number.isInteger(current) ||
+                current < 1 ||
+                !Number.isInteger(total) ||
+                total < 1
+              ) return;
+              const moving = Number.isInteger(target) &&
+                target >= 1 && target <= total && target !== current;
+              cluster.dataset.matholicKioskLabel = moving
+                ? `${'$'}{current} →${'$'}{target}/${'$'}{total}`
+                : total > 1
+                  ? `${'$'}{current} ↓/${'$'}{total}`
+                  : `${'$'}{current}/${'$'}{total}`;
+              if (moving) {
+                cluster.setAttribute('aria-busy', 'true');
+              } else {
+                cluster.removeAttribute('aria-busy');
+              }
+            };
             if (
               problemNumberCluster &&
               Number.isInteger(currentProblemNumber) &&
@@ -1256,10 +1278,13 @@ object WebDomScripts {
               Number.isInteger(totalProblems) &&
               totalProblems > 0
             ) {
-              problemNumberCluster.dataset.matholicKioskLabel =
-                totalProblems > 1
-                  ? `${'$'}{currentProblemNumber} ↓/${'$'}{totalProblems}`
-                  : `${'$'}{currentProblemNumber}/${'$'}{totalProblems}`;
+              updateProblemNumberLabel(
+                currentProblemNumber,
+                totalProblems,
+                Number(
+                  window.__matholicKioskProblemNavigationController?.target || 0
+                )
+              );
             }
             const problemStates =
               window.__matholicKioskProblemStates ||
@@ -1377,6 +1402,10 @@ object WebDomScripts {
               problemNavigationController.lastSelected = 0;
               problemNavigationController.staleChecks = 0;
               problemNavigationController.timer = 0;
+              updateProblemNumberLabel(
+                readCurrentProblemNumber(),
+                totalProblems
+              );
             };
             const scheduleProblemNavigation = delay => {
               if (problemNavigationController.timer) {
@@ -1473,6 +1502,11 @@ object WebDomScripts {
               }
               clearProblemNavigation();
               problemNavigationController.target = number;
+              updateProblemNumberLabel(
+                readCurrentProblemNumber(),
+                totalProblems,
+                number
+              );
               continueProblemNavigation();
             };
             const navigateToUnanswered = direction => {
