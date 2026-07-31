@@ -1615,6 +1615,61 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceShowsOnlyFocusedMathCursorInsideAnswerReview() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <span id="question-editor" class="mq-editable-field mq-math-mode">
+                  <span class="mq-root-block mq-hasCursor">
+                    <span id="question-cursor" class="mq-cursor">&#8203;</span>
+                  </span>
+                </span>
+              </main>
+              <div class="ant-modal" role="dialog">
+                <div class="ant-modal-title">전체답안</div>
+                <span id="review-editor" class="mq-editable-field mq-math-mode">
+                  <span class="mq-root-block mq-hasCursor">
+                    <span id="review-cursor" class="mq-cursor">&#8203;</span>
+                  </span>
+                </span>
+              </div>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val beforeFocus = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  reviewCursor:
+                    getComputedStyle(document.getElementById('review-cursor')).visibility,
+                  questionCursor:
+                    getComputedStyle(document.getElementById('question-cursor')).visibility
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("hidden", beforeFocus.getString("reviewCursor"))
+            assertEquals("visible", beforeFocus.getString("questionCursor"))
+
+            val afterFocus = evaluate(
+                webView,
+                """
+                (() => {
+                  document.getElementById('review-editor').classList.add('mq-focused');
+                  return JSON.stringify({
+                    reviewCursor:
+                      getComputedStyle(document.getElementById('review-cursor')).visibility
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("visible", afterFocus.getString("reviewCursor"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceExpandsPreTextareaMathShellAndHidesClearControl() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.22"
+    const val CONTRACT_VERSION = "web-2026-08-01.23"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -604,6 +604,10 @@ object WebDomScripts {
             .mq-editable-field .mq-root-block {
               min-width: 1em !important;
               min-height: 28px !important;
+            }
+            .ant-modal[role="dialog"]
+              .mq-editable-field:not(.mq-focused) .mq-cursor {
+              visibility: hidden !important;
             }
             .matholic-kiosk-math-nav {
               position: fixed !important;
