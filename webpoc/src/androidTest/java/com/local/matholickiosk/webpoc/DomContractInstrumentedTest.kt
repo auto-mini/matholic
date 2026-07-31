@@ -1199,7 +1199,13 @@ class DomContractInstrumentedTest {
                       document.querySelector(
                         '#answer-input-form-late input[placeholder*="주관식 답"]'
                       )
-                    ).visibility === 'hidden',
+                    ).opacity === '0',
+                  basicInputStillDiscoverable:
+                    getComputedStyle(
+                      document.querySelector(
+                        '#answer-input-form-late input[placeholder*="주관식 답"]'
+                      )
+                    ).visibility !== 'hidden',
                   toolbarPrehidden: Array.from(
                     document.querySelectorAll('#late-math-toolbar button')
                   ).every(button => getComputedStyle(button).visibility === 'hidden'),
@@ -1221,6 +1227,7 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("answerScopePrimed"))
             assertTrue(lateProof.getBoolean("answerScopeBlocked"))
             assertTrue(lateProof.getBoolean("basicInputPrehidden"))
+            assertTrue(lateProof.getBoolean("basicInputStillDiscoverable"))
             assertTrue(lateProof.getBoolean("toolbarPrehidden"))
             assertTrue(lateProof.getBoolean("mathClicked"))
             assertTrue(lateProof.getBoolean("basicVisible"))
@@ -1272,7 +1279,11 @@ class DomContractInstrumentedTest {
                     ariaRestored: !scope.hasAttribute('aria-hidden'),
                     basicInputVisible: getComputedStyle(
                       scope.querySelector('input[placeholder*="주관식 답"]')
-                    ).visibility !== 'hidden',
+                    ).visibility !== 'hidden' && getComputedStyle(
+                      scope.querySelector('input[placeholder*="주관식 답"]')
+                    ).opacity !== '0' && getComputedStyle(
+                      scope.querySelector('input[placeholder*="주관식 답"]')
+                    ).pointerEvents !== 'none',
                     fallbackMarked: scope.querySelector(
                       'input[placeholder*="주관식 답"]'
                     ).dataset.matholicKioskBasicFallback === 'true',

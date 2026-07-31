@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.19"
+    const val CONTRACT_VERSION = "web-2026-08-01.20"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -586,7 +586,8 @@ object WebDomScripts {
             div:has(input[placeholder*="주관식 답"]:not([
               data-matholic-kiosk-basic-fallback="true"
             ])) button.ant-dropdown-trigger {
-              visibility: hidden !important;
+              opacity: 0 !important;
+              pointer-events: none !important;
             }
             .mq-editable-field {
               min-width: 220px !important;
