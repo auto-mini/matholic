@@ -38,14 +38,15 @@ PIN 원문이나 복호화 결과를 읽거나 출력·기록하지 마라. 만�
 카드·반사·조명 검증과 구분해 보고하라. 원격 로그인에는 제공된 PDF에서
 표시명이 정확히 `테스트`인 QR만 사용하라. 로그인 뒤 화면의 학생 이름도
 `테스트`인지 확인하고 다르면 즉시 안전 종료하며 다른 QR·계정으로 진행하지
-마라.
+마라. PDF 원격 제출은 scripts\submit-test-qr-from-pdf.py로 표시명과 QR 개수를
+검증하고, QR 원문과 hash를 출력·파일 저장하지 않는 방식으로만 수행하라.
 
-헌장의 최신 체크포인트에 Lock Task NONE이 아직 미해결로 남아 있다면 첫
-기기 작업은 최신 화면과 상태를 확인해 원인을 구분하고, 재부팅·데이터 삭제
-없이 전용 HOME과 안전한 잠금 상태를 복원한 뒤 체크포인트를 갱신하는 것이다.
-이후 같은 signer의 더 높은 versionCode APK만 adb install -r로 설치하고 설치
-전후 UID, firstInstallTime, signer, Device Owner, HOME, Lock Task, 앱 상태와
-충돌 로그를 확인하라.
+현재 기준 상태는 Kiosk rc53/code 58, Device Owner 유지, Lock Task LOCKED,
+릴리스 테스트 수업의 QR_READY이다. 작업을 재개할 때 이 상태를 읽기 전용으로
+다시 확인하고, 차이가 있으면 원인을 구분해 재부팅·데이터 삭제 없이 안전하게
+복원한 뒤 진행하라. 이후 같은 signer의 더 높은 versionCode APK만
+adb install -r로 설치하고 설치 전후 UID, firstInstallTime, signer, Device
+Owner, HOME, Lock Task, 앱 상태와 충돌 로그를 확인하라.
 
 사용자 개입이 필요한 실물·Windows 인증·USB·전원·프린터 항목은 미검증과
 추후 요청 목록에 남기고 우회 가능한 다른 의미 있는 작업을 계속하라. 단,

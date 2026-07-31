@@ -20,9 +20,11 @@
 - 최신 체크포인트:
   - `45bff3d` 실제 문제 이동·답안 현황 이동 교정
   - `06f3de6` Windows DPAPI 기반 관리자 PIN 자동 입력
+  - `4afdf0b` 원격 QR 시험을 표시명 정확히 `테스트`인 학생으로 제한
+  - `ef5025d` 화면 구조 기반 PIN 입력과 PDF 시험 QR 메모리 제출 도구
 - A: Samsung SM-P610, serial `R54TB029FHZ`, 기존 PC에서 ADB 승인 유지
 - A 설치본:
-  - Kiosk `0.6.0-rc52`/code 57, UID `10288`
+  - Kiosk `0.6.0-rc53`/code 58, UID `10288`
   - Web POC `0.4.0-rc75`/code 92, UID `10293`
 - Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
@@ -30,21 +32,27 @@
   `%LOCALAPPDATA%\MatholicRemote\admin-pin.dpapi`에 현재 Windows 사용자와
   A serial에 묶인 DPAPI 암호문으로 존재한다.
 - PIN은 `scripts/enter-tablet-admin-pin.ps1 -RequireStoredPin`으로만 사용한다.
-  Codex는 복호화 결과나 PIN 원문을 출력·기록·직접 조회하지 않는다.
+  이 도구는 현재 화면 구조에서 PIN 입력칸과 인증 버튼을 먼저 식별하고 고정
+  좌표를 사용하지 않는다. Codex는 복호화 결과나 PIN 원문을 출력·기록·직접
+  조회하지 않는다.
 - `scripts/remote-tablet.ps1`의 만료형 원격 지원을 통해 화면을 캡처하고,
   사용이 끝나면 지원을 중지해 임시 화면 파일을 삭제한다.
 - 사용자가 제공한 테스트 QR PDF에서 표시명이 정확히 `테스트`인 카드만
   선택하고, 그 QR hash와 `TEST_QR_HASH` 경로로 `QR_READY` 상태의 시험계정
   로그인을 시작할 수 있다. 다른 학생·계정 QR은 원격 실기에 사용하지 않는다.
+  `scripts/submit-test-qr-from-pdf.py`를 사용해 PDF의 정확한 표시명과 QR 개수를
+  먼저 검증하고 QR 원문·hash는 메모리에서만 처리하며 출력하거나 파일로 남기지
+  않는다. 앱의 원격 경로도 `테스트` 이외 표시명을 저장소 검증 단계에서 거부한다.
   이 경로는 QR token hash 검증 이후의 흐름을 시험하지만 카메라 광학 인식
   자체를 증명하지는 않는다.
 - 시험계정에는 1·5·10·25문항 과제가 있으며, 반복 실기 중 제출·완료 기록을
   변경해도 된다고 사용자가 승인했다. 신규 미제출 과제가 부족하면 `테스트`
   계정에서 이미 제출한 풀이의 오답풀이·다시풀기를 임시 시험 재료로 사용한다.
-- 2026-08-01 문서 갱신 직전 읽기 전용 확인에서 USB 전원·배터리 100%,
-  ADB `device`, Device Owner는 정상이었으나 Lock Task는 `NONE`이었다.
-  다음 Goal의 첫 기기 작업은 화면과 상태를 확인해 원인을 구분하고, 재부팅·
-  데이터 삭제 없이 전용 HOME과 안전한 잠금 상태를 복원하는 것이다.
+- 2026-08-01 Kiosk `rc53`을 동일 서명 `adb install -r`로 보존형 설치했다.
+  최초 설치 시각과 기존 학생 15명·반·명단이 유지됐고, 업데이트로 생긴
+  `RECOVERY_REQUIRED`를 원버튼 안전 복구한 뒤 `릴리스 테스트` 수업을 다시
+  시작했다. Lock Task `LOCKED`, 정확한 `테스트` PDF 원격 로그인, Web 진입,
+  채점 끝내기와 `QR_READY` 복귀를 실제 캡처로 확인했으며 원격 지원은 종료했다.
 
 ### 자율 실기 범위
 
