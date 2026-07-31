@@ -862,6 +862,10 @@ object WebDomScripts {
               overflow: visible !important;
               box-sizing: border-box !important;
             }
+            html[data-matholic-kiosk-direct-problem-select="true"]
+              .ant-select-dropdown {
+              opacity: 0 !important;
+            }
             [data-matholic-kiosk-problem-direction-host] {
               width: 52px !important;
               min-width: 52px !important;
@@ -1659,6 +1663,33 @@ object WebDomScripts {
                 typeof reactProps?.onMouseDown !== 'function' &&
                 typeof reactProps?.onClick !== 'function'
               ) return false;
+              const maskRoot = document.documentElement;
+              const maskToken = Number(
+                window.__matholicKioskDirectProblemSelectToken || 0
+              ) + 1;
+              window.__matholicKioskDirectProblemSelectToken = maskToken;
+              maskRoot.dataset.matholicKioskDirectProblemSelect = 'true';
+              const releaseSelectorMask = () => {
+                const waitForSelectorToClose = () => {
+                  if (
+                    Number(window.__matholicKioskDirectProblemSelectToken) !==
+                      maskToken
+                  ) return;
+                  const selectorOpen = Array.from(
+                    document.querySelectorAll('.ant-select-dropdown')
+                  ).some(element => {
+                    if (!visible(element)) return false;
+                    const rect = element.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  });
+                  if (!selectorOpen) {
+                    delete maskRoot.dataset.matholicKioskDirectProblemSelect;
+                    return;
+                  }
+                  setTimeout(waitForSelectorToClose, 100);
+                };
+                setTimeout(waitForSelectorToClose, 1_000);
+              };
               const syntheticPointer = {
                 button: 0,
                 target: surface,
@@ -1670,8 +1701,10 @@ object WebDomScripts {
                 reactProps.onMouseDown?.(syntheticPointer);
                 reactProps.onClick?.(syntheticPointer);
               } catch (_) {
+                delete maskRoot.dataset.matholicKioskDirectProblemSelect;
                 return false;
               }
+              releaseSelectorMask();
               const clickMatchingOption = () => {
                 const option = Array.from(document.querySelectorAll(
                   '.ant-select-item-option,[role="option"]'

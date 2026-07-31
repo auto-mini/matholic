@@ -137,6 +137,13 @@ class WebDomScriptsTest {
         assertTrue(script.contains("rect.width > 0 && rect.height > 0"))
         assertTrue(script.contains("chooseProblemOption(attempt + 1)"))
         assertTrue(script.contains("scheduleProblemNavigation(800)"))
+        assertTrue(script.contains("matholicKioskDirectProblemSelect"))
+        assertTrue(script.contains("opacity: 0 !important"))
+        assertTrue(script.contains("waitForSelectorToClose"))
+        assertTrue(script.contains("setTimeout(waitForSelectorToClose, 100)"))
+        assertFalse(script.contains(
+            "combobox?.dispatchEvent(new KeyboardEvent",
+        ))
         assertTrue(script.contains("matholicKioskDirectionFeedback"))
         assertTrue(script.contains("matholicKioskDirectionFeedbackBound"))
         assertTrue(script.contains("localizeEmptyListState"))

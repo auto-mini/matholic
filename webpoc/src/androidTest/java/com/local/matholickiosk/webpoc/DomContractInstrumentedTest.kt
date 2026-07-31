@@ -779,6 +779,10 @@ class DomContractInstrumentedTest {
                         window.hiddenSelections += 1;
                       };
                       document.body.appendChild(hiddenOption);
+                      const dropdown = document.createElement('div');
+                      dropdown.className = 'ant-select-dropdown';
+                      dropdown.style.width = '120px';
+                      dropdown.style.height = '200px';
                       const holder = document.createElement('div');
                       holder.className = 'rc-virtual-list-holder';
                       holder.style.width = '120px';
@@ -793,11 +797,14 @@ class DomContractInstrumentedTest {
                           document.getElementById('selected-problem').textContent =
                             String(number);
                           window.directSelections += 1;
-                          holder.remove();
+                          setTimeout(function() {
+                            dropdown.remove();
+                          }, 1400);
                         };
                         holder.appendChild(option);
                       }
-                      document.body.appendChild(holder);
+                      dropdown.appendChild(holder);
+                      document.body.appendChild(dropdown);
                     }
                   };
                 </script>
@@ -818,7 +825,18 @@ class DomContractInstrumentedTest {
                 })()
                 """.trimIndent(),
             )
-            Thread.sleep(1_000)
+            Thread.sleep(1_200)
+            val pendingMask = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  active: document.documentElement.dataset
+                    .matholicKioskDirectProblemSelect === 'true'
+                }))()
+                """.trimIndent(),
+            )
+            assertTrue(pendingMask.getBoolean("active"))
+            Thread.sleep(700)
             val proof = evaluate(
                 webView,
                 """
@@ -827,6 +845,9 @@ class DomContractInstrumentedTest {
                   directSelections: window.directSelections,
                   hiddenSelections: window.hiddenSelections,
                   directionClicks: window.directionClicks,
+                  selectorMaskActive:
+                    document.documentElement.dataset
+                      .matholicKioskDirectProblemSelect === 'true',
                   pendingTarget:
                     window.__matholicKioskProblemNavigationController.target
                 }))()
@@ -836,6 +857,7 @@ class DomContractInstrumentedTest {
             assertEquals(1, proof.getInt("directSelections"))
             assertEquals(0, proof.getInt("hiddenSelections"))
             assertEquals(0, proof.getInt("directionClicks"))
+            assertFalse(proof.getBoolean("selectorMaskActive"))
             assertEquals(0, proof.getInt("pendingTarget"))
         }
     }
