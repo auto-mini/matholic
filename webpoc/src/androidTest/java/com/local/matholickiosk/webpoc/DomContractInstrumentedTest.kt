@@ -414,6 +414,58 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceHidesDirectionsForSingleProblem() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex">
+                  <button id="previous"><svg></svg></button>
+                  <div id="problem-number">
+                    <div class="ant-select">
+                      <div class="ant-select-selector" role="combobox">
+                        <span class="ant-select-selection-item">1</span>
+                      </div>
+                    </div>
+                    <span>/ 1</span>
+                  </div>
+                  <button id="next"><svg></svg></button>
+                </div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  label: document.getElementById('problem-number')
+                    .dataset.matholicKioskLabel,
+                  singleProblem: document.getElementById('problem-navigation')
+                    .dataset.matholicKioskSingleProblem,
+                  previousVisibility: getComputedStyle(
+                    document.getElementById('previous')
+                  ).visibility,
+                  nextVisibility: getComputedStyle(
+                    document.getElementById('next')
+                  ).visibility,
+                  mapPresent: !!document.querySelector(
+                    '.matholic-kiosk-problem-map'
+                  )
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("1/1", proof.getString("label"))
+            assertEquals("true", proof.getString("singleProblem"))
+            assertEquals("hidden", proof.getString("previousVisibility"))
+            assertEquals("hidden", proof.getString("nextVisibility"))
+            assertFalse(proof.getBoolean("mapPresent"))
+        }
+    }
+
+    @Test
     fun testProblemMapUsesNativeDirectionButtonsWhenAntSelectorIgnoresClick() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

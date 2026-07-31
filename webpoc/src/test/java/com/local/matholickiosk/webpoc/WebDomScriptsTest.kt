@@ -131,6 +131,7 @@ class WebDomScriptsTest {
         assertTrue(script.contains("matholicKioskProblemNavigationController"))
         assertTrue(script.contains("continueProblemNavigation"))
         assertTrue(script.contains("aria-busy"))
+        assertTrue(script.contains("matholicKioskSingleProblem"))
         assertFalse(script.contains("풀지 못한 문제는 빈칸으로 두지 말고"))
         assertTrue(script.contains("problemStateMapEnhancements"))
         val leftPreset = WebDomScripts.applyStudentExperience("left")

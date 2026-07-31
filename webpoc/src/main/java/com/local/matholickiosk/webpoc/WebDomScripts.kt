@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.5"
+    const val CONTRACT_VERSION = "web-2026-08-01.6"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -831,6 +831,12 @@ object WebDomScripts {
               width: 30px !important;
               height: 30px !important;
             }
+            [data-matholic-kiosk-problem-navigation="true"][
+              data-matholic-kiosk-single-problem="true"
+            ] [data-matholic-kiosk-problem-direction] {
+              visibility: hidden !important;
+              pointer-events: none !important;
+            }
             .matholic-kiosk-problem-map {
               position: relative !important;
               top: auto !important;
@@ -1260,6 +1266,13 @@ object WebDomScripts {
               ) return;
               const moving = Number.isInteger(target) &&
                 target >= 1 && target <= total && target !== current;
+              const navigation = cluster.closest(
+                '[data-matholic-kiosk-problem-navigation="true"]'
+              );
+              if (navigation) {
+                navigation.dataset.matholicKioskSingleProblem =
+                  total === 1 ? 'true' : 'false';
+              }
               cluster.dataset.matholicKioskLabel = moving
                 ? `${'$'}{current} →${'$'}{target}/${'$'}{total}`
                 : total > 1
