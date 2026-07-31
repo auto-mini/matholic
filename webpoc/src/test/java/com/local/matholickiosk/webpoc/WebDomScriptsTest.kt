@@ -122,6 +122,8 @@ class WebDomScriptsTest {
         assertTrue(script.contains(".ant-select-selection-item"))
         assertTrue(script.contains("visibleButtonInside"))
         assertTrue(script.contains("matholic-kiosk-problem-map"))
+        assertTrue(script.contains("border: 1px solid #c7d4e3"))
+        assertTrue(script.contains("box-shadow: 0 4px 12px"))
         assertTrue(script.contains("matholicKioskProblemStates"))
         assertTrue(script.contains("답안 현황"))
         assertTrue(script.contains("이전 미입력"))

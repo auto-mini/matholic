@@ -846,18 +846,23 @@ object WebDomScripts {
               max-width: calc(100% - 24px) !important;
               margin: 10px auto 18px !important;
               padding: 10px !important;
-              border: 2px solid #173f6d !important;
+              border: 1px solid #c7d4e3 !important;
               border-radius: 16px !important;
               background: rgba(255, 255, 255, 0.98) !important;
-              box-shadow: 0 6px 18px rgba(16, 42, 67, 0.24) !important;
+              box-shadow: 0 4px 12px rgba(16, 42, 67, 0.14) !important;
             }
             .matholic-kiosk-problem-map > button {
               width: 100% !important;
               min-height: 52px !important;
+              padding: 8px 12px !important;
+              border: 0 !important;
+              border-radius: 10px !important;
               background: #173f6d !important;
               color: #fff !important;
+              box-shadow: none !important;
               font-size: 18px !important;
               font-weight: 800 !important;
+              appearance: none !important;
             }
             .matholic-kiosk-problem-map-grid {
               display: none !important;
