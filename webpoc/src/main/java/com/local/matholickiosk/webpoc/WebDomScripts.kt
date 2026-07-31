@@ -2147,6 +2147,9 @@ object WebDomScripts {
             const primeAnswerModeChrome = (root = document) => {
               let hidden = 0;
               let selectedCount = 0;
+              const toolbarLabels = new Set(['루트', '분수', '파이']);
+              const isInputMenuText = text =>
+                text === '입력기' || text.startsWith('입력기 ');
               const modeControls = elementsWithin(
                 root,
                 'button,[role="button"],li,[role="menuitem"]'
@@ -2165,6 +2168,49 @@ object WebDomScripts {
                 );
                 return siblingLabels.has('루트') && siblingLabels.has('파이');
               };
+              const structureControls = elementsWithin(
+                root,
+                'button,[role="button"]'
+              ).filter(element => {
+                if (element.closest('.matholic-kiosk-math-nav')) return false;
+                if (!toolbarLabels.has(normalize(element.textContent))) {
+                  return false;
+                }
+                const parent = element.parentElement;
+                if (!parent) return false;
+                const siblingLabels = new Set(
+                  Array.from(parent.querySelectorAll(
+                    'button,[role="button"]'
+                  )).map(candidate => normalize(candidate.textContent))
+                );
+                return [...toolbarLabels].every(label =>
+                  siblingLabels.has(label)
+                );
+              });
+              const inputMenuControls = elementsWithin(
+                root,
+                'button,[role="button"]'
+              ).filter(element => {
+                if (!isInputMenuText(normalize(element.textContent))) {
+                  return false;
+                }
+                if (element.closest('[id^="answer-input-form-"]')) {
+                  return true;
+                }
+                let scope = element.parentElement;
+                for (let depth = 0; scope && depth < 6; depth += 1) {
+                  const labels = new Set(
+                    Array.from(scope.querySelectorAll(
+                      'button,[role="button"]'
+                    )).map(candidate => normalize(candidate.textContent))
+                  );
+                  if ([...toolbarLabels].every(label => labels.has(label))) {
+                    return true;
+                  }
+                  scope = scope.parentElement;
+                }
+                return false;
+              });
               modeControls
                 .filter(element =>
                   normalize(element.textContent) === '수식' &&
@@ -2187,8 +2233,11 @@ object WebDomScripts {
                     selectedCount += 1;
                   }
                 });
-              modeControls
-                .filter(element => !isStructureControl(element))
+              Array.from(new Set([
+                ...modeControls.filter(element => !isStructureControl(element)),
+                ...structureControls,
+                ...inputMenuControls
+              ]))
                 .forEach(element => {
                   if (
                     element.dataset.matholicKioskModePrehidden !== 'true'
@@ -2924,10 +2973,15 @@ object WebDomScripts {
               };
               const inputMenuButtons = Array.from(
                 document.querySelectorAll('button,[role="button"]')
-              ).filter(element => normalize(element.textContent) === '입력기');
+              ).filter(element => {
+                const text = normalize(element.textContent);
+                return text === '입력기' || text.startsWith('입력기 ');
+              });
               const observedScopes = new Set();
               inputMenuButtons.forEach(button => {
-                const wasVisible = visible(button);
+                const wasVisible =
+                  visible(button) ||
+                  button.dataset.matholicKioskModePrehidden === 'true';
                 const answerScope = answerScopeFor(button);
                 if (answerScope) observedScopes.add(answerScope);
                 const componentMounted = mathComponentMounted(answerScope);

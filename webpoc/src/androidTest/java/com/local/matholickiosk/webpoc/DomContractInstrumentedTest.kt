@@ -872,7 +872,7 @@ class DomContractInstrumentedTest {
                           onclick="this.dataset.clicked='yes'">수식</li>
                       </ul>
                     </div>
-                    <div>
+                    <div id="late-math-toolbar">
                       <button>루트</button>
                       <button>분수</button>
                       <button>파이</button>
@@ -903,6 +903,11 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('late-global-line')).display === 'none',
                   inputMenuVisible:
                     getComputedStyle(document.getElementById('late-input-menu')).display !== 'none',
+                  inputMenuPrehidden:
+                    getComputedStyle(document.getElementById('late-input-menu')).visibility === 'hidden',
+                  toolbarPrehidden: Array.from(
+                    document.querySelectorAll('#late-math-toolbar button')
+                  ).every(button => getComputedStyle(button).visibility === 'hidden'),
                   mathClicked:
                     document.getElementById('late-math').dataset.clicked === 'yes',
                   basicVisible:
@@ -917,6 +922,8 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("mathTooltipHidden"))
             assertTrue(lateProof.getBoolean("chromeHidden"))
             assertTrue(lateProof.getBoolean("inputMenuVisible"))
+            assertTrue(lateProof.getBoolean("inputMenuPrehidden"))
+            assertTrue(lateProof.getBoolean("toolbarPrehidden"))
             assertTrue(lateProof.getBoolean("mathClicked"))
             assertTrue(lateProof.getBoolean("basicVisible"))
             assertTrue(lateProof.getBoolean("fractionVisible"))
