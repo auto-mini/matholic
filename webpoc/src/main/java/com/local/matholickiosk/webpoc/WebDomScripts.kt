@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.18"
+    const val CONTRACT_VERSION = "web-2026-08-01.19"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -579,6 +579,14 @@ object WebDomScripts {
             input[placeholder*="주관식 답"] {
               width: 220px !important;
               max-width: 100% !important;
+            }
+            input[placeholder*="주관식 답"]:not([
+              data-matholic-kiosk-basic-fallback="true"
+            ]),
+            div:has(input[placeholder*="주관식 답"]:not([
+              data-matholic-kiosk-basic-fallback="true"
+            ])) button.ant-dropdown-trigger {
+              visibility: hidden !important;
             }
             .mq-editable-field {
               min-width: 220px !important;
@@ -2525,6 +2533,11 @@ object WebDomScripts {
               scope.dataset.matholicKioskPreviousAnswerAriaHidden =
                 scope.hasAttribute('aria-hidden') ?
                   scope.getAttribute('aria-hidden') || '' : '__missing__';
+              scope.querySelectorAll(
+                'input[placeholder*="주관식 답"]'
+              ).forEach(input => {
+                delete input.dataset.matholicKioskBasicFallback;
+              });
               important(scope, 'opacity', '0');
               important(scope, 'pointer-events', 'none');
               scope.setAttribute('aria-hidden', 'true');
@@ -2723,7 +2736,19 @@ object WebDomScripts {
                   });
                   document.querySelectorAll(
                     '[data-matholic-kiosk-answer-scope-primed="true"]'
-                  ).forEach(restorePrimedMathAnswerScope);
+                  ).forEach(scope => {
+                    const scopedEditorReady = Array.from(
+                      scope.querySelectorAll('.mq-editable-field')
+                    ).some(visible);
+                    if (!scopedEditorReady) {
+                      scope.querySelectorAll(
+                        'input[placeholder*="주관식 답"]'
+                      ).forEach(input => {
+                        input.dataset.matholicKioskBasicFallback = 'true';
+                      });
+                    }
+                    restorePrimedMathAnswerScope(scope);
+                  });
                 }, 500);
               }
               return { hidden, selectedCount, primedScopeCount };

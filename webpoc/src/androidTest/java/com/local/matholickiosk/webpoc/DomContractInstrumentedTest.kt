@@ -1147,6 +1147,7 @@ class DomContractInstrumentedTest {
                     <button id="late-report">오류신고</button>
                     <div id="late-math-tooltip" class="ant-tooltip" role="tooltip">수식</div>
                     <div id="answer-input-form-late">
+                      <input id="late-basic-answer" placeholder="주관식 답은 여기에">
                       <button id="late-input-menu"
                         onclick="document.getElementById('late-mode-menu').style.display='block'">입력기</button>
                       <ul id="late-mode-menu" style="display:none">
@@ -1193,6 +1194,12 @@ class DomContractInstrumentedTest {
                     getComputedStyle(document.getElementById('answer-input-form-late')).opacity === '0',
                   answerScopeBlocked:
                     getComputedStyle(document.getElementById('answer-input-form-late')).pointerEvents === 'none',
+                  basicInputPrehidden:
+                    getComputedStyle(
+                      document.querySelector(
+                        '#answer-input-form-late input[placeholder*="주관식 답"]'
+                      )
+                    ).visibility === 'hidden',
                   toolbarPrehidden: Array.from(
                     document.querySelectorAll('#late-math-toolbar button')
                   ).every(button => getComputedStyle(button).visibility === 'hidden'),
@@ -1213,6 +1220,7 @@ class DomContractInstrumentedTest {
             assertTrue(lateProof.getBoolean("inputMenuPrehidden"))
             assertTrue(lateProof.getBoolean("answerScopePrimed"))
             assertTrue(lateProof.getBoolean("answerScopeBlocked"))
+            assertTrue(lateProof.getBoolean("basicInputPrehidden"))
             assertTrue(lateProof.getBoolean("toolbarPrehidden"))
             assertTrue(lateProof.getBoolean("mathClicked"))
             assertTrue(lateProof.getBoolean("basicVisible"))
@@ -1262,6 +1270,12 @@ class DomContractInstrumentedTest {
                     visible: style.opacity !== '0',
                     interactive: style.pointerEvents !== 'none',
                     ariaRestored: !scope.hasAttribute('aria-hidden'),
+                    basicInputVisible: getComputedStyle(
+                      scope.querySelector('input[placeholder*="주관식 답"]')
+                    ).visibility !== 'hidden',
+                    fallbackMarked: scope.querySelector(
+                      'input[placeholder*="주관식 답"]'
+                    ).dataset.matholicKioskBasicFallback === 'true',
                     markerRemoved:
                       scope.dataset.matholicKioskAnswerScopePrimed !== 'true'
                   });
@@ -1271,6 +1285,8 @@ class DomContractInstrumentedTest {
             assertTrue(fallbackProof.getBoolean("visible"))
             assertTrue(fallbackProof.getBoolean("interactive"))
             assertTrue(fallbackProof.getBoolean("ariaRestored"))
+            assertTrue(fallbackProof.getBoolean("basicInputVisible"))
+            assertTrue(fallbackProof.getBoolean("fallbackMarked"))
             assertTrue(fallbackProof.getBoolean("markerRemoved"))
         }
     }
