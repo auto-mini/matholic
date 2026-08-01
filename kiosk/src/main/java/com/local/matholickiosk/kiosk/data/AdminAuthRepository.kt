@@ -16,6 +16,10 @@ class AdminAuthRepository(
 ) {
     fun isEnrolled(): Boolean = database.adminDao().get() != null
 
+    fun enrolledPinLength(): Int? = database.adminDao().get()
+        ?.pinLength
+        ?.takeIf { it in 6..12 }
+
     fun enroll(pin: CharArray) {
         try {
             check(database.adminDao().get() == null) { "Admin PIN is already enrolled" }
@@ -27,6 +31,7 @@ class AdminAuthRepository(
                     derivedKey = verifier.derivedKey,
                     iterations = verifier.iterations,
                     verifierVersion = verifier.version,
+                    pinLength = pin.size,
                     consecutiveFailures = 0,
                     lockedUntilEpochMs = 0,
                     updatedAtEpochMs = now,
@@ -53,6 +58,7 @@ class AdminAuthRepository(
             if (AdminPin.verify(pin, verifier)) {
                 database.adminDao().save(
                     entity.copy(
+                        pinLength = pin.size,
                         consecutiveFailures = 0,
                         lockedUntilEpochMs = 0,
                         updatedAtEpochMs = now,

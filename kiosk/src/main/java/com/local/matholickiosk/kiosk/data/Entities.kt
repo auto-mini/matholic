@@ -134,6 +134,7 @@ data class AdminCredentialEntity(
     val derivedKey: ByteArray,
     val iterations: Int,
     val verifierVersion: Int,
+    val pinLength: Int,
     val consecutiveFailures: Int,
     val lockedUntilEpochMs: Long,
     val updatedAtEpochMs: Long,

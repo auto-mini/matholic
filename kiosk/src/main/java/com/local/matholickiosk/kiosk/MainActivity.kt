@@ -150,10 +150,11 @@ class MainActivity : ComponentActivity() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var automaticAuthenticationGeneration = 0
+    private var enrolledAdminPinLength: Int? = null
     private val automaticAuthenticationRunnable = Runnable {
         if (
             authEnrollmentMode || authBusy || authPanel.visibility != View.VISIBLE ||
-            pinInput.text.length !in 6..12
+            pinInput.text.length != enrolledAdminPinLength
         ) return@Runnable
         submitAuthentication()
     }
@@ -476,7 +477,7 @@ class MainActivity : ComponentActivity() {
                     if (
                         !authEnrollmentMode && !authBusy &&
                         authPanel.visibility == View.VISIBLE &&
-                        (s?.length ?: 0) in 6..12
+                        (s?.length ?: 0) == enrolledAdminPinLength
                     ) {
                         mainHandler.postDelayed(automaticAuthenticationRunnable, 300L)
                     }
@@ -591,6 +592,7 @@ class MainActivity : ComponentActivity() {
             val result = runCatching {
                 InitialStateSnapshot(
                     enrolled = authRepository.isEnrolled(),
+                    pinLength = authRepository.enrolledPinLength(),
                     recoveredState = studentRepository.applyRestartPolicy(),
                 )
             }
@@ -598,6 +600,7 @@ class MainActivity : ComponentActivity() {
                 if (destroyed) return@runOnUiThread
                 result.fold(
                     onSuccess = { snapshot ->
+                        enrolledAdminPinLength = snapshot.pinLength
                         statusText.text = snapshot.recoveredState.name
                         showAuthentication(enrollment = !snapshot.enrolled)
                     },
@@ -694,6 +697,7 @@ class MainActivity : ComponentActivity() {
         automaticAuthenticationGeneration += 1
         mainHandler.removeCallbacks(automaticAuthenticationRunnable)
         val pin = pinInput.text.toSensitiveCharArray()
+        val attemptedPinLength = pin.size
         val confirmation = if (authEnrollmentMode) {
             pinConfirmInput.text.toSensitiveCharArray()
         } else {
@@ -724,7 +728,12 @@ class MainActivity : ComponentActivity() {
                 if (destroyed) return@runOnUiThread
                 setAuthBusy(false)
                 result.fold(
-                    onSuccess = { handleAuthResult(it) },
+                    onSuccess = {
+                        if (it == AdminAuthResult.Success) {
+                            enrolledAdminPinLength = attemptedPinLength
+                        }
+                        handleAuthResult(it)
+                    },
                     onFailure = {
                         pin.fill('\u0000')
                         authError.text = it.message ?: "관리자 인증 처리에 실패했습니다."
@@ -3586,6 +3595,16 @@ class MainActivity : ComponentActivity() {
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
             hint = "관리자 PIN"
         }
+        var submitting = false
+        lateinit var submitPin: () -> Unit
+        val automaticSubmit = Runnable {
+            if (
+                !submitting && input.isAttachedToWindow &&
+                input.text.length == enrolledAdminPinLength
+            ) {
+                submitPin()
+            }
+        }
         val dialog = AlertDialog.Builder(this)
             .setTitle("관리자 인증")
             .setView(input)
@@ -3593,9 +3612,13 @@ class MainActivity : ComponentActivity() {
             .setPositiveButton("인증", null)
             .create()
         dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            submitPin = submit@{
+                if (submitting) return@submit
+                mainHandler.removeCallbacks(automaticSubmit)
                 val pin = input.text.toSensitiveCharArray()
+                val attemptedPinLength = pin.size
                 input.text.clear()
+                submitting = true
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                 executeSensitive(
                     cleanup = { pin.fill('\u0000') },
@@ -3605,6 +3628,7 @@ class MainActivity : ComponentActivity() {
                         if (destroyed) return@runOnUiThread
                         when (result) {
                             AdminAuthResult.Success -> {
+                                enrolledAdminPinLength = attemptedPinLength
                                 dialog.dismiss()
                                 showAuthenticatedSessionActions()
                             }
@@ -3613,6 +3637,7 @@ class MainActivity : ComponentActivity() {
                                 showAuthentication(enrollment = true)
                             }
                             is AdminAuthResult.Rejected -> {
+                                submitting = false
                                 val seconds = (result.retryAfterMillis + 999) / 1_000
                                 input.error = "PIN 오류 · ${seconds}초 후 재시도"
                                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
@@ -3621,8 +3646,45 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                submitPin()
+            }
+            input.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_DONE) {
+                    submitPin()
+                    true
+                } else {
+                    false
+                }
+            }
+            input.addTextChangedListener(
+                object : TextWatcher {
+                    override fun beforeTextChanged(
+                        s: CharSequence?,
+                        start: Int,
+                        count: Int,
+                        after: Int,
+                    ) = Unit
+
+                    override fun onTextChanged(
+                        s: CharSequence?,
+                        start: Int,
+                        before: Int,
+                        count: Int,
+                    ) {
+                        mainHandler.removeCallbacks(automaticSubmit)
+                        if (!submitting && (s?.length ?: 0) == enrolledAdminPinLength) {
+                            mainHandler.postDelayed(automaticSubmit, 300L)
+                        }
+                    }
+
+                    override fun afterTextChanged(s: Editable?) = Unit
+                },
+            )
+            input.requestFocus()
         }
         dialog.setOnDismissListener {
+            mainHandler.removeCallbacks(automaticSubmit)
             if (scannerVisible) qrAnalyzer?.setEnabled(true)
         }
         dialog.show()
@@ -3886,6 +3948,7 @@ class MainActivity : ComponentActivity() {
 
     private data class InitialStateSnapshot(
         val enrolled: Boolean,
+        val pinLength: Int?,
         val recoveredState: KioskState,
     )
 

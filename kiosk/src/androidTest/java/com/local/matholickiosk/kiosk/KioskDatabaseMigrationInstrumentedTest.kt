@@ -57,4 +57,35 @@ class KioskDatabaseMigrationInstrumentedTest {
             }
         }
     }
+
+    @Test
+    fun migration2To3PreservesCredentialAndAddsUnknownPinLength() {
+        helper.createDatabase(databaseName, 2).apply {
+            execSQL(
+                """
+                INSERT INTO admin_credential (
+                    singletonId, salt, derivedKey, iterations, verifierVersion,
+                    consecutiveFailures, lockedUntilEpochMs, updatedAtEpochMs
+                ) VALUES (1, X'01', X'02', 3, 1, 0, 0, 1000)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(
+            databaseName,
+            3,
+            true,
+            KioskDatabase.MIGRATION_2_3,
+        ).use { database ->
+            database.query(
+                "SELECT pinLength, updatedAtEpochMs " +
+                    "FROM admin_credential WHERE singletonId = 1",
+            ).use { cursor ->
+                cursor.moveToFirst()
+                assertEquals(0, cursor.getInt(0))
+                assertEquals(1000L, cursor.getLong(1))
+            }
+        }
+    }
 }

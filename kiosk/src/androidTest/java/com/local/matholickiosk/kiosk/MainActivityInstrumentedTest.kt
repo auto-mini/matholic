@@ -46,6 +46,36 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun longerAdminPinDoesNotSubmitOrRecordFailureAtSixDigitPrefix() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        val repository = AdminAuthRepository(database)
+        repository.enroll("7654321".toCharArray())
+        assertEquals(7, repository.enrolledPinLength())
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            }
+            scenario.onActivity { activity ->
+                activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                    .setText("765432")
+            }
+            Thread.sleep(600)
+            scenario.onActivity { activity ->
+                assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
+                assertEquals(0, database.adminDao().get()?.consecutiveFailures)
+                activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                    .setText("7654321")
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+            }
+        }
+    }
+
+    @Test
     fun scannerInstructionReferencesPhysicalLensWithoutScreenTarget() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
