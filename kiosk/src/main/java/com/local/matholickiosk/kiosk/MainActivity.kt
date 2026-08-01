@@ -23,6 +23,7 @@ import android.print.PrintAttributes
 import android.print.PrintManager
 import android.text.Editable
 import android.text.InputType
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -148,6 +149,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var sessionAdminButton: ImageButton
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var automaticAuthenticationGeneration = 0
+    private val automaticAuthenticationRunnable = Runnable {
+        if (
+            authEnrollmentMode || authBusy || authPanel.visibility != View.VISIBLE ||
+            pinInput.text.length !in 6..12
+        ) return@Runnable
+        submitAuthentication()
+    }
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val pcControlExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private lateinit var database: KioskDatabase
@@ -457,6 +466,25 @@ class MainActivity : ComponentActivity() {
                 false
             }
         }
+        pinInput.addTextChangedListener(
+            object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    automaticAuthenticationGeneration += 1
+                    mainHandler.removeCallbacks(automaticAuthenticationRunnable)
+                    if (
+                        !authEnrollmentMode && !authBusy &&
+                        authPanel.visibility == View.VISIBLE &&
+                        (s?.length ?: 0) in 6..12
+                    ) {
+                        mainHandler.postDelayed(automaticAuthenticationRunnable, 300L)
+                    }
+                }
+
+                override fun afterTextChanged(s: Editable?) = Unit
+            },
+        )
     }
 
     private fun configureActions() {
@@ -632,6 +660,8 @@ class MainActivity : ComponentActivity() {
         pcPairingMode = false
         initialStateLoadFailed = false
         authEnrollmentMode = enrollment
+        automaticAuthenticationGeneration += 1
+        mainHandler.removeCallbacks(automaticAuthenticationRunnable)
         appHeader.visibility = View.VISIBLE
         authPanel.visibility = View.VISIBLE
         adminPanel.visibility = View.GONE
@@ -661,6 +691,8 @@ class MainActivity : ComponentActivity() {
 
     private fun submitAuthentication() {
         if (authBusy) return
+        automaticAuthenticationGeneration += 1
+        mainHandler.removeCallbacks(automaticAuthenticationRunnable)
         val pin = pinInput.text.toSensitiveCharArray()
         val confirmation = if (authEnrollmentMode) {
             pinConfirmInput.text.toSensitiveCharArray()

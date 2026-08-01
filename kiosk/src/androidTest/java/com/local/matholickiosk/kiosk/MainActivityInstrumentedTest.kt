@@ -25,6 +25,27 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class MainActivityInstrumentedTest {
     @Test
+    fun correctAdminPinOpensAdminWithoutDoneOrSubmitTap() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+            }
+            scenario.onActivity { activity ->
+                activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                    .setText("654321")
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+            }
+        }
+    }
+
+    @Test
     fun scannerInstructionReferencesPhysicalLensWithoutScreenTarget() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
@@ -636,14 +657,18 @@ class MainActivityInstrumentedTest {
                 .getDeclaredField("studentRepository")
                 .apply { isAccessible = true }
             val validateMethod = MainActivity::class.java
-                .getDeclaredMethod("validateQr", ByteArray::class.java)
+                .getDeclaredMethod(
+                    "validateQr",
+                    ByteArray::class.java,
+                    String::class.java,
+                )
                 .apply { isAccessible = true }
             lateinit var originalRepository: StudentRepository
             try {
                 scenario.onActivity { activity ->
                     originalRepository = repositoryField.get(activity) as StudentRepository
                     repositoryField.set(activity, null)
-                    validateMethod.invoke(activity, ByteArray(32) { 0x5A })
+                    validateMethod.invoke(activity, ByteArray(32) { 0x5A }, null)
                 }
 
                 waitUntil(scenario, timeoutMillis = 3_000) { activity ->

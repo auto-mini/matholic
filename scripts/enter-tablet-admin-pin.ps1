@@ -1,7 +1,9 @@
 param(
     [string]$Serial = 'R54TB029FHZ',
 
-    [switch]$RequireStoredPin
+    [switch]$RequireStoredPin,
+
+    [switch]$InputOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -180,10 +182,14 @@ try {
         $digit = [char]$digitByte
         $shell.StandardInput.WriteLine("input keyevent KEYCODE_$digit")
     }
-    $shell.StandardInput.WriteLine('sleep 0.2')
-    $shell.StandardInput.WriteLine('input keyevent KEYCODE_BACK')
-    $shell.StandardInput.WriteLine('sleep 0.2')
-    $shell.StandardInput.WriteLine("input tap $($submitCenter.X) $($submitCenter.Y)")
+    if ($InputOnly) {
+        $shell.StandardInput.WriteLine('sleep 0.8')
+    } else {
+        $shell.StandardInput.WriteLine('sleep 0.2')
+        $shell.StandardInput.WriteLine('input keyevent KEYCODE_BACK')
+        $shell.StandardInput.WriteLine('sleep 0.2')
+        $shell.StandardInput.WriteLine("input tap $($submitCenter.X) $($submitCenter.Y)")
+    }
     $shell.StandardInput.WriteLine('exit')
     $shell.StandardInput.Close()
     if (-not $shell.WaitForExit(10000)) {
@@ -199,6 +205,7 @@ try {
     if ($useStoredPin) {
         Write-Output 'PIN_SOURCE=DPAPI_FILE'
         Write-Output 'PIN_SENT=TRUE'
+        Write-Output "PIN_SUBMIT_MODE=$(if ($InputOnly) { 'AUTOMATIC' } else { 'BUTTON' })"
     } else {
         Write-Host 'PIN 값은 저장하지 않았습니다.'
         Wait-ForAcknowledgement -Message '이 창을 닫으려면 Enter'
