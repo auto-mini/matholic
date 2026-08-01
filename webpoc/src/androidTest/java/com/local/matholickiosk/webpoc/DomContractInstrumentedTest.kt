@@ -407,6 +407,131 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceTracksOfficialPseudoElementUnknownStateAndRelease() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head>
+              <style>
+                #official-unknown {
+                  display:inline-block;width:160px;height:32px;
+                }
+                #official-unknown::after { content:'모름'; }
+              </style>
+            </head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex">
+                  <button aria-label="이전 문제">&lt;</button>
+                  <div id="problem-number">
+                    <select><option>1</option><option selected>2</option></select>
+                    <span>/ 2</span>
+                  </div>
+                  <button aria-label="다음 문제">&gt;</button>
+                </div>
+                <div id="answer-input-form-2">
+                  <div id="unknown-host"
+                       onclick="this.innerHTML='<button id=&quot;unknown-off&quot;>모름</button>'">
+                    <span id="official-unknown"></span>
+                  </div>
+                </div>
+                <button>답안제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            assertEquals(
+                "unknown",
+                evaluate(
+                    webView,
+                    "JSON.stringify({state:window.__matholicKioskProblemStates[2]})",
+                ).getString("state"),
+            )
+
+            evaluate(
+                webView,
+                "document.getElementById('official-unknown').click(); " +
+                    "JSON.stringify({clicked:true})",
+            )
+            Thread.sleep(100)
+            assertEquals(
+                "unanswered",
+                evaluate(
+                    webView,
+                    "JSON.stringify({state:window.__matholicKioskProblemStates[2]})",
+                ).getString("state"),
+            )
+        }
+    }
+
+    @Test
+    fun testStudentExperienceMapsDetectedProblemImageNumberTapToObjectiveChoice() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <picture class="no-select" style="position:relative;display:block;width:560px;height:160px">
+                  <img id="problem-image" class="no-select"
+                       style="display:block;width:560px;height:160px"
+                       src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
+                  <div id="problem-image-overlay"
+                       style="position:absolute;inset:0"></div>
+                </picture>
+                <div class="ant-radio-group" id="choices">
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="1">1</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="2">2</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="3">3</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="4">4</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="5">5</label>
+                </div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const image = document.getElementById('problem-image');
+                  const controls = Array.from(document.querySelectorAll(
+                    '.ant-radio-group .ant-radio-button-wrapper'
+                  ));
+                  image.matholicKioskObjectiveMarkers = [
+                    {x:0.1,y:0.4}, {x:0.3,y:0.4}, {x:0.5,y:0.4},
+                    {x:0.7,y:0.4}, {x:0.9,y:0.4}
+                  ];
+                  image.matholicKioskObjectiveMarkerKey = [
+                    image.currentSrc || image.src,
+                    image.naturalWidth,
+                    image.naturalHeight,
+                    controls.length
+                  ].join('|');
+                  const rect = image.getBoundingClientRect();
+                  const accepted = !document.getElementById(
+                    'problem-image-overlay'
+                  ).dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: rect.left + rect.width * 0.7,
+                    clientY: rect.top + rect.height * 0.4
+                  }));
+                  return JSON.stringify({
+                    accepted,
+                    selected: document.querySelector('input:checked')?.value,
+                    bound: image.dataset.matholicKioskObjectiveTapBound
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("accepted"))
+            assertEquals("4", proof.getString("selected"))
+            assertEquals(WebDomScripts.CONTRACT_VERSION, proof.getString("bound"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceMovesProblemSelectorAndEnlargesUnlabelledIconButtons() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
@@ -891,6 +1016,13 @@ class DomContractInstrumentedTest {
                   <button id="unknown">모름</button>
                 </div>
                 <button id="submit">답안제출</button>
+                <script>
+                  document.getElementById('unknown').addEventListener('click', event => {
+                    const active = event.currentTarget.getAttribute('aria-pressed') === 'true';
+                    event.currentTarget.setAttribute('aria-pressed', active ? 'false' : 'true');
+                    if (!active) document.getElementById('subjective-answer').value = '';
+                  });
+                </script>
               </main>
             </body></html>
             """.trimIndent(),
@@ -918,7 +1050,6 @@ class DomContractInstrumentedTest {
                      '.matholic-kiosk-problem-map-unanswered button'
                    )).map(button => button.textContent);
                    const before = buttons[1].dataset.state;
-                  document.getElementById('unknown').click();
                   const unansweredButtons = Array.from(map.querySelectorAll(
                     '.matholic-kiosk-problem-map-unanswered button'
                   ));
@@ -936,8 +1067,6 @@ class DomContractInstrumentedTest {
                      firstButtonHeight: firstButtonRect.height,
                      firstButtonRadius: getComputedStyle(buttons[0]).borderRadius,
                      unansweredLabels,
-                    trackedUnknown:
-                      window.__matholicKioskProblemStates[2],
                     unansweredButtonCount: unansweredButtons.length,
                     selectedAfterNextUnanswered:
                       document.getElementById('problem-selector').value,
@@ -967,9 +1096,8 @@ class DomContractInstrumentedTest {
             assertEquals(52.0, proof.getDouble("firstButtonWidth"), 0.6)
             assertEquals(52.0, proof.getDouble("firstButtonHeight"), 0.6)
             assertEquals("50%", proof.getString("firstButtonRadius"))
-            assertEquals("이전/미입력", proof.getJSONArray("unansweredLabels").getString(0))
-            assertEquals("다음/미입력", proof.getJSONArray("unansweredLabels").getString(1))
-            assertEquals("unknown", proof.getString("trackedUnknown"))
+            assertEquals("이전 미입력", proof.getJSONArray("unansweredLabels").getString(0))
+            assertEquals("다음 미입력", proof.getJSONArray("unansweredLabels").getString(1))
             assertEquals(2, proof.getInt("unansweredButtonCount"))
             assertEquals("3", proof.getString("selectedAfterNextUnanswered"))
             assertFalse(proof.getBoolean("guidePresent"))
@@ -978,6 +1106,61 @@ class DomContractInstrumentedTest {
             assertEquals("2/3", proof.getString("numberLabel"))
             assertEquals(3, proof.getInt("legendItemCount"))
             assertEquals("false", proof.getString("open"))
+
+            evaluate(
+                webView,
+                "document.getElementById('problem-selector').value='2'; " +
+                    "document.getElementById('unknown').click(); " +
+                    "JSON.stringify({clicked:true})",
+            )
+            Thread.sleep(100)
+            assertEquals(
+                "unknown",
+                evaluate(
+                    webView,
+                    "JSON.stringify({state:window.__matholicKioskProblemStates[2]})",
+                ).getString("state"),
+            )
+            evaluate(
+                webView,
+                "document.getElementById('unknown').click(); JSON.stringify({clicked:true})",
+            )
+            Thread.sleep(100)
+            assertEquals(
+                "unanswered",
+                evaluate(
+                    webView,
+                    "JSON.stringify({state:window.__matholicKioskProblemStates[2]})",
+                ).getString("state"),
+            )
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const input = document.getElementById('subjective-answer');
+                  input.value = '13';
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  return JSON.stringify({state:window.__matholicKioskProblemStates[2]});
+                })()
+                """.trimIndent(),
+            ).also { assertEquals("answered", it.getString("state")) }
+
+            val outsideDismiss = evaluate(
+                webView,
+                """
+                (() => {
+                  const map = document.querySelector('.matholic-kiosk-problem-map');
+                  map.firstElementChild.click();
+                  const opened = map.dataset.open;
+                  document.getElementById('submit').dispatchEvent(
+                    new Event('pointerdown', { bubbles: true })
+                  );
+                  return JSON.stringify({opened, closed: map.dataset.open});
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("true", outsideDismiss.getString("opened"))
+            assertEquals("false", outsideDismiss.getString("closed"))
 
             evaluate(
                 webView,
@@ -2587,22 +2770,36 @@ class DomContractInstrumentedTest {
                    const clearButton = navigation.querySelector(
                      '[data-matholic-kiosk-key-action="clear"]'
                    );
+                   const answerBeforeClear = editor.fieldApi.latex();
                    clearButton.click();
                    const clearArmed =
                      clearButton.dataset.matholicKioskClearArmed === 'true';
-                   const answerBeforeConfirmedClear = editor.fieldApi.latex();
-                   clearButton.click();
-                   const answerAfterConfirmedClear = editor.fieldApi.latex();
-                   const undoButton = navigation.querySelector(
-                     '[data-matholic-kiosk-key-action="undo"]'
-                   );
+                   const answerAfterClear = editor.fieldApi.latex();
                    const redoButton = navigation.querySelector(
                      '[data-matholic-kiosk-key-action="redo"]'
                    );
-                   undoButton.click();
-                   const answerAfterUndo = editor.fieldApi.latex();
                    redoButton.click();
                    const answerAfterRedo = editor.fieldApi.latex();
+                   const numericRects = Array.from(navigation.querySelectorAll(
+                     '.matholic-kiosk-keypad-numeric-grid button'
+                   )).map(button => button.getBoundingClientRect());
+                   const arrowRects = Array.from(navigation.querySelectorAll(
+                     '.matholic-kiosk-keypad-arrows button'
+                   )).map(button => {
+                     const buttonRect = button.getBoundingClientRect();
+                     const iconRect = button.querySelector('svg')
+                       .getBoundingClientRect();
+                     return {
+                       width: buttonRect.width,
+                       height: buttonRect.height,
+                       centerOffset: Math.hypot(
+                         buttonRect.left + buttonRect.width / 2 -
+                           (iconRect.left + iconRect.width / 2),
+                         buttonRect.top + buttonRect.height / 2 -
+                           (iconRect.top + iconRect.height / 2)
+                       )
+                     };
+                   });
                    document.body.dispatchEvent(
                      new Event('pointerdown', { bubbles: true })
                    );
@@ -2635,7 +2832,17 @@ class DomContractInstrumentedTest {
                      parentIsBody: navigation.parentElement === document.body,
                      position: getComputedStyle(navigation).position,
                      left: parseFloat(getComputedStyle(navigation).left),
-                     right: parseFloat(getComputedStyle(navigation).right),
+                     right: getComputedStyle(navigation).right,
+                     navigationWidth: navigation.getBoundingClientRect().width,
+                     numericSquares: numericRects.every(rect =>
+                       Math.abs(rect.width - rect.height) < 0.6
+                     ),
+                     arrowSquares: arrowRects.every(rect =>
+                       Math.abs(rect.width - rect.height) < 0.6
+                     ),
+                     arrowIconsCentered: arrowRects.every(rect =>
+                       rect.centerOffset < 0.6
+                     ),
                      bottom: parseFloat(getComputedStyle(navigation).bottom),
                      firstGap: sectionRects[1].left - sectionRects[0].right,
                      secondGap: sectionRects[2].left - sectionRects[1].right,
@@ -2657,9 +2864,8 @@ class DomContractInstrumentedTest {
                      hiddenAfterProgrammaticFocus,
                      visibleWhileDirectlyEditing,
                      clearArmed,
-                     answerBeforeConfirmedClear,
-                     answerAfterConfirmedClear,
-                     answerAfterUndo,
+                     answerBeforeClear,
+                     answerAfterClear,
                      answerAfterRedo,
                      hiddenAfterOutsideTouch:
                        getComputedStyle(navigation).display === 'none'
@@ -2683,7 +2889,11 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("parentIsBody"))
             assertEquals("fixed", proof.getString("position"))
             assertEquals(14.0, proof.getDouble("left"), 0.6)
-            assertEquals(218.0, proof.getDouble("right"), 0.6)
+            assertEquals("auto", proof.getString("right"))
+            assertTrue(proof.getDouble("navigationWidth") <= 632.0)
+            assertTrue(proof.getBoolean("numericSquares"))
+            assertTrue(proof.getBoolean("arrowSquares"))
+            assertTrue(proof.getBoolean("arrowIconsCentered"))
             assertEquals(12.0, proof.getDouble("bottom"), 0.6)
             assertEquals(
                 proof.getDouble("firstGap"),
@@ -2703,17 +2913,13 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("hiddenBeforeDirectInput"))
             assertTrue(proof.getBoolean("hiddenAfterProgrammaticFocus"))
             assertTrue(proof.getBoolean("visibleWhileDirectlyEditing"))
-            assertTrue(proof.getBoolean("clearArmed"))
+            assertFalse(proof.getBoolean("clearArmed"))
             assertEquals(
                 "-1.\\sqrt\\frac\\pi",
-                proof.getString("answerBeforeConfirmedClear"),
+                proof.getString("answerBeforeClear"),
             )
-            assertEquals("", proof.getString("answerAfterConfirmedClear"))
-            assertEquals(
-                proof.getString("answerBeforeConfirmedClear"),
-                proof.getString("answerAfterUndo"),
-            )
-            assertEquals("", proof.getString("answerAfterRedo"))
+            assertEquals("", proof.getString("answerAfterClear"))
+            assertEquals(proof.getString("answerBeforeClear"), proof.getString("answerAfterRedo"))
             assertTrue(proof.getBoolean("hiddenAfterOutsideTouch"))
         }
     }

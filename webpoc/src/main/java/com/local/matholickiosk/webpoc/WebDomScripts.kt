@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.24"
+    const val CONTRACT_VERSION = "web-2026-08-01.27"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -619,15 +619,15 @@ object WebDomScripts {
             .matholic-kiosk-math-nav {
               position: fixed !important;
               left: 14px !important;
-              right: 218px !important;
+              right: auto !important;
               bottom: 12px !important;
               top: auto !important;
               z-index: 2147482500 !important;
               display: none !important;
-              width: auto !important;
-              max-width: none !important;
+              width: min(630px, calc(100vw - 246px)) !important;
+              max-width: calc(100vw - 246px) !important;
               margin: 0 !important;
-              padding: 12px !important;
+              padding: 10px !important;
               border: 2px solid #9fb3c8 !important;
               border-radius: 16px !important;
               background: rgba(255, 255, 255, 0.985) !important;
@@ -638,23 +638,21 @@ object WebDomScripts {
               display: block !important;
             }
             html[data-matholic-kiosk-keypad-active="true"] body {
-              padding-bottom: 230px !important;
+              padding-bottom: 196px !important;
             }
             .matholic-kiosk-keypad-inner {
               display: grid !important;
-              grid-template-columns:
-                minmax(0, 480fr) minmax(0, 270fr) minmax(0, 310fr) !important;
-              gap: 12px !important;
+              grid-template-columns: 210px 164px 216px !important;
+              gap: 10px !important;
               width: 100% !important;
               max-width: none !important;
               margin: 0 auto !important;
-              height: 184px !important;
+              height: 156px !important;
               align-items: stretch !important;
             }
             html[data-matholic-kiosk-keypad-preset="left"]
               .matholic-kiosk-keypad-inner {
-              grid-template-columns:
-                minmax(0, 310fr) minmax(0, 270fr) minmax(0, 480fr) !important;
+              grid-template-columns: 216px 164px 210px !important;
             }
             html[data-matholic-kiosk-keypad-preset="left"]
               .matholic-kiosk-keypad-edit {
@@ -670,8 +668,7 @@ object WebDomScripts {
             }
             html[data-matholic-kiosk-keypad-preset="center"]
               .matholic-kiosk-keypad-inner {
-              grid-template-columns:
-                minmax(0, 450fr) minmax(0, 310fr) minmax(0, 300fr) !important;
+              grid-template-columns: 210px 216px 164px !important;
             }
             html[data-matholic-kiosk-keypad-preset="center"]
               .matholic-kiosk-keypad-numeric {
@@ -689,7 +686,7 @@ object WebDomScripts {
               display: flex !important;
               flex-direction: column !important;
               min-width: 0 !important;
-              height: 184px !important;
+              height: 156px !important;
             }
             .matholic-kiosk-keypad-heading {
               display: none !important;
@@ -697,43 +694,38 @@ object WebDomScripts {
             .matholic-kiosk-keypad-numeric-grid,
             .matholic-kiosk-keypad-structure-grid {
               display: grid !important;
-              gap: 8px !important;
+              gap: 6px !important;
             }
             .matholic-kiosk-keypad-numeric-grid {
-              grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-              grid-template-rows: repeat(3, 56px) !important;
+              grid-template-columns: repeat(4, 48px) !important;
+              grid-template-rows: repeat(3, 48px) !important;
+              justify-content: start !important;
             }
             .matholic-kiosk-keypad-structure-grid {
               grid-template-columns: minmax(0, 1fr) !important;
-              grid-template-rows: repeat(3, 56px) !important;
+              grid-template-rows: repeat(3, 48px) !important;
             }
             .matholic-kiosk-keypad-edit-body {
-              position: relative !important;
-              height: 184px !important;
+              display: grid !important;
+              grid-template-rows: 90px 66px !important;
+              height: 156px !important;
             }
             .matholic-kiosk-keypad-arrows {
-              position: absolute !important;
-              top: 0 !important;
-              left: 0 !important;
-              right: 0 !important;
               display: grid !important;
-              grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-              grid-template-rows: repeat(2, 44px) !important;
+              grid-template-columns: repeat(3, 42px) !important;
+              grid-template-rows: repeat(2, 42px) !important;
               grid-template-areas:
                 ". up ."
                 "left down right" !important;
-              gap: 7px !important;
+              justify-content: center !important;
+              gap: 6px !important;
             }
             .matholic-kiosk-keypad-actions {
-              position: absolute !important;
-              left: 0 !important;
-              right: 0 !important;
-              bottom: 0 !important;
               display: grid !important;
               grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-              grid-template-rows: repeat(2, 40px) !important;
-              gap: 8px !important;
-              height: 88px !important;
+              grid-template-rows: repeat(2, 30px) !important;
+              gap: 6px !important;
+              height: 66px !important;
             }
             .matholic-kiosk-math-nav button {
               width: 100% !important;
@@ -742,7 +734,7 @@ object WebDomScripts {
               height: 100% !important;
               min-height: 0 !important;
               margin: 0 !important;
-              padding: 8px !important;
+              padding: 6px !important;
               border-width: 2px !important;
               border-style: solid !important;
               border-radius: 11px !important;
@@ -752,6 +744,12 @@ object WebDomScripts {
               touch-action: manipulation !important;
             }
             .matholic-kiosk-keypad-numeric-grid > button {
+              width: 48px !important;
+              min-width: 48px !important;
+              max-width: 48px !important;
+              height: 48px !important;
+              min-height: 48px !important;
+              max-height: 48px !important;
               border-color: #9fb3c8 !important;
               background: #f8fafc !important;
               color: #102a43 !important;
@@ -770,17 +768,18 @@ object WebDomScripts {
             }
             .matholic-kiosk-keypad-arrows > button {
               font-size: 0 !important;
+              display: grid !important;
+              place-items: center !important;
+              width: 42px !important;
+              min-width: 42px !important;
+              max-width: 42px !important;
+              height: 42px !important;
+              min-height: 42px !important;
+              max-height: 42px !important;
+              padding: 0 !important;
             }
             .matholic-kiosk-keypad-actions > button {
-              font-size: 14px !important;
-            }
-            .matholic-kiosk-keypad-actions > button[
-              data-matholic-kiosk-clear-armed="true"
-            ] {
-              border-color: #c2410c !important;
-              background: #ffedd5 !important;
-              color: #9a3412 !important;
-              font-size: 17px !important;
+              font-size: 12px !important;
             }
             .matholic-kiosk-key-icon {
               display: block !important;
@@ -796,10 +795,10 @@ object WebDomScripts {
               pointer-events: none !important;
             }
             .matholic-kiosk-keypad-arrows .matholic-kiosk-key-icon {
-              width: 32px !important;
-              height: 32px !important;
-              stroke-width: 0 !important;
-              fill: currentColor !important;
+              width: 28px !important;
+              height: 28px !important;
+              stroke-width: 4 !important;
+              fill: none !important;
             }
             .matholic-kiosk-keypad-structure-grid > button {
               display: flex !important;
@@ -1114,6 +1113,7 @@ object WebDomScripts {
           let problemNavigationEnhancements = 0;
           let problemStateMapEnhancements = 0;
           let longProblemScrollEnhancements = 0;
+          let objectiveImageTapEnhancements = 0;
           let mathKeypadEnhancements = 0;
           if (isLearning) {
             const mathQuillRuntimePromise = ensureMathQuillRuntime();
@@ -1502,6 +1502,231 @@ object WebDomScripts {
               }
               return 1;
             };
+            const objectiveAnswerControls = () => Array.from(
+              document.querySelectorAll(
+                '.ant-radio-group .ant-radio-button-wrapper'
+              )
+            ).filter(control => {
+              if (!visible(control)) return false;
+              const input = control.querySelector('input[type="radio"]');
+              return !input?.disabled &&
+                !control.classList.contains(
+                  'ant-radio-button-wrapper-disabled'
+                );
+            });
+            const detectObjectiveChoiceMarkers = (image, expectedCount) => {
+              if (
+                !image?.complete ||
+                image.naturalWidth < 300 ||
+                image.naturalHeight < 100 ||
+                expectedCount < 2 ||
+                expectedCount > 5
+              ) return [];
+              try {
+                const width = 648;
+                const height = Math.max(
+                  80,
+                  Math.min(
+                    420,
+                    Math.round(image.naturalHeight * width / image.naturalWidth)
+                  )
+                );
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const context = canvas.getContext('2d', {
+                  willReadFrequently: true
+                });
+                if (!context) return [];
+                context.imageSmoothingEnabled = true;
+                context.drawImage(image, 0, 0, width, height);
+                const pixels = context.getImageData(0, 0, width, height).data;
+                const size = width * height;
+                const dark = new Uint8Array(size);
+                for (let index = 0; index < size; index += 1) {
+                  const offset = index * 4;
+                  const gray =
+                    pixels[offset] * 0.299 +
+                    pixels[offset + 1] * 0.587 +
+                    pixels[offset + 2] * 0.114;
+                  dark[index] = gray < 160 ? 1 : 0;
+                }
+                const visited = new Uint8Array(size);
+                const stack = new Int32Array(size);
+                const candidates = [];
+                for (let seed = 0; seed < size; seed += 1) {
+                  if (!dark[seed] || visited[seed]) continue;
+                  let stackSize = 0;
+                  stack[stackSize++] = seed;
+                  visited[seed] = 1;
+                  let minX = width;
+                  let maxX = 0;
+                  let minY = height;
+                  let maxY = 0;
+                  let area = 0;
+                  while (stackSize > 0) {
+                    const current = stack[--stackSize];
+                    const x = current % width;
+                    const y = Math.floor(current / width);
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                    area += 1;
+                    for (let dy = -1; dy <= 1; dy += 1) {
+                      const nextY = y + dy;
+                      if (nextY < 0 || nextY >= height) continue;
+                      for (let dx = -1; dx <= 1; dx += 1) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nextX = x + dx;
+                        if (nextX < 0 || nextX >= width) continue;
+                        const next = nextY * width + nextX;
+                        if (!dark[next] || visited[next]) continue;
+                        visited[next] = 1;
+                        stack[stackSize++] = next;
+                      }
+                    }
+                  }
+                  const componentWidth = maxX - minX + 1;
+                  const componentHeight = maxY - minY + 1;
+                  const density = area / (componentWidth * componentHeight);
+                  if (
+                    minY <= height * 0.12 ||
+                    componentWidth < 18 || componentWidth > 35 ||
+                    componentHeight < 18 || componentHeight > 35 ||
+                    componentWidth / componentHeight < 0.75 ||
+                    componentWidth / componentHeight > 1.25 ||
+                    density < 0.08 || density > 0.22
+                  ) continue;
+                  const innerLeft = minX + Math.round(componentWidth * 0.28);
+                  const innerRight = minX + Math.round(componentWidth * 0.72);
+                  const innerTop = minY + Math.round(componentHeight * 0.22);
+                  const innerBottom = minY + Math.round(componentHeight * 0.78);
+                  let innerInk = 0;
+                  for (let y = innerTop; y < innerBottom; y += 1) {
+                    for (let x = innerLeft; x < innerRight; x += 1) {
+                      innerInk += dark[y * width + x];
+                    }
+                  }
+                  if (innerInk < 8) continue;
+                  candidates.push({
+                    x: (minX + maxX) / 2 / width,
+                    y: (minY + maxY) / 2 / height,
+                    radius: Math.max(componentWidth, componentHeight) / 2 / width
+                  });
+                }
+                candidates.sort((left, right) =>
+                  Math.abs(left.y - right.y) < 0.05 ?
+                    left.x - right.x : left.y - right.y
+                );
+                const markers = candidates.length > expectedCount ?
+                  candidates.slice(candidates.length - expectedCount) :
+                  candidates;
+                markers.sort((left, right) =>
+                  Math.abs(left.y - right.y) < 0.05 ?
+                    left.x - right.x : left.y - right.y
+                );
+                return markers.length === expectedCount ? markers : [];
+              } catch (_) {
+                return [];
+              }
+            };
+            const enhanceObjectiveImageAnswerTaps = () => {
+              const controls = objectiveAnswerControls();
+              if (controls.length < 2 || controls.length > 5) return 0;
+              const image = Array.from(
+                document.querySelectorAll('picture.no-select > img.no-select')
+              ).filter(visible).find(candidate => {
+                const rect = candidate.getBoundingClientRect();
+                return rect.width > 300 && rect.height > 100;
+              });
+              if (!image) return 0;
+              const markerKey = [
+                image.currentSrc || image.src,
+                image.naturalWidth,
+                image.naturalHeight,
+                controls.length
+              ].join('|');
+              if (image.matholicKioskObjectiveMarkerKey !== markerKey) {
+                image.matholicKioskObjectiveMarkers =
+                  detectObjectiveChoiceMarkers(image, controls.length);
+                image.matholicKioskObjectiveMarkerKey = markerKey;
+              }
+              const priorTapGuard =
+                window.__matholicKioskObjectiveImageTapGuard;
+              if (priorTapGuard?.version !== version) {
+                if (priorTapGuard?.handler) {
+                  document.removeEventListener(
+                    'click',
+                    priorTapGuard.handler,
+                    true
+                  );
+                }
+                const handler = event => {
+                  if (event.target?.closest?.('.ant-radio-group')) return;
+                  const liveControls = objectiveAnswerControls();
+                  if (liveControls.length < 2 || liveControls.length > 5) return;
+                  const liveImage = Array.from(document.querySelectorAll(
+                    'picture.no-select > img.no-select'
+                  )).filter(visible).find(candidate => {
+                    const candidateRect = candidate.getBoundingClientRect();
+                    return candidateRect.width > 300 &&
+                      candidateRect.height > 100;
+                  });
+                  if (!liveImage) return;
+                  const rect = liveImage.getBoundingClientRect();
+                  if (
+                    event.clientX < rect.left || event.clientX > rect.right ||
+                    event.clientY < rect.top || event.clientY > rect.bottom
+                  ) return;
+                  const liveKey = [
+                    liveImage.currentSrc || liveImage.src,
+                    liveImage.naturalWidth,
+                    liveImage.naturalHeight,
+                    liveControls.length
+                  ].join('|');
+                  if (liveImage.matholicKioskObjectiveMarkerKey !== liveKey) {
+                    liveImage.matholicKioskObjectiveMarkers =
+                      detectObjectiveChoiceMarkers(
+                        liveImage,
+                        liveControls.length
+                      );
+                    liveImage.matholicKioskObjectiveMarkerKey = liveKey;
+                  }
+                  const markers =
+                    liveImage.matholicKioskObjectiveMarkers || [];
+                  if (markers.length !== liveControls.length) return;
+                  const nearest = markers.map((marker, index) => {
+                    const centerX = rect.left + marker.x * rect.width;
+                    const centerY = rect.top + marker.y * rect.height;
+                    return {
+                      index,
+                      distance: Math.hypot(
+                        event.clientX - centerX,
+                        event.clientY - centerY
+                      )
+                    };
+                  }).sort((left, right) => left.distance - right.distance)[0];
+                  const touchRadius = Math.max(34, rect.width * 0.035);
+                  if (!nearest || nearest.distance > touchRadius) return;
+                  const control = liveControls[nearest.index];
+                  if (!control) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  control.click();
+                };
+                document.addEventListener('click', handler, true);
+                window.__matholicKioskObjectiveImageTapGuard = {
+                  version,
+                  handler
+                };
+              }
+              image.dataset.matholicKioskObjectiveTapBound = version;
+              image.dataset.matholicKioskObjectiveTapReady =
+                image.matholicKioskObjectiveMarkers?.length === controls.length ?
+                  'true' : 'false';
+              return image.dataset.matholicKioskObjectiveTapReady === 'true' ? 1 : 0;
+            };
             const currentProblemNumber = readCurrentProblemNumber();
             const numberTokens = normalize(
               problemNumberCluster?.textContent
@@ -1544,19 +1769,33 @@ object WebDomScripts {
             const problemStates =
               window.__matholicKioskProblemStates ||
               (window.__matholicKioskProblemStates = {});
+            const pseudoLabel = element => {
+              if (!element || element.nodeType !== Node.ELEMENT_NODE) return '';
+              try {
+                const content = getComputedStyle(element, '::after').content;
+                if (!content || content === 'none' || content === 'normal') {
+                  return '';
+                }
+                return normalize(content.replace(/^["']|["']${'$'}/g, ''));
+              } catch (_) {
+                return '';
+              }
+            };
+            const activeUnknownControl = scope => Array.from(
+              scope?.querySelectorAll?.('button,[role="button"],span') || []
+            ).find(control => {
+              if (!visible(control)) return false;
+              if (pseudoLabel(control) === '모름') return true;
+              if (normalize(control.textContent) !== '모름') return false;
+              return control.getAttribute('aria-pressed') === 'true' ||
+                control.getAttribute('aria-selected') === 'true' ||
+                /(?:^|\s)(?:active|selected|checked)(?:\s|${'$'})/i.test(
+                  control.className || ''
+                );
+            });
             const answerState = scope => {
               if (!scope) return 'unanswered';
-              const unknownControl = Array.from(scope.querySelectorAll(
-                'button,[role="button"]'
-              )).find(control => {
-                if (normalize(control.textContent) !== '모름') return false;
-                return control.getAttribute('aria-pressed') === 'true' ||
-                  control.getAttribute('aria-selected') === 'true' ||
-                  /(?:^|\s)(?:active|selected|checked)(?:\s|${'$'})/i.test(
-                    control.className || ''
-                  );
-              });
-              if (unknownControl) return 'unknown';
+              const unknownControl = activeUnknownControl(scope);
               const valuedInput = Array.from(scope.querySelectorAll(
                 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]),textarea'
               )).some(input => normalize(input.value).length > 0);
@@ -1581,8 +1820,8 @@ object WebDomScripts {
                   return normalize(editor.textContent).length > 0;
                 }
               });
-              return valuedInput || checkedChoice || mathValue ?
-                'answered' : 'unanswered';
+              if (valuedInput || checkedChoice || mathValue) return 'answered';
+              return unknownControl ? 'unknown' : 'unanswered';
             };
             const currentAnswerScope = Array.from(document.querySelectorAll(
               '[id^="answer-input-form-"]'
@@ -1593,12 +1832,7 @@ object WebDomScripts {
               currentProblemNumber <= 999
             ) {
               const detected = answerState(currentAnswerScope);
-              if (
-                problemStates[currentProblemNumber] !== 'unknown' ||
-                detected === 'unknown'
-              ) {
-                problemStates[currentProblemNumber] = detected;
-              }
+              problemStates[currentProblemNumber] = detected;
             }
             const reviewForms = Array.from(document.querySelectorAll(
               '[id^="answer-input-form-"]'
@@ -1893,7 +2127,7 @@ object WebDomScripts {
                   'matholic-kiosk-problem-map-unanswered';
                 const previousUnanswered = document.createElement('button');
                 previousUnanswered.type = 'button';
-                previousUnanswered.textContent = '이전/미입력';
+                previousUnanswered.textContent = '이전 미입력';
                 previousUnanswered.setAttribute(
                   'aria-label',
                   '이전 미입력 문제로 이동'
@@ -1904,7 +2138,7 @@ object WebDomScripts {
                 });
                 const nextUnanswered = document.createElement('button');
                 nextUnanswered.type = 'button';
-                nextUnanswered.textContent = '다음/미입력';
+                nextUnanswered.textContent = '다음 미입력';
                 nextUnanswered.setAttribute(
                   'aria-label',
                   '다음 미입력 문제로 이동'
@@ -1977,14 +2211,49 @@ object WebDomScripts {
               });
               problemStateMapEnhancements = 1;
             }
+            if (!window.__matholicKioskProblemMapDismissGuard) {
+              document.addEventListener('pointerdown', event => {
+                const openMap = document.querySelector(
+                  '.matholic-kiosk-problem-map[data-open="true"]'
+                );
+                if (!openMap || openMap.contains(event.target)) return;
+                openMap.dataset.open = 'false';
+              }, true);
+              document.addEventListener('keydown', event => {
+                if (event.key !== 'Escape') return;
+                const openMap = document.querySelector(
+                  '.matholic-kiosk-problem-map[data-open="true"]'
+                );
+                if (openMap) openMap.dataset.open = 'false';
+              }, true);
+              window.__matholicKioskProblemMapDismissGuard = true;
+            }
             if (!window.__matholicKioskProblemStateTracking) {
               document.addEventListener('click', event => {
-                const control = event.target?.closest?.(
-                  'button,[role="button"]'
-                );
-                if (normalize(control?.textContent) !== '모름') return;
+                const path = event.composedPath?.() || [event.target];
+                const control = path.find(candidate =>
+                  candidate?.nodeType === Node.ELEMENT_NODE &&
+                  (
+                    normalize(candidate.textContent) === '모름' ||
+                    pseudoLabel(candidate) === '모름'
+                  )
+                ) || event.target?.closest?.('button,[role="button"]');
+                if (
+                  normalize(control?.textContent) !== '모름' &&
+                  pseudoLabel(control) !== '모름'
+                ) return;
                 const selected = readCurrentProblemNumber();
-                if (selected > 0) problemStates[selected] = 'unknown';
+                if (selected < 1) return;
+                const scope = control.closest('[id^="answer-input-form-"]') ||
+                  document.querySelector('main') || document.body;
+                const wasUnknown = problemStates[selected] === 'unknown' ||
+                  answerState(scope) === 'unknown';
+                setTimeout(() => {
+                  const detected = answerState(scope);
+                  problemStates[selected] =
+                    wasUnknown && detected === 'unknown' ?
+                      'unanswered' : detected;
+                }, 0);
               }, true);
               const markCurrentAnswered = event => {
                 const scope = event.target?.closest?.(
@@ -2879,17 +3148,6 @@ object WebDomScripts {
                   '.matholic-kiosk-math-nav'
                 );
                 if (!navigation) return;
-                const clearButton = navigation.querySelector(
-                  '[data-matholic-kiosk-key-action="clear"]'
-                );
-                if (clearButton) {
-                  delete clearButton.dataset.matholicKioskClearArmed;
-                  clearButton.textContent = '전체 지움';
-                }
-                if (navigation.matholicKioskClearTimer) {
-                  clearTimeout(navigation.matholicKioskClearTimer);
-                  navigation.matholicKioskClearTimer = 0;
-                }
                 delete navigation.dataset.matholicKioskActive;
                 navigation.setAttribute('aria-hidden', 'true');
                 delete document.documentElement.dataset
@@ -3061,19 +3319,6 @@ object WebDomScripts {
                   inner.appendChild(section);
                   return section;
                 };
-                const resetClearArm = () => {
-                  const clearButton = navigation.querySelector(
-                    '[data-matholic-kiosk-key-action="clear"]'
-                  );
-                  if (clearButton) {
-                    delete clearButton.dataset.matholicKioskClearArmed;
-                    clearButton.textContent = '전체 지움';
-                  }
-                  if (navigation.matholicKioskClearTimer) {
-                    clearTimeout(navigation.matholicKioskClearTimer);
-                    navigation.matholicKioskClearTimer = 0;
-                  }
-                };
                 const activeMathField = () => {
                   const focusedEditor = document.activeElement?.closest?.(
                     '.mq-editable-field'
@@ -3098,7 +3343,12 @@ object WebDomScripts {
                   if (!history) {
                     let initial = '';
                     try { initial = field.latex(); } catch (_) {}
-                    history = { undo: [], redo: [], last: initial };
+                    history = {
+                      undo: [],
+                      redo: [],
+                      last: initial,
+                      clearRestore: ''
+                    };
                     editHistories.set(editor, history);
                   }
                   return history;
@@ -3110,41 +3360,43 @@ object WebDomScripts {
                   editor.dispatchEvent(new Event('change', { bubbles: true }));
                 };
                 const runKeyAction = (button, action, value) => {
-                  if (action === 'clear') {
-                    if (
-                      button.dataset.matholicKioskClearArmed !== 'true'
-                    ) {
-                      resetClearArm();
-                      button.dataset.matholicKioskClearArmed = 'true';
-                      button.textContent = '다시 눌러 지움';
-                      navigation.matholicKioskClearTimer = setTimeout(
-                        resetClearArm,
-                        2000
-                      );
-                      return;
-                    }
-                  }
                   const { field, editor } = activeMathField();
-                  if (!field) {
-                    resetClearArm();
-                    return;
-                  }
+                  if (!field) return;
                   try {
                     const history = historyFor(editor, field);
                     const before = field.latex();
                     if (action === 'undo') {
                       const previous = history.undo.pop();
                       if (previous === undefined) return;
+                      history.clearRestore = '';
                       history.redo.push(before);
                       setMathValue(field, editor, previous);
                       history.last = previous;
                       return;
                     } else if (action === 'redo') {
+                      if (before === '' && history.clearRestore !== '') {
+                        const restored = history.clearRestore;
+                        history.clearRestore = '';
+                        history.undo.push(before);
+                        setMathValue(field, editor, restored);
+                        history.last = restored;
+                        return;
+                      }
                       const next = history.redo.pop();
                       if (next === undefined) return;
+                      history.clearRestore = '';
                       history.undo.push(before);
                       setMathValue(field, editor, next);
                       history.last = next;
+                      return;
+                    } else if (action === 'clear') {
+                      if (before === '') return;
+                      setMathValue(field, editor, '');
+                      history.undo.push(before);
+                      if (history.undo.length > 50) history.undo.shift();
+                      history.redo.length = 0;
+                      history.clearRestore = before;
+                      history.last = '';
                       return;
                     } else if (action === 'toggle-sign') {
                       const next = before.startsWith('-') ?
@@ -3163,30 +3415,17 @@ object WebDomScripts {
                       typeof field.keystroke === 'function'
                     ) {
                       field.keystroke(value);
-                    } else if (
-                      action === 'clear' &&
-                      typeof field.keystroke === 'function'
-                    ) {
-                      resetClearArm();
-                      if (typeof field.select === 'function') {
-                        field.select();
-                        field.keystroke('Backspace');
-                      } else {
-                        field.keystroke('Ctrl-A');
-                        field.keystroke('Backspace');
-                      }
                     }
                     const after = field.latex();
                     if (after !== before) {
+                      history.clearRestore = '';
                       history.undo.push(before);
                       if (history.undo.length > 50) history.undo.shift();
                       history.redo.length = 0;
                       history.last = after;
                     }
                     field.focus?.();
-                  } catch (_) {
-                    resetClearArm();
-                  }
+                  } catch (_) {}
                 };
                 const appendKeyIcon = (button, icon) => {
                   if (!icon) return;
@@ -3211,13 +3450,13 @@ object WebDomScripts {
                     shape('line', { x1: '12', y1: '20', x2: '52', y2: '20' });
                     shape('rect', { x: '24', y: '25', width: '16', height: '12' });
                   } else {
-                    const points = {
-                      up: '32,5 48,22 39,22 39,35 25,35 25,22 16,22',
-                      down: '25,5 39,5 39,18 48,18 32,35 16,18 25,18',
-                      left: '5,20 22,4 22,13 55,13 55,27 22,27 22,36',
-                      right: '59,20 42,4 42,13 9,13 9,27 42,27 42,36'
+                    const path = {
+                      up: 'M14 26 L32 8 L50 26 M32 8 V34',
+                      down: 'M14 14 L32 32 L50 14 M32 32 V6',
+                      left: 'M26 4 L8 20 L26 36 M8 20 H54',
+                      right: 'M38 4 L56 20 L38 36 M56 20 H10'
                     }[icon];
-                    if (points) shape('polygon', { points });
+                    if (path) shape('path', { d: path });
                   }
                   button.dataset.matholicKioskKeyIcon = icon;
                   button.appendChild(svg);
@@ -3297,7 +3536,7 @@ object WebDomScripts {
                 [
                   ['1', '숫자 1', 'write', '1'], ['2', '숫자 2', 'write', '2'],
                   ['3', '숫자 3', 'write', '3'],
-                  ['부호', '전체 값의 부호 전환', 'toggle-sign', ''],
+                  ['±', '전체 값의 부호 전환', 'toggle-sign', ''],
                   ['4', '숫자 4', 'write', '4'], ['5', '숫자 5', 'write', '5'],
                   ['6', '숫자 6', 'write', '6'], ['.', '소수점', 'write', '.'],
                   ['7', '숫자 7', 'write', '7'], ['8', '숫자 8', 'write', '8'],
@@ -3974,6 +4213,10 @@ object WebDomScripts {
                 longProblemScrollEnhancements,
                 enhanceLongProblemScrolling()
               );
+              objectiveImageTapEnhancements = Math.max(
+                objectiveImageTapEnhancements,
+                enhanceObjectiveImageAnswerTaps()
+              );
             };
             maintainLateStudentControls();
             mathQuillRuntimePromise.then(runtimeReady => {
@@ -4100,6 +4343,7 @@ object WebDomScripts {
             mathModePending, mathModeReady, mathModeRemounted,
             subjectiveTouchTargets, problemNavigationEnhancements,
             problemStateMapEnhancements, longProblemScrollEnhancements,
+            objectiveImageTapEnhancements,
             mathKeypadEnhancements,
             resultHydrated:
               document.documentElement.dataset.matholicKioskResultHydrated === 'true'
