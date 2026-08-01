@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -471,9 +472,9 @@ class DomContractInstrumentedTest {
             """
             <!doctype html><html><head></head><body>
               <main>
-                <picture class="no-select" style="position:relative;display:block;width:560px;height:160px">
+                <picture class="no-select">
                   <img id="problem-image" class="no-select"
-                       style="display:block;width:560px;height:160px"
+                       style="width:560px;height:160px"
                        src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
                   <div id="problem-image-overlay"
                        style="position:absolute;inset:0"></div>
@@ -490,7 +491,7 @@ class DomContractInstrumentedTest {
             """.trimIndent(),
         ) { webView ->
             assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
-            val proof = evaluate(
+            evaluate(
                 webView,
                 """
                 (() => {
@@ -508,26 +509,69 @@ class DomContractInstrumentedTest {
                     image.naturalHeight,
                     controls.length
                   ].join('|');
+                  return JSON.stringify({markersReady:true});
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const image = document.getElementById('problem-image');
                   const rect = image.getBoundingClientRect();
+                  const outside = document.createElement('button');
+                  outside.id = 'overlapping-problem-map-button';
+                  document.body.appendChild(outside);
+                  outside.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: rect.left + rect.width * 0.78,
+                    clientY: rect.top + rect.height * 0.4
+                  }));
+                  const selectedThroughOutsideControl =
+                    document.querySelector('input:checked')?.value || '';
                   const accepted = !document.getElementById(
                     'problem-image-overlay'
                   ).dispatchEvent(new MouseEvent('click', {
                     bubbles: true,
                     cancelable: true,
-                    clientX: rect.left + rect.width * 0.7,
+                    clientX: rect.left + rect.width * 0.78,
                     clientY: rect.top + rect.height * 0.4
                   }));
+                  const zones = Array.from(document.querySelectorAll(
+                    '.matholic-kiosk-objective-choice-zone'
+                  ));
+                  const selectedZone = zones[3];
+                  const overlayRect = document.querySelector(
+                    '.matholic-kiosk-objective-choice-overlay'
+                  ).getBoundingClientRect();
                   return JSON.stringify({
                     accepted,
+                    selectedThroughOutsideControl,
                     selected: document.querySelector('input:checked')?.value,
-                    bound: image.dataset.matholicKioskObjectiveTapBound
+                    bound: image.dataset.matholicKioskObjectiveTapBound,
+                    zoneCount: zones.length,
+                    zoneWidth: selectedZone.getBoundingClientRect().width,
+                    selectedZone: selectedZone.dataset.selected,
+                    selectedBackground:
+                      getComputedStyle(selectedZone).backgroundColor,
+                    overlayTopDelta: Math.abs(overlayRect.top - rect.top),
+                    overlayHeightDelta: Math.abs(overlayRect.height - rect.height)
                   });
                 })()
                 """.trimIndent(),
             )
             assertTrue(proof.getBoolean("accepted"))
+            assertEquals("", proof.getString("selectedThroughOutsideControl"))
             assertEquals("4", proof.getString("selected"))
             assertEquals(WebDomScripts.CONTRACT_VERSION, proof.getString("bound"))
+            assertEquals(5, proof.getInt("zoneCount"))
+            assertTrue(proof.getDouble("zoneWidth") > 80.0)
+            assertEquals("true", proof.getString("selectedZone"))
+            assertNotEquals("rgba(0, 0, 0, 0)", proof.getString("selectedBackground"))
+            assertTrue(proof.getDouble("overlayTopDelta") < 0.6)
+            assertTrue(proof.getDouble("overlayHeightDelta") < 0.6)
         }
     }
 
@@ -1015,8 +1059,11 @@ class DomContractInstrumentedTest {
                   <input id="subjective-answer" value="7">
                   <button id="unknown">모름</button>
                 </div>
+                <button id="accidental-answer"
+                        onclick="window.accidentalAnswerClicks += 1">9</button>
                 <button id="submit">답안제출</button>
                 <script>
+                  window.accidentalAnswerClicks = 0;
                   document.getElementById('unknown').addEventListener('click', event => {
                     const active = event.currentTarget.getAttribute('aria-pressed') === 'true';
                     event.currentTarget.setAttribute('aria-pressed', active ? 'false' : 'true');
@@ -1054,6 +1101,7 @@ class DomContractInstrumentedTest {
                     '.matholic-kiosk-problem-map-unanswered button'
                   ));
                   unansweredButtons[1].click();
+                  document.getElementById('accidental-answer').click();
                   return JSON.stringify({
                     mapCount: document.querySelectorAll(
                       '.matholic-kiosk-problem-map'
@@ -1070,6 +1118,10 @@ class DomContractInstrumentedTest {
                     unansweredButtonCount: unansweredButtons.length,
                     selectedAfterNextUnanswered:
                       document.getElementById('problem-selector').value,
+                    accidentalAnswerClicks: window.accidentalAnswerClicks,
+                    transitionActive:
+                      document.documentElement.dataset
+                        .matholicKioskProblemMapTransition === 'true',
                     guidePresent: !!document.querySelector(
                       '.matholic-kiosk-answer-guide'
                     ),
@@ -1100,12 +1152,34 @@ class DomContractInstrumentedTest {
             assertEquals("다음 미입력", proof.getJSONArray("unansweredLabels").getString(1))
             assertEquals(2, proof.getInt("unansweredButtonCount"))
             assertEquals("3", proof.getString("selectedAfterNextUnanswered"))
+            assertEquals(0, proof.getInt("accidentalAnswerClicks"))
+            assertTrue(proof.getBoolean("transitionActive"))
             assertFalse(proof.getBoolean("guidePresent"))
             assertEquals("relative", proof.getString("mapPosition"))
             assertTrue(proof.getBoolean("mapFollowsNavigation"))
             assertEquals("2/3", proof.getString("numberLabel"))
             assertEquals(3, proof.getInt("legendItemCount"))
             assertEquals("false", proof.getString("open"))
+
+            Thread.sleep(300)
+            assertTrue(
+                evaluate(
+                    webView,
+                    "JSON.stringify({active:document.documentElement.dataset.matholicKioskProblemMapTransition === 'true'})",
+                ).getBoolean("active"),
+            )
+            evaluate(
+                webView,
+                "document.getElementById('accidental-answer').click(); JSON.stringify({clicked:window.accidentalAnswerClicks})",
+            ).also { assertEquals(0, it.getInt("clicked")) }
+
+            Thread.sleep(750)
+            assertFalse(
+                evaluate(
+                    webView,
+                    "JSON.stringify({active:document.documentElement.dataset.matholicKioskProblemMapTransition === 'true'})",
+                ).getBoolean("active"),
+            )
 
             evaluate(
                 webView,
@@ -2775,11 +2849,11 @@ class DomContractInstrumentedTest {
                    const clearArmed =
                      clearButton.dataset.matholicKioskClearArmed === 'true';
                    const answerAfterClear = editor.fieldApi.latex();
-                   const redoButton = navigation.querySelector(
-                     '[data-matholic-kiosk-key-action="redo"]'
+                   const undoButton = navigation.querySelector(
+                     '[data-matholic-kiosk-key-action="undo"]'
                    );
-                   redoButton.click();
-                   const answerAfterRedo = editor.fieldApi.latex();
+                   undoButton.click();
+                   const answerAfterUndo = editor.fieldApi.latex();
                    const numericRects = Array.from(navigation.querySelectorAll(
                      '.matholic-kiosk-keypad-numeric-grid button'
                    )).map(button => button.getBoundingClientRect());
@@ -2800,6 +2874,15 @@ class DomContractInstrumentedTest {
                        )
                      };
                    });
+                   const actionRects = Array.from(navigation.querySelectorAll(
+                     '.matholic-kiosk-keypad-actions button'
+                   )).map(button => button.getBoundingClientRect());
+                   const actionBottom = Math.max(
+                     ...actionRects.map(rect => rect.bottom)
+                   );
+                   const arrowTop = Math.min(
+                     ...arrowRects.map(rect => rect.top)
+                   );
                    document.body.dispatchEvent(
                      new Event('pointerdown', { bubbles: true })
                    );
@@ -2840,6 +2923,14 @@ class DomContractInstrumentedTest {
                      arrowSquares: arrowRects.every(rect =>
                        Math.abs(rect.width - rect.height) < 0.6
                      ),
+                     actionSquares: actionRects.every(rect =>
+                       Math.abs(rect.width - rect.height) < 0.6 &&
+                       Math.abs(rect.width - numericRects[0].width) < 0.6
+                     ),
+                     arrowsMatchNumeric: arrowRects.every(rect =>
+                       Math.abs(rect.width - numericRects[0].width) < 0.6
+                     ),
+                     actionsAboveArrows: actionBottom <= arrowTop + 0.6,
                      arrowIconsCentered: arrowRects.every(rect =>
                        rect.centerOffset < 0.6
                      ),
@@ -2866,20 +2957,21 @@ class DomContractInstrumentedTest {
                      clearArmed,
                      answerBeforeClear,
                      answerAfterClear,
-                     answerAfterRedo,
+                     answerAfterUndo,
                      hiddenAfterOutsideTouch:
                        getComputedStyle(navigation).display === 'none'
                    });
                 })()
                 """.trimIndent(),
             )
-            assertEquals(23, proof.getInt("count"))
+            assertEquals(22, proof.getInt("count"))
             assertEquals(12, proof.getInt("numericCount"))
             assertEquals(3, proof.getInt("structureCount"))
             assertEquals(4, proof.getInt("arrowCount"))
-            assertEquals(4, proof.getInt("actionCount"))
-            assertEquals("실행 취소", proof.getJSONArray("actionLabels").getString(0))
-            assertEquals("다시 실행", proof.getJSONArray("actionLabels").getString(1))
+            assertEquals(3, proof.getInt("actionCount"))
+            assertEquals("실행\n취소", proof.getJSONArray("actionLabels").getString(0))
+            assertEquals("한 칸\n삭제", proof.getJSONArray("actionLabels").getString(1))
+            assertEquals("전체\n지움", proof.getJSONArray("actionLabels").getString(2))
             assertEquals(0, proof.getJSONArray("headings").length())
             assertEquals(6, proof.getJSONArray("iconNames").length())
             assertEquals("root", proof.getJSONArray("iconNames").getString(0))
@@ -2890,9 +2982,12 @@ class DomContractInstrumentedTest {
             assertEquals("fixed", proof.getString("position"))
             assertEquals(14.0, proof.getDouble("left"), 0.6)
             assertEquals("auto", proof.getString("right"))
-            assertTrue(proof.getDouble("navigationWidth") <= 632.0)
+            assertTrue(proof.getDouble("navigationWidth") <= 576.0)
             assertTrue(proof.getBoolean("numericSquares"))
             assertTrue(proof.getBoolean("arrowSquares"))
+            assertTrue(proof.getBoolean("actionSquares"))
+            assertTrue(proof.getBoolean("arrowsMatchNumeric"))
+            assertTrue(proof.getBoolean("actionsAboveArrows"))
             assertTrue(proof.getBoolean("arrowIconsCentered"))
             assertEquals(12.0, proof.getDouble("bottom"), 0.6)
             assertEquals(
@@ -2919,7 +3014,7 @@ class DomContractInstrumentedTest {
                 proof.getString("answerBeforeClear"),
             )
             assertEquals("", proof.getString("answerAfterClear"))
-            assertEquals(proof.getString("answerBeforeClear"), proof.getString("answerAfterRedo"))
+            assertEquals(proof.getString("answerBeforeClear"), proof.getString("answerAfterUndo"))
             assertTrue(proof.getBoolean("hiddenAfterOutsideTouch"))
         }
     }

@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.27"
+    const val CONTRACT_VERSION = "web-2026-08-01.31"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -569,6 +569,40 @@ object WebDomScripts {
               background: #1565c0 !important;
               color: #fff !important;
             }
+            picture[data-matholic-kiosk-objective-choice-host="true"] {
+              position: relative !important;
+            }
+            .matholic-kiosk-objective-choice-overlay {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              height: 100% !important;
+              z-index: 8 !important;
+              pointer-events: none !important;
+            }
+            .matholic-kiosk-objective-choice-zone {
+              position: absolute !important;
+              min-width: 0 !important;
+              min-height: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              border: 2px solid transparent !important;
+              border-radius: 8px !important;
+              background: transparent !important;
+              box-shadow: none !important;
+              color: transparent !important;
+              opacity: 1 !important;
+              pointer-events: auto !important;
+              touch-action: manipulation !important;
+            }
+            .matholic-kiosk-objective-choice-zone[
+              data-selected="true"
+            ] {
+              border-color: #1565c0 !important;
+              background: rgba(21, 101, 192, 0.22) !important;
+              box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72) !important;
+            }
             input, textarea, [contenteditable="true"] {
               min-height: 48px !important;
               min-width: 0 !important;
@@ -624,7 +658,7 @@ object WebDomScripts {
               top: auto !important;
               z-index: 2147482500 !important;
               display: none !important;
-              width: min(630px, calc(100vw - 246px)) !important;
+              width: min(550px, calc(100vw - 246px)) !important;
               max-width: calc(100vw - 246px) !important;
               margin: 0 !important;
               padding: 10px !important;
@@ -642,7 +676,7 @@ object WebDomScripts {
             }
             .matholic-kiosk-keypad-inner {
               display: grid !important;
-              grid-template-columns: 210px 164px 216px !important;
+              grid-template-columns: 210px 164px 156px !important;
               gap: 10px !important;
               width: 100% !important;
               max-width: none !important;
@@ -652,7 +686,7 @@ object WebDomScripts {
             }
             html[data-matholic-kiosk-keypad-preset="left"]
               .matholic-kiosk-keypad-inner {
-              grid-template-columns: 216px 164px 210px !important;
+              grid-template-columns: 156px 164px 210px !important;
             }
             html[data-matholic-kiosk-keypad-preset="left"]
               .matholic-kiosk-keypad-edit {
@@ -668,7 +702,7 @@ object WebDomScripts {
             }
             html[data-matholic-kiosk-keypad-preset="center"]
               .matholic-kiosk-keypad-inner {
-              grid-template-columns: 210px 216px 164px !important;
+              grid-template-columns: 210px 156px 164px !important;
             }
             html[data-matholic-kiosk-keypad-preset="center"]
               .matholic-kiosk-keypad-numeric {
@@ -707,13 +741,14 @@ object WebDomScripts {
             }
             .matholic-kiosk-keypad-edit-body {
               display: grid !important;
-              grid-template-rows: 90px 66px !important;
+              grid-template-rows: 48px 102px !important;
+              gap: 6px !important;
               height: 156px !important;
             }
             .matholic-kiosk-keypad-arrows {
               display: grid !important;
-              grid-template-columns: repeat(3, 42px) !important;
-              grid-template-rows: repeat(2, 42px) !important;
+              grid-template-columns: repeat(3, 48px) !important;
+              grid-template-rows: repeat(2, 48px) !important;
               grid-template-areas:
                 ". up ."
                 "left down right" !important;
@@ -722,10 +757,10 @@ object WebDomScripts {
             }
             .matholic-kiosk-keypad-actions {
               display: grid !important;
-              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-              grid-template-rows: repeat(2, 30px) !important;
+              grid-template-columns: repeat(3, 48px) !important;
+              grid-template-rows: 48px !important;
               gap: 6px !important;
-              height: 66px !important;
+              height: 48px !important;
             }
             .matholic-kiosk-math-nav button {
               width: 100% !important;
@@ -770,16 +805,28 @@ object WebDomScripts {
               font-size: 0 !important;
               display: grid !important;
               place-items: center !important;
-              width: 42px !important;
-              min-width: 42px !important;
-              max-width: 42px !important;
-              height: 42px !important;
-              min-height: 42px !important;
-              max-height: 42px !important;
+              width: 48px !important;
+              min-width: 48px !important;
+              max-width: 48px !important;
+              height: 48px !important;
+              min-height: 48px !important;
+              max-height: 48px !important;
               padding: 0 !important;
             }
             .matholic-kiosk-keypad-actions > button {
-              font-size: 12px !important;
+              display: grid !important;
+              place-items: center !important;
+              width: 48px !important;
+              min-width: 48px !important;
+              max-width: 48px !important;
+              height: 48px !important;
+              min-height: 48px !important;
+              max-height: 48px !important;
+              padding: 4px !important;
+              font-size: 11px !important;
+              line-height: 1.15 !important;
+              text-align: center !important;
+              white-space: pre-line !important;
             }
             .matholic-kiosk-key-icon {
               display: block !important;
@@ -887,6 +934,15 @@ object WebDomScripts {
             html[data-matholic-kiosk-direct-problem-select="true"]
               .ant-select-dropdown {
               opacity: 0 !important;
+            }
+            html[data-matholic-kiosk-problem-map-transition="true"]::after {
+              content: '' !important;
+              position: fixed !important;
+              inset: 0 !important;
+              z-index: 2147483646 !important;
+              background: transparent !important;
+              pointer-events: auto !important;
+              touch-action: none !important;
             }
             [data-matholic-kiosk-problem-direction-host] {
               width: 52px !important;
@@ -1631,6 +1687,139 @@ object WebDomScripts {
                 return [];
               }
             };
+            const objectiveChoiceRegions = markers => {
+              if (!Array.isArray(markers) || markers.length < 2) return [];
+              const minX = Math.min(...markers.map(marker => marker.x));
+              const maxX = Math.max(...markers.map(marker => marker.x));
+              const minY = Math.min(...markers.map(marker => marker.y));
+              const maxY = Math.max(...markers.map(marker => marker.y));
+              const horizontal = maxX - minX >= (maxY - minY) * 1.35;
+              if (horizontal) {
+                const ordered = markers.map((marker, index) => ({
+                  marker,
+                  index
+                })).sort((left, right) => left.marker.x - right.marker.x);
+                const top = Math.max(0, minY - Math.max(0.08, maxY - minY + 0.04));
+                const bottom = Math.min(1, maxY + Math.max(0.10, maxY - minY + 0.05));
+                const regions = Array(markers.length);
+                ordered.forEach((entry, position) => {
+                  const previous = ordered[position - 1]?.marker;
+                  const next = ordered[position + 1]?.marker;
+                  const typicalGap = next ? next.x - entry.marker.x :
+                    previous ? entry.marker.x - previous.x : 0.2;
+                  regions[entry.index] = {
+                    left: previous ?
+                      (previous.x + entry.marker.x) / 2 :
+                      Math.max(0, entry.marker.x - typicalGap * 0.42),
+                    right: next ?
+                      (entry.marker.x + next.x) / 2 :
+                      Math.min(0.985, entry.marker.x + typicalGap * 0.70),
+                    top,
+                    bottom
+                  };
+                });
+                return regions;
+              }
+              const ordered = markers.map((marker, index) => ({
+                marker,
+                index
+              })).sort((left, right) => left.marker.y - right.marker.y);
+              const left = Math.max(0, minX - 0.055);
+              const right = 0.985;
+              const regions = Array(markers.length);
+              ordered.forEach((entry, position) => {
+                const previous = ordered[position - 1]?.marker;
+                const next = ordered[position + 1]?.marker;
+                const typicalGap = next ? next.y - entry.marker.y :
+                  previous ? entry.marker.y - previous.y : 0.15;
+                regions[entry.index] = {
+                  left,
+                  right,
+                  top: previous ?
+                    (previous.y + entry.marker.y) / 2 :
+                    Math.max(0, entry.marker.y - typicalGap * 0.42),
+                  bottom: next ?
+                    (entry.marker.y + next.y) / 2 :
+                    Math.min(0.985, entry.marker.y + typicalGap * 0.65)
+                };
+              });
+              return regions;
+            };
+            const objectiveControlSelected = control => {
+              const input = control?.querySelector?.('input[type="radio"]');
+              return !!input?.checked ||
+                control?.classList?.contains(
+                  'ant-radio-button-wrapper-checked'
+                ) ||
+                control?.getAttribute?.('aria-checked') === 'true';
+            };
+            const ensureObjectiveChoiceOverlay = (
+              image,
+              markers,
+              controls,
+              markerKey
+            ) => {
+              const picture = image?.closest?.('picture.no-select');
+              if (!picture || markers.length !== controls.length) return 0;
+              const regions = objectiveChoiceRegions(markers);
+              if (regions.length !== controls.length) return 0;
+              picture.dataset.matholicKioskObjectiveChoiceHost = 'true';
+              let overlay = picture.querySelector(
+                ':scope > .matholic-kiosk-objective-choice-overlay'
+              );
+              if (
+                !overlay ||
+                overlay.dataset.matholicKioskObjectiveChoiceKey !== markerKey ||
+                overlay.children.length !== controls.length
+              ) {
+                overlay?.remove();
+                overlay = document.createElement('div');
+                overlay.className =
+                  'matholic-kiosk-objective-choice-overlay';
+                overlay.dataset.matholicKioskObjectiveChoiceKey = markerKey;
+                regions.forEach((region, index) => {
+                  const zone = document.createElement('button');
+                  zone.type = 'button';
+                  zone.className = 'matholic-kiosk-objective-choice-zone';
+                  zone.setAttribute('aria-label', `보기 ${'$'}{index + 1} 선택`);
+                  zone.dataset.matholicKioskObjectiveChoice = String(index + 1);
+                  zone.style.setProperty(
+                    'left', `${'$'}{region.left * 100}%`, 'important'
+                  );
+                  zone.style.setProperty(
+                    'top', `${'$'}{region.top * 100}%`, 'important'
+                  );
+                  zone.style.setProperty(
+                    'width', `${'$'}{(region.right - region.left) * 100}%`, 'important'
+                  );
+                  zone.style.setProperty(
+                    'height', `${'$'}{(region.bottom - region.top) * 100}%`, 'important'
+                  );
+                  overlay.appendChild(zone);
+                });
+                picture.appendChild(overlay);
+              }
+              const imageRect = image.getBoundingClientRect();
+              const pictureRect = picture.getBoundingClientRect();
+              overlay.style.setProperty(
+                'left', `${'$'}{imageRect.left - pictureRect.left}px`, 'important'
+              );
+              overlay.style.setProperty(
+                'top', `${'$'}{imageRect.top - pictureRect.top}px`, 'important'
+              );
+              overlay.style.setProperty(
+                'width', `${'$'}{imageRect.width}px`, 'important'
+              );
+              overlay.style.setProperty(
+                'height', `${'$'}{imageRect.height}px`, 'important'
+              );
+              Array.from(overlay.children).forEach((zone, index) => {
+                zone.dataset.selected = objectiveControlSelected(
+                  controls[index]
+                ) ? 'true' : 'false';
+              });
+              return overlay.children.length;
+            };
             const enhanceObjectiveImageAnswerTaps = () => {
               const controls = objectiveAnswerControls();
               if (controls.length < 2 || controls.length > 5) return 0;
@@ -1696,24 +1885,34 @@ object WebDomScripts {
                   const markers =
                     liveImage.matholicKioskObjectiveMarkers || [];
                   if (markers.length !== liveControls.length) return;
-                  const nearest = markers.map((marker, index) => {
-                    const centerX = rect.left + marker.x * rect.width;
-                    const centerY = rect.top + marker.y * rect.height;
-                    return {
-                      index,
-                      distance: Math.hypot(
-                        event.clientX - centerX,
-                        event.clientY - centerY
-                      )
-                    };
-                  }).sort((left, right) => left.distance - right.distance)[0];
-                  const touchRadius = Math.max(34, rect.width * 0.035);
-                  if (!nearest || nearest.distance > touchRadius) return;
-                  const control = liveControls[nearest.index];
+                  const eventElement = event.target instanceof Element ?
+                    event.target : null;
+                  if (
+                    !eventElement ||
+                    eventElement.closest('picture.no-select') !==
+                      liveImage.closest('picture.no-select')
+                  ) return;
+                  const x = (event.clientX - rect.left) / rect.width;
+                  const y = (event.clientY - rect.top) / rect.height;
+                  const regions = objectiveChoiceRegions(markers);
+                  const regionIndex = regions.findIndex(region =>
+                    x >= region.left && x <= region.right &&
+                    y >= region.top && y <= region.bottom
+                  );
+                  if (regionIndex < 0) return;
+                  const control = liveControls[regionIndex];
                   if (!control) return;
                   event.preventDefault();
                   event.stopPropagation();
                   control.click();
+                  requestAnimationFrame(() => {
+                    ensureObjectiveChoiceOverlay(
+                      liveImage,
+                      markers,
+                      liveControls,
+                      liveKey
+                    );
+                  });
                 };
                 document.addEventListener('click', handler, true);
                 window.__matholicKioskObjectiveImageTapGuard = {
@@ -1725,7 +1924,18 @@ object WebDomScripts {
               image.dataset.matholicKioskObjectiveTapReady =
                 image.matholicKioskObjectiveMarkers?.length === controls.length ?
                   'true' : 'false';
-              return image.dataset.matholicKioskObjectiveTapReady === 'true' ? 1 : 0;
+              if (image.dataset.matholicKioskObjectiveTapReady !== 'true') {
+                image.closest('picture.no-select')?.querySelector(
+                  ':scope > .matholic-kiosk-objective-choice-overlay'
+                )?.remove();
+                return 0;
+              }
+              return ensureObjectiveChoiceOverlay(
+                image,
+                image.matholicKioskObjectiveMarkers,
+                controls,
+                markerKey
+              );
             };
             const currentProblemNumber = readCurrentProblemNumber();
             const numberTokens = normalize(
@@ -1842,6 +2052,14 @@ object WebDomScripts {
                 problemStates[index + 1] = answerState(form);
               });
             }
+            const runProblemMapInternalClick = action => {
+              window.__matholicKioskProblemMapInternalClick = true;
+              try {
+                return action();
+              } finally {
+                window.__matholicKioskProblemMapInternalClick = false;
+              }
+            };
             const selectProblemDirectly = number => {
               const liveSelectorRoot = currentProblemSelectorRoot();
               const liveNumberCluster = currentProblemNumberCluster();
@@ -1923,7 +2141,7 @@ object WebDomScripts {
                   Number(normalize(candidate.textContent)) === number
                 );
                 if (!option) return false;
-                option.click();
+                runProblemMapInternalClick(() => option.click());
                 return true;
               };
               const chooseProblemOption = attempt => {
@@ -1958,6 +2176,105 @@ object WebDomScripts {
                 staleChecks: 0,
                 timer: 0
               });
+            const problemMapTransition =
+              window.__matholicKioskProblemMapTransition ||
+              (window.__matholicKioskProblemMapTransition = {
+                token: 0,
+                target: 0,
+                stableChecks: 0,
+                timer: 0,
+                deadline: 0,
+                quietUntil: 0
+              });
+            const releaseProblemMapTransition = token => {
+              if (problemMapTransition.token !== token) return;
+              if (problemMapTransition.timer) {
+                clearTimeout(problemMapTransition.timer);
+              }
+              problemMapTransition.target = 0;
+              problemMapTransition.stableChecks = 0;
+              problemMapTransition.timer = 0;
+              problemMapTransition.deadline = 0;
+              problemMapTransition.quietUntil = 0;
+              delete document.documentElement.dataset
+                .matholicKioskProblemMapTransition;
+            };
+            const startProblemMapTransition = target => {
+              if (problemMapTransition.timer) {
+                clearTimeout(problemMapTransition.timer);
+              }
+              const token = problemMapTransition.token + 1;
+              problemMapTransition.token = token;
+              problemMapTransition.target = target;
+              problemMapTransition.stableChecks = 0;
+              problemMapTransition.deadline = Date.now() + 4_000;
+              problemMapTransition.quietUntil = Date.now() + 700;
+              document.documentElement.dataset
+                .matholicKioskProblemMapTransition = 'true';
+              try { document.activeElement?.blur?.(); } catch (_) {}
+              const keypad = document.querySelector(
+                '.matholic-kiosk-math-nav[data-matholic-kiosk-active="true"]'
+              );
+              if (keypad) {
+                keypad.dataset.matholicKioskActive = 'false';
+                keypad.setAttribute('aria-hidden', 'true');
+              }
+              delete document.documentElement.dataset.matholicKioskKeypadActive;
+              const checkSettled = () => {
+                if (problemMapTransition.token !== token) return;
+                const selected = readCurrentProblemNumber();
+                if (
+                  selected === target &&
+                  Number(problemNavigationController.target || 0) === 0
+                ) {
+                  problemMapTransition.stableChecks += 1;
+                } else {
+                  problemMapTransition.stableChecks = 0;
+                }
+                if (
+                  (
+                    problemMapTransition.stableChecks >= 2 &&
+                    Date.now() >= problemMapTransition.quietUntil
+                  ) ||
+                  Date.now() >= problemMapTransition.deadline
+                ) {
+                  releaseProblemMapTransition(token);
+                  return;
+                }
+                problemMapTransition.timer = setTimeout(checkSettled, 100);
+              };
+              problemMapTransition.timer = setTimeout(checkSettled, 100);
+            };
+            const priorProblemMapInputGuard =
+              window.__matholicKioskProblemMapInputGuard;
+            if (priorProblemMapInputGuard?.version !== version) {
+              if (priorProblemMapInputGuard?.handler) {
+                ['pointerdown', 'pointerup', 'click'].forEach(type =>
+                  document.removeEventListener(
+                    type,
+                    priorProblemMapInputGuard.handler,
+                    true
+                  )
+                );
+              }
+              const handler = event => {
+                if (
+                  document.documentElement.dataset
+                    .matholicKioskProblemMapTransition !== 'true' ||
+                  window.__matholicKioskProblemMapInternalClick === true
+                ) return;
+                problemMapTransition.quietUntil = Date.now() + 700;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+              };
+              ['pointerdown', 'pointerup', 'click'].forEach(type =>
+                document.addEventListener(type, handler, true)
+              );
+              window.__matholicKioskProblemMapInputGuard = {
+                version,
+                handler
+              };
+            }
             const clearProblemNavigation = () => {
               if (problemNavigationController.timer) {
                 clearTimeout(problemNavigationController.timer);
@@ -2043,7 +2360,7 @@ object WebDomScripts {
               problemNavigationController.lastSelected = selected;
               problemNavigationController.staleChecks = 0;
               problemNavigationController.attempts += 1;
-              directionButton.click();
+              runProblemMapInternalClick(() => directionButton.click());
               scheduleProblemNavigation(250);
             };
             const navigateToProblem = number => {
@@ -2056,6 +2373,7 @@ object WebDomScripts {
                 clearProblemNavigation();
                 return;
               }
+              startProblemMapTransition(number);
               const selectorRoot = currentProblemSelectorRoot();
               if (
                 selectorRoot?.matches?.('select') ||
@@ -3605,7 +3923,7 @@ object WebDomScripts {
                 actions.className = 'matholic-kiosk-keypad-actions';
                 createKey(
                   actions,
-                  '실행 취소',
+                  '실행\n취소',
                   '마지막 입력 실행 취소',
                   'undo',
                   '',
@@ -3613,15 +3931,7 @@ object WebDomScripts {
                 );
                 createKey(
                   actions,
-                  '다시 실행',
-                  '취소한 입력 다시 실행',
-                  'redo',
-                  '',
-                  ''
-                );
-                createKey(
-                  actions,
-                  '한 칸 삭제',
+                  '한 칸\n삭제',
                   '한 칸 삭제',
                   'keystroke',
                   'Backspace',
@@ -3629,14 +3939,14 @@ object WebDomScripts {
                 );
                 createKey(
                   actions,
-                  '전체 지움',
+                  '전체\n지움',
                   '전체 지움',
                   'clear',
                   '',
                   ''
                 );
-                editBody.appendChild(arrows);
                 editBody.appendChild(actions);
+                editBody.appendChild(arrows);
                 editSection.appendChild(editBody);
 
                 navigation.appendChild(inner);
