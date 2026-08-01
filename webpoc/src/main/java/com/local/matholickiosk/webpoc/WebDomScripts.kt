@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-01.31"
+    const val CONTRACT_VERSION = "web-2026-08-02.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -658,7 +658,8 @@ object WebDomScripts {
               top: auto !important;
               z-index: 2147482500 !important;
               display: none !important;
-              width: min(550px, calc(100vw - 246px)) !important;
+              box-sizing: border-box !important;
+              width: min(574px, calc(100vw - 246px)) !important;
               max-width: calc(100vw - 246px) !important;
               margin: 0 !important;
               padding: 10px !important;
@@ -666,7 +667,7 @@ object WebDomScripts {
               border-radius: 16px !important;
               background: rgba(255, 255, 255, 0.985) !important;
               box-shadow: 0 8px 28px rgba(16, 42, 67, 0.32) !important;
-              overflow: visible !important;
+              overflow: hidden !important;
             }
             .matholic-kiosk-math-nav[data-matholic-kiosk-active="true"] {
               display: block !important;
@@ -674,19 +675,24 @@ object WebDomScripts {
             html[data-matholic-kiosk-keypad-active="true"] body {
               padding-bottom: 196px !important;
             }
+            html[data-matholic-kiosk-keypad-active="true"] #root {
+              padding-bottom: 196px !important;
+            }
             .matholic-kiosk-keypad-inner {
               display: grid !important;
-              grid-template-columns: 210px 164px 156px !important;
+              grid-template-columns:
+                minmax(0, 210fr) minmax(0, 164fr) minmax(0, 156fr) !important;
               gap: 10px !important;
               width: 100% !important;
-              max-width: none !important;
+              max-width: 100% !important;
               margin: 0 auto !important;
               height: 156px !important;
               align-items: stretch !important;
             }
             html[data-matholic-kiosk-keypad-preset="left"]
               .matholic-kiosk-keypad-inner {
-              grid-template-columns: 156px 164px 210px !important;
+              grid-template-columns:
+                minmax(0, 156fr) minmax(0, 164fr) minmax(0, 210fr) !important;
             }
             html[data-matholic-kiosk-keypad-preset="left"]
               .matholic-kiosk-keypad-edit {
@@ -702,7 +708,8 @@ object WebDomScripts {
             }
             html[data-matholic-kiosk-keypad-preset="center"]
               .matholic-kiosk-keypad-inner {
-              grid-template-columns: 210px 156px 164px !important;
+              grid-template-columns:
+                minmax(0, 210fr) minmax(0, 156fr) minmax(0, 164fr) !important;
             }
             html[data-matholic-kiosk-keypad-preset="center"]
               .matholic-kiosk-keypad-numeric {
@@ -943,6 +950,13 @@ object WebDomScripts {
               background: transparent !important;
               pointer-events: auto !important;
               touch-action: none !important;
+            }
+            html[data-matholic-kiosk-problem-map-transition="true"]
+              [id^="answer-input-form-"],
+            html[data-matholic-kiosk-problem-map-transition="true"]
+              .ant-radio-group {
+              opacity: 0 !important;
+              pointer-events: none !important;
             }
             [data-matholic-kiosk-problem-direction-host] {
               width: 52px !important;
@@ -1690,33 +1704,58 @@ object WebDomScripts {
             const objectiveChoiceRegions = markers => {
               if (!Array.isArray(markers) || markers.length < 2) return [];
               const minX = Math.min(...markers.map(marker => marker.x));
-              const maxX = Math.max(...markers.map(marker => marker.x));
-              const minY = Math.min(...markers.map(marker => marker.y));
-              const maxY = Math.max(...markers.map(marker => marker.y));
-              const horizontal = maxX - minX >= (maxY - minY) * 1.35;
-              if (horizontal) {
-                const ordered = markers.map((marker, index) => ({
-                  marker,
-                  index
-                })).sort((left, right) => left.marker.x - right.marker.x);
-                const top = Math.max(0, minY - Math.max(0.08, maxY - minY + 0.04));
-                const bottom = Math.min(1, maxY + Math.max(0.10, maxY - minY + 0.05));
+              const indexed = markers.map((marker, index) => ({ marker, index }));
+              const rows = [];
+              indexed
+                .slice()
+                .sort((left, right) => left.marker.y - right.marker.y)
+                .forEach(entry => {
+                  const row = rows.find(candidate =>
+                    Math.abs(candidate.centerY - entry.marker.y) <= 0.065
+                  );
+                  if (row) {
+                    row.entries.push(entry);
+                    row.centerY = row.entries.reduce(
+                      (sum, item) => sum + item.marker.y,
+                      0
+                    ) / row.entries.length;
+                  } else {
+                    rows.push({ centerY: entry.marker.y, entries: [entry] });
+                  }
+                });
+              rows.sort((left, right) => left.centerY - right.centerY);
+              if (rows.some(row => row.entries.length > 1)) {
                 const regions = Array(markers.length);
-                ordered.forEach((entry, position) => {
-                  const previous = ordered[position - 1]?.marker;
-                  const next = ordered[position + 1]?.marker;
-                  const typicalGap = next ? next.x - entry.marker.x :
-                    previous ? entry.marker.x - previous.x : 0.2;
-                  regions[entry.index] = {
-                    left: previous ?
-                      (previous.x + entry.marker.x) / 2 :
-                      Math.max(0, entry.marker.x - typicalGap * 0.42),
-                    right: next ?
-                      (entry.marker.x + next.x) / 2 :
-                      Math.min(0.985, entry.marker.x + typicalGap * 0.70),
-                    top,
-                    bottom
-                  };
+                rows.forEach((row, rowIndex) => {
+                  const previousRow = rows[rowIndex - 1];
+                  const nextRow = rows[rowIndex + 1];
+                  const rowGap = nextRow ? nextRow.centerY - row.centerY :
+                    previousRow ? row.centerY - previousRow.centerY : 0.20;
+                  const top = previousRow ?
+                    (previousRow.centerY + row.centerY) / 2 :
+                    Math.max(0, row.centerY - Math.max(0.08, rowGap * 0.42));
+                  const bottom = nextRow ?
+                    (row.centerY + nextRow.centerY) / 2 :
+                    Math.min(0.985, row.centerY + Math.max(0.10, rowGap * 0.55));
+                  const ordered = row.entries.slice().sort(
+                    (left, right) => left.marker.x - right.marker.x
+                  );
+                  ordered.forEach((entry, position) => {
+                    const previous = ordered[position - 1]?.marker;
+                    const next = ordered[position + 1]?.marker;
+                    const typicalGap = next ? next.x - entry.marker.x :
+                      previous ? entry.marker.x - previous.x : 0.2;
+                    regions[entry.index] = {
+                      left: previous ?
+                        (previous.x + entry.marker.x) / 2 :
+                        Math.max(0, entry.marker.x - typicalGap * 0.42),
+                      right: next ?
+                        (entry.marker.x + next.x) / 2 :
+                        Math.min(0.985, entry.marker.x + typicalGap * 0.70),
+                      top,
+                      bottom
+                    };
+                  });
                 });
                 return regions;
               }
@@ -2198,6 +2237,7 @@ object WebDomScripts {
               problemMapTransition.quietUntil = 0;
               delete document.documentElement.dataset
                 .matholicKioskProblemMapTransition;
+              setTimeout(() => maintainLateStudentControls(), 0);
             };
             const startProblemMapTransition = target => {
               if (problemMapTransition.timer) {
@@ -2273,6 +2313,59 @@ object WebDomScripts {
               window.__matholicKioskProblemMapInputGuard = {
                 version,
                 handler
+              };
+            }
+            const priorOfficialProblemTransitionGuard =
+              window.__matholicKioskOfficialProblemTransitionGuard;
+            if (priorOfficialProblemTransitionGuard?.version !== version) {
+              if (priorOfficialProblemTransitionGuard) {
+                document.removeEventListener(
+                  'click',
+                  priorOfficialProblemTransitionGuard.capture,
+                  true
+                );
+                document.removeEventListener(
+                  'click',
+                  priorOfficialProblemTransitionGuard.bubble,
+                  false
+                );
+              }
+              const pendingOfficialTransition = { button: null, target: 0 };
+              const capture = event => {
+                if (window.__matholicKioskProblemMapInternalClick === true) return;
+                const button = event.target?.closest?.(
+                  '[data-matholic-kiosk-problem-direction]'
+                );
+                if (!button) return;
+                const current = readCurrentProblemNumber();
+                pendingOfficialTransition.button = button;
+                pendingOfficialTransition.target =
+                  button.dataset.matholicKioskProblemDirection === 'next' ?
+                    current + 1 : current - 1;
+              };
+              const bubble = event => {
+                if (window.__matholicKioskProblemMapInternalClick === true) return;
+                const button = event.target?.closest?.(
+                  '[data-matholic-kiosk-problem-direction]'
+                );
+                if (
+                  !button ||
+                  pendingOfficialTransition.button !== button ||
+                  !Number.isInteger(pendingOfficialTransition.target) ||
+                  pendingOfficialTransition.target < 1 ||
+                  pendingOfficialTransition.target > totalProblems
+                ) return;
+                const target = pendingOfficialTransition.target;
+                pendingOfficialTransition.button = null;
+                pendingOfficialTransition.target = 0;
+                startProblemMapTransition(target);
+              };
+              document.addEventListener('click', capture, true);
+              document.addEventListener('click', bubble, false);
+              window.__matholicKioskOfficialProblemTransitionGuard = {
+                version,
+                capture,
+                bubble
               };
             }
             const clearProblemNavigation = () => {
@@ -3165,6 +3258,10 @@ object WebDomScripts {
               let hidden = 0;
               let selectedCount = 0;
               let primedScopeCount = 0;
+              if (
+                document.documentElement.dataset
+                  .matholicKioskProblemMapTransition === 'true'
+              ) return { hidden, selectedCount, primedScopeCount };
               const toolbarLabels = new Set(['루트', '분수', '파이']);
               const isInputMenuText = text =>
                 text === '입력기' || text.startsWith('입력기 ');
@@ -3482,9 +3579,32 @@ object WebDomScripts {
                   ) return;
                   const editorRect = editor.getBoundingClientRect();
                   const keypadRect = navigation.getBoundingClientRect();
-                  const overlap = editorRect.bottom - (keypadRect.top - 16);
+                  const occludedContent = Array.from(document.querySelectorAll(
+                    'picture.no-select,img.no-select,table,' +
+                    '[data-matholic-kiosk-long-page-media="true"]'
+                  )).filter(element => {
+                    if (!visible(element) || navigation.contains(element)) return false;
+                    const rect = element.getBoundingClientRect();
+                    return rect.left < keypadRect.right &&
+                      rect.right > keypadRect.left &&
+                      rect.top < keypadRect.bottom &&
+                      rect.bottom > keypadRect.top;
+                  });
+                  const contentOverlap = occludedContent.reduce(
+                    (largest, element) => Math.max(
+                      largest,
+                      element.getBoundingClientRect().bottom -
+                        (keypadRect.top - 16)
+                    ),
+                    0
+                  );
+                  const overlap = Math.max(
+                    editorRect.bottom - (keypadRect.top - 16),
+                    contentOverlap
+                  );
                   if (overlap <= 0) return;
-                  let scrollingParent = editor.parentElement;
+                  let scrollingParent =
+                    occludedContent[0]?.parentElement || editor.parentElement;
                   let remaining = overlap;
                   while (
                     scrollingParent &&
@@ -4138,7 +4258,11 @@ object WebDomScripts {
               }
               return { hidden, selectedCount, pendingCount, readyCount };
             };
-            const initialMathMode = enforceMathAnswerMode();
+            const initialMathMode =
+              document.documentElement.dataset
+                .matholicKioskProblemMapTransition === 'true' ?
+                { hidden: 0, selectedCount: 0, pendingCount: 0, readyCount: 0 } :
+                enforceMathAnswerMode();
             hiddenControls += initialMathMode.hidden;
             mathModeSelections += initialMathMode.selectedCount;
             mathModePending += initialMathMode.pendingCount;
@@ -4510,13 +4634,18 @@ object WebDomScripts {
               );
               hiddenControls += hideLateStudentContent();
               hiddenControls += hideDirectMathHandwriting();
-              subjectiveTouchTargets = ensureSubjectiveTouchTargets();
-              mathModeRemounted += remountUninitializedMathShells();
-              const lateMathMode = enforceMathAnswerMode();
-              hiddenControls += lateMathMode.hidden;
-              mathModeSelections += lateMathMode.selectedCount;
-              mathModePending = lateMathMode.pendingCount;
-              mathModeReady = lateMathMode.readyCount;
+              const problemTransitionActive =
+                document.documentElement.dataset
+                  .matholicKioskProblemMapTransition === 'true';
+              if (!problemTransitionActive) {
+                subjectiveTouchTargets = ensureSubjectiveTouchTargets();
+                mathModeRemounted += remountUninitializedMathShells();
+                const lateMathMode = enforceMathAnswerMode();
+                hiddenControls += lateMathMode.hidden;
+                mathModeSelections += lateMathMode.selectedCount;
+                mathModePending = lateMathMode.pendingCount;
+                mathModeReady = lateMathMode.readyCount;
+              }
               protectAnalysisDetails();
               enhanceProblemNavigation();
               longProblemScrollEnhancements = Math.max(

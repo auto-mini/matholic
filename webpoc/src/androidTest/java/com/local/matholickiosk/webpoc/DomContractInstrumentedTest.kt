@@ -500,8 +500,8 @@ class DomContractInstrumentedTest {
                     '.ant-radio-group .ant-radio-button-wrapper'
                   ));
                   image.matholicKioskObjectiveMarkers = [
-                    {x:0.1,y:0.4}, {x:0.3,y:0.4}, {x:0.5,y:0.4},
-                    {x:0.7,y:0.4}, {x:0.9,y:0.4}
+                    {x:0.1,y:0.4}, {x:0.35,y:0.4}, {x:0.6,y:0.4},
+                    {x:0.1,y:0.78}, {x:0.35,y:0.78}
                   ];
                   image.matholicKioskObjectiveMarkerKey = [
                     image.currentSrc || image.src,
@@ -526,7 +526,7 @@ class DomContractInstrumentedTest {
                   outside.dispatchEvent(new MouseEvent('click', {
                     bubbles: true,
                     cancelable: true,
-                    clientX: rect.left + rect.width * 0.78,
+                    clientX: rect.left + rect.width * 0.68,
                     clientY: rect.top + rect.height * 0.4
                   }));
                   const selectedThroughOutsideControl =
@@ -536,13 +536,16 @@ class DomContractInstrumentedTest {
                   ).dispatchEvent(new MouseEvent('click', {
                     bubbles: true,
                     cancelable: true,
-                    clientX: rect.left + rect.width * 0.78,
+                    clientX: rect.left + rect.width * 0.68,
                     clientY: rect.top + rect.height * 0.4
                   }));
                   const zones = Array.from(document.querySelectorAll(
                     '.matholic-kiosk-objective-choice-zone'
                   ));
-                  const selectedZone = zones[3];
+                  const selectedZone = zones[2];
+                  const fourthZone = zones[3];
+                  const selectedRect = selectedZone.getBoundingClientRect();
+                  const fourthRect = fourthZone.getBoundingClientRect();
                   const overlayRect = document.querySelector(
                     '.matholic-kiosk-objective-choice-overlay'
                   ).getBoundingClientRect();
@@ -552,7 +555,9 @@ class DomContractInstrumentedTest {
                     selected: document.querySelector('input:checked')?.value,
                     bound: image.dataset.matholicKioskObjectiveTapBound,
                     zoneCount: zones.length,
-                    zoneWidth: selectedZone.getBoundingClientRect().width,
+                    zoneWidth: selectedRect.width,
+                    zoneHeight: selectedRect.height,
+                    rowSeparation: fourthRect.top - selectedRect.bottom,
                     selectedZone: selectedZone.dataset.selected,
                     selectedBackground:
                       getComputedStyle(selectedZone).backgroundColor,
@@ -564,14 +569,101 @@ class DomContractInstrumentedTest {
             )
             assertTrue(proof.getBoolean("accepted"))
             assertEquals("", proof.getString("selectedThroughOutsideControl"))
-            assertEquals("4", proof.getString("selected"))
+            assertEquals("3", proof.getString("selected"))
             assertEquals(WebDomScripts.CONTRACT_VERSION, proof.getString("bound"))
             assertEquals(5, proof.getInt("zoneCount"))
-            assertTrue(proof.getDouble("zoneWidth") > 80.0)
+            assertTrue(proof.getDouble("zoneWidth") > 100.0)
+            assertTrue(proof.getDouble("zoneHeight") < 70.0)
+            assertTrue(proof.getDouble("rowSeparation") >= -0.6)
             assertEquals("true", proof.getString("selectedZone"))
             assertNotEquals("rgba(0, 0, 0, 0)", proof.getString("selectedBackground"))
             assertTrue(proof.getDouble("overlayTopDelta") < 0.6)
             assertTrue(proof.getDouble("overlayHeightDelta") < 0.6)
+        }
+    }
+
+    @Test
+    fun testOfficialProblemTransitionDoesNotCommitStaleObjectiveValueIntoSubjectiveAnswer() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div id="problem-navigation" style="display:flex">
+                  <button aria-label="이전 문제">&lt;</button>
+                  <div id="problem-number">
+                    <select id="problem-selector">
+                      <option>5</option><option>6</option>
+                    </select>
+                    <span>/ 10</span>
+                  </div>
+                  <button id="next" aria-label="다음 문제">&gt;</button>
+                </div>
+                <div id="problem-host"><div class="ant-radio-group">3</div></div>
+                <script>
+                  window.staleCommit = '';
+                  window.inputMenuClicks = 0;
+                  document.getElementById('next').addEventListener('click', () => {
+                    document.getElementById('problem-selector').value = '6';
+                    document.getElementById('problem-host').innerHTML = `
+                      <div id="answer-input-form-6">
+                        <input id="subjective-answer"
+                               placeholder="주관식 답" value="3">
+                        <button id="input-menu">입력기</button>
+                      </div>`;
+                    document.getElementById('input-menu').addEventListener('click', () => {
+                      window.inputMenuClicks += 1;
+                      const value = document.getElementById('subjective-answer').value;
+                      if (value) window.staleCommit = value;
+                    });
+                    setTimeout(() => {
+                      if (!window.staleCommit) {
+                        document.getElementById('subjective-answer').value = '';
+                      }
+                    }, 350);
+                  });
+                </script>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            evaluate(webView, "document.getElementById('next').click(); JSON.stringify({clicked:true})")
+            Thread.sleep(200)
+            val during = evaluate(
+                webView,
+                """
+                JSON.stringify({
+                  transition: document.documentElement.dataset
+                    .matholicKioskProblemMapTransition === 'true',
+                  menuClicks: window.inputMenuClicks,
+                  scopeOpacity: getComputedStyle(
+                    document.getElementById('answer-input-form-6')
+                  ).opacity
+                })
+                """.trimIndent(),
+            )
+            assertTrue(during.getBoolean("transition"))
+            assertEquals(0, during.getInt("menuClicks"))
+            assertEquals("0", during.getString("scopeOpacity"))
+
+            Thread.sleep(800)
+            val settled = evaluate(
+                webView,
+                """
+                JSON.stringify({
+                  transition: document.documentElement.dataset
+                    .matholicKioskProblemMapTransition === 'true',
+                  menuClicks: window.inputMenuClicks,
+                  committed: window.staleCommit,
+                  value: document.getElementById('subjective-answer').value
+                })
+                """.trimIndent(),
+            )
+            assertFalse(settled.getBoolean("transition"))
+            assertTrue(settled.getInt("menuClicks") >= 1)
+            assertEquals("", settled.getString("committed"))
+            assertEquals("", settled.getString("value"))
         }
     }
 
@@ -2883,6 +2975,11 @@ class DomContractInstrumentedTest {
                    const arrowTop = Math.min(
                      ...arrowRects.map(rect => rect.top)
                    );
+                   const navigationRect = navigation.getBoundingClientRect();
+                   const maximumButtonRight = Math.max(
+                     ...Array.from(navigation.querySelectorAll('button'))
+                       .map(button => button.getBoundingClientRect().right)
+                   );
                    document.body.dispatchEvent(
                      new Event('pointerdown', { bubbles: true })
                    );
@@ -2917,6 +3014,8 @@ class DomContractInstrumentedTest {
                      left: parseFloat(getComputedStyle(navigation).left),
                      right: getComputedStyle(navigation).right,
                      navigationWidth: navigation.getBoundingClientRect().width,
+                     buttonRightOverflow:
+                       maximumButtonRight - navigationRect.right,
                      numericSquares: numericRects.every(rect =>
                        Math.abs(rect.width - rect.height) < 0.6
                      ),
@@ -2983,6 +3082,7 @@ class DomContractInstrumentedTest {
             assertEquals(14.0, proof.getDouble("left"), 0.6)
             assertEquals("auto", proof.getString("right"))
             assertTrue(proof.getDouble("navigationWidth") <= 576.0)
+            assertTrue(proof.getDouble("buttonRightOverflow") <= 0.6)
             assertTrue(proof.getBoolean("numericSquares"))
             assertTrue(proof.getBoolean("arrowSquares"))
             assertTrue(proof.getBoolean("actionSquares"))

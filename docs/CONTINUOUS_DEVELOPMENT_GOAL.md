@@ -28,7 +28,7 @@
 - A: Samsung SM-P610, serial `R54TB029FHZ`, 기존 PC에서 ADB 승인 유지
 - A 설치본:
   - Kiosk `0.6.0-rc55`/code 60, UID `10288`
-  - Web POC `0.4.0-rc116`/code 133, UID `10293`
+  - Web POC `0.4.0-rc117`/code 134, UID `10293`
 - Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - 관리자 PIN은 저장소 밖
