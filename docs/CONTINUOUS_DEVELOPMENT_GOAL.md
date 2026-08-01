@@ -18,14 +18,16 @@
 
 - 작업 브랜치: `codex/fix-submit-recovery-timeout`
 - 최신 체크포인트:
+  - `19adb9e` 객관식 이미지 선택·답안 현황·주관식 상태와 자체 키패드 교정
+  - `9af507b` 등록된 관리자 PIN 길이 기반 즉시 인증
   - `45bff3d` 실제 문제 이동·답안 현황 이동 교정
   - `06f3de6` Windows DPAPI 기반 관리자 PIN 자동 입력
   - `4afdf0b` 원격 QR 시험을 표시명 정확히 `테스트`인 학생으로 제한
   - `ef5025d` 화면 구조 기반 PIN 입력과 PDF 시험 QR 메모리 제출 도구
 - A: Samsung SM-P610, serial `R54TB029FHZ`, 기존 PC에서 ADB 승인 유지
 - A 설치본:
-  - Kiosk `0.6.0-rc53`/code 58, UID `10288`
-  - Web POC `0.4.0-rc75`/code 92, UID `10293`
+  - Kiosk `0.6.0-rc55`/code 60, UID `10288`
+  - Web POC `0.4.0-rc112`/code 129, UID `10293`
 - Device Owner:
   `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`
 - 관리자 PIN은 저장소 밖
