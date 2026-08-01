@@ -342,11 +342,11 @@ class DomContractInstrumentedTest {
             <!doctype html><html><head></head><body>
               <main style="width:220px">
                 <div class="ant-radio-group" id="choices">
-                  <label class="ant-radio-button-wrapper" tabindex="0">1</label>
-                  <label class="ant-radio-button-wrapper">2</label>
-                  <label class="ant-radio-button-wrapper">3</label>
-                  <label class="ant-radio-button-wrapper">4</label>
-                  <label class="ant-radio-button-wrapper">5</label>
+                  <label class="ant-radio-button-wrapper" tabindex="0"><input type="radio" name="answer" value="1">1</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="2">2</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="3">3</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="4">4</label>
+                  <label class="ant-radio-button-wrapper"><input type="radio" name="answer" value="5">5</label>
                 </div>
               </main>
             </body></html>
@@ -360,7 +360,8 @@ class DomContractInstrumentedTest {
                   const group = document.getElementById('choices');
                   const choice = group.firstElementChild;
                   const groupStyle = getComputedStyle(group);
-                  const choiceStyle = getComputedStyle(choice);
+                   const choiceStyle = getComputedStyle(choice);
+                   group.children[3].click();
                   choice.classList.add('ant-radio-button-wrapper-checked');
                   const selectedStyle = getComputedStyle(choice);
                   const selectedBackground = selectedStyle.backgroundColor;
@@ -375,7 +376,9 @@ class DomContractInstrumentedTest {
                     groupHeight: group.getBoundingClientRect().height,
                     choiceWidth: choice.getBoundingClientRect().width,
                     choiceHeight: choice.getBoundingClientRect().height,
-                    radius: choiceStyle.borderRadius,
+                     radius: choiceStyle.borderRadius,
+                     pointerEvents: choiceStyle.pointerEvents,
+                     selectedChoice: group.querySelector('input:checked')?.value,
                     selectedBackground,
                     selectedColor,
                     clearedBackground: clearedStyle.backgroundColor,
@@ -393,6 +396,8 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getDouble("groupWidth") <= 220.0)
             assertTrue(proof.getDouble("groupHeight") > proof.getDouble("choiceHeight"))
             assertEquals("12px", proof.getString("radius"))
+            assertEquals("auto", proof.getString("pointerEvents"))
+            assertEquals("4", proof.getString("selectedChoice"))
             assertEquals("rgb(21, 101, 192)", proof.getString("selectedBackground"))
             assertEquals("rgb(255, 255, 255)", proof.getString("selectedColor"))
             assertEquals("rgb(255, 255, 255)", proof.getString("clearedBackground"))
@@ -472,9 +477,9 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("numberClass"))
             assertEquals("relative", proof.getString("numberPosition"))
             assertEquals("0px", proof.getString("numberTop"))
-            assertEquals("4 ↓/10", proof.getString("numberDisplayLabel"))
-            assertEquals("문제 목록 열기", proof.getString("numberLabel"))
-            assertEquals("true", proof.getString("mapOpen"))
+            assertEquals("4/10", proof.getString("numberDisplayLabel"))
+            assertEquals("현재 문제 번호", proof.getString("numberLabel"))
+            assertEquals("false", proof.getString("mapOpen"))
             assertFalse(proof.getBoolean("selectorOpened"))
             assertTrue(proof.getBoolean("noHorizontalOverflow"))
 
@@ -488,14 +493,14 @@ class DomContractInstrumentedTest {
                       .dataset.matholicKioskLabel,
                     busy: document.getElementById('problem-number')
                       .getAttribute('aria-busy'),
-                    target: window.__matholicKioskDirectionFeedback?.target
+                    feedbackPresent: !!window.__matholicKioskDirectionFeedback
                   });
                 })()
                 """.trimIndent(),
             )
-            assertEquals("4 →5/10", moving.getString("label"))
-            assertEquals("true", moving.getString("busy"))
-            assertEquals(5, moving.getInt("target"))
+            assertEquals("4/10", moving.getString("label"))
+            assertTrue(moving.isNull("busy"))
+            assertFalse(moving.getBoolean("feedbackPresent"))
 
             evaluate(webView, WebDomScripts.applyStudentExperience)
             val maintained = evaluate(
@@ -507,7 +512,7 @@ class DomContractInstrumentedTest {
                 }))()
                 """.trimIndent(),
             )
-            assertEquals("4 →5/10", maintained.getString("label"))
+            assertEquals("4/10", maintained.getString("label"))
 
             evaluate(
                 webView,
@@ -532,7 +537,7 @@ class DomContractInstrumentedTest {
                 }))()
                 """.trimIndent(),
             )
-            assertEquals("5 ↓/10", settled.getString("label"))
+            assertEquals("5/10", settled.getString("label"))
             assertFalse(settled.getBoolean("busy"))
             assertFalse(settled.getBoolean("feedbackPresent"))
         }
@@ -692,8 +697,8 @@ class DomContractInstrumentedTest {
                 })()
                 """.trimIndent(),
             )
-            assertEquals("1 →4/5", started.getString("pendingLabel"))
-            assertEquals("true", started.getString("numberBusy"))
+            assertEquals("1/5", started.getString("pendingLabel"))
+            assertTrue(started.isNull("numberBusy"))
             Thread.sleep(3_000)
             val proof = evaluate(
                 webView,
@@ -730,7 +735,7 @@ class DomContractInstrumentedTest {
             assertEquals("4", proof.getString("selected"))
             assertEquals(3, proof.getInt("directionClicks"))
             assertEquals(0, proof.getInt("pendingTarget"))
-            assertEquals("4 ↓/5", proof.getString("finalLabel"))
+            assertEquals("4/5", proof.getString("finalLabel"))
             assertFalse(proof.getBoolean("numberBusy"))
             assertTrue(proof.getBoolean("previousVisible"))
             assertTrue(proof.getBoolean("nextVisible"))
@@ -902,10 +907,17 @@ class DomContractInstrumentedTest {
                   );
                   const toggle = map.firstElementChild;
                   toggle.click();
-                  const buttons = Array.from(map.querySelectorAll(
-                    '.matholic-kiosk-problem-map-grid button'
-                  ));
-                  const before = buttons[1].dataset.state;
+                   const buttons = Array.from(map.querySelectorAll(
+                     '.matholic-kiosk-problem-map-grid button'
+                   ));
+                   const openStyle = getComputedStyle(map);
+                   const openPosition = openStyle.position;
+                   const openRect = map.getBoundingClientRect();
+                   const firstButtonRect = buttons[0].getBoundingClientRect();
+                   const unansweredLabels = Array.from(map.querySelectorAll(
+                     '.matholic-kiosk-problem-map-unanswered button'
+                   )).map(button => button.textContent);
+                   const before = buttons[1].dataset.state;
                   document.getElementById('unknown').click();
                   const unansweredButtons = Array.from(map.querySelectorAll(
                     '.matholic-kiosk-problem-map-unanswered button'
@@ -917,7 +929,13 @@ class DomContractInstrumentedTest {
                     ).length,
                     buttonCount: buttons.length,
                     current: buttons[1].dataset.current,
-                    before,
+                     before,
+                     openPosition,
+                     openWidth: openRect.width,
+                     firstButtonWidth: firstButtonRect.width,
+                     firstButtonHeight: firstButtonRect.height,
+                     firstButtonRadius: getComputedStyle(buttons[0]).borderRadius,
+                     unansweredLabels,
                     trackedUnknown:
                       window.__matholicKioskProblemStates[2],
                     unansweredButtonCount: unansweredButtons.length,
@@ -944,13 +962,20 @@ class DomContractInstrumentedTest {
             assertEquals(3, proof.getInt("buttonCount"))
             assertEquals("true", proof.getString("current"))
             assertEquals("answered", proof.getString("before"))
+            assertEquals("fixed", proof.getString("openPosition"))
+            assertTrue(proof.getDouble("openWidth") >= 250.0)
+            assertEquals(52.0, proof.getDouble("firstButtonWidth"), 0.6)
+            assertEquals(52.0, proof.getDouble("firstButtonHeight"), 0.6)
+            assertEquals("50%", proof.getString("firstButtonRadius"))
+            assertEquals("이전/미입력", proof.getJSONArray("unansweredLabels").getString(0))
+            assertEquals("다음/미입력", proof.getJSONArray("unansweredLabels").getString(1))
             assertEquals("unknown", proof.getString("trackedUnknown"))
             assertEquals(2, proof.getInt("unansweredButtonCount"))
             assertEquals("3", proof.getString("selectedAfterNextUnanswered"))
             assertFalse(proof.getBoolean("guidePresent"))
             assertEquals("relative", proof.getString("mapPosition"))
             assertTrue(proof.getBoolean("mapFollowsNavigation"))
-            assertEquals("2 ↓/3", proof.getString("numberLabel"))
+            assertEquals("2/3", proof.getString("numberLabel"))
             assertEquals(3, proof.getInt("legendItemCount"))
             assertEquals("false", proof.getString("open"))
 
@@ -2539,13 +2564,6 @@ class DomContractInstrumentedTest {
                        '.matholic-kiosk-keypad-section'
                      )
                    ).map(section => section.getBoundingClientRect());
-                   const numericHeading = navigation.querySelector(
-                     '.matholic-kiosk-keypad-numeric ' +
-                     '.matholic-kiosk-keypad-heading'
-                   ).getBoundingClientRect();
-                   const numericGrid = navigation.querySelector(
-                     '.matholic-kiosk-keypad-numeric-grid'
-                   ).getBoundingClientRect();
                    const key = value => Array.from(navigation.querySelectorAll(
                      '[data-matholic-kiosk-key-value]'
                    )).find(button =>
@@ -2556,7 +2574,9 @@ class DomContractInstrumentedTest {
                    navigation.querySelector(
                      '[data-matholic-kiosk-key-value="Backspace"]'
                    ).click();
-                   key('-').click();
+                    navigation.querySelector(
+                      '[data-matholic-kiosk-key-action="toggle-sign"]'
+                    ).click();
                    key('.').click();
                    key('\\sqrt').click();
                    key('\\frac').click();
@@ -2603,9 +2623,12 @@ class DomContractInstrumentedTest {
                      actionLabels: Array.from(navigation.querySelectorAll(
                        '.matholic-kiosk-keypad-actions button'
                      )).map(button => button.textContent),
-                     headings: Array.from(navigation.querySelectorAll(
-                       '.matholic-kiosk-keypad-heading'
-                     )).map(heading => heading.textContent),
+                      headings: Array.from(navigation.querySelectorAll(
+                        '.matholic-kiosk-keypad-heading'
+                      )).map(heading => heading.textContent),
+                      iconNames: Array.from(navigation.querySelectorAll(
+                        '[data-matholic-kiosk-key-icon]'
+                      )).map(button => button.dataset.matholicKioskKeyIcon),
                      keys: window.cursorKeys,
                      commands: window.mathCommands,
                      focusCount: window.cursorFocusCount,
@@ -2616,10 +2639,9 @@ class DomContractInstrumentedTest {
                      bottom: parseFloat(getComputedStyle(navigation).bottom),
                      firstGap: sectionRects[1].left - sectionRects[0].right,
                      secondGap: sectionRects[2].left - sectionRects[1].right,
-                     numericHeaderLeftDelta:
-                       numericHeading.left - numericGrid.left,
-                     numericHeaderRightDelta:
-                       numericHeading.right - numericGrid.right,
+                      bottomSpread: Math.max(
+                        ...sectionRects.map(rect => rect.bottom)
+                      ) - Math.min(...sectionRects.map(rect => rect.bottom)),
                      inputMode: document.querySelector(
                        '#math-editor textarea'
                      ).getAttribute('inputmode'),
@@ -2652,9 +2674,10 @@ class DomContractInstrumentedTest {
             assertEquals(4, proof.getInt("actionCount"))
             assertEquals("실행 취소", proof.getJSONArray("actionLabels").getString(0))
             assertEquals("다시 실행", proof.getJSONArray("actionLabels").getString(1))
-            assertEquals("숫자 · 소수점 · 부호", proof.getJSONArray("headings").getString(0))
-            assertEquals("수식 구조", proof.getJSONArray("headings").getString(1))
-            assertEquals("이동 · 수정", proof.getJSONArray("headings").getString(2))
+            assertEquals(0, proof.getJSONArray("headings").length())
+            assertEquals(6, proof.getJSONArray("iconNames").length())
+            assertEquals("root", proof.getJSONArray("iconNames").getString(0))
+            assertEquals("fraction", proof.getJSONArray("iconNames").getString(1))
             assertEquals(1, proof.getInt("navCount"))
             assertTrue(proof.getInt("focusCount") >= 12)
             assertTrue(proof.getBoolean("parentIsBody"))
@@ -2667,8 +2690,7 @@ class DomContractInstrumentedTest {
                 proof.getDouble("secondGap"),
                 0.6,
             )
-            assertEquals(0.0, proof.getDouble("numericHeaderLeftDelta"), 0.6)
-            assertEquals(0.0, proof.getDouble("numericHeaderRightDelta"), 0.6)
+            assertEquals(0.0, proof.getDouble("bottomSpread"), 0.6)
             assertEquals("none", proof.getString("inputMode"))
             assertTrue(proof.getBoolean("originalToolbarHidden"))
             assertEquals("\\sqrt", proof.getJSONArray("commands").getString(0))
@@ -2683,7 +2705,7 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("visibleWhileDirectlyEditing"))
             assertTrue(proof.getBoolean("clearArmed"))
             assertEquals(
-                "1-.\\sqrt\\frac\\pi",
+                "-1.\\sqrt\\frac\\pi",
                 proof.getString("answerBeforeConfirmedClear"),
             )
             assertEquals("", proof.getString("answerAfterConfirmedClear"))
@@ -3958,7 +3980,7 @@ class DomContractInstrumentedTest {
                   const select = document.querySelector('select');
                   select.selectedIndex = 1;
                   select.dispatchEvent(new Event('change', { bubbles: true }));
-                  document.getElementById('problem-image').style.height = '400px';
+                   document.getElementById('problem-image').style.height = '100px';
                   return JSON.stringify({ ok: true });
                 })()
                 """.trimIndent(),
