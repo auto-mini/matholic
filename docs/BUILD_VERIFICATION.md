@@ -6169,6 +6169,49 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
 - RC107에서 39.768fps, 216프레임, 5.431초를 녹화해 1→2→3→4번 이동 전
   프레임을 확인했다. 기본 입력 placeholder와 `입력기`의 선행 노출은 0회였고
   최종 수식 편집기와 자체 키패드가 정상 생성됐다.
+
+## Web POC RC108 전체답안 비활성 커서 정리 — 2026-08-01
+
+### 재현과 수정
+
+- 정확히 검증된 표시명 `테스트` QR의 10문항 과제만 사용했다.
+- 전체답안 확인창을 열면 실제 포커스가 없는 빈 주관식 칸 6개에 MathQuill
+  커서가 동시에 깜박였다. DOM에서는 `document.activeElement`가 해당 칸이
+  아니고 `.mq-focused`도 없었지만, 입력 안정화 과정 뒤 각 칸에
+  `.mq-hasCursor > .mq-cursor`가 남아 있었다.
+- 확인창의 `.mq-editable-field:not(.mq-focused) .mq-cursor`만 숨겼다. 일반
+  문제풀이 화면의 편집기는 범위 밖이며, 확인창에서도 실제로 누른 칸은
+  `.mq-focused`가 붙으므로 커서와 자체 수식 키패드를 그대로 사용할 수 있다.
+
+### 자동·릴리스 검증
+
+- Web JVM 단위시험과 Android instrumentation test 소스 컴파일 30 tasks:
+  PASS
+- 새 fixture에서 확인창의 비활성 커서는 `hidden`, 일반 문제풀이 커서는
+  `visible`, 확인창 편집기에 `.mq-focused`를 적용한 뒤에는 다시 `visible`인
+  것을 검증했다.
+- 정식 release 빌드 158 tasks, Web/Kiosk JVM 시험, release lint, 두 release
+  APK assemble, 저장 전·후 버전·비디버그·서명 검증: PASS
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+### A 보존 설치와 실기 결과
+
+- Web POC `0.4.0-rc108`/code 125를 동일 signer의 상위 버전으로 A에
+  `adb install -r` 보존 설치했다.
+- Web UID `10293`, firstInstallTime `2026-07-28 13:12:16`, dataDir, Kiosk
+  Device Owner와 `LockTaskModeState=LOCKED`가 유지됐다.
+- artifact와 A에서 다시 추출한 설치 APK SHA-256은 모두
+  `529C9CAB007D0F05C08ABDE730E1E5D6A964B7D2B8BDF75981DB5FCEF36C20BA`로
+  일치했다.
+- 전체답안 초기 화면에서 비활성 주관식 칸의 커서는 모두 보이지 않았다.
+  4번 칸을 누르면 해당 칸 하나만 커서와 자체 키패드가 나타났고, 다른 칸은
+  계속 깨끗하게 유지됐다.
+- 자동 하단 이동 후 위로 스크롤했으며 3초 뒤에도 상단 위치가 유지되어
+  미입력 문제를 확인할 수 있었다.
+- 별도 후속 문제로, 확인창을 연 직후 약 1초 이내 화면에서 기존 `입력기`
+  드롭다운이 먼저 나타난 뒤 수식 입력기로 교체되는 잔상을 실제 캡처했다.
+  RC108의 비활성 커서 수정과 분리해 다음 변경에서 처리한다.
 - 정확한 `테스트` 계정의 10문항 현황판에서 번호 4 직접 이동, 4→5 다음
   미입력, 5→4 이전 미입력을 확인했다. 25문항 현황판에서는 1~25 전체 표시,
   25번 직접 이동, 24↔25 미입력 이동과 25→1 순환 이동을 확인했다.
