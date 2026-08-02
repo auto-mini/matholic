@@ -9,9 +9,13 @@ import com.local.matholickiosk.kiosk.security.EncryptedValue
 import java.io.Closeable
 import java.util.UUID
 
+data class IssuedQrPayload(
+    val payload: String,
+)
+
 data class RegisteredStudent(
     val studentId: String,
-    val issuedQr: IssuedQrToken,
+    val issuedQr: IssuedQrPayload,
 )
 
 data class ValidatedStudent(
@@ -22,7 +26,12 @@ data class ValidatedStudent(
 data class BatchIssuedQr(
     val studentId: String,
     val displayNameExact: String,
-    val issuedQr: IssuedQrToken,
+    val issuedQr: IssuedQrPayload,
+)
+
+private data class PendingBatchIssuedQr(
+    val result: BatchIssuedQr,
+    val token: IssuedQrToken,
 )
 
 data class QrCardStatusSummary(
@@ -68,7 +77,7 @@ class StudentRepository(
                             isActive = true,
                             createdAtEpochMs = now,
                             updatedAtEpochMs = now,
-                        ),
+                    ),
                     )
                     audit("FIXED_CLASS_CREATED", null, null, null)
                 }
@@ -114,13 +123,13 @@ class StudentRepository(
             require(username.isNotEmpty() && password.isNotEmpty()) { "Credentials are required" }
 
             val studentId = UUID.randomUUID().toString()
-            val issued = qrCodec.issue()
-            val usernameEncrypted = cipher.encrypt(studentId, CredentialField.USERNAME, username)
-            val passwordEncrypted = cipher.encrypt(studentId, CredentialField.PASSWORD, password)
-            val now = nowEpochMs()
-            database.runInTransaction {
-                database.studentDao().insert(
-                    StudentEntity(
+            qrCodec.issue().use { issued ->
+                val usernameEncrypted = cipher.encrypt(studentId, CredentialField.USERNAME, username)
+                val passwordEncrypted = cipher.encrypt(studentId, CredentialField.PASSWORD, password)
+                val now = nowEpochMs()
+                database.runInTransaction {
+                    database.studentDao().insert(
+                        StudentEntity(
                         studentId = studentId,
                         displayNameExact = exact,
                         // Schema-v1 compatibility only. Masked names are no longer
@@ -137,37 +146,38 @@ class StudentRepository(
                         createdAtEpochMs = now,
                         updatedAtEpochMs = now,
                     ),
-                )
-                database.qrCardStatusDao().upsert(
-                    QrCardStatusEntity(
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
                         studentId = studentId,
                         issuedAtEpochMs = now,
                         lastUsedAtEpochMs = null,
                         lastDeliveredAtEpochMs = null,
                         needsPrint = true,
-                    ),
-                )
-                audit("STUDENT_REGISTERED", null, studentId, null)
-                audit("QR_ISSUED", null, studentId, null)
+                        ),
+                    )
+                    audit("STUDENT_REGISTERED", null, studentId, null)
+                    audit("QR_ISSUED", null, studentId, null)
+                }
+                return RegisteredStudent(studentId, IssuedQrPayload(issued.payload))
             }
-            return RegisteredStudent(studentId, issued)
         } finally {
             username.fill('\u0000')
             password.fill('\u0000')
         }
     }
 
-    fun reissueQr(studentId: String): IssuedQrToken {
+    fun reissueQr(studentId: String): IssuedQrPayload {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
-        val issued = qrCodec.issue()
-        database.runInTransaction {
-            val now = nowEpochMs()
-            database.studentDao().update(
-                student.copy(qrTokenHash = issued.hash, updatedAtEpochMs = now),
-            )
-            database.qrCardStatusDao().upsert(
-                QrCardStatusEntity(
+        qrCodec.issue().use { issued ->
+            database.runInTransaction {
+                val now = nowEpochMs()
+                database.studentDao().update(
+                    student.copy(qrTokenHash = issued.hash, updatedAtEpochMs = now),
+                )
+                database.qrCardStatusDao().upsert(
+                    QrCardStatusEntity(
                     studentId = studentId,
                     issuedAtEpochMs = now,
                     lastUsedAtEpochMs =
@@ -175,10 +185,11 @@ class StudentRepository(
                     lastDeliveredAtEpochMs = null,
                     needsPrint = true,
                 ),
-            )
-            audit("QR_REISSUED", null, studentId, null)
+                )
+                audit("QR_REISSUED", null, studentId, null)
+            }
+            return IssuedQrPayload(issued.payload)
         }
-        return issued
     }
 
     fun reissueClassQrBatch(classId: String): List<BatchIssuedQr> {
@@ -190,35 +201,40 @@ class StudentRepository(
         }
         val students = database.studentDao().listActiveForClass(group.classId)
         require(students.isNotEmpty()) { "선택한 반에 소속 학생이 없습니다." }
-        val issued = students.map { student ->
-            BatchIssuedQr(
-                studentId = student.studentId,
-                displayNameExact = student.displayNameExact,
-                issuedQr = qrCodec.issue(),
-            )
-        }
+        val issued = mutableListOf<PendingBatchIssuedQr>()
         try {
+            students.forEach { student ->
+                val token = qrCodec.issue()
+                issued += PendingBatchIssuedQr(
+                    result = BatchIssuedQr(
+                        studentId = student.studentId,
+                        displayNameExact = student.displayNameExact,
+                        issuedQr = IssuedQrPayload(token.payload),
+                    ),
+                    token = token,
+                )
+            }
             database.runInTransaction {
                 val now = nowEpochMs()
                 issued.forEach { item ->
                     val student = requireNotNull(
-                        database.studentDao().findById(item.studentId),
+                        database.studentDao().findById(item.result.studentId),
                     ) {
                         "Student not found"
                     }
                     require(student.isActive) { "Student is inactive" }
                     database.studentDao().update(
                         student.copy(
-                            qrTokenHash = item.issuedQr.hash,
+                            qrTokenHash = item.token.hash,
                             updatedAtEpochMs = now,
                         ),
                     )
                     database.qrCardStatusDao().upsert(
                         QrCardStatusEntity(
-                            studentId = item.studentId,
+                            studentId = item.result.studentId,
                             issuedAtEpochMs = now,
                             lastUsedAtEpochMs =
-                                database.qrCardStatusDao().find(item.studentId)?.lastUsedAtEpochMs,
+                                database.qrCardStatusDao().find(item.result.studentId)?.lastUsedAtEpochMs,
                             lastDeliveredAtEpochMs = null,
                             needsPrint = true,
                         ),
@@ -226,10 +242,9 @@ class StudentRepository(
                 }
                 audit("CLASS_QR_BATCH_REISSUED", issued.size.toString(), null, null)
             }
-            return issued
-        } catch (failure: Throwable) {
-            issued.forEach { it.issuedQr.hash.fill(0) }
-            throw failure
+            return issued.map(PendingBatchIssuedQr::result)
+        } finally {
+            issued.forEach { it.token.close() }
         }
     }
 
@@ -243,31 +258,36 @@ class StudentRepository(
         require(students.size == studentIds.size) {
             "비활성화되었거나 존재하지 않는 학생이 포함되어 있습니다."
         }
-        val issued = students.map { student ->
-            BatchIssuedQr(
-                studentId = student.studentId,
-                displayNameExact = student.displayNameExact,
-                issuedQr = qrCodec.issue(),
-            )
-        }
+        val issued = mutableListOf<PendingBatchIssuedQr>()
         try {
+            students.forEach { student ->
+                val token = qrCodec.issue()
+                issued += PendingBatchIssuedQr(
+                    result = BatchIssuedQr(
+                        studentId = student.studentId,
+                        displayNameExact = student.displayNameExact,
+                        issuedQr = IssuedQrPayload(token.payload),
+                    ),
+                    token = token,
+                )
+            }
             database.runInTransaction {
                 val now = nowEpochMs()
                 issued.forEach { item ->
-                    val student = requireNotNull(database.studentDao().findById(item.studentId))
+                    val student = requireNotNull(database.studentDao().findById(item.result.studentId))
                     require(student.isActive) { "Student is inactive" }
                     database.studentDao().update(
                         student.copy(
-                            qrTokenHash = item.issuedQr.hash,
+                            qrTokenHash = item.token.hash,
                             updatedAtEpochMs = now,
                         ),
                     )
                     database.qrCardStatusDao().upsert(
                         QrCardStatusEntity(
-                            studentId = item.studentId,
+                            studentId = item.result.studentId,
                             issuedAtEpochMs = now,
                             lastUsedAtEpochMs =
-                                database.qrCardStatusDao().find(item.studentId)?.lastUsedAtEpochMs,
+                                database.qrCardStatusDao().find(item.result.studentId)?.lastUsedAtEpochMs,
                             lastDeliveredAtEpochMs = null,
                             needsPrint = true,
                         ),
@@ -275,10 +295,9 @@ class StudentRepository(
                 }
                 audit("SELECTED_QR_BATCH_REISSUED", issued.size.toString(), null, null)
             }
-            return issued
-        } catch (failure: Throwable) {
-            issued.forEach { it.issuedQr.hash.fill(0) }
-            throw failure
+            return issued.map(PendingBatchIssuedQr::result)
+        } finally {
+            issued.forEach { it.token.close() }
         }
     }
 
@@ -350,23 +369,25 @@ class StudentRepository(
                         row.password,
                     )
                     if (matched == null) {
-                        database.studentDao().insert(
-                            StudentEntity(
-                                studentId = studentId,
-                                displayNameExact = row.displayNameExact,
-                                displayNameMasked = row.displayNameExact,
-                                usernameCiphertext = usernameEncrypted.ciphertext,
-                                usernameIv = usernameEncrypted.iv,
-                                usernameEncryptionVersion = usernameEncrypted.version,
-                                passwordCiphertext = passwordEncrypted.ciphertext,
-                                passwordIv = passwordEncrypted.iv,
-                                passwordEncryptionVersion = passwordEncrypted.version,
-                                qrTokenHash = qrCodec.issueHashOnly(),
-                                isActive = true,
-                                createdAtEpochMs = now,
-                                updatedAtEpochMs = now,
-                            ),
-                        )
+                        withIssuedHashOnly { qrTokenHash ->
+                            database.studentDao().insert(
+                                StudentEntity(
+                                    studentId = studentId,
+                                    displayNameExact = row.displayNameExact,
+                                    displayNameMasked = row.displayNameExact,
+                                    usernameCiphertext = usernameEncrypted.ciphertext,
+                                    usernameIv = usernameEncrypted.iv,
+                                    usernameEncryptionVersion = usernameEncrypted.version,
+                                    passwordCiphertext = passwordEncrypted.ciphertext,
+                                    passwordIv = passwordEncrypted.iv,
+                                    passwordEncryptionVersion = passwordEncrypted.version,
+                                    qrTokenHash = qrTokenHash,
+                                    isActive = true,
+                                    createdAtEpochMs = now,
+                                    updatedAtEpochMs = now,
+                                ),
+                            )
+                        }
                         database.qrCardStatusDao().upsert(
                             QrCardStatusEntity(
                                 studentId = studentId,
@@ -614,17 +635,18 @@ class StudentRepository(
     fun deactivateStudent(studentId: String) {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
-        val revokedReplacementHash = qrCodec.issueHashOnly()
-        database.runInTransaction {
-            database.studentDao().update(
-                student.copy(
-                    qrTokenHash = revokedReplacementHash,
-                    isActive = false,
-                    updatedAtEpochMs = nowEpochMs(),
-                ),
-            )
-            audit("QR_REVOKED", null, studentId, null)
-            audit("STUDENT_DEACTIVATED", null, studentId, null)
+        withIssuedHashOnly { revokedReplacementHash ->
+            database.runInTransaction {
+                database.studentDao().update(
+                    student.copy(
+                        qrTokenHash = revokedReplacementHash,
+                        isActive = false,
+                        updatedAtEpochMs = nowEpochMs(),
+                    ),
+                )
+                audit("QR_REVOKED", null, studentId, null)
+                audit("STUDENT_DEACTIVATED", null, studentId, null)
+            }
         }
     }
 
@@ -924,5 +946,14 @@ class StudentRepository(
                 createdAtEpochMs = nowEpochMs(),
             ),
         )
+    }
+
+    private inline fun <T> withIssuedHashOnly(block: (ByteArray) -> T): T {
+        val hash = qrCodec.issueHashOnly()
+        return try {
+            block(hash)
+        } finally {
+            hash.fill(0)
+        }
     }
 }

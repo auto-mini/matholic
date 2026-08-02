@@ -1991,7 +1991,6 @@ class MainActivity : ComponentActivity() {
                                 sizePixels = QR_SIZE_PIXELS,
                             ),
                         )
-                        item.issuedQr.hash.fill(0)
                     }
                     output = BatchQrPdfExporter.export(this, cards)
                     pcPdfSender.send(

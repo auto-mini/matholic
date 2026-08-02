@@ -209,7 +209,7 @@ class QrPrintDocumentAdapterInstrumentedTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val output = File(context.cacheDir, "synthetic-qr-print-${System.nanoTime()}.pdf")
         val qrBitmap = QrImageRenderer.render(
-            QrTokenCodec().issue().payload,
+            QrTokenCodec().issue().use { it.payload },
             720,
         ).copy(Bitmap.Config.ARGB_8888, true)
         val attributes = PrintAttributes.Builder()

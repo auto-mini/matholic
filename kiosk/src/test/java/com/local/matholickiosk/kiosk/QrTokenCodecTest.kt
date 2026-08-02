@@ -16,25 +16,36 @@ class QrTokenCodecTest {
 
     @Test
     fun issueCreatesStrictMqr1PayloadAndOnlyHashIsNeededForLookup() {
-        val first = codec.issue()
-        val second = codec.issue()
-
-        assertTrue(first.payload.matches(Regex("^MQR1:[A-Za-z0-9_-]{43}$")))
-        assertEquals(32, first.hash.size)
-        assertNotEquals(first.payload, second.payload)
-        assertFalse(first.hash.contentEquals(second.hash))
-        val parsed = codec.parse(first.payload) as QrParseResult.Valid
-        assertArrayEquals(first.hash, parsed.hash)
+        codec.issue().use { first ->
+            codec.issue().use { second ->
+                assertTrue(first.payload.matches(Regex("^MQR1:[A-Za-z0-9_-]{43}$")))
+                assertEquals(32, first.hash.size)
+                assertNotEquals(first.payload, second.payload)
+                assertFalse(first.hash.contentEquals(second.hash))
+                val parsed = codec.parse(first.payload) as QrParseResult.Valid
+                try {
+                    assertArrayEquals(first.hash, parsed.hash)
+                } finally {
+                    parsed.hash.fill(0)
+                }
+            }
+        }
     }
 
     @Test
     fun hashOnlyIssuanceCreatesAnUnlinkableRevocationReplacement() {
-        val issued = codec.issue()
-        val replacement = codec.issueHashOnly()
-
-        assertEquals(32, replacement.size)
-        assertFalse(issued.hash.contentEquals(replacement))
-        assertFalse(replacement.contentEquals(codec.issueHashOnly()))
+        codec.issue().use { issued ->
+            val replacement = codec.issueHashOnly()
+            val another = codec.issueHashOnly()
+            try {
+                assertEquals(32, replacement.size)
+                assertFalse(issued.hash.contentEquals(replacement))
+                assertFalse(replacement.contentEquals(another))
+            } finally {
+                replacement.fill(0)
+                another.fill(0)
+            }
+        }
     }
 
     @Test
@@ -50,12 +61,13 @@ class QrTokenCodecTest {
 
     @Test
     fun multipleMqrCandidatesAreRejectedWithoutSelectingOne() {
-        val first = codec.issue()
-        val second = codec.issue()
-
-        assertEquals(
-            QrFrameDecision.Reject(QrFrameRejection.MULTIPLE_QR),
-            codec.decideFrame(listOf(first.payload, second.payload, "ordinary")),
-        )
+        codec.issue().use { first ->
+            codec.issue().use { second ->
+                assertEquals(
+                    QrFrameDecision.Reject(QrFrameRejection.MULTIPLE_QR),
+                    codec.decideFrame(listOf(first.payload, second.payload, "ordinary")),
+                )
+            }
+        }
     }
 }

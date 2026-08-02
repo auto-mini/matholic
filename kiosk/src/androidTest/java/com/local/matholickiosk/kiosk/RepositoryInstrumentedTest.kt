@@ -9,6 +9,7 @@ import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.data.StudentCsvRow
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.KioskState
+import com.local.matholickiosk.kiosk.qr.IssuedQrToken
 import com.local.matholickiosk.kiosk.qr.QrParseResult
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
@@ -81,7 +82,7 @@ class RepositoryInstrumentedTest {
         val stored = database.studentDao().findById(registered.studentId)!!
         assertFalse(stored.usernameCiphertext.contentEquals("synthetic-user".toByteArray()))
         assertFalse(stored.passwordCiphertext.contentEquals("synthetic-password".toByteArray()))
-        assertArrayEquals(registered.issuedQr.hash, stored.qrTokenHash)
+        assertArrayEquals(qrHash(registered.issuedQr.payload), stored.qrTokenHash)
 
         val decrypted = repository.decryptCredentials(registered.studentId)
         assertArrayEquals("synthetic-user".toCharArray(), decrypted.username)
@@ -97,6 +98,34 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun repositoryKeepsQrHashOwnershipAndWipesEveryIssuedTemporary() {
+        val trackingCodec = TrackingQrTokenCodec()
+        val trackingRepository = StudentRepository(
+            database,
+            AndroidKeystoreCredentialCipher(keyAlias),
+            trackingCodec,
+            "instrumented-test",
+        )
+
+        val registered = trackingRepository.registerStudent(
+            "가상학생-hash",
+            "hash-user".toCharArray(),
+            "hash-password".toCharArray(),
+        )
+        assertTrue(trackingCodec.issuedHashes.single().all { it == 0.toByte() })
+        assertArrayEquals(
+            qrHash(registered.issuedQr.payload),
+            database.studentDao().findById(registered.studentId)!!.qrTokenHash,
+        )
+
+        trackingRepository.reissueQr(registered.studentId)
+        assertTrue(trackingCodec.issuedHashes.all { hash -> hash.all { it == 0.toByte() } })
+
+        trackingRepository.deactivateStudent(registered.studentId)
+        assertTrue(trackingCodec.hashOnlyValues.single().all { it == 0.toByte() })
+    }
+
+    @Test
     fun sameQrWorksAcrossClassesAndClassDeletePreservesStudent() {
         val classA = repository.createClass("가상반-A")
         val classB = repository.createClass("가상반-B")
@@ -109,10 +138,10 @@ class RepositoryInstrumentedTest {
         repository.replaceClassMemberships(classB, setOf(registered.studentId))
 
         repository.startSession(classA)
-        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        assertNotNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
         repository.endSession()
         repository.startSession(classB)
-        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        assertNotNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
         repository.endSession()
 
         val originalStudent = database.studentDao().findById(registered.studentId)!!
@@ -133,7 +162,7 @@ class RepositoryInstrumentedTest {
         }
 
         repository.startSession(classB)
-        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        assertNotNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
     }
 
     @Test
@@ -157,14 +186,14 @@ class RepositoryInstrumentedTest {
 
         assertNull(
             repository.validateForActiveSession(
-                tokenHash = anotherStudent.issuedQr.hash,
+                tokenHash = qrHash(anotherStudent.issuedQr.payload),
                 requiredDisplayNameExact = "테스트",
             ),
         )
         assertNull(database.qrCardStatusDao().find(anotherStudent.studentId)?.lastUsedAtEpochMs)
         assertNotNull(
             repository.validateForActiveSession(
-                tokenHash = testStudent.issuedQr.hash,
+                tokenHash = qrHash(testStudent.issuedQr.payload),
                 requiredDisplayNameExact = "테스트",
             ),
         )
@@ -217,11 +246,11 @@ class RepositoryInstrumentedTest {
         )
         repository.startSession(classId, setOf(registered.studentId))
 
-        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        assertNotNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
 
         val replacement = repository.reissueQr(registered.studentId)
-        assertNull(repository.validateForActiveSession(registered.issuedQr.hash))
-        assertNotNull(repository.validateForActiveSession(replacement.hash))
+        assertNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
+        assertNotNull(repository.validateForActiveSession(qrHash(replacement.payload)))
         assertTrue(QrTokenCodec().parse(replacement.payload) is QrParseResult.Valid)
 
         repository.endSession()
@@ -254,12 +283,12 @@ class RepositoryInstrumentedTest {
             }.isFailure,
         )
 
-        assertNull(repository.validateForActiveSession(temporaryStudent.issuedQr.hash))
+        assertNull(repository.validateForActiveSession(qrHash(temporaryStudent.issuedQr.payload)))
         repository.addTemporaryStudents(
             requireNotNull(session.sessionId),
             setOf(temporaryStudent.studentId),
         )
-        assertNotNull(repository.validateForActiveSession(temporaryStudent.issuedQr.hash))
+        assertNotNull(repository.validateForActiveSession(qrHash(temporaryStudent.issuedQr.payload)))
     }
 
     @Test
@@ -374,15 +403,15 @@ class RepositoryInstrumentedTest {
         }
 
         val session = repository.startSession(classId)
-        assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        assertNotNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
         repository.recordQrExportRequested(registered.studentId)
         repository.deactivateStudent(registered.studentId)
 
-        assertNull(repository.validateForActiveSession(registered.issuedQr.hash))
+        assertNull(repository.validateForActiveSession(qrHash(registered.issuedQr.payload)))
         assertTrue(repository.listStudents().none { it.studentId == registered.studentId })
         assertFalse(
             database.studentDao().findById(registered.studentId)!!
-                .qrTokenHash.contentEquals(registered.issuedQr.hash),
+                .qrTokenHash.contentEquals(qrHash(registered.issuedQr.payload)),
         )
         val rejectedUsername = "inactive-user".toCharArray()
         val rejectedPassword = "inactive-password".toCharArray()
@@ -474,11 +503,11 @@ class RepositoryInstrumentedTest {
         assertEquals(2, issued.size)
         assertFalse(
             database.studentDao().findById(first.studentId)!!
-                .qrTokenHash.contentEquals(first.issuedQr.hash),
+                .qrTokenHash.contentEquals(qrHash(first.issuedQr.payload)),
         )
         assertFalse(
             database.studentDao().findById(second.studentId)!!
-                .qrTokenHash.contentEquals(second.issuedQr.hash),
+                .qrTokenHash.contentEquals(qrHash(second.issuedQr.payload)),
         )
         issued.forEach {
             assertTrue(QrTokenCodec().parse(it.issuedQr.payload) is QrParseResult.Valid)
@@ -520,17 +549,18 @@ class RepositoryInstrumentedTest {
         repository.markCardPdfsSavedToPc(setOf(registered.studentId))
         val oldHash = database.studentDao().findById(registered.studentId)!!.qrTokenHash.copyOf()
         val reissued = repository.reissueQr(registered.studentId)
+        val reissuedHash = qrHash(reissued.payload)
         assertTrue(repository.listQrCardStatuses().single().needsCardPdf)
-        assertFalse(oldHash.contentEquals(reissued.hash))
+        assertFalse(oldHash.contentEquals(reissuedHash))
 
         repository.deactivateStudent(registered.studentId)
         assertTrue(repository.listQrCardStatuses().isEmpty())
         assertFalse(
             database.studentDao().findById(registered.studentId)!!
-                .qrTokenHash.contentEquals(reissued.hash),
+                .qrTokenHash.contentEquals(reissuedHash),
         )
         oldHash.fill(0)
-        reissued.hash.fill(0)
+        reissuedHash.fill(0)
     }
 
     @Test
@@ -583,6 +613,20 @@ class RepositoryInstrumentedTest {
         val issued = repository.reissueQrBatch(pending.mapTo(mutableSetOf()) { it.studentId })
         repository.markCardPdfsSavedToPc(issued.mapTo(mutableSetOf()) { it.studentId })
         assertTrue(repository.listQrCardStatuses().none { it.needsCardPdf })
-        issued.forEach { item -> item.issuedQr.hash.fill(0) }
+    }
+
+    private fun qrHash(payload: String): ByteArray {
+        val parsed = QrTokenCodec().parse(payload)
+        return requireNotNull((parsed as? QrParseResult.Valid)?.hash)
+    }
+
+    private class TrackingQrTokenCodec : QrTokenCodec() {
+        val issuedHashes = mutableListOf<ByteArray>()
+        val hashOnlyValues = mutableListOf<ByteArray>()
+
+        override fun issue(): IssuedQrToken = super.issue().also { issuedHashes += it.hash }
+
+        override fun issueHashOnly(): ByteArray =
+            super.issueHashOnly().also(hashOnlyValues::add)
     }
 }

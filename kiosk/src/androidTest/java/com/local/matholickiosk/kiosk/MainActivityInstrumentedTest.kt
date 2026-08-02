@@ -14,6 +14,8 @@ import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
 import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
+import com.local.matholickiosk.kiosk.qr.QrParseResult
+import com.local.matholickiosk.kiosk.qr.QrTokenCodec
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -341,7 +343,9 @@ class MainActivityInstrumentedTest {
             username = "synthetic-user".toCharArray(),
             password = "synthetic-password".toCharArray(),
         )
-        val originalHash = registered.issuedQr.hash.copyOf()
+        val originalHash = (
+            QrTokenCodec().parse(registered.issuedQr.payload) as QrParseResult.Valid
+        ).hash
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntil(scenario) { activity ->
@@ -367,6 +371,7 @@ class MainActivityInstrumentedTest {
                 database.studentDao().findById(registered.studentId)!!.qrTokenHash,
             )
         }
+        originalHash.fill(0)
         database.clearAllTables()
     }
 
