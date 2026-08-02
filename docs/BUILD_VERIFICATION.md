@@ -6502,8 +6502,8 @@ RC117 실기 답안 정정은 Codex가 만든 시험 답안을 현장에서 완�
 
 - QR·수동 학생 선택·Web 결과 callback을 단일 학생 launch gate와 시작 당시
   session ID에 결합하고 replacement session의 stale callback을 거부
-- audit 90일/10,000행 retention, private 진단 로그 90일·크기 상한과 bounded
-  tail dump 적용
+- audit 90일/10,000행 retention과 장기 실행 중 256건 주기 정리, private 진단
+  로그 90일·크기 상한과 bounded tail dump 적용
 - QR renderer 크기 상한과 임시 pixel/BitMatrix cleanup
 - 관리자 PIN scalar 조회와 verifier/Room 배열 cleanup
 - Web loopback proxy 8 tunnel 상한·60초 idle 회수·listener 실패 1회 재시작
@@ -6528,7 +6528,7 @@ RC117 실기 답안 정정은 Codex가 만든 시험 답안을 현장에서 완�
 ### 미배포 산출물
 
 - Kiosk `0.6.0-rc57`/code 62, 35,225,680 bytes:
-  `4E7EF48647AE651B1C26E70F496F9857BE861F41FB1D1A5E2278C7CDCD9E0256`
+  `F5A460C8475FDC251293D69FDFD9516F9E78AF9A4AC5DAEBD6253A7E8478F04B`
 - Web POC `0.4.0-rc119`/code 136, 3,326,858 bytes:
   `B5B6F257779636718C210E08087ED299F4757D3DC2BB9A8F0DEF20E954687B24`
 - PC 수신기 `0.1.5`, 21,925,051 bytes:

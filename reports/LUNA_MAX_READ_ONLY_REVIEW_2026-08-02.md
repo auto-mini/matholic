@@ -23,7 +23,7 @@
 | `LUNA-0006` | QR hash 임시 배열 소유권·실패 cleanup 완료 | `20e6baa` |
 | `LUNA-0007/0008/0010` | 연결·event·deadline 상한, replay 유효기간 보존, PDF request 멱등 처리·ACK 유실 재시도 동일 ID 적용 | `47b76ec` |
 | `LUNA-0009` | Windows 알림에서 학생 이름 제거 | `5b8088a` |
-| `LUNA-0011` | audit 90일/10,000행 상한, private log 90일·크기·bounded tail·회전 실패폐쇄 | `888b480` |
+| `LUNA-0011` | audit 90일/10,000행 상한과 장기 실행 중 주기 정리, private log 90일·크기·bounded tail·회전 실패폐쇄 | `888b480`, `c6572d7` |
 | `LUNA-0012` | 원격 지원 배지 전용 header 공간 예약 | `0e0c9b4` |
 | `LUNA-0014` | PC protocol 평문·파생 key·ACK 예외 경로 cleanup | `90ab37f` |
 | `LUNA-0015` | 비활성 학생 live credential 암호문·IV 즉시 폐기 및 DB migration | `1ccfdc1` |
