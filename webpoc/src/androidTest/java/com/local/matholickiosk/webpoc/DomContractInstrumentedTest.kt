@@ -186,6 +186,42 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testLogoutContractPreservesWebsiteDraftStorage() {
+        withFixture("https://im.matholic.com/course", portalFixture()) { webView ->
+            evaluate(
+                webView,
+                """
+                (() => {
+                  localStorage.setItem('synthetic-draft', 'local-answer');
+                  sessionStorage.setItem('synthetic-draft', 'session-answer');
+                  return JSON.stringify({ prepared: true });
+                })()
+                """.trimIndent(),
+            )
+
+            assertTrue(evaluate(webView, WebDomScripts.openAccountMenu).getBoolean("ok"))
+            assertTrue(evaluate(webView, WebDomScripts.clickLogout).getBoolean("ok"))
+
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const result = {
+                    localDraft: localStorage.getItem('synthetic-draft') || '',
+                    sessionDraft: sessionStorage.getItem('synthetic-draft') || ''
+                  };
+                  localStorage.removeItem('synthetic-draft');
+                  sessionStorage.removeItem('synthetic-draft');
+                  return JSON.stringify(result);
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("local-answer", proof.getString("localDraft"))
+            assertEquals("session-answer", proof.getString("sessionDraft"))
+        }
+    }
+
+    @Test
     fun testPortalFingerprintRejectsCrossOriginLookalikeLinks() {
         val fixture = portalFixture()
             .replace("href=\"/userInfo\"", "href=\"https://example.invalid/userInfo\"")

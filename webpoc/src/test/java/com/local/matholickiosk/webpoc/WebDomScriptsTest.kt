@@ -35,6 +35,15 @@ class WebDomScriptsTest {
     }
 
     @Test
+    fun `logout contract does not delete website draft storage`() {
+        val script = WebDomScripts.clickLogout
+        assertFalse(script.contains("localStorage"))
+        assertFalse(script.contains("sessionStorage"))
+        assertFalse(script.contains("indexedDB"))
+        assertFalse(script.contains("deleteDatabase"))
+    }
+
+    @Test
     fun `student experience is route scoped and uses semantic answer controls`() {
         val script = WebDomScripts.applyStudentExperience
         assertTrue(script.contains("/workbook"))

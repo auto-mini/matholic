@@ -34,7 +34,6 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
-import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebViewDatabase
@@ -1534,7 +1533,7 @@ class MainActivity : Activity() {
         cancelTimeout()
         if (!postClearVerificationPending) {
             postClearVerificationPending = true
-            clearWebSessionAndReloadLogin()
+            clearWebAuthenticationAndReloadLogin()
             return
         }
 
@@ -1641,7 +1640,7 @@ class MainActivity : Activity() {
     }
 
     @Suppress("DEPRECATION")
-    private fun clearWebSessionAndReloadLogin() {
+    private fun clearWebAuthenticationAndReloadLogin() {
         val generation = logoutAttemptGeneration
         var cleanupFailed = false
         fun attempt(cleanup: () -> Unit) {
@@ -1657,7 +1656,9 @@ class MainActivity : Activity() {
         attempt { webView.clearCache(true) }
         attempt { webView.clearSslPreferences() }
         attempt { WebViewDatabase.getInstance(this).clearFormData() }
-        attempt { WebStorage.getInstance().deleteAllData() }
+        // Preserve origin storage because the official service may use it for
+        // unfinished answers. Authentication is ended by the official logout,
+        // cookie removal, credential/form cleanup, and the verified login reload.
         attempt { scheduleTimeout(LOGOUT_TIMEOUT_MS, "SESSION_CLEAR_TIMEOUT") }
         attempt {
             CookieManager.getInstance().removeAllCookies {
@@ -1691,7 +1692,7 @@ class MainActivity : Activity() {
                         }
                     }
                 },
-                STORAGE_CLEAR_DELAY_MS,
+                AUTHENTICATION_CLEAR_DELAY_MS,
             )
             if (!scheduled) {
                 failSessionClearIfCurrent(generation)
@@ -2493,7 +2494,7 @@ class MainActivity : Activity() {
         const val MENU_OPEN_DELAY_MS = 350L
         const val LOGOUT_CONTROL_PROBE_DELAY_MS = 350L
         const val LOGOUT_CONTROL_PROBE_RETRIES = 10
-        const val STORAGE_CLEAR_DELAY_MS = 300L
+        const val AUTHENTICATION_CLEAR_DELAY_MS = 300L
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L

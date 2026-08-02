@@ -586,7 +586,7 @@ class RecoveryInstrumentedTest {
                     set(activity, WebPocState.LOGOUT_VERIFY)
                 }
                 val cleanup = MainActivity::class.java.getDeclaredMethod(
-                    "clearWebSessionAndReloadLogin",
+                    "clearWebAuthenticationAndReloadLogin",
                 ).apply { isAccessible = true }
 
                 assertTrue(runCatching { cleanup.invoke(activity) }.isSuccess)
