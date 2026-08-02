@@ -371,7 +371,7 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
-    fun failedAdminRefreshReleasesStudentMutationAndShowsRetryGuidance() {
+    fun adminDataOperationBlocksStudentAndClassChangesAndReleasesAfterRefreshFailure() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
         database.clearAllTables()
@@ -404,7 +404,10 @@ class MainActivityInstrumentedTest {
                 .getDeclaredField("studentRepository")
                 .apply { isAccessible = true }
             val mutationGateField = MainActivity::class.java
-                .getDeclaredField("studentMutationGate")
+                .getDeclaredField("adminDataOperationGate")
+                .apply { isAccessible = true }
+            val beginOperationMethod = MainActivity::class.java
+                .getDeclaredMethod("beginAdminDataOperation", String::class.java)
                 .apply { isAccessible = true }
             val refreshMethod = MainActivity::class.java
                 .getDeclaredMethod(
@@ -421,7 +424,13 @@ class MainActivityInstrumentedTest {
                 scenario.onActivity { activity ->
                     originalRepository = repositoryField.get(activity) as StudentRepository
                     mutationGate = mutationGateField.get(activity) as SingleFlightGate
-                    assertTrue(mutationGate.tryStart())
+                    assertTrue(
+                        beginOperationMethod.invoke(activity, "일괄 작업 시험 중") as Boolean,
+                    )
+                    assertFalse(activity.findViewById<View>(R.id.register_student_button).isEnabled)
+                    assertFalse(activity.findViewById<View>(R.id.create_class_button).isEnabled)
+                    assertFalse(activity.findViewById<View>(R.id.import_student_csv_button).isEnabled)
+                    assertFalse(activity.findViewById<View>(R.id.start_session_button).isEnabled)
                     repositoryField.set(activity, null)
                     refreshMethod.invoke(
                         activity,

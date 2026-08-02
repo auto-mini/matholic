@@ -106,6 +106,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var authSubmit: Button
     private lateinit var adminPanel: LinearLayout
     private lateinit var classNameInput: EditText
+    private lateinit var createClassButton: Button
     private lateinit var classSpinner: Spinner
     private lateinit var quickClassGrid: GridLayout
     private lateinit var classRosterText: TextView
@@ -175,7 +176,7 @@ class MainActivity : ComponentActivity() {
     private val classRosterState = ClassRosterSelectionState()
     private val studentSelectionState = RefreshableSelectionState()
     private val webRecoveryGate = SingleFlightGate()
-    private val studentMutationGate = SingleFlightGate()
+    private val adminDataOperationGate = SingleFlightGate()
     private var issuedQrPreview: QrPreview? = null
     private var currentSession: ActiveSessionEntity? = null
     private var pendingTemporaryStudentIds: Set<String> = emptySet()
@@ -378,6 +379,7 @@ class MainActivity : ComponentActivity() {
         authSubmit = findViewById(R.id.auth_submit)
         adminPanel = findViewById(R.id.admin_panel)
         classNameInput = findViewById(R.id.class_name_input)
+        createClassButton = findViewById(R.id.create_class_button)
         classSpinner = findViewById(R.id.class_spinner)
         quickClassGrid = findViewById(R.id.quick_class_grid)
         classRosterText = findViewById(R.id.class_roster_text)
@@ -489,7 +491,7 @@ class MainActivity : ComponentActivity() {
                 submitAuthentication()
             }
         }
-        findViewById<Button>(R.id.create_class_button).setOnClickListener { createClass() }
+        createClassButton.setOnClickListener { createClass() }
         configureQuickClassButtons()
         registerStudentButton.setOnClickListener { showRegisterStudentDialog() }
         importStudentCsvButton.setOnClickListener { fetchStudentCsvFromPc() }
@@ -906,7 +908,7 @@ class MainActivity : ComponentActivity() {
         message: String? = null,
         preferredClassId: String? = classes.getOrNull(classSpinner.selectedItemPosition)?.id,
         preferredStudentId: String? = studentSelectionState.selectedId,
-        completeStudentMutationAfterLoad: Boolean = false,
+        completeAdminDataOperationAfterLoad: Boolean = false,
     ) {
         val classSelectionSnapshot = classRosterState.snapshotSelection()
         val studentSelectionSnapshot = studentSelectionState.snapshotSelection()
@@ -947,12 +949,12 @@ class MainActivity : ComponentActivity() {
                             classSelectionSnapshot = classSelectionSnapshot,
                             studentSelectionSnapshot = studentSelectionSnapshot,
                             preferredStudentId = preferredStudentId,
-                            completeStudentMutationAfterLoad = completeStudentMutationAfterLoad,
+                            completeAdminDataOperationAfterLoad = completeAdminDataOperationAfterLoad,
                             message = message,
                         )
                     },
                     onFailure = {
-                        if (completeStudentMutationAfterLoad) studentMutationGate.finish()
+                        if (completeAdminDataOperationAfterLoad) adminDataOperationGate.finish()
                         updateSessionAdminControls(currentSession)
                         updateStudentManagementControls()
                         updateClassRosterUi()
@@ -968,7 +970,7 @@ class MainActivity : ComponentActivity() {
         classSelectionSnapshot: ClassRosterSelectionState.SelectionSnapshot,
         studentSelectionSnapshot: RefreshableSelectionState.SelectionSnapshot,
         preferredStudentId: String?,
-        completeStudentMutationAfterLoad: Boolean,
+        completeAdminDataOperationAfterLoad: Boolean,
         message: String?,
     ) {
         classes = snapshot.classes
@@ -1001,7 +1003,7 @@ class MainActivity : ComponentActivity() {
             ?.let(studentSpinner::setSelection)
         suppressClassSelectionCallback = false
         suppressStudentSelectionCallback = false
-        if (completeStudentMutationAfterLoad) studentMutationGate.finish()
+        if (completeAdminDataOperationAfterLoad) adminDataOperationGate.finish()
         updateSessionAdminControls(snapshot.session)
         updateStudentManagementControls()
         updateClassRosterUi()
@@ -1044,7 +1046,8 @@ class MainActivity : ComponentActivity() {
     private fun updateQuickClassButtons() {
         val selectedName = classes.getOrNull(classSpinner.selectedItemPosition)?.label
         quickClassButtons.forEach { (className, button) ->
-            button.isEnabled = currentSession?.sessionId == null || className == selectedName
+            button.isEnabled = !adminDataOperationGate.isActive &&
+                (currentSession?.sessionId == null || className == selectedName)
             button.alpha = if (className == selectedName) 1f else 0.72f
             button.setTypeface(
                 button.typeface,
@@ -1088,7 +1091,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "반 이름을 입력하세요."
             return
         }
-        adminMessage.text = "반 생성 중"
+        if (!beginAdminDataOperation("반 생성 중")) return
         ioExecutor.execute {
             val result = runCatching { studentRepository.createClass(name) }
             runOnUiThread {
@@ -1096,12 +1099,16 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = { createdClassId ->
                         classNameInput.text.clear()
-                        refreshAdminData(
-                            message = "반을 생성했습니다.",
-                            preferredClassId = createdClassId,
-                        )
+                            refreshAdminData(
+                                message = "반을 생성했습니다.",
+                                preferredClassId = createdClassId,
+                                completeAdminDataOperationAfterLoad = true,
+                            )
+                        },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "반 생성 실패"
                     },
-                    onFailure = { adminMessage.text = it.message ?: "반 생성 실패" },
                 )
             }
         }
@@ -1130,8 +1137,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun deleteClass(selected: Choice) {
+        if (!beginAdminDataOperation("반 삭제 중")) return
         val previousMembers = classRosterState.membershipStudentIds.toSet()
-        adminMessage.text = "반 삭제 중"
         ioExecutor.execute {
             val result = runCatching { studentRepository.deleteClass(selected.id) }
             runOnUiThread {
@@ -1146,9 +1153,15 @@ class MainActivity : ComponentActivity() {
                                 previousMembers,
                             ),
                         )
-                        refreshAdminData("${selected.label} 반을 삭제했습니다.")
+                        refreshAdminData(
+                            message = "${selected.label} 반을 삭제했습니다.",
+                            completeAdminDataOperationAfterLoad = true,
+                        )
                     },
-                    onFailure = { adminMessage.text = it.message ?: "반 삭제 실패" },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "반 삭제 실패"
+                    },
                 )
             }
         }
@@ -1183,8 +1196,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun replaceClassMemberships(selectedClass: Choice, studentIds: Set<String>) {
+        if (!beginAdminDataOperation("반 학생 구성 저장 중")) return
         val previousStudentIds = classRosterState.membershipStudentIds.toSet()
-        adminMessage.text = "반 학생 구성 저장 중"
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.replaceClassMemberships(selectedClass.id, studentIds)
@@ -1204,9 +1217,16 @@ class MainActivity : ComponentActivity() {
                                 previousStudentIds,
                             ),
                         )
-                        adminMessage.text = "${selectedClass.label} 반 학생 ${studentIds.size}명을 저장했습니다."
+                        refreshAdminData(
+                            message = "${selectedClass.label} 반 학생 ${studentIds.size}명을 저장했습니다.",
+                            preferredClassId = selectedClass.id,
+                            completeAdminDataOperationAfterLoad = true,
+                        )
                     },
-                    onFailure = { adminMessage.text = it.message ?: "반 학생 구성 저장 실패" },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "반 학생 구성 저장 실패"
+                    },
                 )
             }
         }
@@ -1256,27 +1276,31 @@ class MainActivity : ComponentActivity() {
             else -> "소속 ${memberNames.size}명 · ${memberNames.joinToString(", ")}"
         }
         val activeClassId = currentSession?.classId
+        val operationAvailable = !adminDataOperationGate.isActive
         val classAvailable = selectedClass != null
         val classReady = classAvailable &&
             !classRosterState.isLoading &&
             !classRosterState.hasLoadFailure
-        manageClassMembersButton.isEnabled = classReady && currentSession?.sessionId == null
-        deleteClassButton.isEnabled = classReady &&
+        classNameInput.isEnabled = operationAvailable
+        createClassButton.isEnabled = operationAvailable && currentSession?.sessionId == null
+        manageClassMembersButton.isEnabled = operationAvailable && classReady &&
+            currentSession?.sessionId == null
+        deleteClassButton.isEnabled = operationAvailable && classReady &&
             selectedClass?.label?.let(FixedClassSlots::contains) == false &&
             (currentSession?.sessionId == null || activeClassId != selectedClass?.id)
-        addTemporaryButton.isEnabled = classReady && students.any {
+        addTemporaryButton.isEnabled = operationAvailable && classReady && students.any {
             it.id !in classRosterState.membershipStudentIds
         }
-        startSessionButton.isEnabled = !webRecoveryGate.isActive &&
+        startSessionButton.isEnabled = operationAvailable && !webRecoveryGate.isActive &&
             (currentSession?.sessionId != null || classReady)
-        resumeSessionButton.isEnabled = !webRecoveryGate.isActive
+        resumeSessionButton.isEnabled = operationAvailable && !webRecoveryGate.isActive
         val pendingCount = pendingTemporaryStudentIds.size
         addTemporaryButton.text = if (currentSession?.sessionId == null) {
             "이번 수업 보강 학생 선택" + if (pendingCount > 0) " (${pendingCount}명)" else ""
         } else {
             "현재 수업 보강 학생 추가"
         }
-        batchQrButton.isEnabled = classReady &&
+        batchQrButton.isEnabled = operationAvailable && classReady &&
             currentSession?.sessionId == null &&
             classRosterState.membershipStudentIds.isNotEmpty() &&
             pairedPcDisplayName != null
@@ -1330,7 +1354,7 @@ class MainActivity : ComponentActivity() {
         username: CharArray,
         password: CharArray,
     ) {
-        if (!beginStudentMutation("학생 정보 암호화 등록 중")) {
+        if (!beginAdminDataOperation("학생 정보 암호화 등록 중")) {
             username.fill('\u0000')
             password.fill('\u0000')
             return
@@ -1367,11 +1391,11 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "학생을 등록하고 QR을 발급했습니다. 반 학생 구성에서 소속 반을 선택하세요.",
                             preferredStudentId = preview.studentId,
-                            completeStudentMutationAfterLoad = true,
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
-                        finishStudentMutation()
+                        finishAdminDataOperation()
                         username.fill('\u0000')
                         password.fill('\u0000')
                         adminMessage.text = it.message ?: "학생 등록 실패"
@@ -1399,7 +1423,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun reissueQr(selected: StudentChoice) {
-        if (!beginStudentMutation("기존 QR 폐기 및 재발급 중")) return
+        if (!beginAdminDataOperation("기존 QR 폐기 및 재발급 중")) return
         ioExecutor.execute {
             val result = runCatching {
                 val issued = studentRepository.reissueQr(selected.id)
@@ -1416,12 +1440,12 @@ class MainActivity : ComponentActivity() {
                 }
                 result.fold(
                     onSuccess = { preview ->
-                        finishStudentMutation()
+                        finishAdminDataOperation()
                         showQrPreview(preview)
                         adminMessage.text = "기존 QR을 폐기하고 새 QR을 발급했습니다."
                     },
                     onFailure = {
-                        finishStudentMutation()
+                        finishAdminDataOperation()
                         adminMessage.text = it.message ?: "QR 재발급 실패"
                     },
                 )
@@ -1463,7 +1487,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateStudentName(selected: StudentChoice, exactName: String) {
-        if (!beginStudentMutation("학생 표시명 수정 중")) return
+        if (!beginAdminDataOperation("학생 표시명 수정 중")) return
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.updateStudentProfile(
@@ -1485,11 +1509,11 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "학생 표시명을 수정했습니다. 이름이 적힌 카드는 QR을 재발급해 다시 인쇄하세요.",
                             preferredStudentId = selected.id,
-                            completeStudentMutationAfterLoad = true,
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
-                        finishStudentMutation()
+                        finishAdminDataOperation()
                         adminMessage.text = it.message ?: "학생 표시명 수정 실패"
                     },
                 )
@@ -1501,7 +1525,7 @@ class MainActivity : ComponentActivity() {
         pendingAdminUndo = action
         val generation = ++adminUndoGeneration
         undoAdminButton.visibility = View.VISIBLE
-        undoAdminButton.isEnabled = true
+        undoAdminButton.isEnabled = !adminDataOperationGate.isActive
         mainHandler.postDelayed({
             if (generation == adminUndoGeneration) clearPendingAdminUndo()
         }, ADMIN_UNDO_WINDOW_MS)
@@ -1518,8 +1542,8 @@ class MainActivity : ComponentActivity() {
 
     private fun performPendingAdminUndo() {
         val action = pendingAdminUndo ?: return
+        if (!beginAdminDataOperation("방금 관리자 작업을 되돌리는 중")) return
         clearPendingAdminUndo()
-        adminMessage.text = "방금 관리자 작업을 되돌리는 중"
         ioExecutor.execute {
             val result = runCatching {
                 when (action) {
@@ -1556,9 +1580,11 @@ class MainActivity : ComponentActivity() {
                                 is PendingAdminUndo.RestoreStudentName -> action.studentId
                                 else -> null
                             },
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
+                        finishAdminDataOperation()
                         adminMessage.text =
                             it.message ?: "관리자 작업 실행취소에 실패했습니다."
                     },
@@ -1628,7 +1654,7 @@ class MainActivity : ComponentActivity() {
         username: CharArray,
         password: CharArray,
     ) {
-        if (!beginStudentMutation("학생 계정정보 재암호화 중")) {
+        if (!beginAdminDataOperation("학생 계정정보 재암호화 중")) {
             username.fill('\u0000')
             password.fill('\u0000')
             return
@@ -1653,11 +1679,11 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "학생 계정정보를 새 IV로 암호화해 갱신했습니다. 기존 QR은 그대로 유효합니다.",
                             preferredStudentId = selected.id,
-                            completeStudentMutationAfterLoad = true,
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
-                        finishStudentMutation()
+                        finishAdminDataOperation()
                         username.fill('\u0000')
                         password.fill('\u0000')
                         adminMessage.text = it.message ?: "학생 계정정보 갱신 실패"
@@ -1685,7 +1711,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun deactivateStudent(selected: StudentChoice) {
-        if (!beginStudentMutation("학생 비활성화 및 QR 폐기 중")) return
+        if (!beginAdminDataOperation("학생 비활성화 및 QR 폐기 중")) return
         ioExecutor.execute {
             val result = runCatching { studentRepository.deactivateStudent(selected.id) }
             runOnUiThread {
@@ -1696,11 +1722,11 @@ class MainActivity : ComponentActivity() {
                         refreshAdminData(
                             message = "${selected.label} 학생을 비활성화하고 QR을 폐기했습니다.",
                             preferredStudentId = null,
-                            completeStudentMutationAfterLoad = true,
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
-                        finishStudentMutation()
+                        finishAdminDataOperation()
                         adminMessage.text = it.message ?: "학생 비활성화 실패"
                     },
                 )
@@ -1708,23 +1734,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun beginStudentMutation(message: String): Boolean {
-        if (!studentMutationGate.tryStart()) {
-            adminMessage.text = "다른 학생 정보 변경을 처리하고 있습니다."
+    private fun beginAdminDataOperation(message: String): Boolean {
+        if (!adminDataOperationGate.tryStart()) {
+            adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
             return false
         }
         adminMessage.text = message
         updateStudentManagementControls()
+        updateClassRosterUi()
+        updateSessionAdminControls(currentSession)
         return true
     }
 
-    private fun finishStudentMutation() {
-        studentMutationGate.finish()
+    private fun finishAdminDataOperation() {
+        adminDataOperationGate.finish()
         updateStudentManagementControls()
+        updateClassRosterUi()
+        updateSessionAdminControls(currentSession)
     }
 
     private fun updateStudentManagementControls() {
-        val available = !studentMutationGate.isActive
+        val available = !adminDataOperationGate.isActive
         val hasStudents = students.isNotEmpty()
         studentSpinner.isEnabled = available && hasStudents
         registerStudentButton.isEnabled = available
@@ -1738,9 +1768,18 @@ class MainActivity : ComponentActivity() {
             available && hasStudents && currentSession?.sessionId == null &&
             pairedPcDisplayName != null
         cardStatusButton.isEnabled = available && hasStudents
+        if (pendingAdminUndo != null) undoAdminButton.isEnabled = available
+        val previewAvailable = issuedQrPreview?.bitmap?.isRecycled == false
+        exportQrPdfButton.isEnabled = available && previewAvailable
+        sendPcPdfButton.isEnabled =
+            available && previewAvailable && pairedPcDisplayName != null
     }
 
     private fun fetchStudentCsvFromPc() {
+        if (adminDataOperationGate.isActive) {
+            adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
+            return
+        }
         if (currentSession?.sessionId != null) {
             adminMessage.text = "수업 중에는 학생 CSV를 가져올 수 없습니다."
             return
@@ -1840,21 +1879,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun applyStudentCsv(parsed: ParsedStudentCsv) {
-        adminMessage.text = "학생 CSV를 암호화해 적용하는 중"
-        importStudentCsvButton.isEnabled = false
+        if (!beginAdminDataOperation("학생 CSV를 암호화해 적용하는 중")) {
+            parsed.clearSensitiveData()
+            return
+        }
         ioExecutor.execute {
             val result = runCatching { studentRepository.importStudents(parsed.rows) }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                importStudentCsvButton.isEnabled = true
                 result.fold(
                     onSuccess = {
                         refreshAdminData(
                             "학생 CSV 적용 완료 · 신규 ${it.created}명, 갱신 ${it.updated}명, " +
                                 "카드 출력 필요 ${it.cardsNeedingPrint}명",
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
+                        finishAdminDataOperation()
                         adminMessage.text = it.message ?: "학생 CSV 적용 실패"
                     },
                 )
@@ -1925,8 +1967,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun preparePendingCardsPdf(studentIds: Set<String>) {
-        pendingCardsPdfButton.isEnabled = false
-        adminMessage.text = "선택 학생 QR 재발급·PDF 암호화 전송 중"
+        if (!beginAdminDataOperation("선택 학생 QR 재발급·PDF 암호화 전송 중")) return
         ioExecutor.execute {
             var output: File? = null
             val cards = mutableListOf<BatchQrCard>()
@@ -1965,14 +2006,15 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                pendingCardsPdfButton.isEnabled = true
                 result.fold(
                     onSuccess = {
                         refreshAdminData(
                             "새 QR ${studentIds.size}장을 지정 PC에 저장했습니다. 기존 QR은 무효화되었습니다.",
+                            completeAdminDataOperationAfterLoad = true,
                         )
                     },
                     onFailure = {
+                        finishAdminDataOperation()
                         adminMessage.text =
                             (it.message ?: "선택 카드 PDF 전송 실패") +
                                 " 기존 QR이 이미 무효화되었을 수 있으므로 카드 상태를 확인하세요."
@@ -2020,7 +2062,8 @@ class MainActivity : ComponentActivity() {
 
     private fun confirmBatchQrPrint() {
         val selectedClass = classes.getOrNull(classSpinner.selectedItemPosition)
-        if (selectedClass == null || classRosterState.membershipStudentIds.isEmpty()) {
+        val studentIds = classRosterState.membershipStudentIds.toSet()
+        if (selectedClass == null || studentIds.isEmpty()) {
             adminMessage.text = "학생이 소속된 반을 선택하세요."
             return
         }
@@ -2037,7 +2080,7 @@ class MainActivity : ComponentActivity() {
             )
             .setNegativeButton("취소", null)
             .setPositiveButton("전체 재발급·PC 전송") { _, _ ->
-                preparePendingCardsPdf(classRosterState.membershipStudentIds.toSet())
+                preparePendingCardsPdf(studentIds)
             }
             .show()
     }
@@ -2077,7 +2120,10 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "PDF용 QR 복사 실패"
             return
         }
-        adminMessage.text = "카드 크기 PDF 생성 중"
+        if (!beginAdminDataOperation("카드 크기 PDF 생성 중")) {
+            QrPdfExporter.releaseSensitiveBitmap(exportBitmap)
+            return
+        }
         executeSensitive(
             cleanup = { QrPdfExporter.releaseSensitiveBitmap(exportBitmap) },
         ) {
@@ -2098,9 +2144,11 @@ class MainActivity : ComponentActivity() {
                 }
                 result.fold(
                     onSuccess = { file ->
+                        finishAdminDataOperation()
                         shareQrPdf(file, preview, preferQuickShare)
                     },
                     onFailure = {
+                        finishAdminDataOperation()
                         adminMessage.text = it.message ?: "QR 카드 PDF 생성 실패"
                     },
                 )
@@ -2182,8 +2230,10 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "PC 전송용 QR 복사 실패"
             return
         }
-        adminMessage.text = "지정 PC로 카드 PDF를 암호화해 보내는 중"
-        sendPcPdfButton.isEnabled = false
+        if (!beginAdminDataOperation("지정 PC로 카드 PDF를 암호화해 보내는 중")) {
+            QrPdfExporter.releaseSensitiveBitmap(exportBitmap)
+            return
+        }
         executeSensitive(
             cleanup = { QrPdfExporter.releaseSensitiveBitmap(exportBitmap) },
         ) {
@@ -2213,11 +2263,11 @@ class MainActivity : ComponentActivity() {
                 if (destroyed) return@runOnUiThread
                 result.fold(
                     onSuccess = { pcName ->
+                        finishAdminDataOperation()
                         clearQrPreview("$pcName PC에 카드 PDF를 안전하게 저장했습니다")
                     },
                     onFailure = {
-                        sendPcPdfButton.isEnabled =
-                            pairedPcDisplayName != null && issuedQrPreview === preview
+                        finishAdminDataOperation()
                         adminMessage.text =
                             it.message ?: "지정 PC로 카드 PDF를 보내지 못했습니다."
                     },
@@ -2279,7 +2329,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "추가할 학생을 선택하세요."
             return
         }
-        adminMessage.text = "현재 수업 보강 학생 추가 중"
+        if (!beginAdminDataOperation("현재 수업 보강 학생 추가 중")) return
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.addTemporaryStudents(
@@ -2289,6 +2339,7 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
+                finishAdminDataOperation()
                 adminMessage.text = result.fold(
                     onSuccess = { "현재 수업에 보강 학생 ${studentIds.size}명을 추가했습니다." },
                     onFailure = { it.message ?: "보강 학생 추가 실패" },
@@ -2329,6 +2380,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startOrEndSession() {
+        if (adminDataOperationGate.isActive) {
+            adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
+            return
+        }
         val active = currentSession?.sessionId != null
         if (active) {
             AlertDialog.Builder(this)
@@ -2720,8 +2775,9 @@ class MainActivity : ComponentActivity() {
         } else {
             "선택한 반 수업 안전 시작"
         }
-        classSpinner.isEnabled = !active && !webRecoveryGate.isActive
-        selfTestButton.isEnabled = !webRecoveryGate.isActive
+        val operationAvailable = !adminDataOperationGate.isActive
+        classSpinner.isEnabled = operationAvailable && !active && !webRecoveryGate.isActive
+        selfTestButton.isEnabled = operationAvailable && !webRecoveryGate.isActive
         statusText.text = session?.state ?: KioskState.ADMIN_IDLE.name
         updateClassRosterUi()
         if (active && !resumable) {
@@ -2734,8 +2790,9 @@ class MainActivity : ComponentActivity() {
         issuedQrPreview = preview
         qrImage.setImageBitmap(preview.bitmap)
         qrCardName.text = preview.exactName
-        exportQrPdfButton.isEnabled = true
-        sendPcPdfButton.isEnabled = pairedPcDisplayName != null
+        val operationAvailable = !adminDataOperationGate.isActive
+        exportQrPdfButton.isEnabled = operationAvailable
+        sendPcPdfButton.isEnabled = operationAvailable && pairedPcDisplayName != null
     }
 
     private fun clearQrPreview(
