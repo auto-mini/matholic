@@ -334,6 +334,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingRecoveryAction = restorePendingRecoveryAction(savedInstanceState)
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SECURE or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
@@ -876,7 +877,8 @@ class MainActivity : ComponentActivity() {
 
     private fun enterDedicatedMode() {
         val entered = lockTaskController.enterRestrictedMode()
-        dedicatedDevicePolicyFailed = dedicatedDevicePolicyFailed || entered.isFailure
+        dedicatedDevicePolicyFailed =
+            dedicatedDevicePolicyFailed || entered.isFailure || !entered.getOrDefault(false)
         updateDedicatedDeviceStatus(administratorUnlocked = false)
         mainHandler.postDelayed(
             {
@@ -1755,6 +1757,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
             return false
         }
+        clearPendingAdminUndo()
         adminMessage.text = message
         updateStudentManagementControls()
         updateClassRosterUi()
@@ -2391,6 +2394,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "Web 로그인 상태를 이미 안전하게 정리하고 있습니다."
             return
         }
+        clearPendingAdminUndo()
         updateStudentManagementControls()
         pendingRecoveryAction = action
         adminMessage.text = when (action) {
@@ -2478,6 +2482,7 @@ class MainActivity : ComponentActivity() {
                 deviceOwner = status.isDeviceOwner,
                 kioskPackagePermitted = status.isKioskPackagePermitted,
                 webAppProtected = status.isWebPocUninstallBlocked,
+                lockTaskMode = status.mode,
                 policyConfigurationFailed = dedicatedDevicePolicyFailed,
                 cameraPermissionGranted =
                     checkSelfPermission(Manifest.permission.CAMERA) ==
@@ -2820,8 +2825,12 @@ class MainActivity : ComponentActivity() {
                 if (destroyed) return@runOnUiThread
                 finishWebRecoveryOperation()
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { idleSession ->
+                        currentSession = idleSession
                         pendingTemporaryStudentIds = emptySet()
+                        updateStudentManagementControls()
+                        updateClassRosterUi()
+                        updateSessionAdminControls(currentSession)
                         refreshAdminData("Web 로그인과 현재 수업을 안전하게 종료했습니다.")
                     },
                     onFailure = {
@@ -3839,6 +3848,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        when (val action = pendingRecoveryAction) {
+            PendingRecoveryAction.None -> outState.putString(
+                KEY_PENDING_RECOVERY_ACTION,
+                PENDING_RECOVERY_NONE,
+            )
+            is PendingRecoveryAction.StartSession -> {
+                outState.putString(KEY_PENDING_RECOVERY_ACTION, PENDING_RECOVERY_START)
+                outState.putString(KEY_PENDING_RECOVERY_CLASS_ID, action.classId)
+                outState.putStringArrayList(
+                    KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS,
+                    ArrayList(action.temporaryStudentIds),
+                )
+            }
+            PendingRecoveryAction.EndSession -> outState.putString(
+                KEY_PENDING_RECOVERY_ACTION,
+                PENDING_RECOVERY_END,
+            )
+        }
+    }
+
+    private fun restorePendingRecoveryAction(savedState: Bundle?): PendingRecoveryAction =
+        when (savedState?.getString(KEY_PENDING_RECOVERY_ACTION)) {
+            PENDING_RECOVERY_START -> savedState.getString(KEY_PENDING_RECOVERY_CLASS_ID)
+                ?.let { classId ->
+                    PendingRecoveryAction.StartSession(
+                        classId = classId,
+                        temporaryStudentIds = savedState
+                            .getStringArrayList(KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS)
+                            ?.toSet()
+                            .orEmpty(),
+                    )
+                }
+                ?: PendingRecoveryAction.None
+            PENDING_RECOVERY_END -> PendingRecoveryAction.EndSession
+            else -> PendingRecoveryAction.None
+        }
+
     override fun onDestroy() {
         destroyed = true
         RemoteQrTestBridge.unregister(this)
@@ -3977,6 +4025,13 @@ class MainActivity : ComponentActivity() {
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
         private const val ADMIN_UNDO_WINDOW_MS = 30_000L
+        private const val KEY_PENDING_RECOVERY_ACTION = "pending_recovery_action"
+        private const val KEY_PENDING_RECOVERY_CLASS_ID = "pending_recovery_class_id"
+        private const val KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS =
+            "pending_recovery_temporary_student_ids"
+        private const val PENDING_RECOVERY_NONE = "none"
+        private const val PENDING_RECOVERY_START = "start"
+        private const val PENDING_RECOVERY_END = "end"
         private const val FEEDBACK_PREFERENCES = "operator_feedback"
         private const val KEY_VIBRATION_ENABLED = "vibration_enabled"
         private const val KEY_SOUND_ENABLED = "sound_enabled"

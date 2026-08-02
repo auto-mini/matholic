@@ -4,6 +4,7 @@ data class SessionPreflightInput(
     val deviceOwner: Boolean,
     val kioskPackagePermitted: Boolean,
     val webAppProtected: Boolean,
+    val lockTaskMode: DedicatedDeviceMode,
     val policyConfigurationFailed: Boolean,
     val cameraPermissionGranted: Boolean,
     val cameraHardwareAvailable: Boolean,
@@ -27,7 +28,8 @@ object SessionPreflightPolicy {
                 input.policyConfigurationFailed ||
                 !input.deviceOwner ||
                 !input.kioskPackagePermitted ||
-                !input.webAppProtected
+                !input.webAppProtected ||
+                input.lockTaskMode != DedicatedDeviceMode.LOCKED
             ) {
                 add("기기 보안 정책이 정상 적용되지 않았습니다.")
             }

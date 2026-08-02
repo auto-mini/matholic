@@ -68,14 +68,20 @@ class KioskLockTaskController(
         )
         try {
             activity.startLockTask()
+            check(currentMode() == DedicatedDeviceMode.LOCKED) {
+                "Lock Task did not enter LOCKED mode"
+            }
         } catch (failure: Throwable) {
+            if (currentMode() != DedicatedDeviceMode.NONE) {
+                runCatching { activity.stopLockTask() }
+            }
             devicePolicyManager.clearUserRestriction(
                 admin,
                 UserManager.DISALLOW_CREATE_WINDOWS,
             )
             throw failure
         }
-        currentMode() == DedicatedDeviceMode.LOCKED
+        true
     }
 
     fun exitForAdministrator(): Result<Boolean> = runCatching {

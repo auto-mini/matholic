@@ -527,15 +527,18 @@ class StudentRepository(
     }
 
     fun replaceClassMemberships(classId: String, studentIds: Set<String>) {
-        require(database.classDao().findActiveById(classId) != null) {
-            "Active class not found"
-        }
-        val activeStudentIds = database.studentDao().listAllActive()
-            .mapTo(mutableSetOf(), StudentEntity::studentId)
-        require(studentIds.all(activeStudentIds::contains)) {
-            "Inactive or unknown student selected"
-        }
         database.runInTransaction {
+            require(database.sessionDao().get()?.sessionId == null) {
+                "수업 중에는 반 학생 구성을 변경할 수 없습니다."
+            }
+            require(database.classDao().findActiveById(classId) != null) {
+                "Active class not found"
+            }
+            val activeStudentIds = database.studentDao().listAllActive()
+                .mapTo(mutableSetOf(), StudentEntity::studentId)
+            require(studentIds.all(activeStudentIds::contains)) {
+                "Inactive or unknown student selected"
+            }
             database.classDao().clearMemberships(classId)
             studentIds.forEach { studentId ->
                 database.classDao().addMembership(
@@ -908,27 +911,26 @@ class StudentRepository(
         }
     }
 
-    fun endSession() {
-        database.runInTransaction {
+    fun endSession(): ActiveSessionEntity =
+        database.runInTransaction<ActiveSessionEntity> {
             val current = requireNotNull(database.sessionDao().get()) { "No session state" }
             val sessionId = requireNotNull(current.sessionId) { "진행 중인 수업이 없습니다." }
             database.sessionDao().clearTemporaryStudents(sessionId)
-            database.sessionDao().save(
-                ActiveSessionEntity(
-                    state = KioskState.ADMIN_IDLE.name,
-                    updatedAtEpochMs = nowEpochMs(),
-                    sessionId = null,
-                    classId = null,
-                    startedAtEpochMs = null,
-                    currentStudentId = null,
-                    automationStep = null,
-                    lockedReason = null,
-                    previousCheckpoint = current.state,
-                ),
+            val idleSession = ActiveSessionEntity(
+                state = KioskState.ADMIN_IDLE.name,
+                updatedAtEpochMs = nowEpochMs(),
+                sessionId = null,
+                classId = null,
+                startedAtEpochMs = null,
+                currentStudentId = null,
+                automationStep = null,
+                lockedReason = null,
+                previousCheckpoint = current.state,
             )
+            database.sessionDao().save(idleSession)
             audit("SESSION_ENDED", null, null, sessionId)
+            idleSession
         }
-    }
 
     private fun audit(
         eventType: String,

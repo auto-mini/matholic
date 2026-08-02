@@ -25,6 +25,7 @@ foreach ($packageName in @($kioskPackage, $webPocPackage)) {
 
 $mode = [regex]::Match($activity, 'mLockTaskModeState=(\w+)').Groups[1].Value
 if (-not $mode) { throw 'Could not read Lock Task mode.' }
+if ($mode -ne 'LOCKED') { throw "Lock Task mode must be LOCKED; found $mode." }
 
 $packageDump = (& $adb -s $device.Serial shell dumpsys package $kioskPackage) -join "`n"
 $versionName = [regex]::Match($packageDump, 'versionName=([^\s]+)').Groups[1].Value

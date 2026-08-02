@@ -491,6 +491,25 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun activeSessionBlocksClassMembershipReplacement() {
+        val classId = repository.createClass("월1")
+        val member = repository.registerStudent(
+            "가상학생-소속잠금",
+            "locked-member-user".toCharArray(),
+            "locked-member-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(member.studentId))
+        repository.startSession(classId)
+
+        assertTrue(
+            runCatching {
+                repository.replaceClassMemberships(classId, emptySet())
+            }.isFailure,
+        )
+        assertEquals(setOf(member.studentId), repository.membershipStudentIds(classId))
+    }
+
+    @Test
     fun classBatchReissueRotatesEveryMemberQrAtomically() {
         val classId = repository.createClass("월1")
         val first = repository.registerStudent(

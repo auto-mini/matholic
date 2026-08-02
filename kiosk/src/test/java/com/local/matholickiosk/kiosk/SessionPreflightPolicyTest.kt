@@ -2,6 +2,7 @@ package com.local.matholickiosk.kiosk
 
 import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
 import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
+import com.local.matholickiosk.kiosk.domain.DedicatedDeviceMode
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,6 +14,20 @@ class SessionPreflightPolicyTest {
 
         assertFalse(result.canStart)
         assertTrue(result.blockingReasons.single().contains("보안 정책"))
+    }
+
+    @Test
+    fun `lock task must be exactly locked`() {
+        assertFalse(
+            SessionPreflightPolicy.evaluate(
+                healthyInput().copy(lockTaskMode = DedicatedDeviceMode.PINNED),
+            ).canStart,
+        )
+        assertFalse(
+            SessionPreflightPolicy.evaluate(
+                healthyInput().copy(lockTaskMode = DedicatedDeviceMode.NONE),
+            ).canStart,
+        )
     }
 
     @Test
@@ -45,6 +60,7 @@ class SessionPreflightPolicyTest {
         deviceOwner = true,
         kioskPackagePermitted = true,
         webAppProtected = true,
+        lockTaskMode = DedicatedDeviceMode.LOCKED,
         policyConfigurationFailed = false,
         cameraPermissionGranted = true,
         cameraHardwareAvailable = true,
