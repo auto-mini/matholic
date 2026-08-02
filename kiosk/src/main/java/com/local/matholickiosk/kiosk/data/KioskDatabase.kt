@@ -31,6 +31,8 @@ abstract class KioskDatabase : RoomDatabase() {
 
     companion object {
         private const val DATABASE_NAME = "matholic-kiosk.db"
+        private const val AUDIT_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
+        private const val MAX_AUDIT_ROWS = 10_000
 
         @Volatile
         private var instance: KioskDatabase? = null
@@ -115,6 +117,20 @@ abstract class KioskDatabase : RoomDatabase() {
         private val SECURE_DELETE_CALLBACK = object : Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 db.execSQL("PRAGMA secure_delete = ON")
+                db.execSQL(
+                    "DELETE FROM audit_events WHERE createdAtEpochMs < ?",
+                    arrayOf(System.currentTimeMillis() - AUDIT_RETENTION_MS),
+                )
+                db.execSQL(
+                    """
+                    DELETE FROM audit_events
+                    WHERE auditId NOT IN (
+                        SELECT auditId FROM audit_events
+                        ORDER BY createdAtEpochMs DESC, auditId DESC
+                        LIMIT $MAX_AUDIT_ROWS
+                    )
+                    """.trimIndent(),
+                )
             }
         }
     }
