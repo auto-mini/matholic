@@ -1,5 +1,94 @@
 # 빌드·보안 검증 기록
 
+## RC58·RC120·PC 수신기 0.1.5 최종 현장 교정 검증 — 2026-08-03
+
+### 현장에서 추가로 확인·교정한 결함
+
+- Kiosk RC57의 기존 DB 초기화가 Android 13에서
+  `PRAGMA secure_delete=ON`의 `execSQL` 호출 때문에 실패했다. PRAGMA를
+  SQLite query 경로로 바꾸고, Room `onOpen` 안의 audit DELETE를 repository
+  초기화 이후 DAO 단계로 옮겼다. 기존 DB는 삭제·재생성하지 않고 정상 열렸다.
+- Samsung SM-P610에서 `startLockTask()`/ `stopLockTask()` 반영이 비동기라
+  즉시 판정한 수업 사전점검이 정상 기기를 실패 처리했다. 1.5초 bounded polling과
+  사전점검 전 restricted mode 진입·실패 시 해제를 적용했다.
+- Web RC119의 loopback CONNECT proxy가 총 8 tunnel에서 즉시 503을 반환해
+  공식 로그인 TLS가 반복 실패했다. backlog 64, 동시 tunnel 32로 보정한 뒤 같은
+  기기·계정·네트워크에서 로그인에 성공했다. 실패 진단에는 이름·본문·자격정보
+  없이 구조 count/flag만 기록한다.
+- 네트워크 단절 패널은 실제로 답안 WebView를 완전 불투명하게 가렸으므로 기존
+  보고서의 “불투명 차폐가 아닐 수 있다”는 추정은 과장이었다. 다만 Android
+  elevation 때문에 종료 버튼 배경과 학생 이름 badge가 패널 위로 남는 실제
+  반증을 발견해, 단절 중 종료 버튼·학생 이름·학생 navigation을 숨기고 복구 뒤
+  원래 상태만 복원하도록 교정했다.
+- 원격 점검 PowerShell이 Android broadcast의 정상 `Activity.RESULT_OK=-1`을
+  실패로 보던 판정을 고쳤다.
+
+관련 교정 commit은 `e283f81`, `a11489c`, `fc03216`, `22d8eb4`,
+`8c8cb24`, `28f3cfb`이며, 최종 버전 정렬은 `dd0e300`이다.
+
+### 자동·릴리스 검증
+
+- `scripts/build-release.ps1`: **158 tasks PASS**. Kiosk/Web JVM 시험,
+  release lint, signed assemble, version·`debuggable=false`·동일 signer
+  검증을 포함한다.
+- Web `testDebugUnitTest`, `compileDebugAndroidTestKotlin`,
+  `assembleDebug`: PASS. 최종 차폐 보강 뒤 unit test와 AndroidTest source
+  compile도 다시 PASS했다.
+- PC 수신기: `python -m pytest pc_receiver/tests -q` **17 passed**.
+- 임시 직접 release 명령 한 회는 APK package 이후 Gradle configuration cache
+  저장 오류로 실패 처리됐다. `--no-configuration-cache` 재실행과 최종
+  `build-release.ps1`은 모두 PASS했다.
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+
+### 최종 산출물·설치
+
+- Kiosk `0.6.0-rc58`/code 63, 35,225,680 bytes:
+  `41D84501B50DB96BD9CFE2249319119EAEF8A5051054AE622BA4A13BF0958705`
+- Web POC `0.4.0-rc120`/code 137, 3,327,770 bytes:
+  `6BA591FCF892D231AA61EBE97C615A0FEE7A89EFCD02B4533B94BB445F773E25`
+- PC 수신기 `0.1.5`, 21,925,051 bytes:
+  `BA94DCC1ADA65383C7F9EFD515B79C4CC4B273BA8FABC880E348A59BEEE1B136`
+
+A에는 두 APK를 `adb install -r`로 보존형 설치했다. Kiosk UID 10288와
+firstInstallTime `2026-07-24 12:52:28`, Web UID 10293와 firstInstallTime
+`2026-07-28 13:12:16`이 유지됐고 Device Owner도 Kiosk signer package로
+유지됐다. PC 실행 파일은 0.1.5 artifact와 SHA-256이 일치한다.
+
+### 실제 기기·PC 결과
+
+- 기존 DB 초기화·관리자 인증·원버튼 안전 복구·운영 자가진단: PASS.
+  Device Owner, 잠금 허용, Web 보호, 카메라, 인터넷, 저장공간과 지정 PC 연결이
+  모두 정상이다.
+- `토요일2`의 기존 학생 3명과 QR 데이터: 업데이트·복구·두 차례 재부팅 뒤
+  보존 확인.
+- 수동 학생 선택과 표시명이 정확히 `테스트`인 기존 QR PDF의 제한된 원격
+  시험 입력: 각각 공식 Web 로그인 PASS. QR 원문·해시는 출력·파일 기록하지
+  않았다.
+- 정상 학생 종료→QR 대기 복귀→현재 수업 안전 종료: PASS. 시험 답안을
+  입력하거나 제출하지 않았다.
+- Wi-Fi 단절: 답안·학생 이름·학생 navigation·종료 버튼을 가리는 불투명
+  fail-closed 화면과 입력 focus 차단 확인. Wi-Fi 복구 뒤 같은 학생·공식 목록
+  화면으로 자동 복귀하고 LockTask `LOCKED` 유지.
+- ADB HOME/RECENTS fault: launcher·다른 앱으로 이탈하지 않고 Web 세션을
+  관리자 PIN 잠금으로 실패 폐쇄, LockTask `LOCKED` 유지.
+- 최종 RC58/RC120 재부팅: Kiosk 자동 foreground, LockTask `LOCKED`,
+  Device Owner·UID·최초 설치일·학생 데이터 유지, 원격 점검 same-boot
+  상태 자동 해제 확인. 관리자 인증 후 `ADMIN_IDLE`로 종료했다.
+- Android 직접 인쇄 버튼·경로는 현재 UI에서 보이지 않았다.
+- PC 수신기 update 중 방화벽 규칙 재생성은 비관리자 PowerShell에서 access
+  denied였다. 기존 `Private / Inbound / Allow / TCP 48129` 규칙이 같은
+  0.1.5 실행 경로를 계속 가리키고 port listen 및 태블릿 지정 PC 자가진단이
+  정상이라 규칙은 변경하지 않았다. 이전 실행 파일은
+  `%LOCALAPPDATA%\MatholicPdfReceiver\backup`에 rollback용으로 보존했다.
+
+### 남은 현장 범위
+
+실제 프린터의 물리 출력만 수행하지 않았다. Android 직접 인쇄는 제품에서
+제거됐으므로 남은 확인은 PC 수신 폴더의 PDF를 운영자가 프린터로 출력하는
+외부 장치·용지 결과에 한정된다. 그 밖의 채택된 리뷰 교정에는 추가 사용자
+결정이 필요하지 않다.
+
 검증일: 2026-07-21, A 재검증 2026-07-22 (Asia/Seoul)
 
 ## 도구 기준

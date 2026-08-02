@@ -1,6 +1,72 @@
 # LUNA MAX 읽기 전용 연속 리뷰 보고서
 
-## 2026-08-03 전체 교정 완료 판정 — 이 절이 최종 최신 판정
+## 교정·독립 현장 검증 최종 정정 — 2026-08-03 03:49:37 +09:00
+
+이 절은 위 읽기 전용 감사의 당시 사실을 삭제하지 않고, 기준선
+`8c9a97ca55d34e3d93fdb02d9879ad929ed7133d` 이후 실제 수정·빌드·설치·기기
+실기로 확인한 결과를 우선 판정으로 추가한다. 위 절의 “실행하지 않았다”,
+“ADB가 없다”, “미배포” 문장은 각 감사 시점의 이력이며 현재 상태 설명으로
+사용하지 않는다.
+
+### 최종 판정
+
+- 사용자가 채택한 코드·문서 교정은 완료됐다. 실제 프린터의 종이 출력만 외부
+  장치 현장 확인으로 남는다.
+- 네트워크 패널 자체가 불투명하지 않을 수 있다는 기존 후보 판단은 실제 캡처로
+  반증되어 과장으로 재평가한다. `#FF102A43` 패널은 Web 답안 영역을 완전히
+  가리고 WebView focus·IME·접근성 입력을 차단했다.
+- 반대로 elevation 때문에 종료 버튼 배경과 학생 이름 badge가 차폐 위에 남는
+  더 좁고 직접적인 UI 결함을 실기에서 확인했다. 이는 `28f3cfb`에서 단절 중
+  학생 chrome을 숨기고 복구 후 현재 URL 정책으로만 복원하도록 교정했으며,
+  후속 실제 캡처에서 잔상·이름·답안 노출이 없었다.
+- Web TLS 반복 실패는 공식 사이트 장애나 credential 문제로 단정할 근거가
+  없었다. RC117은 같은 조건에서 성공하고 RC119의 8-tunnel cap에서만 실패한
+  반대 증거를 바탕으로 loopback proxy 동시성 회귀로 재분류했으며,
+  `8c8cb24` 보정 후 동일 기기에서 수동 선택·QR 로그인이 모두 성공했다.
+- Kiosk 초기화 실패는 기존 DB 손상이나 데이터 손실이 아니라 Android 13의
+  `PRAGMA secure_delete=ON` execSQL 거부와 Room onOpen write 경계였다.
+  `e283f81`·`a11489c` 교정 뒤 기존 DB를 재생성하지 않고 열었고 학생·반·QR
+  데이터가 업데이트와 재부팅 뒤 유지됐다.
+- Lock Task 사전점검 실패는 정책 미적용이 아니라 Samsung의 비동기 상태 반영을
+  즉시 판정한 timing 결함이었다. `fc03216`의 bounded polling 뒤 실제
+  preflight와 session에서 `LOCKED`를 확인했다.
+- 원격 지원 민감 화면은 실제 PIN/Web credential 화면에서 캡처가 차단됐고,
+  정상 학생·관리자 화면에서만 제한 시간 badge와 캡처가 동작했다. 재부팅 뒤
+  same-boot 상태는 자동 해제됐다. 정상 broadcast result가 `-1`인 도구 판정은
+  `22d8eb4`에서 교정했다.
+
+### 독립 검증 결과
+
+- 최종 source: Kiosk `0.6.0-rc58`/code 63, Web POC
+  `0.4.0-rc120`/code 137, PC 수신기 `0.1.5`.
+- `scripts/build-release.ps1`: 158 tasks PASS, Kiosk/Web unit,
+  release lint·signed assemble·version·non-debuggable·동일 signer 검증 PASS.
+- Web unit와 AndroidTest source compile PASS, PC receiver pytest
+  **17 passed**.
+- A 보존형 설치 뒤 Kiosk/Web UID와 firstInstallTime, Device Owner, 전용 HOME,
+  기존 학생 3명·반·QR을 유지했다.
+- 수동 선택, 정확한 `테스트` 카드 원격 QR, 공식 Web 로그인, 학생 정상 종료,
+  QR 대기 복귀, 수업 안전 종료, Wi-Fi 단절·복구, HOME/RECENTS fault,
+  최종 release 재부팅을 실제 실행했다. 답안은 입력·제출하지 않았다.
+- PC receiver 0.1.5 artifact와 설치 실행 파일의 SHA-256이 일치하고 기존
+  Private/TCP 48129 방화벽 규칙·port listen·태블릿 지정 PC 자가진단이 정상이다.
+- 원격 점검은 명시적으로 종료했고 최종 기기는 `ADMIN_IDLE`, LockTask
+  `NONE`, Wi-Fi validated 상태다. 수업 중에는 `LOCKED`였다.
+
+### 변경·복구 기준
+
+주요 후속 commit은 `e283f81`, `a11489c`, `fc03216`, `22d8eb4`,
+`8c8cb24`, `28f3cfb`, `dd0e300`이다. 각 교정은 독립 commit으로
+복구 가능하다. 기존 사용자 수정
+`docs/RC47_RC68_FIELD_VERIFICATION_CHECKLIST.md`,
+`docs/RC47_RC68_MINIMAL_FIELD_SCENARIO.md`와 미추적
+`diagnostics/`, `output/`, `tmp/`,
+`docs/LUNA_MAX_READ_ONLY_REVIEW_GOAL.md`은 stage·commit·수정하지 않았다.
+
+## 2026-08-03 자동 교정 완료 판정 — 현장 검증 전 기록
+
+이 절의 RC57/RC119 미배포 상태는 위 `교정·독립 현장 검증 최종 정정`에서
+RC58/RC120 설치·실기로 대체됐다. 아래 ID별 이력은 교정 추적용으로 유지한다.
 
 - 최초 읽기 전용 감사 기준선 `8c9a97ca55d34e3d93fdb02d9879ad929ed7133d`에서
   인용한 파일·줄·commit을 교정 전 workspace와 독립 재대조했다.
