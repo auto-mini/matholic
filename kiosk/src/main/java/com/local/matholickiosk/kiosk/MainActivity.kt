@@ -19,8 +19,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.VibratorManager
-import android.print.PrintAttributes
-import android.print.PrintManager
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -71,10 +69,8 @@ import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.print.BatchQrCard
 import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
-import com.local.matholickiosk.kiosk.print.BatchQrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
-import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameGuidance
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
@@ -134,7 +130,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var undoAdminButton: Button
     private lateinit var qrCardName: TextView
     private lateinit var qrImage: ImageView
-    private lateinit var printQrButton: Button
     private lateinit var exportQrPdfButton: Button
     private lateinit var batchQrButton: Button
     private lateinit var pendingCardsPdfButton: Button
@@ -407,7 +402,6 @@ class MainActivity : ComponentActivity() {
         undoAdminButton = findViewById(R.id.undo_admin_button)
         qrCardName = findViewById(R.id.qr_card_name)
         qrImage = findViewById(R.id.qr_image)
-        printQrButton = findViewById(R.id.print_qr_button)
         exportQrPdfButton = findViewById(R.id.export_qr_pdf_button)
         batchQrButton = findViewById(R.id.batch_qr_button)
         pendingCardsPdfButton = findViewById(R.id.pending_cards_pdf_button)
@@ -439,7 +433,6 @@ class MainActivity : ComponentActivity() {
             updateProfileButton,
             updateCredentialsButton,
             deactivateStudentButton,
-            printQrButton,
             exportQrPdfButton,
             batchQrButton,
             pendingCardsPdfButton,
@@ -506,7 +499,6 @@ class MainActivity : ComponentActivity() {
         updateProfileButton.setOnClickListener { showUpdateStudentNameDialog() }
         updateCredentialsButton.setOnClickListener { showUpdateCredentialsDialog() }
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
-        printQrButton.setOnClickListener { confirmQrPrint() }
         exportQrPdfButton.setOnClickListener { confirmQrPdfExport() }
         batchQrButton.setOnClickListener { confirmBatchQrPrint() }
         pendingCardsPdfButton.setOnClickListener { showPendingCardsDialog() }
@@ -1286,7 +1278,8 @@ class MainActivity : ComponentActivity() {
         }
         batchQrButton.isEnabled = classReady &&
             currentSession?.sessionId == null &&
-            classRosterState.membershipStudentIds.isNotEmpty()
+            classRosterState.membershipStudentIds.isNotEmpty() &&
+            pairedPcDisplayName != null
         updateQuickClassButtons()
     }
 
@@ -2031,174 +2024,22 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "학생이 소속된 반을 선택하세요."
             return
         }
+        if (pairedPcDisplayName == null) {
+            adminMessage.text = "먼저 지정 PC를 페어링하세요."
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle("${selectedClass.label} QR 전체 재발급")
             .setMessage(
                 "선택 반 학생 전원의 기존 QR 카드가 즉시 무효화되고 새 카드가 발급됩니다.\n\n" +
                     "A4 한 장에 55×80mm 카드가 최대 9장씩 배치됩니다. " +
-                    "인쇄를 취소하면 새 QR 원문을 다시 볼 수 없으므로 실제로 전부 다시 인쇄할 때만 진행하세요.",
+                    "새 PDF는 페어링된 지정 PC에 암호화해 저장됩니다.",
             )
             .setNegativeButton("취소", null)
-            .setPositiveButton("전체 재발급 후 인쇄") { _, _ ->
-                prepareBatchQrPrint(selectedClass)
+            .setPositiveButton("전체 재발급·PC 전송") { _, _ ->
+                preparePendingCardsPdf(classRosterState.membershipStudentIds.toSet())
             }
             .show()
-    }
-
-    private fun prepareBatchQrPrint(selectedClass: Choice) {
-        batchQrButton.isEnabled = false
-        adminMessage.text = "${selectedClass.label} QR 전체 재발급·인쇄 문서 생성 중"
-        ioExecutor.execute {
-            val result = runCatching {
-                val issued = studentRepository.reissueClassQrBatch(selectedClass.id)
-                val cards = mutableListOf<BatchQrCard>()
-                try {
-                    issued.forEach { item ->
-                        cards += BatchQrCard(
-                            displayName = item.displayNameExact,
-                            qrBitmap = QrImageRenderer.render(
-                                payload = item.issuedQr.payload,
-                                sizePixels = QR_SIZE_PIXELS,
-                            ),
-                        )
-                        item.issuedQr.hash.fill(0)
-                    }
-                    studentRepository.recordClassQrBatchPrintRequested(cards.size)
-                    cards.toList()
-                } catch (failure: Throwable) {
-                    cards.forEach { card ->
-                        if (!card.qrBitmap.isRecycled) {
-                            card.qrBitmap.eraseColor(android.graphics.Color.WHITE)
-                            card.qrBitmap.recycle()
-                        }
-                    }
-                    issued.forEach { it.issuedQr.hash.fill(0) }
-                    throw failure
-                }
-            }
-            runOnUiThread {
-                if (destroyed) {
-                    result.getOrNull()?.forEach { card ->
-                        QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
-                    }
-                    return@runOnUiThread
-                }
-                result.fold(
-                    onSuccess = { cards ->
-                        val adapter = BatchQrPrintDocumentAdapter(this, cards)
-                        val attributes = PrintAttributes.Builder()
-                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
-                            .setResolution(
-                                PrintAttributes.Resolution("print", "print", 300, 300),
-                            )
-                            .setMinMargins(PrintAttributes.Margins(500, 500, 500, 500))
-                            .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
-                            .build()
-                        runCatching {
-                            getSystemService(PrintManager::class.java).print(
-                                "${selectedClass.label} 학생 QR 카드",
-                                adapter,
-                                attributes,
-                            )
-                        }.onSuccess {
-                            adminMessage.text =
-                                "${selectedClass.label} 새 QR ${cards.size}장을 인쇄 서비스로 전달했습니다."
-                        }.onFailure {
-                            cards.forEach { card ->
-                                QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
-                            }
-                            adminMessage.text =
-                                "인쇄 화면을 열지 못했습니다. 기존 QR은 이미 무효화되었습니다. 다시 전체 재발급하세요."
-                        }
-                        updateClassRosterUi()
-                    },
-                    onFailure = {
-                        batchQrButton.isEnabled = true
-                        adminMessage.text = it.message ?: "반 QR 일괄 재발급 실패"
-                    },
-                )
-            }
-        }
-    }
-
-    private fun confirmQrPrint() {
-        val preview = issuedQrPreview
-        if (preview == null || preview.bitmap.isRecycled) {
-            adminMessage.text = "먼저 QR을 발급하거나 재발급하세요."
-            printQrButton.isEnabled = false
-            return
-        }
-        AlertDialog.Builder(this)
-            .setTitle("현재 표시 QR 인쇄")
-            .setMessage(
-                "QR 토큰이 Android 인쇄 서비스와 선택한 프린터로 전달됩니다.\n" +
-                    "신뢰하는 로컬 프린터만 선택하고 인쇄 대기열의 작업도 확인하세요.",
-            )
-            .setNegativeButton("취소", null)
-            .setPositiveButton("인쇄 화면 열기") { _, _ -> prepareQrPrint(preview) }
-            .show()
-    }
-
-    private fun prepareQrPrint(preview: QrPreview) {
-        adminMessage.text = "QR 인쇄 요청 기록 중"
-        ioExecutor.execute {
-            val audited = runCatching {
-                studentRepository.recordQrPrintRequested(preview.studentId)
-            }
-            runOnUiThread {
-                if (destroyed) return@runOnUiThread
-                audited.fold(
-                    onSuccess = {
-                        if (
-                            issuedQrPreview !== preview ||
-                            preview.bitmap.isRecycled
-                        ) {
-                            adminMessage.text = "QR 미리보기가 만료되었습니다. 다시 발급하세요."
-                            return@fold
-                        }
-                        val printable = runCatching {
-                            requireNotNull(
-                                preview.bitmap.copy(Bitmap.Config.ARGB_8888, true),
-                            )
-                        }.getOrElse {
-                            adminMessage.text = "인쇄용 QR 복사 실패"
-                            return@fold
-                        }
-                        val adapter = QrPrintDocumentAdapter(
-                            context = this,
-                            displayName = preview.exactName,
-                            qrBitmap = printable,
-                        )
-                        val attributes = PrintAttributes.Builder()
-                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
-                            .setResolution(
-                                PrintAttributes.Resolution("print", "print", 300, 300),
-                            )
-                            .setMinMargins(PrintAttributes.Margins(500, 500, 500, 500))
-                            .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
-                            .build()
-                        runCatching {
-                            getSystemService(PrintManager::class.java).print(
-                                "학생 QR 카드",
-                                adapter,
-                                attributes,
-                            )
-                        }.onSuccess {
-                            clearQrPreview(
-                                "QR을 인쇄 서비스로 전달해 화면 표시를 지웠습니다",
-                            )
-                        }.onFailure {
-                            if (!printable.isRecycled) {
-                                printable.eraseColor(android.graphics.Color.WHITE)
-                                printable.recycle()
-                            }
-                            adminMessage.text = "Android 인쇄 화면을 열지 못했습니다."
-                        }
-                    },
-                    onFailure = { adminMessage.text = it.message ?: "QR 인쇄 감사기록 실패" },
-                )
-            }
-        }
     }
 
     private fun confirmQrPdfExport() {
@@ -2893,7 +2734,6 @@ class MainActivity : ComponentActivity() {
         issuedQrPreview = preview
         qrImage.setImageBitmap(preview.bitmap)
         qrCardName.text = preview.exactName
-        printQrButton.isEnabled = true
         exportQrPdfButton.isEnabled = true
         sendPcPdfButton.isEnabled = pairedPcDisplayName != null
     }
@@ -2904,7 +2744,6 @@ class MainActivity : ComponentActivity() {
         qrImage.setImageDrawable(null)
         issuedQrPreview?.let(::wipeQrPreview)
         issuedQrPreview = null
-        printQrButton.isEnabled = false
         exportQrPdfButton.isEnabled = false
         sendPcPdfButton.isEnabled = false
         qrCardName.text = cardMessage

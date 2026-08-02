@@ -411,23 +411,15 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
                             android:gravity="center"
-                            android:text="화면 캡처·클립보드는 차단됩니다. 현재 표시 QR만 신뢰하는 Android 인쇄 서비스 또는 PDF 공유 대상으로 보낼 수 있습니다."
+                            android:text="화면 캡처·클립보드는 차단됩니다. 현재 표시 QR은 PDF로 저장하거나 페어링된 지정 PC로만 보낼 수 있습니다."
                             android:textColor="#627D98"
                             android:textSize="14sp" />
-
-                        <Button
-                            android:id="@+id/print_qr_button"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            android:enabled="false"
-                            android:text="현재 표시 QR 인쇄" />
 
                         <Button
                             android:id="@+id/export_qr_pdf_button"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
+                            android:layout_marginTop="12dp"
                             android:enabled="false"
                             android:text="카드 PDF Quick Share·저장" />
 
@@ -436,7 +428,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
-                            android:text="선택 반 QR 일괄 재발급·인쇄" />
+                            android:text="선택 반 QR 일괄 재발급·PC 전송" />
 
                         <Button
                             android:id="@+id/pending_cards_pdf_button"

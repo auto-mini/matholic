@@ -482,11 +482,6 @@ class StudentRepository(
         }
     }
 
-    fun recordClassQrBatchPrintRequested(count: Int) {
-        require(count > 0) { "Batch QR count must be positive" }
-        audit("CLASS_QR_BATCH_PRINT_REQUESTED", count.toString(), null, null)
-    }
-
     fun updateStudentProfile(
         studentId: String,
         displayNameExact: String,
@@ -631,12 +626,6 @@ class StudentRepository(
             audit("QR_REVOKED", null, studentId, null)
             audit("STUDENT_DEACTIVATED", null, studentId, null)
         }
-    }
-
-    fun recordQrPrintRequested(studentId: String) {
-        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
-        require(student.isActive) { "Student is inactive" }
-        audit("QR_PRINT_REQUESTED", null, studentId, null)
     }
 
     fun recordQrExportRequested(studentId: String) {

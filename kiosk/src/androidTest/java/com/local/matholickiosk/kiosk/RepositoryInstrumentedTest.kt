@@ -375,7 +375,6 @@ class RepositoryInstrumentedTest {
 
         val session = repository.startSession(classId)
         assertNotNull(repository.validateForActiveSession(registered.issuedQr.hash))
-        repository.recordQrPrintRequested(registered.studentId)
         repository.recordQrExportRequested(registered.studentId)
         repository.deactivateStudent(registered.studentId)
 
@@ -402,7 +401,6 @@ class RepositoryInstrumentedTest {
         val auditEvents = database.auditDao().latest(100)
         assertTrue(auditEvents.any { it.eventType == "STUDENT_PROFILE_UPDATED" })
         assertTrue(auditEvents.any { it.eventType == "STUDENT_CREDENTIALS_UPDATED" })
-        assertTrue(auditEvents.any { it.eventType == "QR_PRINT_REQUESTED" })
         assertTrue(auditEvents.any { it.eventType == "QR_PDF_EXPORT_REQUESTED" })
         assertTrue(auditEvents.any { it.eventType == "QR_REVOKED" })
         assertTrue(auditEvents.any { it.eventType == "STUDENT_DEACTIVATED" })

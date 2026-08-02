@@ -13,7 +13,6 @@ import android.os.ParcelFileDescriptor
 import android.print.PrintAttributes
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.local.matholickiosk.kiosk.print.QrPrintDocumentAdapter
 import com.local.matholickiosk.kiosk.print.QrPrintCardRenderer
 import com.local.matholickiosk.kiosk.print.QrPrintPdfWriter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -213,11 +212,6 @@ class QrPrintDocumentAdapterInstrumentedTest {
             QrTokenCodec().issue().payload,
             720,
         ).copy(Bitmap.Config.ARGB_8888, true)
-        val adapter = QrPrintDocumentAdapter(
-            context,
-            "가상학생 전체이름",
-            qrBitmap,
-        )
         val attributes = PrintAttributes.Builder()
             .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
             .setResolution(PrintAttributes.Resolution("test", "test", 600, 300))
@@ -300,7 +294,10 @@ class QrPrintDocumentAdapterInstrumentedTest {
                 }
             }
         } finally {
-            adapter.onFinish()
+            if (!qrBitmap.isRecycled) {
+                qrBitmap.eraseColor(Color.WHITE)
+                qrBitmap.recycle()
+            }
             assertTrue(qrBitmap.isRecycled)
             output.delete()
         }
