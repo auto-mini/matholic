@@ -38,7 +38,10 @@ data class StudentCsvImportPreview(
 object StudentCsvParser {
     private val expectedHeaders = listOf("이름", "아이디", "비밀번호", "소속 반들")
 
-    fun parse(payload: ByteArray): ParsedStudentCsv {
+    fun parse(
+        payload: ByteArray,
+        onRowMaterialized: (StudentCsvRow) -> Unit = {},
+    ): ParsedStudentCsv {
         require(payload.isNotEmpty() && payload.size <= 1024 * 1024) {
             "CSV 파일은 1MB 이하여야 합니다."
         }
@@ -51,39 +54,47 @@ object StudentCsvParser {
         }
         require(records.size in 2..1001) { "학생은 한 번에 1~1000명까지 처리할 수 있습니다." }
         val usernames = mutableSetOf<String>()
-        val rows = records.drop(1).mapIndexed { index, values ->
-            require(values.size == expectedHeaders.size) {
-                "CSV ${index + 2}행의 열 개수가 올바르지 않습니다."
+        val rows = mutableListOf<StudentCsvRow>()
+        try {
+            records.drop(1).forEachIndexed { index, values ->
+                require(values.size == expectedHeaders.size) {
+                    "CSV ${index + 2}행의 열 개수가 올바르지 않습니다."
+                }
+                val name = values[0].trim()
+                val username = values[1].trim()
+                val password = values[2]
+                val classes = values[3]
+                    .split('|')
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .toSet()
+                require(name.isNotEmpty() && name.length <= 80) {
+                    "CSV ${index + 2}행의 이름이 올바르지 않습니다."
+                }
+                require(username.isNotEmpty() && username.length <= 200) {
+                    "CSV ${index + 2}행의 아이디가 올바르지 않습니다."
+                }
+                require(password.isNotEmpty() && password.length <= 200) {
+                    "CSV ${index + 2}행의 비밀번호가 올바르지 않습니다."
+                }
+                require(classes.isNotEmpty()) {
+                    "CSV ${index + 2}행에는 소속 반이 하나 이상 필요합니다."
+                }
+                require(usernames.add(username)) {
+                    "CSV에 같은 아이디가 두 번 포함되어 있습니다."
+                }
+                val row = StudentCsvRow(
+                    displayNameExact = name,
+                    username = username.toCharArray(),
+                    password = password.toCharArray(),
+                    classNames = classes,
+                )
+                rows += row
+                onRowMaterialized(row)
             }
-            val name = values[0].trim()
-            val username = values[1].trim()
-            val password = values[2]
-            val classes = values[3]
-                .split('|')
-                .map(String::trim)
-                .filter(String::isNotEmpty)
-                .toSet()
-            require(name.isNotEmpty() && name.length <= 80) {
-                "CSV ${index + 2}행의 이름이 올바르지 않습니다."
-            }
-            require(username.isNotEmpty() && username.length <= 200) {
-                "CSV ${index + 2}행의 아이디가 올바르지 않습니다."
-            }
-            require(password.isNotEmpty() && password.length <= 200) {
-                "CSV ${index + 2}행의 비밀번호가 올바르지 않습니다."
-            }
-            require(classes.isNotEmpty()) {
-                "CSV ${index + 2}행에는 소속 반이 하나 이상 필요합니다."
-            }
-            require(usernames.add(username)) {
-                "CSV에 같은 아이디가 두 번 포함되어 있습니다."
-            }
-            StudentCsvRow(
-                displayNameExact = name,
-                username = username.toCharArray(),
-                password = password.toCharArray(),
-                classNames = classes,
-            )
+        } catch (failure: Throwable) {
+            rows.forEach(StudentCsvRow::clearSensitiveData)
+            throw failure
         }
         return ParsedStudentCsv(rows)
     }

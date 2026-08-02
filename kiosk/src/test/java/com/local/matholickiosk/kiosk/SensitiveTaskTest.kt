@@ -1,6 +1,7 @@
 package com.local.matholickiosk.kiosk
 
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
+import com.local.matholickiosk.kiosk.domain.SensitiveHandoffTask
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -36,5 +37,24 @@ class SensitiveTaskTest {
         task.discard()
 
         assertEquals(1, cleanups.get())
+    }
+
+    @Test
+    fun handoffTaskCleansUnlessNextOwnerAcceptsResponsibility() {
+        val rejectedCleanup = AtomicInteger()
+        SensitiveHandoffTask(
+            cleanup = { rejectedCleanup.incrementAndGet() },
+            operation = { false },
+        ).run()
+        assertEquals(1, rejectedCleanup.get())
+
+        val acceptedCleanup = AtomicInteger()
+        val accepted = SensitiveHandoffTask(
+            cleanup = { acceptedCleanup.incrementAndGet() },
+            operation = { true },
+        )
+        accepted.run()
+        accepted.discard()
+        assertEquals(0, acceptedCleanup.get())
     }
 }

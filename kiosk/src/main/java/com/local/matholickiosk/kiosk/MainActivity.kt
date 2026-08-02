@@ -61,10 +61,12 @@ import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
 import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
+import com.local.matholickiosk.kiosk.domain.DiscardableSensitiveTask
 import com.local.matholickiosk.kiosk.domain.FixedClassSlots
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.domain.LatestValueDispatcher
 import com.local.matholickiosk.kiosk.domain.RefreshableSelectionState
+import com.local.matholickiosk.kiosk.domain.SensitiveHandoffTask
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
 import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
@@ -1877,15 +1879,15 @@ class MainActivity : ComponentActivity() {
                 } finally {
                     download.payload.fill(0)
                 }
-                ioExecutor.execute {
+                val previewTask = SensitiveHandoffTask(parsed::clearSensitiveData) {
                     val preview = runCatching {
                         studentRepository.previewStudentImport(parsed.rows)
                     }
-                    runOnUiThread {
+                    mainHandler.post {
                         importStudentCsvButton.isEnabled = true
                         if (destroyed) {
                             parsed.clearSensitiveData()
-                            return@runOnUiThread
+                            return@post
                         }
                         preview.fold(
                             onSuccess = {
@@ -1897,6 +1899,17 @@ class MainActivity : ComponentActivity() {
                                     it.message ?: "학생 CSV 변경 내용을 확인하지 못했습니다."
                             },
                         )
+                    }
+                }
+                try {
+                    ioExecutor.execute(previewTask)
+                } catch (_: RuntimeException) {
+                    previewTask.discard()
+                    runOnUiThread {
+                        if (!destroyed) {
+                            importStudentCsvButton.isEnabled = true
+                            adminMessage.text = "학생 CSV 미리보기를 시작하지 못했습니다."
+                        }
                     }
                 }
             }
@@ -1940,38 +1953,45 @@ class MainActivity : ComponentActivity() {
             parsed.clearSensitiveData()
             return
         }
-        ioExecutor.execute {
-            val result = runCatching {
-                val imported = studentRepository.importStudents(parsed.rows)
-                val confirmationFailure = runCatching {
-                    withReachablePairedPc { pairing ->
-                        pcControlClient.confirmStudentCsv(pairing, deliveryId)
-                    }
-                }.exceptionOrNull()
-                imported to confirmationFailure
+        runCatching {
+            executeSensitive(cleanup = parsed::clearSensitiveData) {
+                val result = runCatching {
+                    val imported = studentRepository.importStudents(parsed.rows)
+                    val confirmationFailure = runCatching {
+                        withReachablePairedPc { pairing ->
+                            pcControlClient.confirmStudentCsv(pairing, deliveryId)
+                        }
+                    }.exceptionOrNull()
+                    imported to confirmationFailure
+                }
+                runOnUiThread {
+                    if (destroyed) return@runOnUiThread
+                    result.fold(
+                        onSuccess = { (imported, confirmationFailure) ->
+                            refreshAdminData(
+                                "학생 CSV 적용 완료 · 신규 ${imported.created}명, " +
+                                    "갱신 ${imported.updated}명, " +
+                                    "카드 PDF 생성 필요 ${imported.cardsNeedingPdf}명" +
+                                    if (confirmationFailure == null) {
+                                        ""
+                                    } else {
+                                        " · PC 적용 확인이 남아 있습니다. " +
+                                            "연결 복구 후 같은 CSV를 다시 가져오면 안전하게 재적용됩니다."
+                                    },
+                                completeAdminDataOperationAfterLoad = true,
+                            )
+                        },
+                        onFailure = {
+                            finishAdminDataOperation()
+                            adminMessage.text = it.message ?: "학생 CSV 적용 실패"
+                        },
+                    )
+                }
             }
-            runOnUiThread {
-                if (destroyed) return@runOnUiThread
-                result.fold(
-                    onSuccess = { (imported, confirmationFailure) ->
-                        refreshAdminData(
-                            "학생 CSV 적용 완료 · 신규 ${imported.created}명, " +
-                                "갱신 ${imported.updated}명, " +
-                                "카드 PDF 생성 필요 ${imported.cardsNeedingPdf}명" +
-                                if (confirmationFailure == null) {
-                                    ""
-                                } else {
-                                    " · PC 적용 확인이 남아 있습니다. " +
-                                        "연결 복구 후 같은 CSV를 다시 가져오면 안전하게 재적용됩니다."
-                                },
-                            completeAdminDataOperationAfterLoad = true,
-                        )
-                    },
-                    onFailure = {
-                        finishAdminDataOperation()
-                        adminMessage.text = it.message ?: "학생 CSV 적용 실패"
-                    },
-                )
+        }.onFailure {
+            finishAdminDataOperation()
+            if (!destroyed) {
+                adminMessage.text = "학생 CSV 적용 작업을 시작하지 못했습니다."
             }
         }
     }
@@ -4068,8 +4088,8 @@ class MainActivity : ComponentActivity() {
         stopCamera()
         qrAnalyzer?.close()
         ioExecutor.shutdownNow()
-            .filterIsInstance<SensitiveTask>()
-            .forEach(SensitiveTask::discard)
+            .filterIsInstance<DiscardableSensitiveTask>()
+            .forEach(DiscardableSensitiveTask::discard)
         pcControlExecutor.shutdownNow()
         if (::pcStatusDispatcher.isInitialized) pcStatusDispatcher.close()
         super.onDestroy()
