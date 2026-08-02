@@ -25,6 +25,7 @@ data class DecodedPcControlResponse(
 object PcControlProtocol {
     const val OP_STATUS = 1
     const val OP_FETCH_CSV = 2
+    const val OP_CONFIRM_CSV = 3
     const val HEADER_BYTES = 65
     const val MAX_PAYLOAD_BYTES = 1024 * 1024
     private const val VERSION: Byte = 1

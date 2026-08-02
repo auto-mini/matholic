@@ -81,6 +81,7 @@ import com.local.matholickiosk.kiosk.qr.clearSensitiveData
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import com.local.matholickiosk.kiosk.transfer.PcPairingStore
 import com.local.matholickiosk.kiosk.transfer.PcControlClient
+import com.local.matholickiosk.kiosk.transfer.PcCsvDownload
 import com.local.matholickiosk.kiosk.transfer.PcEndpointResolver
 import com.local.matholickiosk.kiosk.transfer.PcPdfSender
 import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
@@ -1838,7 +1839,7 @@ class MainActivity : ComponentActivity() {
                         }
                         preview.fold(
                             onSuccess = {
-                                showStudentCsvPreview(download.filename, parsed, it)
+                                showStudentCsvPreview(download, parsed, it)
                             },
                             onFailure = {
                                 parsed.clearSensitiveData()
@@ -1856,7 +1857,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showStudentCsvPreview(
-        filename: String,
+        download: PcCsvDownload,
         parsed: ParsedStudentCsv,
         preview: StudentCsvImportPreview,
     ) {
@@ -1864,7 +1865,7 @@ class MainActivity : ComponentActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle("학생 CSV 변경 미리보기")
             .setMessage(
-                "$filename\n\n" +
+                "${download.filename}\n\n" +
                     "신규 등록: ${preview.created}명\n" +
                     "기존 계정 갱신: ${preview.updated}명\n" +
                     "이름 변경: ${preview.renamed}명\n" +
@@ -1875,7 +1876,7 @@ class MainActivity : ComponentActivity() {
             .setNegativeButton("취소", null)
             .setPositiveButton("변경 적용") { _, _ ->
                 applying = true
-                applyStudentCsv(parsed)
+                applyStudentCsv(download.deliveryId, parsed)
             }
             .create()
         dialog.setOnDismissListener {
@@ -1884,20 +1885,35 @@ class MainActivity : ComponentActivity() {
         dialog.show()
     }
 
-    private fun applyStudentCsv(parsed: ParsedStudentCsv) {
+    private fun applyStudentCsv(deliveryId: String, parsed: ParsedStudentCsv) {
         if (!beginAdminDataOperation("학생 CSV를 암호화해 적용하는 중")) {
             parsed.clearSensitiveData()
             return
         }
         ioExecutor.execute {
-            val result = runCatching { studentRepository.importStudents(parsed.rows) }
+            val result = runCatching {
+                val imported = studentRepository.importStudents(parsed.rows)
+                val confirmationFailure = runCatching {
+                    withReachablePairedPc { pairing ->
+                        pcControlClient.confirmStudentCsv(pairing, deliveryId)
+                    }
+                }.exceptionOrNull()
+                imported to confirmationFailure
+            }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { (imported, confirmationFailure) ->
                         refreshAdminData(
-                            "학생 CSV 적용 완료 · 신규 ${it.created}명, 갱신 ${it.updated}명, " +
-                                "카드 PDF 생성 필요 ${it.cardsNeedingPdf}명",
+                            "학생 CSV 적용 완료 · 신규 ${imported.created}명, " +
+                                "갱신 ${imported.updated}명, " +
+                                "카드 PDF 생성 필요 ${imported.cardsNeedingPdf}명" +
+                                if (confirmationFailure == null) {
+                                    ""
+                                } else {
+                                    " · PC 적용 확인이 남아 있습니다. " +
+                                        "연결 복구 후 같은 CSV를 다시 가져오면 안전하게 재적용됩니다."
+                                },
                             completeAdminDataOperationAfterLoad = true,
                         )
                     },

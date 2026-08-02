@@ -7,6 +7,7 @@ import re
 import socket
 import socketserver
 import threading
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import Callable
 
 from .config import ConfigStore, ReceiverConfig
 from .protocol import (
+    CONTROL_CONFIRM_CSV,
     CONTROL_FETCH_CSV,
     CONTROL_MAGIC,
     CONTROL_STATUS,
@@ -27,6 +29,7 @@ from .protocol import (
     request_frame_length,
     secure_frame_body_length,
 )
+from .pending_csv import PendingCsv, PendingCsvStore
 
 SOCKET_TIMEOUT_SECONDS = 10
 SAFE_FILENAME = re.compile(r"[^0-9A-Za-z가-힣._ -]+")
@@ -86,7 +89,13 @@ class ReceiverState:
         self.store = store
         self.on_event = on_event or (lambda _: None)
         self.lock = threading.Lock()
-        self.pending_csv: tuple[str, bytes] | None = None
+        self.pending_csv_store = PendingCsvStore(
+            store.path.with_name("pending-csv.json"),
+            store.secret_protector,
+        )
+        snapshot = self.pending_csv_store.load()
+        self.pending_csv = snapshot.pending
+        self.confirmed_csv_delivery_id = snapshot.confirmed_delivery_id
 
     def accept(self, frame: bytes) -> tuple[bytes, Path]:
         request = decode_request(self.config.pairing(host="127.0.0.1"), frame)
@@ -114,19 +123,38 @@ class ReceiverState:
         )
         return ack, destination
 
-    def queue_csv(self, filename: str, payload: bytes) -> None:
+    @property
+    def pending_csv_name(self) -> str | None:
+        with self.lock:
+            return self.pending_csv.filename if self.pending_csv else None
+
+    def queue_csv(self, filename: str, payload: bytes | bytearray) -> None:
         safe_name = Path(filename).name
         if not safe_name.lower().endswith(".csv"):
             raise ValueError("CSV 파일만 선택할 수 있습니다.")
         if not payload or len(payload) > 1024 * 1024:
             raise ValueError("CSV 파일은 1MB 이하여야 합니다.")
-        payload.decode("utf-8-sig")
+        bytes(payload).decode("utf-8-sig")
+        queued = PendingCsv(uuid.uuid4().hex, safe_name, bytearray(payload))
         with self.lock:
-            self.pending_csv = (safe_name, bytes(payload))
+            try:
+                self.pending_csv_store.save_pending(queued)
+            except Exception:
+                queued.clear_sensitive_data()
+                raise
+            previous = self.pending_csv
+            self.pending_csv = queued
+            self.confirmed_csv_delivery_id = None
+            if previous is not None:
+                previous.clear_sensitive_data()
 
     def clear_csv(self) -> None:
         with self.lock:
+            self.pending_csv_store.clear()
+            if self.pending_csv is not None:
+                self.pending_csv.clear_sensitive_data()
             self.pending_csv = None
+            self.confirmed_csv_delivery_id = None
 
     def accept_control(self, frame: bytes) -> tuple[bytes, ReceiveEvent]:
         request = decode_control_request(self.config.pairing(host="127.0.0.1"), frame)
@@ -161,20 +189,44 @@ class ReceiverState:
                         message="태블릿이 CSV를 요청했지만 대기 파일이 없습니다.",
                         kind="csv",
                     )
-                filename, payload = queued
                 response = encode_control_response(
                     pairing,
                     request.request_id,
                     request.operation,
                     accepted=True,
-                    label=filename,
-                    payload=payload,
+                    label=f"{queued.delivery_id}|{queued.filename}",
+                    payload=queued.payload,
                 )
-                self.pending_csv = None
                 return response, ReceiveEvent(
                     accepted=True,
-                    message=f"{filename} 암호화 전송 완료",
-                    kind="csv",
+                    message=f"{queued.filename} 전송 완료 · 태블릿 적용 확인 대기",
+                    kind="csv_sent",
+                )
+            if request.operation == CONTROL_CONFIRM_CSV:
+                delivery_id = request.label.strip()
+                if self.pending_csv is not None and delivery_id == self.pending_csv.delivery_id:
+                    self.pending_csv_store.confirm(delivery_id)
+                    self.pending_csv.clear_sensitive_data()
+                    self.pending_csv = None
+                    self.confirmed_csv_delivery_id = delivery_id
+                    accepted = True
+                else:
+                    accepted = delivery_id == self.confirmed_csv_delivery_id
+                response = encode_control_response(
+                    pairing,
+                    request.request_id,
+                    request.operation,
+                    accepted=accepted,
+                    label="CONFIRMED" if accepted else "CSV_DELIVERY_MISMATCH",
+                )
+                return response, ReceiveEvent(
+                    accepted=accepted,
+                    message=(
+                        "학생 CSV 적용 확인 완료"
+                        if accepted
+                        else "학생 CSV 적용 확인 식별자가 일치하지 않습니다."
+                    ),
+                    kind="csv_confirmed",
                 )
         raise ProtocolError("지원하지 않는 제어 요청입니다.")
 

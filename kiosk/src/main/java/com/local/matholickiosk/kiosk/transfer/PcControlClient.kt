@@ -6,6 +6,7 @@ import java.net.Socket
 import java.nio.charset.StandardCharsets
 
 data class PcCsvDownload(
+    val deliveryId: String,
     val filename: String,
     val payload: ByteArray,
 )
@@ -64,14 +65,34 @@ class PcControlClient(
             response.payload.fill(0)
             return null
         }
+        val labelParts = response.label.split('|', limit = 2)
         require(
-            response.label.lowercase().endsWith(".csv") &&
+            labelParts.size == 2 &&
+                labelParts[0].matches(Regex("^[0-9a-f]{32}$")) &&
+                labelParts[1].lowercase().endsWith(".csv") &&
                 response.payload.isNotEmpty()
         ) {
             response.payload.fill(0)
             "PC의 CSV 응답이 올바르지 않습니다."
         }
-        return PcCsvDownload(response.label, response.payload)
+        return PcCsvDownload(labelParts[0], labelParts[1], response.payload)
+    }
+
+    fun confirmStudentCsv(pairing: PcReceiverPairing, deliveryId: String) {
+        require(deliveryId.matches(Regex("^[0-9a-f]{32}$"))) {
+            "PC CSV 전달 식별자가 올바르지 않습니다."
+        }
+        val response = exchange(
+            pairing,
+            PcControlProtocol.OP_CONFIRM_CSV,
+            deliveryId,
+            ByteArray(0),
+        )
+        try {
+            require(response.accepted) { "PC가 CSV 적용 확인을 거부했습니다." }
+        } finally {
+            response.payload.fill(0)
+        }
     }
 
     private fun exchange(

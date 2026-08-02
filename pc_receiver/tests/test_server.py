@@ -6,6 +6,7 @@ import pytest
 
 from matholic_pdf_receiver.config import ConfigStore, ReceiverConfig
 from matholic_pdf_receiver.protocol import (
+    CONTROL_CONFIRM_CSV,
     CONTROL_FETCH_CSV,
     CONTROL_STATUS,
     Pairing,
@@ -137,15 +138,60 @@ def test_receiver_accepts_status_and_serves_csv_once(
         expected_request_id=csv_request.request_id,
     )
     assert decoded_csv.accepted
-    assert decoded_csv.label == "students.csv"
+    delivery_id, filename = decoded_csv.label.split("|", 1)
+    assert len(delivery_id) == 32
+    assert filename == "students.csv"
     assert decoded_csv.payload.decode().startswith("이름")
-    assert csv_event.kind == "csv"
+    assert csv_event.kind == "csv_sent"
 
     second_frame = encode_control_request(pairing, CONTROL_FETCH_CSV, "FETCH")
     second_request = decode_control_request(pairing, second_frame)
-    second_response, _ = state.accept_control(second_frame)
-    assert not decode_control_response(
+    second_response, second_event = state.accept_control(second_frame)
+    repeated_csv = decode_control_response(
         pairing,
         second_response,
         expected_request_id=second_request.request_id,
+    )
+    assert repeated_csv.accepted
+    assert repeated_csv.label == decoded_csv.label
+    assert repeated_csv.payload == decoded_csv.payload
+    assert second_event.kind == "csv_sent"
+
+    restarted = ReceiverState(store.load(), store)
+    assert restarted.pending_csv_name == "students.csv"
+    confirm_frame = encode_control_request(
+        pairing,
+        CONTROL_CONFIRM_CSV,
+        delivery_id,
+    )
+    confirm_request = decode_control_request(pairing, confirm_frame)
+    confirm_response, confirm_event = restarted.accept_control(confirm_frame)
+    assert decode_control_response(
+        pairing,
+        confirm_response,
+        expected_request_id=confirm_request.request_id,
+    ).accepted
+    assert confirm_event.kind == "csv_confirmed"
+    assert restarted.pending_csv_name is None
+
+    repeated_confirm_frame = encode_control_request(
+        pairing,
+        CONTROL_CONFIRM_CSV,
+        delivery_id,
+    )
+    repeated_confirm_request = decode_control_request(pairing, repeated_confirm_frame)
+    repeated_confirm_response, _ = restarted.accept_control(repeated_confirm_frame)
+    assert decode_control_response(
+        pairing,
+        repeated_confirm_response,
+        expected_request_id=repeated_confirm_request.request_id,
+    ).accepted
+
+    empty_frame = encode_control_request(pairing, CONTROL_FETCH_CSV, "FETCH")
+    empty_request = decode_control_request(pairing, empty_frame)
+    empty_response, _ = restarted.accept_control(empty_frame)
+    assert not decode_control_response(
+        pairing,
+        empty_response,
+        expected_request_id=empty_request.request_id,
     ).accepted

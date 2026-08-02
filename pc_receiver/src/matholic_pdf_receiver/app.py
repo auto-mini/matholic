@@ -57,7 +57,14 @@ class ReceiverApplication:
         self.status_var = tk.StringVar(value="수신 대기 중")
         self.kiosk_state_var = tk.StringVar(value="태블릿 상태: 연결 대기")
         self.student_var = tk.StringVar(value="학생: 없음")
-        self.csv_var = tk.StringVar(value="학생 CSV: 대기 파일 없음")
+        pending_csv_name = self.receiver_state.pending_csv_name
+        self.csv_var = tk.StringVar(
+            value=(
+                f"학생 CSV: {pending_csv_name} · 태블릿 요청 대기"
+                if pending_csv_name
+                else "학생 CSV: 대기 파일 없음"
+            ),
+        )
         self.address_var = tk.StringVar(
             value=f"{self.config.display_name} · {self.host}:{self.config.port}",
         )
@@ -208,14 +215,14 @@ class ReceiverApplication:
             return
         path = Path(selected)
         try:
-            payload = path.read_bytes()
+            payload = bytearray(path.read_bytes())
             self.receiver_state.queue_csv(path.name, payload)
         except (OSError, UnicodeError, ValueError) as error:
             messagebox.showerror(APP_TITLE, str(error), parent=self.root)
             return
         finally:
             if "payload" in locals():
-                payload = b""
+                payload[:] = b"\x00" * len(payload)
         self.csv_var.set(f"학생 CSV: {path.name} · 태블릿 요청 대기")
         self.status_var.set("A 태블릿 관리자 화면에서 CSV 가져오기를 누르세요.")
 
@@ -233,8 +240,10 @@ class ReceiverApplication:
                     self.student_var.set(
                         f"학생: {event.student_name}" if event.student_name else "학생: 없음",
                     )
-                elif event.kind == "csv" and event.accepted:
-                    self.csv_var.set("학생 CSV: 전송 완료 · 대기 파일 없음")
+                elif event.kind == "csv_sent" and event.accepted:
+                    self.csv_var.set("학생 CSV: 전송 완료 · 태블릿 적용 확인 대기")
+                elif event.kind == "csv_confirmed" and event.accepted:
+                    self.csv_var.set("학생 CSV: 적용 확인 완료 · 대기 파일 없음")
                 if event.notify and event.notification_message:
                     try:
                         self.tray.notify(event.notification_message, APP_TITLE)
