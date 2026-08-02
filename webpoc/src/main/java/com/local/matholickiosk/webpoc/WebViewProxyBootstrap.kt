@@ -18,8 +18,10 @@ internal object WebViewProxyBootstrap {
             override fun isSupported(): Boolean =
                 WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)
 
-            override fun startProxy(): ProxyBootstrapHandle {
-                val proxy = LoopbackConnectProxy.start()
+            override fun startProxy(onUnexpectedTermination: () -> Unit): ProxyBootstrapHandle {
+                val proxy = LoopbackConnectProxy.start {
+                    mainHandler.post(onUnexpectedTermination)
+                }
                 return object : ProxyBootstrapHandle {
                     override val port: Int = proxy.port
 

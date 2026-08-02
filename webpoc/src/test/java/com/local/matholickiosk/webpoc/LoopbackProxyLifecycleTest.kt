@@ -9,6 +9,18 @@ import org.junit.Test
 
 class LoopbackProxyLifecycleTest {
     @Test
+    fun `resource permit pool rejects work above its hard cap`() {
+        val pool = ResourcePermitPool(2)
+
+        assertTrue(pool.tryAcquire())
+        assertTrue(pool.tryAcquire())
+        assertFalse(pool.tryAcquire())
+
+        pool.release()
+        assertTrue(pool.tryAcquire())
+    }
+
+    @Test
     fun `registry closes items registered after shutdown and retains none`() {
         val closed = mutableListOf<String>()
         val registry = CloseableRegistry<String> { closed += it }

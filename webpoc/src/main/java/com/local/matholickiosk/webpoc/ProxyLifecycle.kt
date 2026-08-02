@@ -2,6 +2,17 @@ package com.local.matholickiosk.webpoc
 
 import java.util.concurrent.Executor
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.Semaphore
+
+internal class ResourcePermitPool(maxConcurrent: Int) {
+    private val permits = Semaphore(maxConcurrent, true)
+
+    fun tryAcquire(): Boolean = permits.tryAcquire()
+
+    fun release() {
+        permits.release()
+    }
+}
 
 /**
  * Serializes resource registration with shutdown so a resource arriving after the close snapshot

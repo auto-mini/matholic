@@ -17,7 +17,7 @@ internal fun interface ProxyBootstrapTimeout {
 
 internal interface ProxyBootstrapPlatform {
     fun isSupported(): Boolean
-    fun startProxy(): ProxyBootstrapHandle
+    fun startProxy(onUnexpectedTermination: () -> Unit): ProxyBootstrapHandle
     fun scheduleTimeout(onTimeout: () -> Unit): ProxyBootstrapTimeout
     fun applyOverride(proxyPort: Int, onReady: () -> Unit)
 }
@@ -43,6 +43,7 @@ internal class ProxyBootstrapCoordinator(
     private var state = State.NEW
     private var proxy: ProxyBootstrapHandle? = null
     private var timeout: ProxyBootstrapTimeout? = null
+    private var runtimeRestartUsed = false
 
     fun ensureConfigured(callback: (ProxyBootstrapResult) -> Unit) {
         when (state) {
@@ -64,7 +65,7 @@ internal class ProxyBootstrapCoordinator(
                 return
             }
 
-            val candidate = platform.startProxy()
+            val candidate = platform.startProxy(::handleUnexpectedTermination)
             proxy = candidate
             state = State.CONFIGURING
             val candidateTimeout = platform.scheduleTimeout {
@@ -81,6 +82,22 @@ internal class ProxyBootstrapCoordinator(
         } catch (_: RuntimeException) {
             finish(State.FAILED, ProxyBootstrapResult.FAILED)
         }
+    }
+
+    private fun handleUnexpectedTermination() {
+        if (state != State.CONFIGURING && state != State.READY) return
+        val failedProxy = proxy
+        proxy = null
+        timeout?.let(::cancelTimeout)
+        timeout = null
+        runCatching { failedProxy?.close() }
+        state = State.NEW
+        if (runtimeRestartUsed) {
+            finish(State.FAILED, ProxyBootstrapResult.FAILED)
+            return
+        }
+        runtimeRestartUsed = true
+        configure()
     }
 
     private fun finish(next: State, result: ProxyBootstrapResult) {

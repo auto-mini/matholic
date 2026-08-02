@@ -98,6 +98,31 @@ class ProxyBootstrapCoordinatorTest {
     }
 
     @Test
+    fun `unexpected proxy termination performs one bounded restart`() {
+        val platform = FakePlatform()
+        val coordinator = ProxyBootstrapCoordinator(platform)
+        val results = mutableListOf<ProxyBootstrapResult>()
+        coordinator.ensureConfigured(results::add)
+        platform.readyCallback?.invoke()
+
+        platform.failureCallback?.invoke()
+
+        assertEquals(2, platform.startCalls)
+        assertEquals(1, platform.handles[0].closeCalls)
+        platform.readyCallback?.invoke()
+        val late = mutableListOf<ProxyBootstrapResult>()
+        coordinator.ensureConfigured(late::add)
+        assertEquals(listOf(ProxyBootstrapResult.READY), late)
+
+        platform.failureCallback?.invoke()
+        assertEquals(2, platform.startCalls)
+        assertEquals(1, platform.handles[1].closeCalls)
+        val afterSecondFailure = mutableListOf<ProxyBootstrapResult>()
+        coordinator.ensureConfigured(afterSecondFailure::add)
+        assertEquals(listOf(ProxyBootstrapResult.FAILED), afterSecondFailure)
+    }
+
+    @Test
     fun `proxy close failure does not suppress the failed result`() {
         val platform = FakePlatform(
             applyFailure = IllegalStateException("synthetic override failure"),
@@ -146,19 +171,27 @@ class ProxyBootstrapCoordinatorTest {
         private val timeoutFailure: RuntimeException? = null,
         private val applyFailure: RuntimeException? = null,
     ) : ProxyBootstrapPlatform {
-        val handle = FakeHandle()
+        val handles = mutableListOf<FakeHandle>()
+        private var nextHandle = FakeHandle()
+        val handle: FakeHandle
+            get() = handles.lastOrNull() ?: nextHandle
         val timeout = FakeTimeout()
         var startCalls = 0
         var readyCallback: (() -> Unit)? = null
+        var failureCallback: (() -> Unit)? = null
 
         override fun isSupported(): Boolean {
             supportFailure?.let { throw it }
             return supported
         }
 
-        override fun startProxy(): ProxyBootstrapHandle {
+        override fun startProxy(onUnexpectedTermination: () -> Unit): ProxyBootstrapHandle {
             startCalls += 1
-            return handle
+            failureCallback = onUnexpectedTermination
+            return nextHandle.also {
+                handles += it
+                nextHandle = FakeHandle()
+            }
         }
 
         override fun scheduleTimeout(onTimeout: () -> Unit): ProxyBootstrapTimeout {
