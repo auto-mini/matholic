@@ -1233,6 +1233,7 @@ class MainActivity : Activity() {
                         PROBE_DELAY_MS,
                     )
                 } else {
+                    recordPortalFingerprintMetrics(result)
                     showMaintenance("PORTAL_FINGERPRINT")
                 }
                 return@evaluate
@@ -1466,6 +1467,7 @@ class MainActivity : Activity() {
                         openLogoutMenu(retriesRemaining - 1, generation)
                     }, PROBE_DELAY_MS)
                 } else {
+                    recordPortalFingerprintMetrics(fingerprint)
                     retryLogoutOrLock("PORTAL_FINGERPRINT", generation)
                 }
                 return@evaluate
@@ -2171,6 +2173,24 @@ class MainActivity : Activity() {
             "_E${flag("usernameEmpty")}${flag("passwordEmpty")}" +
             "_R${flag("rememberChecked")}" +
             "_V$contractVersion"
+    }
+
+    private fun recordPortalFingerprintMetrics(result: JSONObject?) {
+        if (result == null) {
+            PrivateDiagnosticLog.event(this, "PORTAL_METRICS:NULL")
+            return
+        }
+        fun count(name: String): Int = result.optInt(name, -1).coerceIn(-1, 99)
+        fun flag(name: String): Int = if (result.optBoolean(name, false)) 1 else 0
+        PrivateDiagnosticLog.event(
+            this,
+            "PORTAL_METRICS:" +
+                "U${count("userInfoCount")}:" +
+                "A${count("accessLogCount")}:" +
+                "C${count("courseCount")}:" +
+                "S${flag("hasSubmenu")}:" +
+                "T${flag("hasAccountTrigger")}",
+        )
     }
 
     private fun evaluate(script: String, callback: (JSONObject?) -> Unit) {

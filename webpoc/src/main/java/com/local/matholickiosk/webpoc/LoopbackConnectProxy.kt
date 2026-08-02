@@ -211,8 +211,8 @@ internal class LoopbackConnectProxy private constructor(
             return LoopbackConnectProxy(server, onUnexpectedTermination)
         }
 
-        private const val ACCEPT_BACKLOG = 16
-        private const val MAX_TUNNELS = 8
+        private const val ACCEPT_BACKLOG = 64
+        private const val MAX_TUNNELS = 32
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val IO_TIMEOUT_MS = 10_000
         private const val TUNNEL_IDLE_TIMEOUT_MS = 60_000
