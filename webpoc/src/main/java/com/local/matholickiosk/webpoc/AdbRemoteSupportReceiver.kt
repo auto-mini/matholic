@@ -7,7 +7,11 @@ import android.content.Intent
 class AdbRemoteSupportReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_SET_REMOTE_SUPPORT) return
-        applyRemoteSupportIntent(context, intent)
+        resultCode = if (applyRemoteSupportIntent(context, intent)) {
+            android.app.Activity.RESULT_OK
+        } else {
+            android.app.Activity.RESULT_CANCELED
+        }
     }
 
     companion object {

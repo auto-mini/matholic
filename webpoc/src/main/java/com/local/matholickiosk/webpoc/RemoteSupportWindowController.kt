@@ -19,6 +19,7 @@ internal class RemoteSupportWindowController(
 ) : SharedPreferences.OnSharedPreferenceChangeListener {
     private var badge: TextView? = null
     private var started = false
+    private var sensitiveScreen = true
     private val expireRunnable = Runnable(::refresh)
 
     fun start() {
@@ -31,16 +32,29 @@ internal class RemoteSupportWindowController(
     fun refresh() {
         handler.removeCallbacks(expireRunnable)
         val activeUntil = store.activeUntilEpochMillis()
-        onActiveChanged(activeUntil != null)
-        if (activeUntil != null) {
+        val captureAllowed = RemoteSupportPolicy.canCapture(
+            supportActive = activeUntil != null,
+            sensitiveScreen = sensitiveScreen,
+        )
+        onActiveChanged(captureAllowed)
+        if (captureAllowed) {
             activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        if (activeUntil != null) {
             showBadge()
             val remaining = (activeUntil - System.currentTimeMillis()).coerceAtLeast(1L)
             handler.postDelayed(expireRunnable, remaining.coerceAtMost(MAX_TIMER_DELAY_MILLIS))
         } else {
-            activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
             removeBadge()
         }
+    }
+
+    fun setSensitiveScreen(sensitive: Boolean) {
+        if (sensitiveScreen == sensitive) return
+        sensitiveScreen = sensitive
+        refresh()
     }
 
     fun stop() {

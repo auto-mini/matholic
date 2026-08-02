@@ -1758,6 +1758,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSetup() {
+        remoteSupportWindowController.setSensitiveScreen(true)
         cancelTimeout()
         wipeRuntimeSecrets()
         transition(WebPocState.IDLE)
@@ -1776,6 +1777,7 @@ class MainActivity : Activity() {
     }
 
     private fun showActive(url: String) {
+        remoteSupportWindowController.setSensitiveScreen(false)
         cancelTimeout()
         studentContentRevealPending = false
         studentContentRevealPasses = 0

@@ -3,6 +3,7 @@ package com.local.matholickiosk.kiosk
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -654,6 +655,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showAuthentication(enrollment: Boolean) {
+        remoteSupportWindowController.setSensitiveScreen(true)
         stopCamera()
         pcPairingMode = false
         initialStateLoadFailed = false
@@ -757,6 +759,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showAdmin(message: String? = null) {
+        remoteSupportWindowController.setSensitiveScreen(false)
         stopCamera()
         pcPairingMode = false
         setSessionControlMode(admin = true)
@@ -2636,46 +2639,77 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setRemoteSupportEnabled(enabled: Boolean) {
+        remoteSupportWindowController.setSensitiveScreen(true)
         val duration = RemoteSupportPolicy.DEFAULT_DURATION_MILLIS
-        if (enabled) {
-            remoteSupportStore.enable(duration)
-        } else {
-            remoteSupportStore.disable()
-        }
-        val webNotified = notifyWebRemoteSupport(
-            enabled = enabled,
-            durationSeconds = (duration / 1_000L).toInt(),
-        )
-        if (enabled && !webNotified) {
-            remoteSupportStore.disable()
+        val localStored = runCatching {
+            if (enabled) {
+                remoteSupportStore.enable(duration)
+            } else {
+                remoteSupportStore.disable()
+            }
+        }.isSuccess
+        if (!localStored) {
+            remoteSupportWindowController.setSensitiveScreen(true)
+            diagnosticLog.record("REMOTE_SUPPORT_PERSIST_FAILED")
+            adminMessage.text = "원격 점검 상태를 저장하지 못했습니다. 화면 캡처는 차단 상태를 유지합니다."
             remoteSupportWindowController.refresh()
-            diagnosticLog.record("REMOTE_SUPPORT_ENABLE_FAILED")
-            adminMessage.text =
-                "학습 앱에 원격 점검 상태를 전달하지 못해 시작을 취소했습니다."
             return
         }
-        remoteSupportWindowController.refresh()
-        diagnosticLog.record(
-            if (enabled) "REMOTE_SUPPORT_ENABLED" else "REMOTE_SUPPORT_DISABLED",
-        )
-        adminMessage.text = if (enabled) {
-            "원격 점검을 시작했습니다. 30분 뒤 화면 캡처가 자동으로 다시 차단됩니다."
-        } else if (!webNotified) {
-            "관리 화면 캡처를 차단했습니다. 학습 화면은 기존 만료 시각에 자동 차단됩니다."
-        } else {
-            "원격 점검을 종료하고 화면 캡처를 다시 차단했습니다."
+        remoteSupportButton.isEnabled = false
+        notifyWebRemoteSupport(
+            enabled = enabled,
+            durationSeconds = (duration / 1_000L).toInt(),
+        ) { webNotified ->
+            remoteSupportButton.isEnabled = true
+            if (enabled && !webNotified) {
+                runCatching { remoteSupportStore.disable() }
+                remoteSupportWindowController.setSensitiveScreen(true)
+                remoteSupportWindowController.refresh()
+                diagnosticLog.record("REMOTE_SUPPORT_ENABLE_FAILED")
+                adminMessage.text =
+                    "학습 앱에 원격 점검 상태를 적용하지 못해 시작을 취소했습니다."
+                return@notifyWebRemoteSupport
+            }
+            remoteSupportWindowController.setSensitiveScreen(false)
+            remoteSupportWindowController.refresh()
+            diagnosticLog.record(
+                if (enabled) "REMOTE_SUPPORT_ENABLED" else "REMOTE_SUPPORT_DISABLED",
+            )
+            adminMessage.text = if (enabled) {
+                "원격 점검을 시작했습니다. 30분 뒤 화면 캡처가 자동으로 다시 차단됩니다."
+            } else if (!webNotified) {
+                "관리 화면 캡처를 차단했습니다. 학습 화면은 기존 만료 시각에 자동 차단됩니다."
+            } else {
+                "원격 점검을 종료하고 화면 캡처를 다시 차단했습니다."
+            }
         }
     }
 
     private fun notifyWebRemoteSupport(
         enabled: Boolean,
         durationSeconds: Int,
-    ): Boolean {
+        onResult: (Boolean) -> Unit,
+    ) {
         val intent = Intent(ACTION_SET_WEB_REMOTE_SUPPORT)
             .setComponent(ComponentName(WEB_PACKAGE, WEB_REMOTE_SUPPORT_RECEIVER))
             .putExtra(EXTRA_REMOTE_SUPPORT_ENABLED, enabled)
             .putExtra(EXTRA_REMOTE_SUPPORT_DURATION_SECONDS, durationSeconds)
-        return runCatching { sendBroadcast(intent) }.isSuccess
+        val resultReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                onResult(resultCode == Activity.RESULT_OK)
+            }
+        }
+        runCatching {
+            sendOrderedBroadcast(
+                intent,
+                null,
+                resultReceiver,
+                mainHandler,
+                Activity.RESULT_CANCELED,
+                null,
+                null,
+            )
+        }.onFailure { onResult(false) }
     }
 
     private fun updateRemoteSupportButton(active: Boolean) {
@@ -2968,6 +3002,7 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "QR 대기로 복귀할 수 있는 수업 상태가 아닙니다."
             return
         }
+        remoteSupportWindowController.setSensitiveScreen(false)
         clearQrPreview()
         pcPairingMode = false
         setSessionControlMode(admin = true)

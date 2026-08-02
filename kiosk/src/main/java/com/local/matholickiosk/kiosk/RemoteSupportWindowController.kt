@@ -17,6 +17,7 @@ internal class RemoteSupportWindowController(
         activity.findViewById(R.id.remote_support_badge)
     }
     private var started = false
+    private var sensitiveScreen = true
     private val expireRunnable = Runnable(::refresh)
 
     fun start() {
@@ -30,16 +31,25 @@ internal class RemoteSupportWindowController(
         handler.removeCallbacks(expireRunnable)
         val activeUntil = store.activeUntilEpochMillis()
         val active = activeUntil != null
-        if (active) {
+        if (RemoteSupportPolicy.canCapture(active, sensitiveScreen)) {
             activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        if (active) {
             showBadge()
             val remaining = (activeUntil - System.currentTimeMillis()).coerceAtLeast(1L)
             handler.postDelayed(expireRunnable, remaining.coerceAtMost(MAX_TIMER_DELAY_MILLIS))
         } else {
-            activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
             removeBadge()
         }
         onStateChanged(active)
+    }
+
+    fun setSensitiveScreen(sensitive: Boolean) {
+        if (sensitiveScreen == sensitive) return
+        sensitiveScreen = sensitive
+        refresh()
     }
 
     fun stop() {

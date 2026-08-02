@@ -29,4 +29,7 @@ internal object RemoteSupportPolicy {
         currentBootCount >= 0 &&
             storedBootCount == currentBootCount &&
             expiresAtEpochMillis > nowEpochMillis
+
+    fun canCapture(supportActive: Boolean, sensitiveScreen: Boolean): Boolean =
+        supportActive && !sensitiveScreen
 }

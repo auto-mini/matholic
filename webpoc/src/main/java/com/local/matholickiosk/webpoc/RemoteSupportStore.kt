@@ -22,18 +22,18 @@ internal class RemoteSupportStore(
 
     fun enable(durationMillis: Long): Long {
         val expiresAt = RemoteSupportPolicy.expiresAt(nowEpochMillis(), durationMillis)
-        preferences.edit()
+        check(preferences.edit()
             .putLong(KEY_EXPIRES_AT, expiresAt)
             .putInt(KEY_BOOT_COUNT, bootCount())
-            .commit()
+            .commit()) { "Failed to persist remote support state" }
         return expiresAt
     }
 
     fun disable() {
-        preferences.edit()
+        check(preferences.edit()
             .remove(KEY_EXPIRES_AT)
             .remove(KEY_BOOT_COUNT)
-            .commit()
+            .commit()) { "Failed to clear remote support state" }
     }
 
     fun activeUntilEpochMillis(): Long? {
@@ -45,7 +45,7 @@ internal class RemoteSupportStore(
             expiresAtEpochMillis = expiresAt,
         )
         if (!active && (expiresAt != 0L || preferences.contains(KEY_BOOT_COUNT))) {
-            disable()
+            runCatching(::disable)
         }
         return expiresAt.takeIf { active }
     }

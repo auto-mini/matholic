@@ -9,13 +9,18 @@ class AdbRemoteSupportReceiver : BroadcastReceiver() {
         val store = RemoteSupportStore(context)
         when (intent.action) {
             ACTION_SET_REMOTE_SUPPORT -> {
-                if (intent.getBooleanExtra(EXTRA_ENABLED, false)) {
+                val stored = runCatching { if (intent.getBooleanExtra(EXTRA_ENABLED, false)) {
                     val seconds = intent
                         .getIntExtra(EXTRA_DURATION_SECONDS, DEFAULT_DURATION_SECONDS)
                         .toLong()
                     store.enable(seconds * 1_000L)
                 } else {
                     store.disable()
+                } }.isSuccess
+                resultCode = if (stored) {
+                    android.app.Activity.RESULT_OK
+                } else {
+                    android.app.Activity.RESULT_CANCELED
                 }
             }
             ACTION_TEST_QR_HASH -> {

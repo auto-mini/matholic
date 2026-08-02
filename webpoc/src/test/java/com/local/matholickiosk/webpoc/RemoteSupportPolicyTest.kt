@@ -51,4 +51,11 @@ class RemoteSupportPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun captureIsAlwaysBlockedOnSensitiveScreens() {
+        assertFalse(RemoteSupportPolicy.canCapture(supportActive = true, sensitiveScreen = true))
+        assertTrue(RemoteSupportPolicy.canCapture(supportActive = true, sensitiveScreen = false))
+        assertFalse(RemoteSupportPolicy.canCapture(supportActive = false, sensitiveScreen = false))
+    }
 }

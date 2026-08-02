@@ -10,7 +10,7 @@ internal const val DEFAULT_REMOTE_SUPPORT_DURATION_SECONDS = 30 * 60
 internal fun applyRemoteSupportIntent(
     context: Context,
     intent: Intent,
-) {
+): Boolean = runCatching {
     val store = RemoteSupportStore(context)
     if (intent.getBooleanExtra(EXTRA_REMOTE_SUPPORT_ENABLED, false)) {
         val seconds = intent
@@ -23,4 +23,4 @@ internal fun applyRemoteSupportIntent(
     } else {
         store.disable()
     }
-}
+}.isSuccess
