@@ -636,12 +636,22 @@ class MainActivity : ComponentActivity() {
     private fun loadInitialState() {
         showInitialStateLoading()
         ioExecutor.execute {
+            var stage = "DATABASE_OPEN"
             val result = runCatching {
+                database.openHelper.writableDatabase
+                stage = "ADMIN_ENROLLMENT"
+                val enrolled = authRepository.isEnrolled()
+                stage = "ADMIN_PIN_LENGTH"
+                val pinLength = authRepository.enrolledPinLength()
+                stage = "SESSION_RECOVERY"
                 InitialStateSnapshot(
-                    enrolled = authRepository.isEnrolled(),
-                    pinLength = authRepository.enrolledPinLength(),
+                    enrolled = enrolled,
+                    pinLength = pinLength,
                     recoveredState = studentRepository.applyRestartPolicy(),
                 )
+            }
+            result.exceptionOrNull()?.let {
+                diagnosticLog.record("INITIALIZATION_FAILED", stage)
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
@@ -652,7 +662,7 @@ class MainActivity : ComponentActivity() {
                         showAuthentication(enrollment = !snapshot.enrolled)
                     },
                     onFailure = {
-                        showInitialStateFailure()
+                        showInitialStateFailure(stage)
                     },
                 )
             }
@@ -681,8 +691,7 @@ class MainActivity : ComponentActivity() {
         enterDedicatedMode()
     }
 
-    private fun showInitialStateFailure() {
-        diagnosticLog.record("INITIALIZATION_FAILED")
+    private fun showInitialStateFailure(stage: String) {
         stopCamera()
         pcPairingMode = false
         initialStateLoadFailed = true
@@ -699,7 +708,8 @@ class MainActivity : ComponentActivity() {
         pinConfirmInput.text.clear()
         pinInput.visibility = View.GONE
         pinConfirmInput.visibility = View.GONE
-        authError.text = "기기 데이터는 변경하지 않았습니다. 잠시 후 다시 시도하세요."
+        authError.text =
+            "기기 데이터는 변경하지 않았습니다. 잠시 후 다시 시도하세요. · $stage"
         authSubmit.text = "다시 시도"
         authSubmit.isEnabled = true
         enterDedicatedMode()
