@@ -2978,7 +2978,7 @@ class MainActivity : ComponentActivity() {
         qrAnalyzer?.setEnabled(false)
         runOnUiThread {
             if (pcPairingMode && !destroyed) {
-                scannerMessage.text = "지정 PC의 암호키를 안전하게 저장하고 있습니다"
+                scannerMessage.text = "지정 PC의 주소와 암호 응답을 확인하고 있습니다"
                 savePcPairing(rawValue)
             }
         }
@@ -2988,12 +2988,19 @@ class MainActivity : ComponentActivity() {
     private fun savePcPairing(rawValue: String) {
         ioExecutor.execute {
             val result = runCatching {
-                pcPairingStore.save(rawValue).let { pairing ->
-                    try {
-                        pairing.displayName
-                    } finally {
-                        pairing.clearSensitiveData()
-                    }
+                val pairing = PcReceiverPairing.decode(rawValue)
+                try {
+                    requireInitialPcPairingNetwork(pairing)
+                    pcControlClient.sendStatus(
+                        pairing = pairing,
+                        state = "PC 초기 페어링 확인",
+                        studentName = null,
+                        notify = false,
+                    )
+                    pcPairingStore.save(pairing)
+                    pairing.displayName
+                } finally {
+                    pairing.clearSensitiveData()
                 }
             }
             runOnUiThread {
@@ -3013,6 +3020,33 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun requireInitialPcPairingNetwork(pairing: PcReceiverPairing) {
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val network = requireNotNull(connectivity?.activeNetwork) {
+            "활성 네트워크가 없습니다."
+        }
+        val capabilities = requireNotNull(connectivity.getNetworkCapabilities(network)) {
+            "활성 네트워크 상태를 확인하지 못했습니다."
+        }
+        require(capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            "PC 페어링은 같은 사설 Wi-Fi에서만 할 수 있습니다."
+        }
+        val link = requireNotNull(
+            connectivity.getLinkProperties(network)
+                ?.linkAddresses
+                ?.firstOrNull { address ->
+                    address.address is Inet4Address && address.address.isSiteLocalAddress
+                },
+        ) {
+            "Wi-Fi 사설 IPv4 주소를 확인하지 못했습니다."
+        }
+        PcSubnetCandidates.requireSamePrivateSubnet(
+            localAddress = requireNotNull(link.address.hostAddress),
+            prefixLength = link.prefixLength,
+            candidateHost = pairing.host,
+        )
     }
 
     private fun returnToAdminAfterPcPairing(message: String) {

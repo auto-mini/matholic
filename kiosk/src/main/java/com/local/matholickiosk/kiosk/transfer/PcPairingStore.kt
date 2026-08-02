@@ -36,11 +36,16 @@ class PcPairingStore(
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
             val ciphertext = cipher.doFinal(plaintext)
-            preferences.edit()
-                .putString(CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-                .putString(IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-                .apply()
-            ciphertext.fill(0)
+            try {
+                check(
+                    preferences.edit()
+                        .putString(CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+                        .putString(IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+                        .commit(),
+                ) { "PC pairing state could not be persisted" }
+            } finally {
+                ciphertext.fill(0)
+            }
         } finally {
             plaintext.fill(0)
         }

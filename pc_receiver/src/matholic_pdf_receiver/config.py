@@ -132,8 +132,14 @@ def current_lan_ipv4() -> str:
         address = probe.getsockname()[0]
     finally:
         probe.close()
-    if not address or address.startswith("127."):
-        raise RuntimeError("사용 가능한 로컬 네트워크 주소를 찾지 못했습니다.")
+    octets = [int(value) for value in address.split(".")] if address else []
+    is_private = len(octets) == 4 and (
+        octets[0] == 10
+        or (octets[0] == 172 and octets[1] in range(16, 32))
+        or (octets[0] == 192 and octets[1] == 168)
+    )
+    if not is_private:
+        raise RuntimeError("사용 가능한 사설 로컬 네트워크 주소를 찾지 못했습니다.")
     return address
 
 

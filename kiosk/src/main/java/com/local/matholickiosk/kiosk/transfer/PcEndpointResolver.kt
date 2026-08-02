@@ -45,6 +45,26 @@ object PcSubnetCandidates {
             .toList()
     }
 
+    fun requireSamePrivateSubnet(
+        localAddress: String,
+        prefixLength: Int,
+        candidateHost: String,
+    ) {
+        val local = localAddress.toIpv4Int()
+        val candidate = candidateHost.toIpv4Int()
+        require(local.isPrivateIpv4() && candidate.isPrivateIpv4()) {
+            "PC pairing requires private IPv4 addresses"
+        }
+        val effectivePrefix = prefixLength.coerceAtLeast(24)
+        require(effectivePrefix in 24..30) {
+            "PC pairing network prefix is not supported"
+        }
+        val mask = -1 shl (32 - effectivePrefix)
+        require((local and mask) == (candidate and mask) && local != candidate) {
+            "PC pairing host is not on the current private Wi-Fi subnet"
+        }
+    }
+
     private fun String.toIpv4Int(): Int {
         val address = InetAddress.getByName(this)
         require(address is Inet4Address && address.hostAddress == this) {

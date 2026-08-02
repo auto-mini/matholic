@@ -39,6 +39,33 @@ class PcEndpointResolverTest {
     }
 
     @Test
+    fun `initial pairing accepts only current private subnet`() {
+        PcSubnetCandidates.requireSamePrivateSubnet(
+            localAddress = "192.168.219.77",
+            prefixLength = 24,
+            candidateHost = "192.168.219.224",
+        )
+        assertTrue(
+            runCatching {
+                PcSubnetCandidates.requireSamePrivateSubnet(
+                    localAddress = "192.168.219.77",
+                    prefixLength = 24,
+                    candidateHost = "192.168.220.224",
+                )
+            }.isFailure,
+        )
+        assertTrue(
+            runCatching {
+                PcSubnetCandidates.requireSamePrivateSubnet(
+                    localAddress = "192.168.219.77",
+                    prefixLength = 24,
+                    candidateHost = "203.0.113.7",
+                )
+            }.isFailure,
+        )
+    }
+
+    @Test
     fun `resolver accepts only host that returns authenticated probe`() {
         val attempted = ConcurrentLinkedQueue<String>()
         val resolver = PcEndpointResolver(
