@@ -56,7 +56,7 @@ function Set-RemoteSupport {
             -n $target.Component `
             --ez enabled $enabledText `
             --ei duration_seconds $durationSeconds 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'result=0') {
+        if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'result=-1') {
             throw "Remote support command failed for $($target.Component): $($output -join ' ')"
         }
     }
