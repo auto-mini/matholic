@@ -6447,3 +6447,51 @@ executor 종료와 작업 제출이 겹쳐 `RejectedExecutionException`이 발�
   관찰했다. 3번은 재복원되지 않았고 답안 현황은 계속 `0/10`이었다.
 - 이후 원격 실기 답안 정리는 화면 DOM만 보지 않고 공식 상태 저장, 완전 종료,
   같은 과제 재진입과 60초 지연 복원 부재까지 완료 기준으로 사용한다.
+
+## RC56·RC118·PC 수신기 0.1.4 교정 검증 — 2026-08-02
+
+### 교정 범위
+
+- Android `PrintManager` 직접 인쇄 제거, 지정 PC PDF 저장 경로 단일화
+- 학생·반·CSV·QR·카드 PDF 작업 공통 gate와 Web recovery 상호 차단
+- legacy DB 열 `needsPrint`의 제품 의미를 `새 카드 PDF 생성 필요`로 정정
+- Web SPA 문항 보조 상태를 URL·과제 표식별 최근 8개 scope로 격리
+- Web 로그아웃에서 origin storage 전체 삭제를 제거하고 공식 로그아웃·cookie
+  제거·로그인 재검증은 유지
+- PC 수신기 설정 v2의 pairing secret을 Windows 사용자 DPAPI로 보호하고
+  v1 설정을 최초 load에서 원자적으로 이전
+
+RC117 실기 답안 정정은 Codex가 만든 시험 답안을 현장에서 완전히 되돌렸는지
+확인하는 운영 절차다. 제품 로그아웃이 모든 학생의 서버 임시답안을 삭제해야
+한다는 요구로 해석하지 않는다.
+
+### 자동 검증
+
+- Kiosk `compileDebugKotlin`, `compileDebugAndroidTestKotlin`,
+  `testDebugUnitTest`: PASS, 33 tasks
+- Web `compileDebugKotlin`, `compileDebugAndroidTestKotlin`,
+  `testDebugUnitTest`: PASS, 30 tasks
+- PC 수신기 pytest: **14 passed**. v2가 평문 `secret`을 쓰지 않는지, v1 자동
+  이전, Windows 실제 DPAPI round-trip을 포함한다.
+- `scripts/build-release.ps1`: 정식 release 158 tasks, Kiosk/Web JVM 시험,
+  release lint, assemble, version·비디버그·동일 signer 검증 PASS
+- `pc_receiver/build-receiver.ps1`: pytest, PyInstaller packaging, 인증된 합성
+  PDF 전송·ACK·파일 정리 smoke check PASS
+- Android instrumentation은 연결된 A의 RC55/RC117 release 설치·데이터를
+  debug signer APK로 교체하지 않기 위해 실행하지 않았다. 신규 계측 source
+  compile은 PASS다.
+
+### 미배포 산출물
+
+- Kiosk `0.6.0-rc56`/code 61:
+  `75440E6C8FB7F1574A48D5DD33C8F0C4F021B82E210D432FD447949FC03AB822`
+- Web POC `0.4.0-rc118`/code 135:
+  `F884C7BB0DE10B8FB9481B20F64F9BA3C59B1E1782BBD4213A88A11C9F493F1E`
+- PC 수신기 `0.1.4`:
+  `59E715E8D48D58484BCC78362B1782AB914665A8486622836F0CFB75F3AAF566`
+- APK signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+태블릿과 현재 PC 수신기에는 설치하지 않았다. 따라서 A는 계속 RC55/RC117,
+실행 중 PC 수신기는 0.1.3이며, PC 설정의 v1→v2 영구 이전은 0.1.4 설치·재시작
+때 수행된다.
