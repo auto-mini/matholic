@@ -1,6 +1,67 @@
 # LUNA MAX 읽기 전용 연속 리뷰 보고서
 
-## 2026-08-02 교정 후 최종 재평가 — 이 절이 최신 판정
+## 2026-08-03 전체 교정 완료 판정 — 이 절이 최종 최신 판정
+
+- 최초 읽기 전용 감사 기준선 `8c9a97ca55d34e3d93fdb02d9879ad929ed7133d`에서
+  인용한 파일·줄·commit을 교정 전 workspace와 독립 재대조했다.
+- 과장·중복을 제거한 유효 finding은 모두 source·시험·현재형 문서에 반영했다.
+  `LUNA-0040`은 제품 요구가 아닌 시험 답안 정리 절차를 확장한 주장이므로
+  기각 상태를 유지한다.
+- 최종 source는 Kiosk `0.6.0-rc57`/code 62, Web POC
+  `0.4.0-rc119`/code 136, PC 수신기 `0.1.5`다. 태블릿과 운영 PC에는
+  설치하지 않은 미배포 검증 묶음이다.
+
+### 최종 ID별 처리 결과
+
+| ID | 최종 처리 | 교정 commit |
+|---|---|---|
+| `LUNA-0001` | 현재 source·운영 기준선과 릴리스 표기 정렬 | `d423d68`, `c24d3cd`, `0096317` |
+| `LUNA-0002` | PC pairing secret DPAPI 보호·원자적 이전 | `a426cc4` |
+| `LUNA-0003` | CSV를 tablet 확인 전까지 암호화 보존·확인 멱등화 | `bc7c6fe` |
+| `LUNA-0004/0013/0031/0032` | 중복 P3를 하나의 P4 방어강화로 병합; mutable credential의 파싱 실패·queue·종료·적용 cleanup 완료 | `7cd2dfe` |
+| `LUNA-0005` | QR·수동·Web 결과를 단일 launch gate와 시작 session ID에 결합 | `0929f94` |
+| `LUNA-0006` | QR hash 임시 배열 소유권·실패 cleanup 완료 | `20e6baa` |
+| `LUNA-0007/0008/0010` | 연결·event·deadline 상한, replay 유효기간 보존, PDF request 멱등 처리·ACK 유실 재시도 동일 ID 적용 | `47b76ec` |
+| `LUNA-0009` | Windows 알림에서 학생 이름 제거 | `5b8088a` |
+| `LUNA-0011` | audit 90일/10,000행 상한, private log 90일·크기·bounded tail·회전 실패폐쇄 | `888b480` |
+| `LUNA-0012` | 원격 지원 배지 전용 header 공간 예약 | `0e0c9b4` |
+| `LUNA-0014` | PC protocol 평문·파생 key·ACK 예외 경로 cleanup | `90ab37f` |
+| `LUNA-0015` | 비활성 학생 live credential 암호문·IV 즉시 폐기 및 DB migration | `1ccfdc1` |
+| `LUNA-0016~0019` | 완전 불투명 network pause, WebView/IME/key/touch/접근성 차단, callback 실패 polling fallback | `d2f69cc` |
+| `LUNA-0020/0021` | 민감 화면 `FLAG_SECURE` 복원, Web debugging 차단, 상태 commit 확인·ordered ACK | `a2e4dd3`, `69d0426` |
+| `LUNA-0022/0024~0027` | exact `LOCKED`, restriction cleanup, undo invalidation, 활성 session membership 차단, 종료 UI snapshot, recovery action 보존 | `d558937` |
+| `LUNA-0023` | QR 크기 상한, 내부 pixel·BitMatrix cleanup, renderer 계측 회귀 추가 | `9047bd7` |
+| `LUNA-0028` | scalar PIN 조회와 verifier/Room 배열 소유권·zeroize 계약 | `cd0f1cc` |
+| `LUNA-0029` | proxy 8 tunnel 상한·60초 idle 회수·listener 실패 1회 자동 재시작 | `3410fd5` |
+| `LUNA-0030` | pairing 저장·복구를 byte 경로로 변경하고 executor 대기 raw String 제거 | `9e0dea5` |
+| `LUNA-0033` | 최신 상태만 보유하는 coalescing dispatcher와 기능성 제어 worker 분리 | `c272a5b` |
+| `LUNA-0034` | RFC1918 동일 subnet·인증 status probe 뒤 최초 신뢰 저장 | `bc4c323` |
+| `LUNA-0035` | Web recovery와 모든 학생·반 변경 상호 차단 | `ecb1825` |
+| `LUNA-0036/0037` | 직접 인쇄 제거, 공통 관리자 operation gate, 카드 PDF lifecycle·멱등 delivery 결합 | `40c69b3`, `a3368b6`, `f0c30cd`, `47b76ec` |
+| `LUNA-0038` | Web 문항 상태를 과제 scope별 최근 8개로 격리 | `af46f82` |
+| `LUNA-0039` | 직접 인쇄 제거와 `새 카드 PDF 생성 필요/PC 저장 확인` 의미 정정 | `40c69b3`, `f0c30cd`, `c0a445d` |
+| `LUNA-0040` | 제품 요구가 아니므로 기각; 로그아웃 성공과 서버 답안 삭제를 동일시하지 않음 | `a932cee` |
+| `LUNA-0041/0042` | PC CSV mutable buffer wipe·암호화 내구성, startup/shutdown owner·thread join·listener 순서 보강 | `bc7c6fe`, `47b76ec` |
+
+### 최종 검증과 남은 경계
+
+- `scripts/build-release.ps1`: 158 tasks, Kiosk/Web JVM 시험, release lint,
+  signed assemble, version·`debuggable=false`·동일 signer 검증 모두 PASS.
+- AndroidTest source: Kiosk/Web `compileDebugAndroidTestKotlin` PASS. 설치된
+  운영 태블릿의 데이터·release signer를 바꾸지 않기 위해 instrumentation
+  실행은 생략했다.
+- PC 수신기: `17 passed`, PyInstaller packaging, 실행 파일 `--smoke-check` PASS.
+- JVM/ML Kit가 제공하는 최초 QR `rawValue` 및 CSV parser의 immutable
+  `String`은 즉시 zeroize를 보장할 수 없다. 앱이 소유하는 byte/char 배열과
+  queue owner는 모두 정리했으며 외부 노출 증거가 없어 별도 미해결 P3로
+  계산하지 않는다.
+- 실제 태블릿 네트워크 단절·접근성·remote support·Lock Task fault, 실제
+  수동 학생 선택과 PC에서의 물리 인쇄는 현장 검증 항목이다. 자동 검증 통과를
+  그 실기 PASS로 확대하지 않는다.
+- 기존 사용자 미커밋 checklist/scenario와 `diagnostics/`, `output/`, `tmp/`,
+  운영 계약서 미추적 파일은 수정·stage·commit하지 않았다.
+
+## 2026-08-02 1차 교정 재평가 — 위 2026-08-03 최종 판정으로 대체됨
 
 - 최초 감사 기준선은 `8c9a97ca55d34e3d93fdb02d9879ad929ed7133d`였고,
   사용자의 후속 명시 승인으로 읽기 전용 계약을 종료한 뒤 교정했다.

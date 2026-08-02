@@ -6495,3 +6495,46 @@ RC117 실기 답안 정정은 Codex가 만든 시험 답안을 현장에서 완�
 태블릿과 현재 PC 수신기에는 설치하지 않았다. 따라서 A는 계속 RC55/RC117,
 실행 중 PC 수신기는 0.1.3이며, PC 설정의 v1→v2 영구 이전은 0.1.4 설치·재시작
 때 수행된다.
+
+## RC57·RC119·PC 수신기 0.1.5 LUNA 전체 교정 검증 — 2026-08-03
+
+### 추가 교정 범위
+
+- QR·수동 학생 선택·Web 결과 callback을 단일 학생 launch gate와 시작 당시
+  session ID에 결합하고 replacement session의 stale callback을 거부
+- audit 90일/10,000행 retention, private 진단 로그 90일·크기 상한과 bounded
+  tail dump 적용
+- QR renderer 크기 상한과 임시 pixel/BitMatrix cleanup
+- 관리자 PIN scalar 조회와 verifier/Room 배열 cleanup
+- Web loopback proxy 8 tunnel 상한·60초 idle 회수·listener 실패 1회 재시작
+- PC pairing 저장·복구 byte 경로와 queued raw secret String 제거
+- CSV partial-row·preview/apply queue·Activity 종료의 mutable credential owner 정리
+- 직접 인쇄 제거 후 남아 있던 preflight·보안·제한 문서의 현재형 안내 정정
+
+### 자동·릴리스 검증
+
+- `scripts/build-release.ps1`: 정식 release **158 tasks PASS**. Kiosk/Web JVM
+  시험, release lint, signed assemble, version·`debuggable=false`·동일 signer
+  검증을 포함한다.
+- Kiosk/Web AndroidTest source `compileDebugAndroidTestKotlin`:
+  **50 tasks PASS**. 설치된 A의 release 앱·데이터를 debug test APK로 바꾸지
+  않기 위해 instrumentation 실행은 생략했다.
+- `pc_receiver/build-receiver.ps1`: **17 passed**, PyInstaller packaging,
+  실행 파일 `--smoke-check` PASS.
+- PowerShell release/provision/receiver script parser와 최종 `git diff --check`:
+  PASS. 최초 Kiosk 단위시험 재실행 1회는 `ANDROID_HOME`을 누락해 build 설정
+  단계에서 실패했고, SDK 경로를 지정한 동일 명령은 PASS했다.
+
+### 미배포 산출물
+
+- Kiosk `0.6.0-rc57`/code 62, 35,225,680 bytes:
+  `4E7EF48647AE651B1C26E70F496F9857BE861F41FB1D1A5E2278C7CDCD9E0256`
+- Web POC `0.4.0-rc119`/code 136, 3,326,858 bytes:
+  `B5B6F257779636718C210E08087ED299F4757D3DC2BB9A8F0DEF20E954687B24`
+- PC 수신기 `0.1.5`, 21,925,051 bytes:
+  `BA94DCC1ADA65383C7F9EFD515B79C4CC4B273BA8FABC880E348A59BEEE1B136`
+- APK signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+
+태블릿과 운영 PC에는 설치하지 않았다. 실제 네트워크 단절·접근성·원격 지원,
+Lock Task fault, 수동 학생 선택과 PC 물리 인쇄는 별도 현장 검증 범위다.

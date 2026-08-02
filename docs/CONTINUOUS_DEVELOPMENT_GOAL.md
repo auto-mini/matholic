@@ -18,8 +18,12 @@
 
 - 작업 브랜치: `codex/fix-submit-recovery-timeout`
 - 최신 체크포인트:
+  - `0096317` Kiosk RC57·Web POC RC119·PC 수신기 0.1.5 release script 정렬
+  - `7cd2dfe` CSV mutable credential 파싱·queue·종료 cleanup 경계 폐쇄
+  - `3410fd5` Web proxy tunnel 상한·idle 회수·listener 자동 재시작
+  - `0929f94` 학생 callback을 단일 launch와 시작 session ID에 결합
   - `e14b079` LUNA 누적 리뷰의 현행 코드 독립 검증과 판정 정정
-  - `ecd0833` Kiosk RC56·Web POC RC118·PC 수신기 0.1.4 검증 산출물
+  - `ecd0833` 이전 Kiosk RC56·Web POC RC118·PC 수신기 0.1.4 검증 산출물
   - `ecb1825` Web recovery와 모든 학생·반 관리자 변경 상호 차단
   - `40c69b3` Android 직접 인쇄 제거와 지정 PC PDF 경로 단일화
   - `93a33ac` 미입력 이동 오입력 차단·객관식 전체 보기 선택·3×3 키패드 교정
