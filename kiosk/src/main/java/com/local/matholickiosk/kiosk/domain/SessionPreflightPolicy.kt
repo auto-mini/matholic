@@ -44,9 +44,8 @@ object SessionPreflightPolicy {
                 ?.takeIf { it < LOW_BATTERY_PERCENT }
                 ?.let { add("배터리가 ${it}%입니다. 충전기를 연결하세요.") }
             if (input.usableStorageBytes < LOW_STORAGE_BYTES) {
-                add("저장 공간이 부족합니다. QR PDF 저장·인쇄가 실패할 수 있습니다.")
+                add("저장 공간이 부족합니다. QR 카드 PDF 생성·전송이 실패할 수 있습니다.")
             }
-            add("프린터 연결 상태는 Android 인쇄 화면에서 확인하세요.")
         }
         return SessionPreflightResult(
             blockingReasons = blockers,
