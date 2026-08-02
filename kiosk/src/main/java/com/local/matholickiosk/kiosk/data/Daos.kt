@@ -207,6 +207,18 @@ interface AuditDao {
 
     @Query("DELETE FROM audit_events WHERE createdAtEpochMs < :cutoffEpochMs")
     fun deleteOlderThan(cutoffEpochMs: Long): Int
+
+    @Query(
+        """
+        DELETE FROM audit_events
+        WHERE auditId NOT IN (
+            SELECT auditId FROM audit_events
+            ORDER BY createdAtEpochMs DESC, auditId DESC
+            LIMIT :maxRows
+        )
+        """,
+    )
+    fun deleteBeyondLatest(maxRows: Int): Int
 }
 
 @Dao
