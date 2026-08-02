@@ -61,6 +61,14 @@ class StudentRepository(
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
 ) {
     private var auditEventsSinceMaintenance = AUDIT_MAINTENANCE_INTERVAL
+
+    fun maintainAuditRetention() {
+        val now = nowEpochMs()
+        database.auditDao().deleteOlderThan(now - AUDIT_RETENTION_MS)
+        database.auditDao().deleteBeyondLatest(MAX_AUDIT_ROWS - 1)
+        auditEventsSinceMaintenance = 0
+    }
+
     fun ensureClasses(classNames: List<String>) {
         val normalized = classNames.map(String::trim)
         require(normalized.all(String::isNotEmpty)) { "Class names are required" }
@@ -952,9 +960,7 @@ class StudentRepository(
         val now = nowEpochMs()
         auditEventsSinceMaintenance += 1
         if (auditEventsSinceMaintenance >= AUDIT_MAINTENANCE_INTERVAL) {
-            database.auditDao().deleteOlderThan(now - AUDIT_RETENTION_MS)
-            database.auditDao().deleteBeyondLatest(MAX_AUDIT_ROWS - 1)
-            auditEventsSinceMaintenance = 0
+            maintainAuditRetention()
         }
         database.auditDao().insert(
             AuditEventEntity(

@@ -639,6 +639,8 @@ class MainActivity : ComponentActivity() {
             var stage = "DATABASE_OPEN"
             val result = runCatching {
                 database.openHelper.writableDatabase
+                stage = "AUDIT_MAINTENANCE"
+                studentRepository.maintainAuditRetention()
                 stage = "ADMIN_ENROLLMENT"
                 val enrolled = authRepository.isEnrolled()
                 stage = "ADMIN_PIN_LENGTH"
