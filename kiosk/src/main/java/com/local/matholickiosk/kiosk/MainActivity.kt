@@ -63,6 +63,7 @@ import com.local.matholickiosk.kiosk.domain.ClassRosterSelectionState
 import com.local.matholickiosk.kiosk.domain.DedicatedDevicePolicy
 import com.local.matholickiosk.kiosk.domain.FixedClassSlots
 import com.local.matholickiosk.kiosk.domain.KioskState
+import com.local.matholickiosk.kiosk.domain.LatestValueDispatcher
 import com.local.matholickiosk.kiosk.domain.RefreshableSelectionState
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
@@ -165,6 +166,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var studentRepository: StudentRepository
     private lateinit var lockTaskController: KioskLockTaskController
     private lateinit var pcPairingStore: PcPairingStore
+    private lateinit var pcStatusDispatcher: LatestValueDispatcher<PcStatusUpdate>
     private lateinit var diagnosticLog: PrivateDiagnosticLog
     private lateinit var remoteSupportStore: RemoteSupportStore
     private lateinit var remoteSupportWindowController: RemoteSupportWindowController
@@ -364,6 +366,18 @@ class MainActivity : ComponentActivity() {
         )
         pcPairingStore = PcPairingStore(this)
         diagnosticLog = PrivateDiagnosticLog(this)
+        pcStatusDispatcher = LatestValueDispatcher("pc-status-latest") { status ->
+            runCatching {
+                withReachablePairedPc { pairing ->
+                    pcControlClient.sendStatus(
+                        pairing = pairing,
+                        state = status.state,
+                        studentName = status.studentName,
+                        notify = status.notify,
+                    )
+                }
+            }
+        }
         RemoteQrTestBridge.register(this, ::handleRemoteQrTest)
         QrPdfExporter.cleanupExpired(this)
         configureActions()
@@ -659,6 +673,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showAuthentication(enrollment: Boolean) {
         remoteSupportWindowController.setSensitiveScreen(true)
+        activeStudentDisplayName = null
         stopCamera()
         pcPairingMode = false
         initialStateLoadFailed = false
@@ -788,21 +803,8 @@ class MainActivity : ComponentActivity() {
         studentName: String?,
         notify: Boolean,
     ) {
-        if (!::pcPairingStore.isInitialized || pcControlExecutor.isShutdown) return
-        runCatching {
-            pcControlExecutor.execute {
-                runCatching {
-                    withReachablePairedPc { pairing ->
-                        pcControlClient.sendStatus(
-                            pairing = pairing,
-                            state = state,
-                            studentName = studentName,
-                            notify = notify,
-                        )
-                    }
-                }
-            }
-        }
+        if (!::pcStatusDispatcher.isInitialized) return
+        pcStatusDispatcher.submit(PcStatusUpdate(state, studentName, notify))
     }
 
     private fun <T> withReachablePairedPc(
@@ -3833,6 +3835,7 @@ class MainActivity : ComponentActivity() {
         clearQrPreview("보안을 위해 QR 표시를 지웠습니다")
         pinInput.text.clear()
         pinConfirmInput.text.clear()
+        activeStudentDisplayName = null
     }
 
     override fun onStart() {
@@ -3910,6 +3913,7 @@ class MainActivity : ComponentActivity() {
             .filterIsInstance<SensitiveTask>()
             .forEach(SensitiveTask::discard)
         pcControlExecutor.shutdownNow()
+        if (::pcStatusDispatcher.isInitialized) pcStatusDispatcher.close()
         super.onDestroy()
     }
 
@@ -3975,6 +3979,12 @@ class MainActivity : ComponentActivity() {
     private data class StudentChoice(
         val id: String,
         val label: String,
+    )
+
+    private data class PcStatusUpdate(
+        val state: String,
+        val studentName: String?,
+        val notify: Boolean,
     )
 
     private data class AdminDataSnapshot(
