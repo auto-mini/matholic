@@ -413,6 +413,13 @@ class RepositoryInstrumentedTest {
             database.studentDao().findById(registered.studentId)!!
                 .qrTokenHash.contentEquals(qrHash(registered.issuedQr.payload)),
         )
+        val deactivated = database.studentDao().findById(registered.studentId)!!
+        assertTrue(deactivated.usernameCiphertext.isEmpty())
+        assertTrue(deactivated.usernameIv.isEmpty())
+        assertEquals(0, deactivated.usernameEncryptionVersion)
+        assertTrue(deactivated.passwordCiphertext.isEmpty())
+        assertTrue(deactivated.passwordIv.isEmpty())
+        assertEquals(0, deactivated.passwordEncryptionVersion)
         val rejectedUsername = "inactive-user".toCharArray()
         val rejectedPassword = "inactive-password".toCharArray()
         assertTrue(

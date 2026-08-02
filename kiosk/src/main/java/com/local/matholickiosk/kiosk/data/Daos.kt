@@ -77,6 +77,27 @@ interface StudentDao {
 
     @Query("SELECT * FROM students WHERE isActive = 1 ORDER BY displayNameExact")
     fun listAllActive(): List<StudentEntity>
+
+    @Query(
+        """
+        UPDATE students
+        SET usernameCiphertext = X'',
+            usernameIv = X'',
+            usernameEncryptionVersion = 0,
+            passwordCiphertext = X'',
+            passwordIv = X'',
+            passwordEncryptionVersion = 0,
+            qrTokenHash = :revokedReplacementHash,
+            isActive = 0,
+            updatedAtEpochMs = :updatedAtEpochMs
+        WHERE studentId = :studentId AND isActive = 1
+        """,
+    )
+    fun deactivateAndPurgeCredentials(
+        studentId: String,
+        revokedReplacementHash: ByteArray,
+        updatedAtEpochMs: Long,
+    ): Int
 }
 
 @Dao

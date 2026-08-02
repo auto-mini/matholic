@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AuditEventEntity::class,
         AdminCredentialEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class KioskDatabase : RoomDatabase() {
@@ -42,7 +42,8 @@ abstract class KioskDatabase : RoomDatabase() {
                     KioskDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addCallback(SECURE_DELETE_CALLBACK)
                     .build()
                     .also { instance = it }
             }
@@ -90,6 +91,30 @@ abstract class KioskDatabase : RoomDatabase() {
                     "ALTER TABLE `admin_credential` " +
                         "ADD COLUMN `pinLength` INTEGER NOT NULL DEFAULT 0",
                 )
+            }
+        }
+
+        internal val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA secure_delete = ON")
+                db.execSQL(
+                    """
+                    UPDATE `students`
+                    SET `usernameCiphertext` = X'',
+                        `usernameIv` = X'',
+                        `usernameEncryptionVersion` = 0,
+                        `passwordCiphertext` = X'',
+                        `passwordIv` = X'',
+                        `passwordEncryptionVersion` = 0
+                    WHERE `isActive` = 0
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        private val SECURE_DELETE_CALLBACK = object : Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA secure_delete = ON")
             }
         }
     }

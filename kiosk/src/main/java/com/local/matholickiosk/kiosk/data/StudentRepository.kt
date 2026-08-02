@@ -633,17 +633,17 @@ class StudentRepository(
     }
 
     fun deactivateStudent(studentId: String) {
-        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
-        require(student.isActive) { "Student is inactive" }
         withIssuedHashOnly { revokedReplacementHash ->
             database.runInTransaction {
-                database.studentDao().update(
-                    student.copy(
-                        qrTokenHash = revokedReplacementHash,
-                        isActive = false,
-                        updatedAtEpochMs = nowEpochMs(),
-                    ),
-                )
+                check(
+                    database.studentDao().deactivateAndPurgeCredentials(
+                        studentId,
+                        revokedReplacementHash,
+                        nowEpochMs(),
+                    ) == 1,
+                ) {
+                    "Student not found or inactive"
+                }
                 audit("QR_REVOKED", null, studentId, null)
                 audit("STUDENT_DEACTIVATED", null, studentId, null)
             }
