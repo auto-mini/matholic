@@ -1352,6 +1352,8 @@ class MainActivity : ComponentActivity() {
                 registerStudent(exactName, username, password)
             }
         }
+        remoteSupportWindowController.setSensitiveScreen(true)
+        dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
         dialog.show()
     }
 
@@ -1489,6 +1491,8 @@ class MainActivity : ComponentActivity() {
                 updateStudentName(selected, exactName)
             }
         }
+        remoteSupportWindowController.setSensitiveScreen(true)
+        dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
         dialog.show()
     }
 
@@ -1652,6 +1656,8 @@ class MainActivity : ComponentActivity() {
                 updateStudentCredentials(selected, username, password)
             }
         }
+        remoteSupportWindowController.setSensitiveScreen(true)
+        dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
         dialog.show()
     }
 
@@ -3655,8 +3661,16 @@ class MainActivity : ComponentActivity() {
         dialog.setOnDismissListener {
             mainHandler.removeCallbacks(automaticSubmit)
             if (scannerVisible) qrAnalyzer?.setEnabled(true)
+            restoreRemoteSupportScreenPolicy()
         }
+        remoteSupportWindowController.setSensitiveScreen(true)
         dialog.show()
+    }
+
+    private fun restoreRemoteSupportScreenPolicy() {
+        remoteSupportWindowController.setSensitiveScreen(
+            ::authPanel.isInitialized && authPanel.visibility == View.VISIBLE,
+        )
     }
 
     private fun showAuthenticatedSessionActions() {
