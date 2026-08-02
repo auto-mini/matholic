@@ -34,7 +34,12 @@ class PcTransferProtocolTest {
     fun `updated host encoding round trips without changing identity or secret`() {
         val original = PcReceiverPairing.decode(pairingText)
         val updated = original.withHost("192.168.219.230")
-        val decoded = PcReceiverPairing.decode(updated.encode())
+        val encoded = updated.encodeBytes()
+        val decoded = try {
+            PcReceiverPairing.decode(encoded)
+        } finally {
+            encoded.fill(0)
+        }
         try {
             assertEquals("192.168.219.230", decoded.host)
             assertEquals(original.port, decoded.port)

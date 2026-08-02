@@ -39,6 +39,15 @@ class PcReceiverPairing(
     )
 
     fun encode(): String {
+        val encoded = encodeBytes()
+        return try {
+            String(encoded, StandardCharsets.US_ASCII)
+        } finally {
+            encoded.fill(0)
+        }
+    }
+
+    fun encodeBytes(): ByteArray {
         val hostBytes = host.toByteArray(StandardCharsets.US_ASCII)
         val nameBytes = displayName.toByteArray(StandardCharsets.UTF_8)
         require(hostBytes.size in 1..255 && nameBytes.size in 1..255) {
@@ -56,9 +65,11 @@ class PcReceiverPairing(
             .put(nameBytes.size.toByte())
             .put(nameBytes)
             .array()
+        val encodedPayload = Base64.getUrlEncoder().withoutPadding().encode(payload)
         return try {
-            PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(payload)
+            PREFIX_BYTES + encodedPayload
         } finally {
+            encodedPayload.fill(0)
             payload.fill(0)
             hostBytes.fill(0)
             nameBytes.fill(0)
@@ -76,52 +87,83 @@ class PcReceiverPairing(
         private const val RECEIVER_ID_BYTES = 16
         private const val SECRET_BYTES = 32
         private const val FIXED_BYTES = 1 + RECEIVER_ID_BYTES + SECRET_BYTES + 2 + 1
+        private val PREFIX_BYTES = PREFIX.toByteArray(StandardCharsets.US_ASCII)
 
         fun decode(value: String): PcReceiverPairing {
-            require(value.startsWith(PREFIX)) { "PC pairing prefix is invalid" }
-            val encoded = value.removePrefix(PREFIX)
-            require(encoded.isNotBlank() && encoded.none(Char::isWhitespace)) {
+            val bytes = value.toByteArray(StandardCharsets.US_ASCII)
+            return try {
+                decode(bytes)
+            } finally {
+                bytes.fill(0)
+            }
+        }
+
+        fun decode(value: ByteArray): PcReceiverPairing {
+            require(
+                value.size > PREFIX_BYTES.size &&
+                    value.indices.take(PREFIX_BYTES.size).all { value[it] == PREFIX_BYTES[it] },
+            ) { "PC pairing prefix is invalid" }
+            val encoded = value.copyOfRange(PREFIX_BYTES.size, value.size)
+            require(encoded.isNotEmpty() && encoded.none { it.toInt().toChar().isWhitespace() }) {
+                encoded.fill(0)
                 "PC pairing payload is invalid"
             }
-            val payload = runCatching {
-                Base64.getUrlDecoder().decode(encoded)
-            }.getOrElse {
-                throw IllegalArgumentException("PC pairing payload is invalid", it)
+            val payload = try {
+                runCatching {
+                    Base64.getUrlDecoder().decode(encoded)
+                }.getOrElse {
+                    throw IllegalArgumentException("PC pairing payload is invalid", it)
+                }
+            } finally {
+                encoded.fill(0)
             }
-            require(payload.size >= FIXED_BYTES + 2) { "PC pairing payload is truncated" }
-            val buffer = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN)
-            require(buffer.get().toInt() and 0xff == VERSION) {
-                "PC pairing version is invalid"
-            }
-            val receiverId = ByteArray(RECEIVER_ID_BYTES).also(buffer::get)
-            val secret = ByteArray(SECRET_BYTES).also(buffer::get)
+            var receiverId: ByteArray? = null
+            var secret: ByteArray? = null
+            var ownershipTransferred = false
             try {
+                require(payload.size >= FIXED_BYTES + 2) { "PC pairing payload is truncated" }
+                val buffer = ByteBuffer.wrap(payload).order(ByteOrder.BIG_ENDIAN)
+                require(buffer.get().toInt() and 0xff == VERSION) {
+                    "PC pairing version is invalid"
+                }
+                receiverId = ByteArray(RECEIVER_ID_BYTES).also(buffer::get)
+                secret = ByteArray(SECRET_BYTES).also(buffer::get)
                 val port = buffer.short.toInt() and 0xffff
                 val hostLength = buffer.get().toInt() and 0xff
                 require(hostLength > 0 && buffer.remaining() > hostLength) {
                     "PC pairing host length is invalid"
                 }
                 val hostBytes = ByteArray(hostLength).also(buffer::get)
-                require(hostBytes.all { byte -> byte.toInt() in 0x21..0x7e }) {
-                    "PC pairing host is invalid"
+                try {
+                    require(hostBytes.all { byte -> byte.toInt() in 0x21..0x7e }) {
+                        "PC pairing host is invalid"
+                    }
+                    val nameLength = buffer.get().toInt() and 0xff
+                    require(nameLength > 0 && buffer.remaining() == nameLength) {
+                        "PC pairing name length is invalid"
+                    }
+                    val nameBytes = ByteArray(nameLength).also(buffer::get)
+                    try {
+                        val pairing = PcReceiverPairing(
+                            receiverId = requireNotNull(receiverId),
+                            secret = requireNotNull(secret),
+                            host = String(hostBytes, StandardCharsets.US_ASCII),
+                            port = port,
+                            displayName = String(nameBytes, StandardCharsets.UTF_8),
+                        )
+                        ownershipTransferred = true
+                        return pairing
+                    } finally {
+                        nameBytes.fill(0)
+                    }
+                } finally {
+                    hostBytes.fill(0)
                 }
-                val nameLength = buffer.get().toInt() and 0xff
-                require(nameLength > 0 && buffer.remaining() == nameLength) {
-                    "PC pairing name length is invalid"
-                }
-                val nameBytes = ByteArray(nameLength).also(buffer::get)
-                return PcReceiverPairing(
-                    receiverId = receiverId,
-                    secret = secret,
-                    host = String(hostBytes, StandardCharsets.US_ASCII),
-                    port = port,
-                    displayName = String(nameBytes, StandardCharsets.UTF_8),
-                )
-            } catch (error: Exception) {
-                receiverId.fill(0)
-                secret.fill(0)
-                throw error
             } finally {
+                if (!ownershipTransferred) {
+                    receiverId?.fill(0)
+                    secret?.fill(0)
+                }
                 payload.fill(0)
             }
         }

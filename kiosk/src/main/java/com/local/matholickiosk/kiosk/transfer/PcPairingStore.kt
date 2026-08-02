@@ -18,7 +18,7 @@ class PcPairingStore(
     fun save(rawPairing: String): PcReceiverPairing {
         val pairing = PcReceiverPairing.decode(rawPairing)
         return try {
-            saveEncrypted(rawPairing)
+            save(pairing)
             pairing
         } catch (error: Exception) {
             pairing.clearSensitiveData()
@@ -27,27 +27,27 @@ class PcPairingStore(
     }
 
     fun save(pairing: PcReceiverPairing) {
-        saveEncrypted(pairing.encode())
-    }
-
-    private fun saveEncrypted(rawPairing: String) {
-        val plaintext = rawPairing.toByteArray(Charsets.UTF_8)
+        val plaintext = pairing.encodeBytes()
         try {
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-            val ciphertext = cipher.doFinal(plaintext)
-            try {
-                check(
-                    preferences.edit()
-                        .putString(CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-                        .putString(IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-                        .commit(),
-                ) { "PC pairing state could not be persisted" }
-            } finally {
-                ciphertext.fill(0)
-            }
+            saveEncrypted(plaintext)
         } finally {
             plaintext.fill(0)
+        }
+    }
+
+    private fun saveEncrypted(plaintext: ByteArray) {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        val ciphertext = cipher.doFinal(plaintext)
+        try {
+            check(
+                preferences.edit()
+                    .putString(CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+                    .putString(IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+                    .commit(),
+            ) { "PC pairing state could not be persisted" }
+        } finally {
+            ciphertext.fill(0)
         }
     }
 
@@ -69,7 +69,7 @@ class PcPairingStore(
             iv.fill(0)
         }
         return try {
-            PcReceiverPairing.decode(String(plaintext, Charsets.UTF_8))
+            PcReceiverPairing.decode(plaintext)
         } finally {
             plaintext.fill(0)
         }

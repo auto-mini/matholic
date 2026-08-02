@@ -3009,33 +3009,39 @@ class MainActivity : ComponentActivity() {
             }
             return true
         }
+        val pairing = runCatching { PcReceiverPairing.decode(rawValue) }
+            .getOrElse {
+                runOnUiThread {
+                    if (pcPairingMode && !destroyed) {
+                        scannerMessage.text = "PC 페어링 QR을 확인하지 못했습니다. 다시 보여주세요"
+                    }
+                }
+                return true
+            }
         qrAnalyzer?.setEnabled(false)
         runOnUiThread {
             if (pcPairingMode && !destroyed) {
                 scannerMessage.text = "지정 PC의 주소와 암호 응답을 확인하고 있습니다"
-                savePcPairing(rawValue)
+                savePcPairing(pairing)
+            } else {
+                pairing.clearSensitiveData()
             }
         }
         return true
     }
 
-    private fun savePcPairing(rawValue: String) {
-        ioExecutor.execute {
+    private fun savePcPairing(pairing: PcReceiverPairing) {
+        executeSensitive(cleanup = pairing::clearSensitiveData) {
             val result = runCatching {
-                val pairing = PcReceiverPairing.decode(rawValue)
-                try {
-                    requireInitialPcPairingNetwork(pairing)
-                    pcControlClient.sendStatus(
-                        pairing = pairing,
-                        state = "PC 초기 페어링 확인",
-                        studentName = null,
-                        notify = false,
-                    )
-                    pcPairingStore.save(pairing)
-                    pairing.displayName
-                } finally {
-                    pairing.clearSensitiveData()
-                }
+                requireInitialPcPairingNetwork(pairing)
+                pcControlClient.sendStatus(
+                    pairing = pairing,
+                    state = "PC 초기 페어링 확인",
+                    studentName = null,
+                    notify = false,
+                )
+                pcPairingStore.save(pairing)
+                pairing.displayName
             }
             runOnUiThread {
                 if (destroyed || !pcPairingMode) return@runOnUiThread
