@@ -2324,7 +2324,11 @@ class MainActivity : Activity() {
     private fun setNetworkPauseProtection(paused: Boolean) {
         if (!uiInitialized || webViewReference == null) return
         if (paused) {
+            finishButton.visibility = View.GONE
+            studentNameBadge.visibility = View.GONE
+            studentNavBar.visibility = View.GONE
             networkPausePanel.visibility = View.VISIBLE
+            networkPausePanel.bringToFront()
             runCatching {
                 webView.evaluateJavascript(
                     "document.activeElement && document.activeElement.blur();",
@@ -2341,6 +2345,11 @@ class MainActivity : Activity() {
             networkPausePanel.requestFocus()
         } else {
             networkPausePanel.visibility = View.GONE
+            if (state == WebPocState.ACTIVE) {
+                finishButton.visibility = View.VISIBLE
+                updateStudentNameBadge()
+                updateStudentChrome(WebSecurityPolicy.pathOf(webView.url))
+            }
             webView.isFocusable = true
             webView.isFocusableInTouchMode = true
             webView.descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
