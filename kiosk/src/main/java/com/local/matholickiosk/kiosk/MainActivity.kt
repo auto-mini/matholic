@@ -2538,6 +2538,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runSessionPreflight(action: PendingRecoveryAction.StartSession) {
+        val entered = lockTaskController.enterRestrictedMode()
+        dedicatedDevicePolicyFailed =
+            entered.isFailure || !entered.getOrDefault(false)
+        updateDedicatedDeviceStatus(administratorUnlocked = false)
         val status = lockTaskController.status()
         val batteryIntent = registerReceiver(
             null,
@@ -2569,6 +2573,7 @@ class MainActivity : ComponentActivity() {
             ),
         )
         if (!result.canStart) {
+            exitDedicatedModeForAdministrator()
             adminMessage.text = "수업 시작 차단 · ${result.blockingReasons.joinToString(" ")}"
             AlertDialog.Builder(this)
                 .setTitle("수업 사전점검 실패")
@@ -2589,7 +2594,9 @@ class MainActivity : ComponentActivity() {
         AlertDialog.Builder(this)
             .setTitle("수업 시작 사전점검")
             .setMessage(checks)
-            .setNegativeButton("취소", null)
+            .setNegativeButton("취소") { _, _ ->
+                exitDedicatedModeForAdministrator()
+            }
             .setPositiveButton("웹 검사 후 시작") { _, _ ->
                 manualStudentSelectionOnly = result.manualStudentSelectionRequired
                 launchWebSessionRecovery(action)

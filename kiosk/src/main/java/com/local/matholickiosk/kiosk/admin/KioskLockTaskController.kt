@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.SystemClock
 import android.os.UserManager
 import com.local.matholickiosk.kiosk.MainActivity
 import com.local.matholickiosk.kiosk.bridge.CredentialBridgeContract
@@ -68,7 +69,7 @@ class KioskLockTaskController(
         )
         try {
             activity.startLockTask()
-            check(currentMode() == DedicatedDeviceMode.LOCKED) {
+            check(waitForMode(DedicatedDeviceMode.LOCKED)) {
                 "Lock Task did not enter LOCKED mode"
             }
         } catch (failure: Throwable) {
@@ -93,7 +94,7 @@ class KioskLockTaskController(
             admin,
             UserManager.DISALLOW_CREATE_WINDOWS,
         )
-        currentMode() == DedicatedDeviceMode.NONE
+        waitForMode(DedicatedDeviceMode.NONE)
     }
 
     fun status(): DedicatedDeviceStatus {
@@ -120,4 +121,18 @@ class KioskLockTaskController(
             ActivityManager.LOCK_TASK_MODE_PINNED -> DedicatedDeviceMode.PINNED
             else -> DedicatedDeviceMode.NONE
         }
+
+    private fun waitForMode(expected: DedicatedDeviceMode): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + LOCK_TASK_TRANSITION_TIMEOUT_MS
+        do {
+            if (currentMode() == expected) return true
+            SystemClock.sleep(LOCK_TASK_TRANSITION_POLL_MS)
+        } while (SystemClock.elapsedRealtime() < deadline)
+        return currentMode() == expected
+    }
+
+    companion object {
+        private const val LOCK_TASK_TRANSITION_TIMEOUT_MS = 1_500L
+        private const val LOCK_TASK_TRANSITION_POLL_MS = 25L
+    }
 }
