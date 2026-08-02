@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-02.1"
+    const val CONTRACT_VERSION = "web-2026-08-02.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -2015,9 +2015,100 @@ object WebDomScripts {
                 totalProblems
               );
             }
-            const problemStates =
-              window.__matholicKioskProblemStates ||
-              (window.__matholicKioskProblemStates = {});
+            const canonicalTaskLocation = (() => {
+              try {
+                const url = new URL(location.href);
+                const query = Array.from(url.searchParams.entries())
+                  .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
+                    leftKey.localeCompare(rightKey) || leftValue.localeCompare(rightValue)
+                  )
+                  .map(([key, value]) =>
+                    encodeURIComponent(key) + '=' + encodeURIComponent(value)
+                  )
+                  .join('&');
+                return url.pathname + (query ? '?' + query : '');
+              } catch (_) {
+                return location.pathname + location.search;
+              }
+            })();
+            const taskIdentityAttributes = [
+              'data-assignment-id',
+              'data-task-id',
+              'data-workbook-id',
+              'data-learning-id',
+              'data-lesson-id',
+              'data-exam-id',
+              'data-paper-id'
+            ];
+            const explicitTaskMarkers = [];
+            const identitySelector = taskIdentityAttributes
+              .map(attribute => '[' + attribute + ']')
+              .join(',');
+            Array.from(document.querySelectorAll(identitySelector))
+              .slice(0, 8)
+              .forEach((element, index) => {
+                taskIdentityAttributes.forEach(attribute => {
+                  const value = normalize(element.getAttribute(attribute));
+                  if (value) {
+                    explicitTaskMarkers.push(
+                      index + ':' + attribute + ':' + value.slice(0, 160)
+                    );
+                  }
+                });
+              });
+            const namedTaskIdentity = /^(?:assignment|task|workbook|learning|lesson|exam|paper)(?:[-_]?id)?${'$'}/i;
+            Array.from(document.querySelectorAll('input[type="hidden"][name],meta[name]'))
+              .slice(0, 64)
+              .forEach(element => {
+                const name = normalize(element.getAttribute('name'));
+                if (!namedTaskIdentity.test(name)) return;
+                const value = normalize(
+                  element.value || element.getAttribute('content')
+                );
+                if (value) {
+                  explicitTaskMarkers.push(name + ':' + value.slice(0, 160));
+                }
+              });
+            const fallbackTaskMarker = [
+              normalize(document.title).slice(0, 160),
+              Array.from(document.querySelectorAll('h1,h2,[data-page-title]'))
+                .filter(visible)
+                .slice(0, 4)
+                .map(element => normalize(element.textContent).slice(0, 160))
+                .filter(Boolean)
+                .join('|'),
+              String(totalProblems || 0)
+            ].join('|');
+            const problemStateScopeKey = (
+              canonicalTaskLocation + '||' +
+              (explicitTaskMarkers.length > 0 ?
+                'id:' + explicitTaskMarkers.sort().join('|') :
+                'fallback:' + fallbackTaskMarker)
+            ).slice(0, 2_048);
+            const problemStateScopes =
+              window.__matholicKioskProblemStateScopes ||
+              (window.__matholicKioskProblemStateScopes = Object.create(null));
+            const problemStateScopeOrder =
+              window.__matholicKioskProblemStateScopeOrder ||
+              (window.__matholicKioskProblemStateScopeOrder = []);
+            let problemStates = problemStateScopes[problemStateScopeKey];
+            if (!problemStates) {
+              problemStates = Object.create(null);
+              problemStateScopes[problemStateScopeKey] = problemStates;
+            }
+            const priorScopeIndex = problemStateScopeOrder.indexOf(problemStateScopeKey);
+            if (priorScopeIndex >= 0) problemStateScopeOrder.splice(priorScopeIndex, 1);
+            problemStateScopeOrder.push(problemStateScopeKey);
+            while (problemStateScopeOrder.length > 8) {
+              const expiredScopeKey = problemStateScopeOrder.shift();
+              if (expiredScopeKey && expiredScopeKey !== problemStateScopeKey) {
+                delete problemStateScopes[expiredScopeKey];
+              }
+            }
+            window.__matholicKioskCurrentProblemStateScopeKey = problemStateScopeKey;
+            window.__matholicKioskProblemStates = problemStates;
+            const currentProblemStates = () =>
+              window.__matholicKioskProblemStates || Object.create(null);
             const pseudoLabel = element => {
               if (!element || element.nodeType !== Node.ELEMENT_NODE) return '';
               try {
@@ -2657,11 +2748,17 @@ object WebDomScripts {
                 if (selected < 1) return;
                 const scope = control.closest('[id^="answer-input-form-"]') ||
                   document.querySelector('main') || document.body;
-                const wasUnknown = problemStates[selected] === 'unknown' ||
+                const scheduledProblemStateScopeKey =
+                  window.__matholicKioskCurrentProblemStateScopeKey;
+                const wasUnknown = currentProblemStates()[selected] === 'unknown' ||
                   answerState(scope) === 'unknown';
                 setTimeout(() => {
+                  if (
+                    window.__matholicKioskCurrentProblemStateScopeKey !==
+                      scheduledProblemStateScopeKey
+                  ) return;
                   const detected = answerState(scope);
-                  problemStates[selected] =
+                  currentProblemStates()[selected] =
                     wasUnknown && detected === 'unknown' ?
                       'unanswered' : detected;
                 }, 0);
@@ -2675,7 +2772,7 @@ object WebDomScripts {
                 if (!scope) return;
                 const selected = readCurrentProblemNumber();
                 if (selected > 0) {
-                  problemStates[selected] = answerState(scope);
+                  currentProblemStates()[selected] = answerState(scope);
                 }
               };
               document.addEventListener('input', markCurrentAnswered, true);

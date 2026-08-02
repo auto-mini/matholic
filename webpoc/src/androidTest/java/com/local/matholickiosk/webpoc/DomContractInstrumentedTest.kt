@@ -466,6 +466,140 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testStudentExperienceScopesProblemStatesBySpaTaskIdentity() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/task-a?z=2&a=1",
+            """
+            <!doctype html><html><head><title>학습 과제</title></head><body>
+              <main id="task-root" data-assignment-id="task-a">
+                <h1>오늘의 과제</h1>
+                <div id="problem-navigation" style="display:flex">
+                  <button aria-label="이전 문제">&lt;</button>
+                  <div id="problem-number">
+                    <select id="problem-selector">
+                      <option>1</option><option selected>2</option><option>3</option>
+                    </select>
+                    <span>/ 3</span>
+                  </div>
+                  <button aria-label="다음 문제">&gt;</button>
+                </div>
+                <div id="answer-input-form-2">
+                  <input id="answer" value="A의 2번 답">
+                </div>
+                <button>답안제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val taskA = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  scope: window.__matholicKioskCurrentProblemStateScopeKey,
+                  state2: window.__matholicKioskProblemStates[2] || ''
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals("answered", taskA.getString("state2"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  history.pushState({}, '', '/learningV2/answer/task-b?a=1&z=2');
+                  const root = document.getElementById('task-root');
+                  root.dataset.assignmentId = 'task-b';
+                  const selector = document.getElementById('problem-selector');
+                  selector.value = '1';
+                  const form = document.getElementById('answer-input-form-2');
+                  form.id = 'answer-input-form-1';
+                  document.getElementById('answer').value = '';
+                  return JSON.stringify({ changed: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val taskB = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  scope: window.__matholicKioskCurrentProblemStateScopeKey,
+                  state2: window.__matholicKioskProblemStates[2] || '',
+                  scopeCount: Object.keys(window.__matholicKioskProblemStateScopes).length
+                }))()
+                """.trimIndent(),
+            )
+            assertFalse(taskA.getString("scope") == taskB.getString("scope"))
+            assertEquals("", taskB.getString("state2"))
+            assertEquals(2, taskB.getInt("scopeCount"))
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const selector = document.getElementById('problem-selector');
+                  selector.value = '3';
+                  const form = document.getElementById('answer-input-form-1');
+                  form.id = 'answer-input-form-3';
+                  const answer = document.getElementById('answer');
+                  answer.value = 'B의 3번 답';
+                  answer.dispatchEvent(new Event('input', { bubbles: true }));
+                  return JSON.stringify({ state3: window.__matholicKioskProblemStates[3] || '' });
+                })()
+                """.trimIndent(),
+            ).also { assertEquals("answered", it.getString("state3")) }
+
+            evaluate(
+                webView,
+                """
+                (() => {
+                  history.pushState({}, '', '/learningV2/answer/task-a?a=1&z=2');
+                  document.getElementById('task-root').dataset.assignmentId = 'task-a';
+                  document.getElementById('problem-selector').value = '1';
+                  const form = document.getElementById('answer-input-form-3');
+                  form.id = 'answer-input-form-1';
+                  document.getElementById('answer').value = '';
+                  return JSON.stringify({ changed: true });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val restoredA = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  scope: window.__matholicKioskCurrentProblemStateScopeKey,
+                  state2: window.__matholicKioskProblemStates[2] || '',
+                  state3: window.__matholicKioskProblemStates[3] || ''
+                }))()
+                """.trimIndent(),
+            )
+            assertEquals(taskA.getString("scope"), restoredA.getString("scope"))
+            assertEquals("answered", restoredA.getString("state2"))
+            assertEquals("", restoredA.getString("state3"))
+
+            evaluate(
+                webView,
+                "document.getElementById('task-root').dataset.assignmentId='task-c'; " +
+                    "JSON.stringify({changed:true})",
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val sameRouteDifferentTask = evaluate(
+                webView,
+                """
+                (() => JSON.stringify({
+                  scope: window.__matholicKioskCurrentProblemStateScopeKey,
+                  state2: window.__matholicKioskProblemStates[2] || ''
+                }))()
+                """.trimIndent(),
+            )
+            assertFalse(restoredA.getString("scope") == sameRouteDifferentTask.getString("scope"))
+            assertEquals("", sameRouteDifferentTask.getString("state2"))
+        }
+    }
+
+    @Test
     fun testStudentExperienceMapsDetectedProblemImageNumberTapToObjectiveChoice() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
