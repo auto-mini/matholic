@@ -25,14 +25,14 @@ data class ParsedStudentCsv(
 data class StudentCsvImportResult(
     val created: Int,
     val updated: Int,
-    val cardsNeedingPrint: Int,
+    val cardsNeedingPdf: Int,
 )
 
 data class StudentCsvImportPreview(
     val created: Int,
     val updated: Int,
     val renamed: Int,
-    val cardsNeedingPrintAfterImport: Int,
+    val cardsNeedingPdfAfterImport: Int,
 )
 
 object StudentCsvParser {

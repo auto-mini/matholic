@@ -30,8 +30,8 @@ data class QrCardStatusSummary(
     val displayNameExact: String,
     val issuedAtEpochMs: Long,
     val lastUsedAtEpochMs: Long?,
-    val lastDeliveredAtEpochMs: Long?,
-    val needsPrint: Boolean,
+    val lastPdfSavedAtEpochMs: Long?,
+    val needsCardPdf: Boolean,
 )
 
 class DecryptedCredentials(
@@ -298,8 +298,8 @@ class StudentRepository(
                 displayNameExact = student.displayNameExact,
                 issuedAtEpochMs = status.issuedAtEpochMs,
                 lastUsedAtEpochMs = status.lastUsedAtEpochMs,
-                lastDeliveredAtEpochMs = status.lastDeliveredAtEpochMs,
-                needsPrint = status.needsPrint,
+                lastPdfSavedAtEpochMs = status.lastDeliveredAtEpochMs,
+                needsCardPdf = status.needsPrint,
             )
         }
     }
@@ -392,7 +392,7 @@ class StudentRepository(
                             ),
                         )
                         if (matched.displayNameExact != row.displayNameExact) {
-                            check(database.qrCardStatusDao().setNeedsPrint(studentId, true) == 1)
+                            check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1)
                         }
                         updated += 1
                     }
@@ -413,8 +413,8 @@ class StudentRepository(
                     null,
                 )
             }
-            val needsPrint = listQrCardStatuses().count(QrCardStatusSummary::needsPrint)
-            return StudentCsvImportResult(created, updated, needsPrint)
+            val needsCardPdf = listQrCardStatuses().count(QrCardStatusSummary::needsCardPdf)
+            return StudentCsvImportResult(created, updated, needsCardPdf)
         } finally {
             existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
             rows.forEach(StudentCsvRow::clearSensitiveData)
@@ -461,24 +461,24 @@ class StudentRepository(
                     if (matched.displayNameExact != row.displayNameExact) renamed += 1
                 }
             }
-            val alreadyPending = listQrCardStatuses().count(QrCardStatusSummary::needsPrint)
+            val alreadyPending = listQrCardStatuses().count(QrCardStatusSummary::needsCardPdf)
             return StudentCsvImportPreview(
                 created = created,
                 updated = updated,
                 renamed = renamed,
-                cardsNeedingPrintAfterImport = alreadyPending + created + renamed,
+                cardsNeedingPdfAfterImport = alreadyPending + created + renamed,
             )
         } finally {
             existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
         }
     }
 
-    fun markCardsDelivered(studentIds: Set<String>) {
-        require(studentIds.isNotEmpty()) { "전달 완료 학생이 필요합니다." }
+    fun markCardPdfsSavedToPc(studentIds: Set<String>) {
+        require(studentIds.isNotEmpty()) { "PDF 저장 완료 학생이 필요합니다." }
         database.runInTransaction {
-            val updated = database.qrCardStatusDao().markDelivered(studentIds, nowEpochMs())
+            val updated = database.qrCardStatusDao().markPdfSavedToPc(studentIds, nowEpochMs())
             require(updated == studentIds.size) { "일부 QR 카드 상태를 갱신하지 못했습니다." }
-            audit("QR_CARDS_DELIVERED", studentIds.size.toString(), null, null)
+            audit("QR_CARD_PDFS_SAVED_TO_PC", studentIds.size.toString(), null, null)
         }
     }
 
@@ -498,7 +498,7 @@ class StudentRepository(
                     updatedAtEpochMs = nowEpochMs(),
                 ),
             )
-            check(database.qrCardStatusDao().setNeedsPrint(studentId, true) == 1) {
+            check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1) {
                 "QR card status not found"
             }
             audit("STUDENT_PROFILE_UPDATED", null, studentId, null)

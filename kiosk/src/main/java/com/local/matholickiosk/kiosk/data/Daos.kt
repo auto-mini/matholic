@@ -113,16 +113,16 @@ interface QrCardStatusDao {
         WHERE studentId IN (:studentIds)
         """,
     )
-    fun markDelivered(studentIds: Set<String>, deliveredAtEpochMs: Long): Int
+    fun markPdfSavedToPc(studentIds: Set<String>, deliveredAtEpochMs: Long): Int
 
     @Query(
         """
         UPDATE qr_card_status
-        SET needsPrint = :needsPrint
+        SET needsPrint = 1, lastDeliveredAtEpochMs = NULL
         WHERE studentId = :studentId
         """,
     )
-    fun setNeedsPrint(studentId: String, needsPrint: Boolean): Int
+    fun markCardPdfNeeded(studentId: String): Int
 }
 
 @Dao

@@ -39,6 +39,9 @@ data class QrCardStatusEntity(
     @androidx.room.PrimaryKey val studentId: String,
     val issuedAtEpochMs: Long,
     val lastUsedAtEpochMs: Long?,
+    // Legacy schema names retained for Room/database compatibility. In product
+    // terms these mean "last PDF saved to the paired PC" and "card PDF needed";
+    // neither field asserts that a physical card was printed or handed out.
     val lastDeliveredAtEpochMs: Long?,
     val needsPrint: Boolean,
 )

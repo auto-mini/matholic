@@ -1863,7 +1863,7 @@ class MainActivity : ComponentActivity() {
                     "기존 계정 갱신: ${preview.updated}명\n" +
                     "이름 변경: ${preview.renamed}명\n" +
                     "반 소속: CSV 내용으로 교체\n" +
-                    "적용 후 카드 출력 필요 예상: ${preview.cardsNeedingPrintAfterImport}명\n\n" +
+                    "적용 후 카드 PDF 생성 필요 예상: ${preview.cardsNeedingPdfAfterImport}명\n\n" +
                     "아이디가 같은 기존 학생은 이름·비밀번호·반 소속을 갱신합니다.",
             )
             .setNegativeButton("취소", null)
@@ -1891,7 +1891,7 @@ class MainActivity : ComponentActivity() {
                     onSuccess = {
                         refreshAdminData(
                             "학생 CSV 적용 완료 · 신규 ${it.created}명, 갱신 ${it.updated}명, " +
-                                "카드 출력 필요 ${it.cardsNeedingPrint}명",
+                                "카드 PDF 생성 필요 ${it.cardsNeedingPdf}명",
                             completeAdminDataOperationAfterLoad = true,
                         )
                     },
@@ -1905,10 +1905,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showPendingCardsDialog() {
-        adminMessage.text = "카드 출력 필요 학생 확인 중"
+        adminMessage.text = "카드 PDF 생성 필요 학생 확인 중"
         ioExecutor.execute {
             val result = runCatching {
-                studentRepository.listQrCardStatuses().filter { it.needsPrint }
+                studentRepository.listQrCardStatuses().filter { it.needsCardPdf }
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
@@ -1957,7 +1957,7 @@ class MainActivity : ComponentActivity() {
             .setMessage(
                 "선택 학생 ${studentIds.size}명의 기존 QR을 무효화합니다.\n" +
                     "새 카드 PDF: $pages 페이지\n" +
-                    "지정 PC로 암호화 전송이 끝난 학생만 출력 완료로 기록합니다.",
+                    "지정 PC의 저장 응답이 확인된 학생만 PDF 생성 완료로 기록합니다.",
             )
             .setNegativeButton("취소", null)
             .setPositiveButton("재발급·PC 전송") { _, _ ->
@@ -1993,7 +1993,7 @@ class MainActivity : ComponentActivity() {
                         pdfFile = requireNotNull(output),
                         filename = "신규 변경 학생 QR.pdf",
                     )
-                    studentRepository.markCardsDelivered(studentIds)
+                    studentRepository.markCardPdfsSavedToPc(studentIds)
                 } finally {
                     pairing.clearSensitiveData()
                 }
@@ -2038,12 +2038,16 @@ class MainActivity : ComponentActivity() {
                             val used = status.lastUsedAtEpochMs
                                 ?.let { formatter.format(Date(it)) }
                                 ?: "사용 기록 없음"
-                            val delivered = status.lastDeliveredAtEpochMs
+                            val pdfSaved = status.lastPdfSavedAtEpochMs
                                 ?.let { formatter.format(Date(it)) }
-                                ?: "전송 기록 없음"
+                                ?: "PC 저장 기록 없음"
                             "${status.displayNameExact} · " +
-                                (if (status.needsPrint) "출력 필요" else "카드 전달됨") +
-                                "\n발급 $issued · 최근 사용 $used · 최근 전달 $delivered"
+                                (if (status.needsCardPdf) {
+                                    "카드 PDF 생성 필요"
+                                } else {
+                                    "카드 PDF 지정 PC 저장 완료"
+                                }) +
+                                "\n발급 $issued · 최근 사용 $used · 최근 PC 저장 $pdfSaved"
                         }
                         AlertDialog.Builder(this)
                             .setTitle("QR 카드 상태·이력")
@@ -2255,7 +2259,7 @@ class MainActivity : ComponentActivity() {
                     )
                     pairing.displayName
                 }
-                studentRepository.markCardsDelivered(setOf(preview.studentId))
+                studentRepository.markCardPdfsSavedToPc(setOf(preview.studentId))
                 pcName
             }
             exportFile?.delete()

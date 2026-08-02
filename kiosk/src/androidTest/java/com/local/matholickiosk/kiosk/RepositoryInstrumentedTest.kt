@@ -489,7 +489,52 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
-    fun csvImportUpdatesByLoginIdAndTracksOnlyCardsNeedingPrint() {
+    fun cardPdfStateTracksCardContentInsteadOfPhysicalDelivery() {
+        val firstClassId = repository.createClass("월1")
+        val secondClassId = repository.createClass("화2")
+        val registered = repository.registerStudent(
+            "가상학생-카드상태",
+            "card-state-user".toCharArray(),
+            "card-state-password".toCharArray(),
+        )
+        assertTrue(repository.listQrCardStatuses().single().needsCardPdf)
+
+        repository.markCardPdfsSavedToPc(setOf(registered.studentId))
+        val saved = repository.listQrCardStatuses().single()
+        assertFalse(saved.needsCardPdf)
+        assertNotNull(saved.lastPdfSavedAtEpochMs)
+
+        repository.updateStudentCredentials(
+            registered.studentId,
+            "card-state-user-2".toCharArray(),
+            "card-state-password-2".toCharArray(),
+        )
+        repository.replaceClassMemberships(firstClassId, setOf(registered.studentId))
+        repository.replaceClassMemberships(firstClassId, emptySet())
+        repository.replaceClassMemberships(secondClassId, setOf(registered.studentId))
+        assertFalse(repository.listQrCardStatuses().single().needsCardPdf)
+
+        repository.updateStudentProfile(registered.studentId, "가상학생-이름변경")
+        assertTrue(repository.listQrCardStatuses().single().needsCardPdf)
+
+        repository.markCardPdfsSavedToPc(setOf(registered.studentId))
+        val oldHash = database.studentDao().findById(registered.studentId)!!.qrTokenHash.copyOf()
+        val reissued = repository.reissueQr(registered.studentId)
+        assertTrue(repository.listQrCardStatuses().single().needsCardPdf)
+        assertFalse(oldHash.contentEquals(reissued.hash))
+
+        repository.deactivateStudent(registered.studentId)
+        assertTrue(repository.listQrCardStatuses().isEmpty())
+        assertFalse(
+            database.studentDao().findById(registered.studentId)!!
+                .qrTokenHash.contentEquals(reissued.hash),
+        )
+        oldHash.fill(0)
+        reissued.hash.fill(0)
+    }
+
+    @Test
+    fun csvImportUpdatesByLoginIdAndTracksOnlyCardsNeedingPdf() {
         val classA = repository.createClass("월1")
         val classB = repository.createClass("화2")
         val existing = repository.registerStudent(
@@ -498,7 +543,7 @@ class RepositoryInstrumentedTest {
             "old-password".toCharArray(),
         )
         repository.replaceClassMemberships(classA, setOf(existing.studentId))
-        repository.markCardsDelivered(setOf(existing.studentId))
+        repository.markCardPdfsSavedToPc(setOf(existing.studentId))
 
         val previewRows = listOf(
             StudentCsvRow(
@@ -532,12 +577,12 @@ class RepositoryInstrumentedTest {
         }
         assertFalse(existing.studentId in repository.membershipStudentIds(classA))
         assertTrue(existing.studentId in repository.membershipStudentIds(classB))
-        val pending = repository.listQrCardStatuses().filter { it.needsPrint }
+        val pending = repository.listQrCardStatuses().filter { it.needsCardPdf }
         assertEquals(2, pending.size)
 
         val issued = repository.reissueQrBatch(pending.mapTo(mutableSetOf()) { it.studentId })
-        repository.markCardsDelivered(issued.mapTo(mutableSetOf()) { it.studentId })
-        assertTrue(repository.listQrCardStatuses().none { it.needsPrint })
+        repository.markCardPdfsSavedToPc(issued.mapTo(mutableSetOf()) { it.studentId })
+        assertTrue(repository.listQrCardStatuses().none { it.needsCardPdf })
         issued.forEach { item -> item.issuedQr.hash.fill(0) }
     }
 }
