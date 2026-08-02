@@ -72,6 +72,7 @@ class ReceiveEvent:
     state: str | None = None
     student_name: str | None = None
     notify: bool = False
+    notification_message: str | None = None
 
 
 class ReceiverState:
@@ -205,6 +206,7 @@ class ReceiverState:
                 state=state,
                 student_name=student_name,
                 notify=notify,
+                notification_message=state if notify else None,
             ),
             label[:160],
         )
@@ -233,6 +235,7 @@ class _ReceiverHandler(socketserver.BaseRequestHandler):
                         message=f"{destination.name} 저장 완료",
                         path=destination,
                         notify=True,
+                        notification_message="카드 PDF 저장 완료",
                     ),
                 )
             else:

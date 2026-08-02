@@ -69,7 +69,8 @@ def test_tcp_receiver_returns_authenticated_ack(
 ) -> None:
     store = config_store(tmp_path / "config.json")
     store.save(config)
-    state = ReceiverState(config, store)
+    events = []
+    state = ReceiverState(config, store, events.append)
     server = ThreadedReceiverServer(("127.0.0.1", 0), state)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -87,6 +88,10 @@ def test_tcp_receiver_returns_authenticated_ack(
             ack = connection.recv(89)
         assert decode_ack(pairing, ack).accepted
         assert list(config.receive_dir.glob("*.pdf"))
+        assert len(events) == 1
+        assert events[0].message.endswith("student.pdf 저장 완료")
+        assert events[0].notification_message == "카드 PDF 저장 완료"
+        assert "student" not in events[0].notification_message
     finally:
         server.shutdown()
         server.server_close()
@@ -108,7 +113,7 @@ def test_receiver_accepts_status_and_serves_csv_once(
         pairing,
         CONTROL_STATUS,
         "ACTIVE",
-        '{"state":"문제풀이","studentName":"테스트","notify":false}'.encode(),
+        '{"state":"문제풀이","studentName":"테스트","notify":true}'.encode(),
     )
     status_response, event = state.accept_control(status_frame)
     decoded_status = decode_control_response(
@@ -119,6 +124,9 @@ def test_receiver_accepts_status_and_serves_csv_once(
     assert decoded_status.accepted
     assert event.kind == "status"
     assert event.student_name == "테스트"
+    assert event.message == "테스트 · 문제풀이"
+    assert event.notification_message == "문제풀이"
+    assert event.student_name not in event.notification_message
 
     csv_frame = encode_control_request(pairing, CONTROL_FETCH_CSV, "FETCH")
     csv_request = decode_control_request(pairing, csv_frame)

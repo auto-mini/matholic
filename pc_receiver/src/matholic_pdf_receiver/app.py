@@ -235,9 +235,9 @@ class ReceiverApplication:
                     )
                 elif event.kind == "csv" and event.accepted:
                     self.csv_var.set("학생 CSV: 전송 완료 · 대기 파일 없음")
-                if event.notify:
+                if event.notify and event.notification_message:
                     try:
-                        self.tray.notify(event.state or event.message, APP_TITLE)
+                        self.tray.notify(event.notification_message, APP_TITLE)
                     except (NotImplementedError, RuntimeError):
                         pass
                 if event.accepted and event.kind != "status":
