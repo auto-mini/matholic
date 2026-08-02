@@ -371,7 +371,7 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
-    fun adminDataOperationBlocksStudentAndClassChangesAndReleasesAfterRefreshFailure() {
+    fun adminAndWebRecoveryOperationsBlockStudentAndClassChanges() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
         database.clearAllTables()
@@ -406,8 +406,20 @@ class MainActivityInstrumentedTest {
             val mutationGateField = MainActivity::class.java
                 .getDeclaredField("adminDataOperationGate")
                 .apply { isAccessible = true }
+            val webRecoveryGateField = MainActivity::class.java
+                .getDeclaredField("webRecoveryGate")
+                .apply { isAccessible = true }
             val beginOperationMethod = MainActivity::class.java
                 .getDeclaredMethod("beginAdminDataOperation", String::class.java)
+                .apply { isAccessible = true }
+            val updateStudentControlsMethod = MainActivity::class.java
+                .getDeclaredMethod("updateStudentManagementControls")
+                .apply { isAccessible = true }
+            val updateClassControlsMethod = MainActivity::class.java
+                .getDeclaredMethod("updateClassRosterUi")
+                .apply { isAccessible = true }
+            val finishWebRecoveryMethod = MainActivity::class.java
+                .getDeclaredMethod("finishWebRecoveryOperation")
                 .apply { isAccessible = true }
             val refreshMethod = MainActivity::class.java
                 .getDeclaredMethod(
@@ -456,6 +468,19 @@ class MainActivityInstrumentedTest {
                     assertTrue(
                         activity.findViewById<View>(R.id.register_student_button).isEnabled,
                     )
+                    val webRecoveryGate =
+                        webRecoveryGateField.get(activity) as SingleFlightGate
+                    assertTrue(webRecoveryGate.tryStart())
+                    updateStudentControlsMethod.invoke(activity)
+                    updateClassControlsMethod.invoke(activity)
+                    assertFalse(
+                        activity.findViewById<View>(R.id.register_student_button).isEnabled,
+                    )
+                    assertFalse(activity.findViewById<View>(R.id.create_class_button).isEnabled)
+                    assertFalse(
+                        beginOperationMethod.invoke(activity, "차단 확인") as Boolean,
+                    )
+                    finishWebRecoveryMethod.invoke(activity)
                 }
             } finally {
                 scenario.onActivity { activity ->

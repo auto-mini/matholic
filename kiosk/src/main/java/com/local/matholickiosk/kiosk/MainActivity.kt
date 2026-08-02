@@ -314,7 +314,7 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == Activity.RESULT_OK) {
             when (requestedAction) {
                 PendingRecoveryAction.None -> {
-                    webRecoveryGate.finish()
+                    finishWebRecoveryOperation()
                     refreshAdminData("Web 로그인 상태를 안전하게 정리했습니다.")
                 }
                 is PendingRecoveryAction.StartSession ->
@@ -323,7 +323,7 @@ class MainActivity : ComponentActivity() {
                     completeSessionEnd()
             }
         } else {
-            webRecoveryGate.finish()
+            finishWebRecoveryOperation()
             val message = "Web 세션 정리에 실패해 수업 상태를 변경하지 않았습니다" +
                 (failureReason?.let { " · $it" } ?: "")
             refreshAdminData(message)
@@ -1047,6 +1047,7 @@ class MainActivity : ComponentActivity() {
         val selectedName = classes.getOrNull(classSpinner.selectedItemPosition)?.label
         quickClassButtons.forEach { (className, button) ->
             button.isEnabled = !adminDataOperationGate.isActive &&
+                !webRecoveryGate.isActive &&
                 (currentSession?.sessionId == null || className == selectedName)
             button.alpha = if (className == selectedName) 1f else 0.72f
             button.setTypeface(
@@ -1276,7 +1277,8 @@ class MainActivity : ComponentActivity() {
             else -> "소속 ${memberNames.size}명 · ${memberNames.joinToString(", ")}"
         }
         val activeClassId = currentSession?.classId
-        val operationAvailable = !adminDataOperationGate.isActive
+        val operationAvailable =
+            !adminDataOperationGate.isActive && !webRecoveryGate.isActive
         val classAvailable = selectedClass != null
         val classReady = classAvailable &&
             !classRosterState.isLoading &&
@@ -1735,6 +1737,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun beginAdminDataOperation(message: String): Boolean {
+        if (webRecoveryGate.isActive) {
+            adminMessage.text = "Web 로그인 상태 정리가 끝날 때까지 기다리세요."
+            return false
+        }
         if (!adminDataOperationGate.tryStart()) {
             adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
             return false
@@ -1754,7 +1760,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun updateStudentManagementControls() {
-        val available = !adminDataOperationGate.isActive
+        val available = !adminDataOperationGate.isActive && !webRecoveryGate.isActive
         val hasStudents = students.isNotEmpty()
         studentSpinner.isEnabled = available && hasStudents
         registerStudentButton.isEnabled = available
@@ -2353,10 +2359,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchWebSessionRecovery(action: PendingRecoveryAction) {
+        if (adminDataOperationGate.isActive) {
+            adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
+            return
+        }
         if (!webRecoveryGate.tryStart()) {
             adminMessage.text = "Web 로그인 상태를 이미 안전하게 정리하고 있습니다."
             return
         }
+        updateStudentManagementControls()
         pendingRecoveryAction = action
         adminMessage.text = when (action) {
             PendingRecoveryAction.None -> "Web 로그인 상태 안전 정리 중"
@@ -2377,7 +2388,7 @@ class MainActivity : ComponentActivity() {
             .onFailure {
                 suppressNextAdminStopRelock = false
                 pendingRecoveryAction = PendingRecoveryAction.None
-                webRecoveryGate.finish()
+                finishWebRecoveryOperation()
                 updateSessionAdminControls(currentSession)
                 adminMessage.text = "Web 세션 정리 화면을 열지 못했습니다."
             }
@@ -2731,7 +2742,7 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                webRecoveryGate.finish()
+                finishWebRecoveryOperation()
                 result.fold(
                     onSuccess = {
                         currentSession = it
@@ -2752,7 +2763,7 @@ class MainActivity : ComponentActivity() {
             val result = runCatching { studentRepository.endSession() }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                webRecoveryGate.finish()
+                finishWebRecoveryOperation()
                 result.fold(
                     onSuccess = {
                         pendingTemporaryStudentIds = emptySet()
@@ -2779,7 +2790,8 @@ class MainActivity : ComponentActivity() {
         } else {
             "선택한 반 수업 안전 시작"
         }
-        val operationAvailable = !adminDataOperationGate.isActive
+        val operationAvailable =
+            !adminDataOperationGate.isActive && !webRecoveryGate.isActive
         classSpinner.isEnabled = operationAvailable && !active && !webRecoveryGate.isActive
         selfTestButton.isEnabled = operationAvailable && !webRecoveryGate.isActive
         statusText.text = session?.state ?: KioskState.ADMIN_IDLE.name
@@ -2789,12 +2801,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun finishWebRecoveryOperation() {
+        webRecoveryGate.finish()
+        updateStudentManagementControls()
+        updateSessionAdminControls(currentSession)
+    }
+
     private fun showQrPreview(preview: QrPreview) {
         clearQrPreview()
         issuedQrPreview = preview
         qrImage.setImageBitmap(preview.bitmap)
         qrCardName.text = preview.exactName
-        val operationAvailable = !adminDataOperationGate.isActive
+        val operationAvailable =
+            !adminDataOperationGate.isActive && !webRecoveryGate.isActive
         exportQrPdfButton.isEnabled = operationAvailable
         sendPcPdfButton.isEnabled = operationAvailable && pairedPcDisplayName != null
     }
