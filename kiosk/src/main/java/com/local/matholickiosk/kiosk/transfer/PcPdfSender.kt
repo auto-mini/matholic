@@ -31,13 +31,16 @@ class PcPdfSender(
                         flush()
                     }
                     val ack = socket.getInputStream().readExact(PcTransferProtocol.ACK_BYTES)
-                    PcTransferProtocol.verifyAck(
-                        pairing = pairing,
-                        frame = ack,
-                        expectedRequestId = transfer.requestId,
-                        expectedPdfSha256 = transfer.pdfSha256,
-                    )
-                    ack.fill(0)
+                    try {
+                        PcTransferProtocol.verifyAck(
+                            pairing = pairing,
+                            frame = ack,
+                            expectedRequestId = transfer.requestId,
+                            expectedPdfSha256 = transfer.pdfSha256,
+                        )
+                    } finally {
+                        ack.fill(0)
+                    }
                 }
             } finally {
                 transfer.frame.fill(0)
@@ -52,11 +55,16 @@ class PcPdfSender(
     private fun java.io.InputStream.readExact(size: Int): ByteArray {
         val result = ByteArray(size)
         var offset = 0
-        while (offset < size) {
-            val read = read(result, offset, size - offset)
-            require(read >= 0) { "PC 응답이 중간에 종료되었습니다." }
-            offset += read
+        try {
+            while (offset < size) {
+                val read = read(result, offset, size - offset)
+                require(read >= 0) { "PC 응답이 중간에 종료되었습니다." }
+                offset += read
+            }
+            return result
+        } catch (failure: Throwable) {
+            result.fill(0)
+            throw failure
         }
-        return result
     }
 }

@@ -61,16 +61,20 @@ object PcControlProtocol {
             .put(labelBytes)
             .put(payload)
             .array()
-        val frame = encodeSecureFrame(
-            pairing = pairing,
-            magic = requestMagic,
-            plaintext = plaintext,
-            timestamp = timestamp,
-            requestId = requestId,
-            nonce = nonce,
-        )
-        plaintext.fill(0)
-        return EncodedPcControlRequest(frame, requestId.copyOf())
+        return try {
+            val frame = encodeSecureFrame(
+                pairing = pairing,
+                magic = requestMagic,
+                plaintext = plaintext,
+                timestamp = timestamp,
+                requestId = requestId,
+                nonce = nonce,
+            )
+            EncodedPcControlRequest(frame, requestId.copyOf())
+        } finally {
+            plaintext.fill(0)
+            labelBytes.fill(0)
+        }
     }
 
     fun decodeResponse(
@@ -85,11 +89,11 @@ object PcControlProtocol {
             responseMagic,
             nowEpochSeconds,
         )
-        require(MessageDigest.isEqual(decoded.requestId, expectedRequestId)) {
-            "PC control response does not match the request"
-        }
-        val plaintext = decoded.plaintext
         try {
+            require(MessageDigest.isEqual(decoded.requestId, expectedRequestId)) {
+                "PC control response does not match the request"
+            }
+            val plaintext = decoded.plaintext
             require(plaintext.size >= 8) { "PC control response is truncated" }
             val buffer = ByteBuffer.wrap(plaintext).order(ByteOrder.BIG_ENDIAN)
             val operation = buffer.get().toInt() and 0xff
@@ -107,14 +111,19 @@ object PcControlProtocol {
             }
             val labelBytes = ByteArray(labelLength).also(buffer::get)
             val payload = ByteArray(payloadLength).also(buffer::get)
-            return DecodedPcControlResponse(
-                operation = operation,
-                accepted = accepted == 1,
-                label = String(labelBytes, StandardCharsets.UTF_8),
-                payload = payload,
-            )
+            return try {
+                DecodedPcControlResponse(
+                    operation = operation,
+                    accepted = accepted == 1,
+                    label = String(labelBytes, StandardCharsets.UTF_8),
+                    payload = payload,
+                )
+            } finally {
+                labelBytes.fill(0)
+            }
         } finally {
-            plaintext.fill(0)
+            decoded.requestId.fill(0)
+            decoded.plaintext.fill(0)
         }
     }
 
@@ -159,22 +168,27 @@ object PcControlProtocol {
             .put(nonce)
             .array()
         val key = deriveKey(pairing)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            SecretKeySpec(key, "AES"),
-            GCMParameterSpec(GCM_TAG_BITS, nonce),
-        )
-        cipher.updateAAD(authenticatedHeader)
-        val ciphertext = cipher.doFinal(plaintext)
-        key.fill(0)
-        return ByteBuffer
-            .allocate(HEADER_BYTES + ciphertext.size)
-            .order(ByteOrder.BIG_ENDIAN)
-            .put(authenticatedHeader)
-            .putInt(ciphertext.size)
-            .put(ciphertext)
-            .array()
+        var ciphertext: ByteArray? = null
+        return try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.ENCRYPT_MODE,
+                SecretKeySpec(key, "AES"),
+                GCMParameterSpec(GCM_TAG_BITS, nonce),
+            )
+            cipher.updateAAD(authenticatedHeader)
+            ciphertext = cipher.doFinal(plaintext)
+            ByteBuffer
+                .allocate(HEADER_BYTES + requireNotNull(ciphertext).size)
+                .order(ByteOrder.BIG_ENDIAN)
+                .put(authenticatedHeader)
+                .putInt(requireNotNull(ciphertext).size)
+                .put(ciphertext)
+                .array()
+        } finally {
+            key.fill(0)
+            ciphertext?.fill(0)
+        }
     }
 
     private fun decodeSecureFrame(
@@ -192,32 +206,48 @@ object PcControlProtocol {
         val timestamp = buffer.long
         val nonce = ByteArray(NONCE_BYTES).also(buffer::get)
         val ciphertextLength = buffer.int
-        require(
-            magic.contentEquals(expectedMagic) &&
-                version == VERSION &&
-                MessageDigest.isEqual(receiverId, pairing.receiverId) &&
-                ciphertextLength == buffer.remaining() &&
-                kotlin.math.abs(nowEpochSeconds - timestamp) <= 300
-        ) {
-            "PC control response target is invalid"
-        }
-        val ciphertext = ByteArray(ciphertextLength).also(buffer::get)
-        val aad = frame.copyOfRange(0, HEADER_BYTES - 4)
-        val key = deriveKey(pairing)
+        var ciphertext: ByteArray? = null
+        var aad: ByteArray? = null
+        var key: ByteArray? = null
+        var plaintext: ByteArray? = null
+        var success = false
         return try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                SecretKeySpec(key, "AES"),
-                GCMParameterSpec(GCM_TAG_BITS, nonce),
-            )
-            cipher.updateAAD(aad)
-            SecurePlaintext(requestId, cipher.doFinal(ciphertext))
-        } catch (error: Exception) {
-            throw IllegalArgumentException("PC control response authentication failed", error)
+            require(
+                magic.contentEquals(expectedMagic) &&
+                    version == VERSION &&
+                    MessageDigest.isEqual(receiverId, pairing.receiverId) &&
+                    ciphertextLength == buffer.remaining() &&
+                    kotlin.math.abs(nowEpochSeconds - timestamp) <= 300
+            ) {
+                "PC control response target is invalid"
+            }
+            ciphertext = ByteArray(ciphertextLength).also(buffer::get)
+            aad = frame.copyOfRange(0, HEADER_BYTES - 4)
+            key = deriveKey(pairing)
+            plaintext = try {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(
+                    Cipher.DECRYPT_MODE,
+                    SecretKeySpec(key, "AES"),
+                    GCMParameterSpec(GCM_TAG_BITS, nonce),
+                )
+                cipher.updateAAD(aad)
+                cipher.doFinal(ciphertext)
+            } catch (error: Exception) {
+                throw IllegalArgumentException("PC control response authentication failed", error)
+            }
+            SecurePlaintext(requestId, requireNotNull(plaintext)).also { success = true }
         } finally {
-            key.fill(0)
-            ciphertext.fill(0)
+            magic.fill(0)
+            key?.fill(0)
+            ciphertext?.fill(0)
+            aad?.fill(0)
+            receiverId.fill(0)
+            nonce.fill(0)
+            if (!success) {
+                requestId.fill(0)
+                plaintext?.fill(0)
+            }
         }
     }
 
@@ -225,11 +255,15 @@ object PcControlProtocol {
         val extract = Mac.getInstance("HmacSHA256")
         extract.init(SecretKeySpec(pairing.receiverId, "HmacSHA256"))
         val pseudoRandomKey = extract.doFinal(pairing.secret)
-        val expand = Mac.getInstance("HmacSHA256")
-        expand.init(SecretKeySpec(pseudoRandomKey, "HmacSHA256"))
-        val key = expand.doFinal(hkdfInfo + byteArrayOf(1))
-        pseudoRandomKey.fill(0)
-        return key
+        val infoBlock = hkdfInfo + byteArrayOf(1)
+        return try {
+            val expand = Mac.getInstance("HmacSHA256")
+            expand.init(SecretKeySpec(pseudoRandomKey, "HmacSHA256"))
+            expand.doFinal(infoBlock)
+        } finally {
+            pseudoRandomKey.fill(0)
+            infoBlock.fill(0)
+        }
     }
 
     private fun randomBytes(size: Int): ByteArray =

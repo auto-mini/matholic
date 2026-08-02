@@ -64,30 +64,37 @@ object PcTransferProtocol {
             .putLong(timestamp)
             .put(nonce)
             .array()
-        val key = deriveKey(pairing)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(
-            Cipher.ENCRYPT_MODE,
-            SecretKeySpec(key, "AES"),
-            GCMParameterSpec(GCM_TAG_BITS, nonce),
-        )
-        cipher.updateAAD(authenticatedHeader)
-        val ciphertext = cipher.doFinal(plaintext)
-        plaintext.fill(0)
-        key.fill(0)
-        val frame = ByteBuffer
-            .allocate(REQUEST_HEADER_BYTES + ciphertext.size)
-            .order(ByteOrder.BIG_ENDIAN)
-            .put(authenticatedHeader)
-            .putInt(ciphertext.size)
-            .put(ciphertext)
-            .array()
-        val pdfHash = MessageDigest.getInstance("SHA-256").digest(pdf)
-        return EncodedPcTransfer(
-            frame = frame,
-            requestId = requestId.copyOf(),
-            pdfSha256 = pdfHash,
-        )
+        var key: ByteArray? = null
+        var ciphertext: ByteArray? = null
+        return try {
+            key = deriveKey(pairing)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.ENCRYPT_MODE,
+                SecretKeySpec(key, "AES"),
+                GCMParameterSpec(GCM_TAG_BITS, nonce),
+            )
+            cipher.updateAAD(authenticatedHeader)
+            ciphertext = cipher.doFinal(plaintext)
+            val frame = ByteBuffer
+                .allocate(REQUEST_HEADER_BYTES + requireNotNull(ciphertext).size)
+                .order(ByteOrder.BIG_ENDIAN)
+                .put(authenticatedHeader)
+                .putInt(requireNotNull(ciphertext).size)
+                .put(ciphertext)
+                .array()
+            val pdfHash = MessageDigest.getInstance("SHA-256").digest(pdf)
+            EncodedPcTransfer(
+                frame = frame,
+                requestId = requestId.copyOf(),
+                pdfSha256 = pdfHash,
+            )
+        } finally {
+            plaintext.fill(0)
+            filenameBytes.fill(0)
+            key?.fill(0)
+            ciphertext?.fill(0)
+        }
     }
 
     fun verifyAck(
@@ -103,29 +110,41 @@ object PcTransferProtocol {
         val requestId = ByteArray(REQUEST_ID_BYTES).also(buffer::get)
         val pdfHash = ByteArray(32).also(buffer::get)
         val signature = ByteArray(32).also(buffer::get)
-        require(magic.contentEquals(ackMagic) && status == 1) {
-            "PC rejected the PDF transfer"
-        }
-        require(
-            MessageDigest.isEqual(requestId, expectedRequestId) &&
-                MessageDigest.isEqual(pdfHash, expectedPdfSha256)
-        ) {
-            "PC acknowledgement does not match the transfer"
-        }
-        val signed = ByteBuffer
-            .allocate(ackMagic.size + 1 + requestId.size + pdfHash.size)
-            .put(ackMagic)
-            .put(status.toByte())
-            .put(requestId)
-            .put(pdfHash)
-            .array()
-        val key = deriveKey(pairing)
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(key, "HmacSHA256"))
-        val expectedSignature = mac.doFinal(signed)
-        key.fill(0)
-        require(MessageDigest.isEqual(signature, expectedSignature)) {
-            "PC acknowledgement authentication failed"
+        var signed: ByteArray? = null
+        var key: ByteArray? = null
+        var expectedSignature: ByteArray? = null
+        try {
+            require(magic.contentEquals(ackMagic) && status == 1) {
+                "PC rejected the PDF transfer"
+            }
+            require(
+                MessageDigest.isEqual(requestId, expectedRequestId) &&
+                    MessageDigest.isEqual(pdfHash, expectedPdfSha256)
+            ) {
+                "PC acknowledgement does not match the transfer"
+            }
+            signed = ByteBuffer
+                .allocate(ackMagic.size + 1 + requestId.size + pdfHash.size)
+                .put(ackMagic)
+                .put(status.toByte())
+                .put(requestId)
+                .put(pdfHash)
+                .array()
+            key = deriveKey(pairing)
+            val mac = Mac.getInstance("HmacSHA256")
+            mac.init(SecretKeySpec(key, "HmacSHA256"))
+            expectedSignature = mac.doFinal(signed)
+            require(MessageDigest.isEqual(signature, expectedSignature)) {
+                "PC acknowledgement authentication failed"
+            }
+        } finally {
+            magic.fill(0)
+            requestId.fill(0)
+            pdfHash.fill(0)
+            signature.fill(0)
+            signed?.fill(0)
+            key?.fill(0)
+            expectedSignature?.fill(0)
         }
     }
 
@@ -133,11 +152,15 @@ object PcTransferProtocol {
         val extract = Mac.getInstance("HmacSHA256")
         extract.init(SecretKeySpec(pairing.receiverId, "HmacSHA256"))
         val pseudoRandomKey = extract.doFinal(pairing.secret)
-        val expand = Mac.getInstance("HmacSHA256")
-        expand.init(SecretKeySpec(pseudoRandomKey, "HmacSHA256"))
-        val key = expand.doFinal(hkdfInfo + byteArrayOf(1))
-        pseudoRandomKey.fill(0)
-        return key
+        val infoBlock = hkdfInfo + byteArrayOf(1)
+        return try {
+            val expand = Mac.getInstance("HmacSHA256")
+            expand.init(SecretKeySpec(pseudoRandomKey, "HmacSHA256"))
+            expand.doFinal(infoBlock)
+        } finally {
+            pseudoRandomKey.fill(0)
+            infoBlock.fill(0)
+        }
     }
 
     private fun randomBytes(size: Int): ByteArray =

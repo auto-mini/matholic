@@ -87,6 +87,26 @@ class PcControlProtocolTest {
         }
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects authenticated response bound to another request`() {
+        val pairing = PcReceiverPairing.decode(pairingText)
+        try {
+            val frame = Base64.getDecoder().decode(
+                "TUFUSFJTUDEBABEiM0RVZneImaq7zN3u/xAhMkNUZXaHmKm6u9zd7e8AAAAAa0nSChAhMkN" +
+                    "UZXaHmKm6uwAAAEPmyZb3rXE7cTbHZa5DdeDP84GtW23tmmfHL6CC6zHfxiNdBSf3VDescc" +
+                    "CePpmz95/hl3EoTa7pR+0X59luebVJsDX1",
+            )
+            PcControlProtocol.decodeResponse(
+                pairing,
+                frame,
+                ByteArray(16) { 0x7f.toByte() },
+                nowEpochSeconds = 1_800_000_020,
+            )
+        } finally {
+            pairing.clearSensitiveData()
+        }
+    }
+
     private fun String.hex(): ByteArray =
         chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
