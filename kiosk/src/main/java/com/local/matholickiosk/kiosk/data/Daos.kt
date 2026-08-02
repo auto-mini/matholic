@@ -216,4 +216,10 @@ interface AdminDao {
 
     @Query("SELECT * FROM admin_credential WHERE singletonId = 1 LIMIT 1")
     fun get(): AdminCredentialEntity?
+
+    @Query("SELECT COUNT(*) FROM admin_credential WHERE singletonId = 1")
+    fun enrolledCount(): Int
+
+    @Query("SELECT pinLength FROM admin_credential WHERE singletonId = 1 LIMIT 1")
+    fun enrolledPinLength(): Int?
 }

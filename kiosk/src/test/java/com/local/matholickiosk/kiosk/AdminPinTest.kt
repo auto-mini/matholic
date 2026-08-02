@@ -3,6 +3,7 @@ package com.local.matholickiosk.kiosk
 import com.local.matholickiosk.kiosk.security.AdminLockoutPolicy
 import com.local.matholickiosk.kiosk.security.AdminPin
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,9 +20,15 @@ class AdminPinTest {
     @Test
     fun pbkdf2VerifierAcceptsOnlyMatchingPin() {
         val verifier = AdminPin.create("654321".toCharArray(), iterations = 100_000)
+        try {
+            assertTrue(AdminPin.verify("654321".toCharArray(), verifier))
+            assertFalse(AdminPin.verify("654322".toCharArray(), verifier))
+        } finally {
+            verifier.clear()
+        }
 
-        assertTrue(AdminPin.verify("654321".toCharArray(), verifier))
-        assertFalse(AdminPin.verify("654322".toCharArray(), verifier))
+        assertArrayEquals(ByteArray(verifier.salt.size), verifier.salt)
+        assertArrayEquals(ByteArray(verifier.derivedKey.size), verifier.derivedKey)
     }
 
     @Test
