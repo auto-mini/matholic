@@ -7,6 +7,7 @@ import re
 import socket
 import socketserver
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -19,6 +20,7 @@ from .protocol import (
     CONTROL_FETCH_CSV,
     CONTROL_MAGIC,
     CONTROL_STATUS,
+    MAX_CLOCK_SKEW_SECONDS,
     REQUEST_HEADER_BYTES,
     REQUEST_MAGIC,
     ProtocolError,
@@ -32,19 +34,35 @@ from .protocol import (
 from .pending_csv import PendingCsv, PendingCsvStore
 
 SOCKET_TIMEOUT_SECONDS = 10
+SOCKET_TOTAL_DEADLINE_SECONDS = 30
+MAX_ACTIVE_CONNECTIONS = 32
 SAFE_FILENAME = re.compile(r"[^0-9A-Za-z가-힣._ -]+")
 
 
-def _read_exact(connection: socket.socket, length: int) -> bytes:
-    chunks: list[bytes] = []
+def _read_exact(
+    connection: socket.socket,
+    length: int,
+    deadline: float,
+) -> bytearray:
+    result = bytearray(length)
+    view = memoryview(result)
+    offset = 0
     remaining = length
-    while remaining:
-        chunk = connection.recv(remaining)
-        if not chunk:
-            raise ProtocolError("전송이 중간에 종료되었습니다.")
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks)
+    try:
+        while remaining:
+            deadline_remaining = deadline - time.monotonic()
+            if deadline_remaining <= 0:
+                raise ProtocolError("전송 전체 제한 시간을 초과했습니다.")
+            connection.settimeout(min(SOCKET_TIMEOUT_SECONDS, deadline_remaining))
+            received = connection.recv_into(view[offset:], remaining)
+            if not received:
+                raise ProtocolError("전송이 중간에 종료되었습니다.")
+            offset += received
+            remaining -= received
+        return result
+    except Exception:
+        result[:] = b"\x00" * len(result)
+        raise
 
 
 def safe_pdf_name(value: str) -> str:
@@ -64,6 +82,16 @@ def unique_destination(folder: Path, filename: str, now: datetime | None = None)
         candidate = folder / f"{prefix}_{sequence}_{filename}"
         sequence += 1
     return candidate
+
+
+def request_destination(
+    folder: Path,
+    filename: str,
+    request_id: bytes,
+    timestamp: int,
+) -> Path:
+    prefix = datetime.fromtimestamp(timestamp).strftime("%Y%m%d-%H%M%S")
+    return folder / f"{prefix}_{request_id.hex()[:16]}_{filename}"
 
 
 @dataclass(frozen=True)
@@ -101,19 +129,57 @@ class ReceiverState:
         request = decode_request(self.config.pairing(host="127.0.0.1"), frame)
         pdf_hash = hashlib.sha256(request.pdf).digest()
         filename = safe_pdf_name(request.filename)
+        request_key = request.request_id.hex()
         with self.lock:
-            if request.request_id.hex() in self.config.replay_ids:
-                raise ProtocolError("이미 처리한 전송 요청입니다.")
-            destination = unique_destination(self.config.receive_dir, filename)
+            if self.config.has_seen_request(request.request_id):
+                receipt = self.config.pdf_receipts.get(request_key)
+                if (
+                    receipt is None
+                    or receipt.get("sha256") != pdf_hash.hex()
+                    or not Path(receipt.get("path", "")).is_file()
+                ):
+                    raise ProtocolError("이미 처리한 전송 요청입니다.")
+                destination = Path(receipt["path"])
+                ack = encode_ack(
+                    self.config.pairing(host="127.0.0.1"),
+                    request.request_id,
+                    pdf_hash,
+                    accepted=True,
+                )
+                return ack, destination
+            destination = request_destination(
+                self.config.receive_dir,
+                filename,
+                request.request_id,
+                request.timestamp,
+            )
             temporary = destination.with_suffix(destination.suffix + ".part")
+            created_destination = False
             try:
-                temporary.write_bytes(request.pdf)
-                os.replace(temporary, destination)
-                self.config.remember_request(request.request_id)
+                if destination.exists():
+                    if hashlib.sha256(destination.read_bytes()).digest() != pdf_hash:
+                        raise ProtocolError("같은 전송 식별자의 저장 파일이 일치하지 않습니다.")
+                else:
+                    with temporary.open("wb") as output:
+                        output.write(request.pdf)
+                        output.flush()
+                        os.fsync(output.fileno())
+                    os.replace(temporary, destination)
+                    created_destination = True
+                self.config.remember_request(
+                    request.request_id,
+                    request.timestamp + MAX_CLOCK_SKEW_SECONDS,
+                )
+                self.config.pdf_receipts[request_key] = {
+                    "sha256": pdf_hash.hex(),
+                    "path": str(destination),
+                }
                 self.store.save(self.config)
             except Exception:
+                self.config.forget_request(request.request_id)
                 temporary.unlink(missing_ok=True)
-                destination.unlink(missing_ok=True)
+                if created_destination:
+                    destination.unlink(missing_ok=True)
                 raise
         ack = encode_ack(
             self.config.pairing(host="127.0.0.1"),
@@ -156,16 +222,41 @@ class ReceiverState:
             self.pending_csv = None
             self.confirmed_csv_delivery_id = None
 
+    def close(self) -> None:
+        with self.lock:
+            if self.pending_csv is not None:
+                self.pending_csv.clear_sensitive_data()
+            self.pending_csv = None
+            self.confirmed_csv_delivery_id = None
+
     def accept_control(self, frame: bytes) -> tuple[bytes, ReceiveEvent]:
         request = decode_control_request(self.config.pairing(host="127.0.0.1"), frame)
         pairing = self.config.pairing(host="127.0.0.1")
+        if request.operation not in {
+            CONTROL_STATUS,
+            CONTROL_FETCH_CSV,
+            CONTROL_CONFIRM_CSV,
+        }:
+            raise ProtocolError("지원하지 않는 제어 요청입니다.")
+        status_result = (
+            self._status_event(request.label, request.payload)
+            if request.operation == CONTROL_STATUS
+            else None
+        )
         with self.lock:
-            if request.request_id.hex() in self.config.replay_ids:
+            if self.config.has_seen_request(request.request_id):
                 raise ProtocolError("이미 처리한 제어 요청입니다.")
-            self.config.remember_request(request.request_id)
-            self.store.save(self.config)
+            self.config.remember_request(
+                request.request_id,
+                request.timestamp + MAX_CLOCK_SKEW_SECONDS,
+            )
+            try:
+                self.store.save(self.config)
+            except Exception:
+                self.config.forget_request(request.request_id)
+                raise
             if request.operation == CONTROL_STATUS:
-                event, label = self._status_event(request.label, request.payload)
+                event, label = status_result  # type: ignore[misc]
                 response = encode_control_response(
                     pairing,
                     request.request_id,
@@ -267,20 +358,27 @@ class ReceiverState:
 class _ReceiverHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         state: ReceiverState = self.server.receiver_state  # type: ignore[attr-defined]
-        self.request.settimeout(SOCKET_TIMEOUT_SECONDS)
+        deadline = time.monotonic() + SOCKET_TOTAL_DEADLINE_SECONDS
+        frame: bytearray | None = None
+        response_frame: bytearray | None = None
         try:
-            magic = _read_exact(self.request, 8)
-            header = magic + _read_exact(self.request, REQUEST_HEADER_BYTES - 8)
+            magic = _read_exact(self.request, 8, deadline)
+            header = magic + _read_exact(
+                self.request,
+                REQUEST_HEADER_BYTES - 8,
+                deadline,
+            )
             if magic == REQUEST_MAGIC:
                 body_length = request_frame_length(header)
             elif magic == CONTROL_MAGIC:
                 body_length = secure_frame_body_length(header, CONTROL_MAGIC)
             else:
                 raise ProtocolError("지원하지 않는 요청입니다.")
-            frame = header + _read_exact(self.request, body_length)
+            frame = header + _read_exact(self.request, body_length, deadline)
             if magic == REQUEST_MAGIC:
                 ack, destination = state.accept(frame)
-                self.request.sendall(ack)
+                response_frame = bytearray(ack)
+                self.request.sendall(response_frame)
                 state.on_event(
                     ReceiveEvent(
                         accepted=True,
@@ -292,7 +390,8 @@ class _ReceiverHandler(socketserver.BaseRequestHandler):
                 )
             else:
                 response, event = state.accept_control(frame)
-                self.request.sendall(response)
+                response_frame = bytearray(response)
+                self.request.sendall(response_frame)
                 state.on_event(event)
         except Exception as error:
             state.on_event(
@@ -301,12 +400,39 @@ class _ReceiverHandler(socketserver.BaseRequestHandler):
                     message=f"전송 거부: {error}",
                 ),
             )
+        finally:
+            if frame is not None:
+                frame[:] = b"\x00" * len(frame)
+            if response_frame is not None:
+                response_frame[:] = b"\x00" * len(response_frame)
 
 
 class ThreadedReceiverServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
+    request_queue_size = 16
 
     def __init__(self, address: tuple[str, int], receiver_state: ReceiverState) -> None:
         self.receiver_state = receiver_state
+        self._connection_slots = threading.BoundedSemaphore(MAX_ACTIVE_CONNECTIONS)
         super().__init__(address, _ReceiverHandler)
+
+    def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
+        if not self._connection_slots.acquire(blocking=False):
+            request.close()
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self._connection_slots.release()
+            raise
+
+    def process_request_thread(
+        self,
+        request: socket.socket,
+        client_address: tuple[str, int],
+    ) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._connection_slots.release()

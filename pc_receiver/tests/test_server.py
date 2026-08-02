@@ -10,7 +10,6 @@ from matholic_pdf_receiver.protocol import (
     CONTROL_FETCH_CSV,
     CONTROL_STATUS,
     Pairing,
-    ProtocolError,
     decode_ack,
     decode_control_request,
     decode_control_response,
@@ -47,7 +46,7 @@ def test_filename_is_sanitized() -> None:
     assert safe_pdf_name("../../홍길동:QR?.pdf") == "홍길동_QR.pdf"
 
 
-def test_receiver_saves_once_and_rejects_replay(
+def test_receiver_repeats_ack_without_duplicate_after_ack_loss(
     tmp_path: Path,
     config: ReceiverConfig,
 ) -> None:
@@ -60,8 +59,16 @@ def test_receiver_saves_once_and_rejects_replay(
     ack, destination = state.accept(frame)
     assert decode_ack(pairing, ack).accepted
     assert destination.read_bytes() == b"%PDF-1.4\n%%EOF\n"
-    with pytest.raises(ProtocolError, match="이미 처리"):
-        state.accept(frame)
+    repeated_ack, repeated_destination = state.accept(frame)
+    assert decode_ack(pairing, repeated_ack).accepted
+    assert repeated_destination == destination
+    assert list(config.receive_dir.glob("*.pdf")) == [destination]
+
+    restarted = ReceiverState(store.load(), store)
+    restarted_ack, restarted_destination = restarted.accept(frame)
+    assert decode_ack(pairing, restarted_ack).accepted
+    assert restarted_destination == destination
+    assert list(config.receive_dir.glob("*.pdf")) == [destination]
 
 
 def test_tcp_receiver_returns_authenticated_ack(

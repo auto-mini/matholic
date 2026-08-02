@@ -87,8 +87,10 @@ import com.local.matholickiosk.kiosk.transfer.PcEndpointResolver
 import com.local.matholickiosk.kiosk.transfer.PcPdfSender
 import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
 import com.local.matholickiosk.kiosk.transfer.PcSubnetCandidates
+import com.local.matholickiosk.kiosk.transfer.PcTransferProtocol
 import java.io.File
 import java.net.Inet4Address
+import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -2005,32 +2007,31 @@ class MainActivity : ComponentActivity() {
         ioExecutor.execute {
             var output: File? = null
             val cards = mutableListOf<BatchQrCard>()
+            val deliveryRequestId = ByteArray(PcTransferProtocol.REQUEST_ID_BYTES)
+                .also(SecureRandom()::nextBytes)
             val result = runCatching {
-                val pairing = requireNotNull(pcPairingStore.load()) {
-                    "저장된 PC 페어링이 없습니다."
+                val issued = studentRepository.reissueQrBatch(studentIds)
+                issued.forEach { item ->
+                    cards += BatchQrCard(
+                        displayName = item.displayNameExact,
+                        qrBitmap = QrImageRenderer.render(
+                            payload = item.issuedQr.payload,
+                            sizePixels = QR_SIZE_PIXELS,
+                        ),
+                    )
                 }
-                try {
-                    val issued = studentRepository.reissueQrBatch(studentIds)
-                    issued.forEach { item ->
-                        cards += BatchQrCard(
-                            displayName = item.displayNameExact,
-                            qrBitmap = QrImageRenderer.render(
-                                payload = item.issuedQr.payload,
-                                sizePixels = QR_SIZE_PIXELS,
-                            ),
-                        )
-                    }
-                    output = BatchQrPdfExporter.export(this, cards)
+                output = BatchQrPdfExporter.export(this, cards)
+                withReachablePairedPc { pairing ->
                     pcPdfSender.send(
                         pairing = pairing,
                         pdfFile = requireNotNull(output),
                         filename = "신규 변경 학생 QR.pdf",
+                        requestId = deliveryRequestId,
                     )
-                    studentRepository.markCardPdfsSavedToPc(studentIds)
-                } finally {
-                    pairing.clearSensitiveData()
                 }
+                studentRepository.markCardPdfsSavedToPc(studentIds)
             }
+            deliveryRequestId.fill(0)
             output?.delete()
             cards.forEach { card ->
                 if (!card.qrBitmap.isRecycled) {
@@ -2284,13 +2285,20 @@ class MainActivity : ComponentActivity() {
                         qrBitmap = ownedBitmap,
                     )
                 }
-                val pcName = withReachablePairedPc { pairing ->
-                    pcPdfSender.send(
-                        pairing = pairing,
-                        pdfFile = requireNotNull(exportFile),
-                        filename = "${preview.exactName} QR.pdf",
-                    )
-                    pairing.displayName
+                val deliveryRequestId = ByteArray(PcTransferProtocol.REQUEST_ID_BYTES)
+                    .also(SecureRandom()::nextBytes)
+                val pcName = try {
+                    withReachablePairedPc { pairing ->
+                        pcPdfSender.send(
+                            pairing = pairing,
+                            pdfFile = requireNotNull(exportFile),
+                            filename = "${preview.exactName} QR.pdf",
+                            requestId = deliveryRequestId,
+                        )
+                        pairing.displayName
+                    }
+                } finally {
+                    deliveryRequestId.fill(0)
                 }
                 studentRepository.markCardPdfsSavedToPc(setOf(preview.studentId))
                 pcName

@@ -12,13 +12,23 @@ class PcPdfSender(
         pairing: PcReceiverPairing,
         pdfFile: File,
         filename: String,
+        requestId: ByteArray? = null,
     ) {
         require(pdfFile.isFile && pdfFile.length() in 1..PcTransferProtocol.MAX_PDF_BYTES) {
             "전송할 PDF가 올바르지 않습니다."
         }
         val pdf = pdfFile.readBytes()
         try {
-            val transfer = PcTransferProtocol.encodeRequest(pairing, filename, pdf)
+            val transfer = if (requestId == null) {
+                PcTransferProtocol.encodeRequest(pairing, filename, pdf)
+            } else {
+                PcTransferProtocol.encodeRequest(
+                    pairing = pairing,
+                    filename = filename,
+                    pdf = pdf,
+                    requestId = requestId,
+                )
+            }
             try {
                 Socket().use { socket ->
                     socket.soTimeout = readTimeoutMs

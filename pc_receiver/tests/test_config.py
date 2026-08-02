@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,7 @@ def receiver_config(tmp_path: Path) -> ReceiverConfig:
     )
 
 
-def test_v2_config_stores_only_protected_pairing_secret(tmp_path: Path) -> None:
+def test_current_config_stores_only_protected_pairing_secret(tmp_path: Path) -> None:
     path = tmp_path / "config.json"
     config = receiver_config(tmp_path)
     store = ConfigStore(path, secret_protector=_TestSecretProtector())
@@ -46,6 +47,30 @@ def test_v2_config_stores_only_protected_pairing_secret(tmp_path: Path) -> None:
     loaded = store.load()
     assert loaded.receiver_id == config.receiver_id
     assert loaded.secret == config.secret
+
+
+def test_replay_requests_are_time_bounded_without_count_eviction(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import matholic_pdf_receiver.config as config_module
+
+    config = receiver_config(tmp_path)
+    now = int(time.time())
+    monkeypatch.setattr(config_module, "MAX_REPLAY_REQUESTS", 2)
+    first = bytes.fromhex("00" * 16)
+    second = bytes.fromhex("11" * 16)
+    third = bytes.fromhex("22" * 16)
+
+    config.remember_request(first, now + 300)
+    config.remember_request(second, now + 300)
+    with pytest.raises(ValueError, match="가득"):
+        config.remember_request(third, now + 300)
+    assert config.has_seen_request(first, now + 299)
+
+    config.purge_expired_requests(now + 301)
+    config.remember_request(third, now + 600)
+    assert config.has_seen_request(third, now + 301)
 
 
 def test_v1_plaintext_config_is_migrated_on_first_load(tmp_path: Path) -> None:

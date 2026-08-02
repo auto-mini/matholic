@@ -5,6 +5,7 @@ import ctypes
 import json
 import os
 import socket
+import time
 from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,8 +15,9 @@ from .protocol import Pairing, RECEIVER_ID_BYTES, SECRET_BYTES
 
 DEFAULT_PORT = 48129
 DEFAULT_FOLDER_NAME = "Matholic QR Cards"
-MAX_REPLAY_IDS = 2048
-CONFIG_VERSION = 2
+MAX_REPLAY_REQUESTS = 65_536
+REPLAY_WINDOW_SECONDS = 300
+CONFIG_VERSION = 3
 _DPAPI_ENTROPY = b"MatholicPdfReceiver/config/v2/pairing-secret"
 _CRYPTPROTECT_UI_FORBIDDEN = 0x1
 
@@ -142,7 +144,8 @@ class ReceiverConfig:
     port: int = DEFAULT_PORT
     display_name: str = field(default_factory=socket.gethostname)
     receive_dir: Path = field(default_factory=default_receive_dir)
-    replay_ids: list[str] = field(default_factory=list)
+    replay_requests: dict[str, int] = field(default_factory=dict)
+    pdf_receipts: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def pairing(self, host: str | None = None) -> Pairing:
         return Pairing(
@@ -153,13 +156,34 @@ class ReceiverConfig:
             display_name=self.display_name,
         )
 
-    def remember_request(self, request_id: bytes) -> None:
+    def purge_expired_requests(self, now_seconds: int | None = None) -> None:
+        now_seconds = int(time.time()) if now_seconds is None else now_seconds
+        expired = [
+            request_id
+            for request_id, expires_at in self.replay_requests.items()
+            if expires_at < now_seconds
+        ]
+        for request_id in expired:
+            self.replay_requests.pop(request_id, None)
+            self.pdf_receipts.pop(request_id, None)
+
+    def has_seen_request(self, request_id: bytes, now_seconds: int | None = None) -> bool:
+        self.purge_expired_requests(now_seconds)
+        return request_id.hex() in self.replay_requests
+
+    def remember_request(self, request_id: bytes, expires_at: int) -> None:
         encoded = request_id.hex()
-        if encoded in self.replay_ids:
+        self.purge_expired_requests()
+        if encoded in self.replay_requests:
             raise ValueError("이미 처리한 전송 요청입니다.")
-        self.replay_ids.append(encoded)
-        if len(self.replay_ids) > MAX_REPLAY_IDS:
-            del self.replay_ids[: len(self.replay_ids) - MAX_REPLAY_IDS]
+        if len(self.replay_requests) >= MAX_REPLAY_REQUESTS:
+            raise ValueError("재전송 방지 저장소가 가득 찼습니다.")
+        self.replay_requests[encoded] = expires_at
+
+    def forget_request(self, request_id: bytes) -> None:
+        encoded = request_id.hex()
+        self.replay_requests.pop(encoded, None)
+        self.pdf_receipts.pop(encoded, None)
 
 
 class ConfigStore:
@@ -184,24 +208,45 @@ class ConfigStore:
     def load(self) -> ReceiverConfig:
         payload = json.loads(self.path.read_text(encoding="utf-8"))
         version = payload.get("version")
-        if version not in {1, CONFIG_VERSION}:
+        if version not in {1, 2, CONFIG_VERSION}:
             raise ValueError("지원하지 않는 PC 수신기 설정입니다.")
         if version == 1:
             secret = base64.urlsafe_b64decode(payload["secret"] + "==")
         else:
             protected = base64.urlsafe_b64decode(payload["secret_protected"] + "==")
             secret = self.secret_protector.unprotect(protected)
+        legacy_replay_ids = list(payload.get("replay_ids", []))
+        replay_requests = (
+            {
+                str(request_id): int(expires_at)
+                for request_id, expires_at in payload.get("replay_requests", {}).items()
+            }
+            if version == CONFIG_VERSION
+            else {
+                str(request_id): int(time.time()) + REPLAY_WINDOW_SECONDS
+                for request_id in legacy_replay_ids
+            }
+        )
         config = ReceiverConfig(
             receiver_id=base64.urlsafe_b64decode(payload["receiver_id"] + "=="),
             secret=secret,
             port=int(payload["port"]),
             display_name=str(payload["display_name"]),
             receive_dir=Path(payload["receive_dir"]),
-            replay_ids=list(payload.get("replay_ids", [])),
+            replay_requests=replay_requests,
+            pdf_receipts={
+                str(request_id): {
+                    "sha256": str(receipt["sha256"]),
+                    "path": str(receipt["path"]),
+                }
+                for request_id, receipt in payload.get("pdf_receipts", {}).items()
+                if isinstance(receipt, dict) and "sha256" in receipt and "path" in receipt
+            },
         )
+        config.purge_expired_requests()
         config.pairing(host="127.0.0.1")
-        if version == 1:
-            # Fail closed if the plaintext legacy secret cannot be replaced.
+        if version != CONFIG_VERSION:
+            # Fail closed if the legacy secret/cache cannot be replaced.
             self.save(config)
         return config
 
@@ -221,11 +266,15 @@ class ConfigStore:
             "port": config.port,
             "display_name": config.display_name,
             "receive_dir": str(config.receive_dir),
-            "replay_ids": config.replay_ids,
+            "replay_requests": config.replay_requests,
+            "pdf_receipts": config.pdf_receipts,
         }
         temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        os.replace(temporary, self.path)
+        try:
+            temporary.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            os.replace(temporary, self.path)
+        finally:
+            temporary.unlink(missing_ok=True)

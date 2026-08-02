@@ -18,6 +18,8 @@ from matholic_pdf_receiver.server import ReceiveEvent, ReceiverState, ThreadedRe
 
 APP_TITLE = "매쓰홀릭 PDF 수신기"
 PAIRING_QR_PREVIEW_PX = 240
+MAX_EVENT_QUEUE = 256
+MAX_EVENTS_PER_POLL = 64
 
 
 def _tray_image() -> Image.Image:
@@ -32,22 +34,26 @@ def _tray_image() -> Image.Image:
 
 class ReceiverApplication:
     def __init__(self, show_window: bool) -> None:
+        self._shutting_down = False
+        self.server: ThreadedReceiverServer | None = None
+        self.server_thread: threading.Thread | None = None
+        self.tray: pystray.Icon | None = None
+        self.tray_thread: threading.Thread | None = None
+        self.root: tk.Tk | None = None
+        self.receiver_state: ReceiverState | None = None
+        try:
+            self._initialize(show_window)
+        except Exception:
+            self._shutting_down = True
+            self._cleanup_resources()
+            raise
+
+    def _initialize(self, show_window: bool) -> None:
         self.store = ConfigStore()
         self.config = self.store.load_or_create()
         self.host = current_lan_ipv4()
-        self.events: queue.Queue[ReceiveEvent] = queue.Queue()
-        self.receiver_state = ReceiverState(self.config, self.store, self.events.put)
-        self.server = ThreadedReceiverServer(
-            ("0.0.0.0", self.config.port),
-            self.receiver_state,
-        )
-        self.server_thread = threading.Thread(
-            target=self.server.serve_forever,
-            name="matholic-pdf-receiver",
-            daemon=True,
-        )
-        self.server_thread.start()
-
+        self.events: queue.Queue[ReceiveEvent] = queue.Queue(maxsize=MAX_EVENT_QUEUE)
+        self.receiver_state = ReceiverState(self.config, self.store, self._enqueue_event)
         self.root = tk.Tk()
         self.root.title(APP_TITLE)
         self.root.geometry("620x760")
@@ -82,8 +88,56 @@ class ReceiverApplication:
                 pystray.MenuItem("종료", self._tray_quit),
             ),
         )
-        threading.Thread(target=self.tray.run, name="matholic-tray", daemon=True).start()
+        self.server = ThreadedReceiverServer(
+            ("0.0.0.0", self.config.port),
+            self.receiver_state,
+        )
+        self.server_thread = threading.Thread(
+            target=self._run_server,
+            name="matholic-pdf-receiver",
+            daemon=True,
+        )
+        self.server_thread.start()
+        self.tray_thread = threading.Thread(
+            target=self._run_tray,
+            name="matholic-tray",
+            daemon=True,
+        )
+        self.tray_thread.start()
         self.root.after(200, self._poll_events)
+
+    def _enqueue_event(self, event: ReceiveEvent) -> None:
+        try:
+            self.events.put_nowait(event)
+        except queue.Full:
+            try:
+                self.events.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.events.put_nowait(event)
+            except queue.Full:
+                pass
+
+    def _run_server(self) -> None:
+        try:
+            assert self.server is not None
+            self.server.serve_forever()
+        except Exception as error:
+            if not self._shutting_down:
+                self._enqueue_event(
+                    ReceiveEvent(False, f"수신 서버가 중지되었습니다: {error}", kind="fatal"),
+                )
+
+    def _run_tray(self) -> None:
+        try:
+            assert self.tray is not None
+            self.tray.run()
+        except Exception as error:
+            if not self._shutting_down:
+                self._enqueue_event(
+                    ReceiveEvent(False, f"알림 영역 실행에 실패했습니다: {error}", kind="fatal"),
+                )
 
     def _build_window(self) -> None:
         frame = ttk.Frame(self.root, padding=24)
@@ -232,8 +286,13 @@ class ReceiverApplication:
 
     def _poll_events(self) -> None:
         try:
-            while True:
+            for _ in range(MAX_EVENTS_PER_POLL):
                 event = self.events.get_nowait()
+                if event.kind == "fatal":
+                    self.show_window()
+                    messagebox.showerror(APP_TITLE, event.message, parent=self.root)
+                    self.shutdown()
+                    return
                 self.status_var.set(event.message)
                 if event.kind == "status":
                     self.kiosk_state_var.set(f"태블릿 상태: {event.state or '알 수 없음'}")
@@ -265,10 +324,43 @@ class ReceiverApplication:
         self.root.after(0, self.shutdown)
 
     def shutdown(self) -> None:
-        self.tray.stop()
-        self.server.shutdown()
-        self.server.server_close()
-        self.root.destroy()
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        self._cleanup_resources()
+
+    def _cleanup_resources(self) -> None:
+        tray = self.tray
+        if tray is not None:
+            try:
+                tray.stop()
+            except Exception:
+                pass
+        server = self.server
+        server_thread = self.server_thread
+        if server is not None:
+            try:
+                if server_thread is not None and server_thread.is_alive():
+                    server.shutdown()
+            except Exception:
+                pass
+            try:
+                server.server_close()
+            except Exception:
+                pass
+        receiver_state = self.receiver_state
+        if receiver_state is not None:
+            receiver_state.close()
+        current_thread = threading.current_thread()
+        for worker in (server_thread, self.tray_thread):
+            if worker is not None and worker is not current_thread and worker.is_alive():
+                worker.join(timeout=2)
+        root = self.root
+        if root is not None:
+            try:
+                root.destroy()
+            except tk.TclError:
+                pass
 
 
 def parse_args() -> argparse.Namespace:
@@ -301,7 +393,10 @@ def main() -> None:
         messagebox.showerror(APP_TITLE, f"수신기를 시작하지 못했습니다.\n\n{error}")
         root.destroy()
         raise SystemExit(1) from error
-    application.run()
+    try:
+        application.run()
+    finally:
+        application.shutdown()
 
 
 if __name__ == "__main__":

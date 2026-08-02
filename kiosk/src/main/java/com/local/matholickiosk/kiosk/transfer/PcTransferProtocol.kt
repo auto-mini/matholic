@@ -21,7 +21,7 @@ object PcTransferProtocol {
     const val ACK_BYTES = 89
     private const val VERSION: Byte = 1
     private const val REQUEST_HEADER_BYTES = 65
-    private const val REQUEST_ID_BYTES = 16
+    const val REQUEST_ID_BYTES = 16
     private const val NONCE_BYTES = 12
     private const val MAX_FILENAME_BYTES = 240
     private const val GCM_TAG_BITS = 128
