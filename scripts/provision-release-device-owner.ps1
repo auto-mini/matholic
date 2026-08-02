@@ -3,8 +3,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Serial,
     [string]$ExpectedModel = 'SM-P610',
-    [string]$KioskApk = (Join-Path $PSScriptRoot '..\artifacts\matholic-kiosk-0.6.0-rc57-release.apk'),
-    [string]$WebPocApk = (Join-Path $PSScriptRoot '..\artifacts\matholic-webpoc-0.4.0-rc119-release.apk'),
+    [string]$KioskApk = (Join-Path $PSScriptRoot '..\artifacts\matholic-kiosk-0.6.0-rc58-release.apk'),
+    [string]$WebPocApk = (Join-Path $PSScriptRoot '..\artifacts\matholic-webpoc-0.4.0-rc120-release.apk'),
     [string]$SigningRoot = (Join-Path $env:LOCALAPPDATA 'MatholicKiosk\release-signing')
 )
 
