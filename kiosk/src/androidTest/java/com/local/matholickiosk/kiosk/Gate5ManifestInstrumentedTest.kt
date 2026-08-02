@@ -8,7 +8,9 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ScrollView
+import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -93,6 +95,37 @@ class Gate5ManifestInstrumentedTest {
                 .hasScrollViewAncestor()
         }
         assertTrue(reachable)
+    }
+
+    @Test
+    fun remoteSupportBadgeUsesReservedHeaderSpaceWithoutCoveringStatus() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var badgeInsideHeader = false
+        var statusEndsBeforeBadge = false
+        var badgeInsideBounds = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val root = LayoutInflater.from(context).inflate(R.layout.activity_main, null, false)
+            val header = root.findViewById<ViewGroup>(R.id.app_header)
+            val status = root.findViewById<TextView>(R.id.status_text).apply {
+                text = "CAMERA_PERMISSION_REQUIRED_AND_INITIALIZATION_FAILED"
+            }
+            val badge = root.findViewById<TextView>(R.id.remote_support_badge).apply {
+                visibility = View.VISIBLE
+            }
+            root.measure(
+                View.MeasureSpec.makeMeasureSpec(2_000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(1_200, View.MeasureSpec.EXACTLY),
+            )
+            root.layout(0, 0, root.measuredWidth, root.measuredHeight)
+
+            badgeInsideHeader = badge.parent === header
+            statusEndsBeforeBadge = status.right <= badge.left
+            badgeInsideBounds = badge.right <= header.width && badge.left >= 0
+        }
+
+        assertTrue(badgeInsideHeader)
+        assertTrue(statusEndsBeforeBadge)
+        assertTrue(badgeInsideBounds)
     }
 
     @Test

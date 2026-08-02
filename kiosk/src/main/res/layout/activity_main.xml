@@ -39,11 +39,27 @@
 
             <TextView
                 android:id="@+id/status_text"
-                android:layout_width="wrap_content"
+                android:layout_width="240dp"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:maxLines="1"
                 android:text="준비 중"
                 android:textColor="#D9EAF7"
                 android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/remote_support_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/remote_support_badge_background"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="5dp"
+                android:text="원격 점검 중"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <FrameLayout

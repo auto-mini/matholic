@@ -2,13 +2,9 @@ package com.local.matholickiosk.kiosk
 
 import android.app.Activity
 import android.content.SharedPreferences
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Handler
-import android.view.Gravity
-import android.view.ViewGroup
+import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.TextView
 
 internal class RemoteSupportWindowController(
@@ -17,7 +13,9 @@ internal class RemoteSupportWindowController(
     private val store: RemoteSupportStore,
     private val onStateChanged: (Boolean) -> Unit = {},
 ) : SharedPreferences.OnSharedPreferenceChangeListener {
-    private var badge: TextView? = null
+    private val badge: TextView? by lazy {
+        activity.findViewById(R.id.remote_support_badge)
+    }
     private var started = false
     private val expireRunnable = Runnable(::refresh)
 
@@ -65,38 +63,12 @@ internal class RemoteSupportWindowController(
     }
 
     private fun showBadge() {
-        if (badge?.parent != null) return
-        val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
-        val view = badge ?: TextView(activity).apply {
-            text = "원격 점검 중"
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            setPadding(dp(10), dp(5), dp(10), dp(5))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(183, 28, 28))
-                cornerRadius = dp(14).toFloat()
-            }
-            elevation = dp(12).toFloat()
-        }.also { badge = it }
-        content.addView(
-            view,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP or Gravity.END,
-            ).apply {
-                topMargin = dp(8)
-                marginEnd = dp(8)
-            },
-        )
+        badge?.visibility = View.VISIBLE
     }
 
     private fun removeBadge() {
-        (badge?.parent as? ViewGroup)?.removeView(badge)
+        badge?.visibility = View.GONE
     }
-
-    private fun dp(value: Int): Int =
-        (value * activity.resources.displayMetrics.density).toInt()
 
     private companion object {
         const val MAX_TIMER_DELAY_MILLIS = 60L * 60L * 1_000L
