@@ -19,6 +19,18 @@ from matholic_pdf_receiver.protocol import (
 from matholic_pdf_receiver.server import ReceiverState, ThreadedReceiverServer, safe_pdf_name
 
 
+class _TestSecretProtector:
+    def protect(self, plaintext: bytes) -> bytes:
+        return bytes(value ^ 0xA5 for value in plaintext)
+
+    def unprotect(self, protected: bytes) -> bytes:
+        return bytes(value ^ 0xA5 for value in protected)
+
+
+def config_store(path: Path) -> ConfigStore:
+    return ConfigStore(path, secret_protector=_TestSecretProtector())
+
+
 @pytest.fixture
 def config(tmp_path: Path) -> ReceiverConfig:
     return ReceiverConfig(
@@ -38,7 +50,7 @@ def test_receiver_saves_once_and_rejects_replay(
     tmp_path: Path,
     config: ReceiverConfig,
 ) -> None:
-    store = ConfigStore(tmp_path / "config.json")
+    store = config_store(tmp_path / "config.json")
     store.save(config)
     pairing = config.pairing(host="127.0.0.1")
     frame = encode_request(pairing, "홍길동.pdf", b"%PDF-1.4\n%%EOF\n")
@@ -55,7 +67,7 @@ def test_tcp_receiver_returns_authenticated_ack(
     tmp_path: Path,
     config: ReceiverConfig,
 ) -> None:
-    store = ConfigStore(tmp_path / "config.json")
+    store = config_store(tmp_path / "config.json")
     store.save(config)
     state = ReceiverState(config, store)
     server = ThreadedReceiverServer(("127.0.0.1", 0), state)
@@ -85,7 +97,7 @@ def test_receiver_accepts_status_and_serves_csv_once(
     tmp_path: Path,
     config: ReceiverConfig,
 ) -> None:
-    store = ConfigStore(tmp_path / "config.json")
+    store = config_store(tmp_path / "config.json")
     store.save(config)
     events = []
     state = ReceiverState(config, store, events.append)

@@ -1,17 +1,115 @@
 from __future__ import annotations
 
 import base64
+import ctypes
 import json
 import os
 import socket
+from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 from .protocol import Pairing, RECEIVER_ID_BYTES, SECRET_BYTES
 
 DEFAULT_PORT = 48129
 DEFAULT_FOLDER_NAME = "Matholic QR Cards"
 MAX_REPLAY_IDS = 2048
+CONFIG_VERSION = 2
+_DPAPI_ENTROPY = b"MatholicPdfReceiver/config/v2/pairing-secret"
+_CRYPTPROTECT_UI_FORBIDDEN = 0x1
+
+
+class SecretProtector(Protocol):
+    def protect(self, plaintext: bytes) -> bytes: ...
+
+    def unprotect(self, protected: bytes) -> bytes: ...
+
+
+class _DataBlob(ctypes.Structure):
+    _fields_ = [
+        ("cbData", wintypes.DWORD),
+        ("pbData", ctypes.POINTER(ctypes.c_ubyte)),
+    ]
+
+
+class DpapiSecretProtector:
+    """Protect pairing secrets for the current Windows user with DPAPI."""
+
+    def __init__(self) -> None:
+        if os.name != "nt":
+            raise RuntimeError("PC 수신기 비밀 보호는 Windows DPAPI가 필요합니다.")
+        self._crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+        self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._crypt32.CryptProtectData.argtypes = [
+            ctypes.POINTER(_DataBlob),
+            wintypes.LPCWSTR,
+            ctypes.POINTER(_DataBlob),
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.POINTER(_DataBlob),
+        ]
+        self._crypt32.CryptProtectData.restype = wintypes.BOOL
+        self._crypt32.CryptUnprotectData.argtypes = [
+            ctypes.POINTER(_DataBlob),
+            ctypes.POINTER(wintypes.LPWSTR),
+            ctypes.POINTER(_DataBlob),
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            ctypes.POINTER(_DataBlob),
+        ]
+        self._crypt32.CryptUnprotectData.restype = wintypes.BOOL
+        self._kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        self._kernel32.LocalFree.restype = ctypes.c_void_p
+
+    @staticmethod
+    def _input_blob(data: bytes) -> tuple[_DataBlob, ctypes.Array[ctypes.c_ubyte]]:
+        if not data:
+            raise ValueError("보호할 비밀이 비어 있습니다.")
+        buffer = (ctypes.c_ubyte * len(data)).from_buffer_copy(data)
+        return _DataBlob(len(data), buffer), buffer
+
+    def _transform(self, data: bytes, *, protect: bool) -> bytes:
+        input_blob, input_buffer = self._input_blob(data)
+        entropy_blob, entropy_buffer = self._input_blob(_DPAPI_ENTROPY)
+        output_blob = _DataBlob()
+        if protect:
+            succeeded = self._crypt32.CryptProtectData(
+                ctypes.byref(input_blob),
+                "Matholic PDF Receiver pairing secret",
+                ctypes.byref(entropy_blob),
+                None,
+                None,
+                _CRYPTPROTECT_UI_FORBIDDEN,
+                ctypes.byref(output_blob),
+            )
+        else:
+            succeeded = self._crypt32.CryptUnprotectData(
+                ctypes.byref(input_blob),
+                None,
+                ctypes.byref(entropy_blob),
+                None,
+                None,
+                _CRYPTPROTECT_UI_FORBIDDEN,
+                ctypes.byref(output_blob),
+            )
+        # Keep the ctypes input buffers alive until the native call returns.
+        _ = input_buffer, entropy_buffer
+        if not succeeded:
+            error = ctypes.get_last_error()
+            raise OSError(error, ctypes.FormatError(error))
+        try:
+            return ctypes.string_at(output_blob.pbData, output_blob.cbData)
+        finally:
+            self._kernel32.LocalFree(output_blob.pbData)
+
+    def protect(self, plaintext: bytes) -> bytes:
+        return self._transform(plaintext, protect=True)
+
+    def unprotect(self, protected: bytes) -> bytes:
+        return self._transform(protected, protect=False)
 
 
 def default_config_dir() -> Path:
@@ -65,8 +163,13 @@ class ReceiverConfig:
 
 
 class ConfigStore:
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(
+        self,
+        path: Path | None = None,
+        secret_protector: SecretProtector | None = None,
+    ) -> None:
         self.path = path or default_config_dir() / "config.json"
+        self.secret_protector = secret_protector or DpapiSecretProtector()
 
     def load_or_create(self) -> ReceiverConfig:
         if self.path.exists():
@@ -80,28 +183,41 @@ class ConfigStore:
 
     def load(self) -> ReceiverConfig:
         payload = json.loads(self.path.read_text(encoding="utf-8"))
-        if payload.get("version") != 1:
+        version = payload.get("version")
+        if version not in {1, CONFIG_VERSION}:
             raise ValueError("지원하지 않는 PC 수신기 설정입니다.")
+        if version == 1:
+            secret = base64.urlsafe_b64decode(payload["secret"] + "==")
+        else:
+            protected = base64.urlsafe_b64decode(payload["secret_protected"] + "==")
+            secret = self.secret_protector.unprotect(protected)
         config = ReceiverConfig(
             receiver_id=base64.urlsafe_b64decode(payload["receiver_id"] + "=="),
-            secret=base64.urlsafe_b64decode(payload["secret"] + "=="),
+            secret=secret,
             port=int(payload["port"]),
             display_name=str(payload["display_name"]),
             receive_dir=Path(payload["receive_dir"]),
             replay_ids=list(payload.get("replay_ids", [])),
         )
         config.pairing(host="127.0.0.1")
+        if version == 1:
+            # Fail closed if the plaintext legacy secret cannot be replaced.
+            self.save(config)
         return config
 
     def save(self, config: ReceiverConfig) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         config.receive_dir.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 1,
+            "version": CONFIG_VERSION,
             "receiver_id": base64.urlsafe_b64encode(config.receiver_id)
             .decode("ascii")
             .rstrip("="),
-            "secret": base64.urlsafe_b64encode(config.secret).decode("ascii").rstrip("="),
+            "secret_protected": base64.urlsafe_b64encode(
+                self.secret_protector.protect(config.secret),
+            )
+            .decode("ascii")
+            .rstrip("="),
             "port": config.port,
             "display_name": config.display_name,
             "receive_dir": str(config.receive_dir),
