@@ -96,7 +96,7 @@ abstract class KioskDatabase : RoomDatabase() {
 
         internal val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("PRAGMA secure_delete = ON")
+                enableSecureDelete(db)
                 db.execSQL(
                     """
                     UPDATE `students`
@@ -114,7 +114,15 @@ abstract class KioskDatabase : RoomDatabase() {
 
         private val SECURE_DELETE_CALLBACK = object : Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
-                db.execSQL("PRAGMA secure_delete = ON")
+                enableSecureDelete(db)
+            }
+        }
+
+        private fun enableSecureDelete(db: SupportSQLiteDatabase) {
+            db.query("PRAGMA secure_delete = ON").use { cursor ->
+                check(cursor.moveToFirst() && cursor.getInt(0) == 1) {
+                    "SQLite secure_delete could not be enabled"
+                }
             }
         }
     }
