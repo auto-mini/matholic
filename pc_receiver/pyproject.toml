@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "matholic-pdf-receiver"
-version = "0.1.4"
+version = "0.1.5"
 description = "Paired local-network PDF receiver for the Matholic grading kiosk"
 requires-python = ">=3.11"
 dependencies = [
