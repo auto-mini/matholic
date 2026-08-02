@@ -368,6 +368,41 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun staleStudentCallbackCannotValidateOrTransitionReplacementSession() {
+        val classId = repository.createClass("가상반")
+        val registered = repository.registerStudent(
+            "가상학생-가",
+            "user-a".toCharArray(),
+            "password-a".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        val originalSessionId = requireNotNull(repository.startSession(classId).sessionId)
+        repository.endSession()
+        val replacementSessionId = requireNotNull(repository.startSession(classId).sessionId)
+
+        assertNull(
+            repository.validateManualStudentForActiveSession(
+                registered.studentId,
+                originalSessionId,
+            ),
+        )
+        assertTrue(
+            runCatching {
+                repository.transitionSession(
+                    expectedState = KioskState.QR_READY,
+                    state = KioskState.PRELOGIN_CHECK,
+                    expectedSessionId = originalSessionId,
+                    currentStudentId = registered.studentId,
+                )
+            }.isFailure,
+        )
+        assertEquals(replacementSessionId, repository.currentSession()?.sessionId)
+        assertEquals(KioskState.QR_READY.name, repository.currentSession()?.state)
+        assertNull(repository.currentSession()?.currentStudentId)
+    }
+
+    @Test
     fun profileCredentialUpdateAndDeactivationAreAuditedAndFailClosed() {
         val classId = repository.createClass("가상반")
         val registered = repository.registerStudent(

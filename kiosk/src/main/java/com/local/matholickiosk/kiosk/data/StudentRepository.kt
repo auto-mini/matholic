@@ -743,10 +743,12 @@ class StudentRepository(
     fun validateForActiveSession(
         tokenHash: ByteArray,
         requiredDisplayNameExact: String? = null,
+        expectedSessionId: String? = null,
     ): ValidatedStudent? {
         val session = database.sessionDao().get()
         if (
             session?.sessionId == null ||
+            (expectedSessionId != null && session.sessionId != expectedSessionId) ||
             session.classId == null ||
             session.state != KioskState.QR_READY.name
         ) {
@@ -787,10 +789,14 @@ class StudentRepository(
         return ValidatedStudent(student.studentId, student.displayNameExact)
     }
 
-    fun validateManualStudentForActiveSession(studentId: String): ValidatedStudent? {
+    fun validateManualStudentForActiveSession(
+        studentId: String,
+        expectedSessionId: String? = null,
+    ): ValidatedStudent? {
         val session = database.sessionDao().get()
         if (
             session?.sessionId == null ||
+            (expectedSessionId != null && session.sessionId != expectedSessionId) ||
             session.classId == null ||
             session.state != KioskState.QR_READY.name
         ) {
@@ -888,6 +894,7 @@ class StudentRepository(
     fun transitionSession(
         expectedState: KioskState,
         state: KioskState,
+        expectedSessionId: String? = null,
         currentStudentId: String? = null,
         automationStep: String? = null,
         lockedReason: String? = null,
@@ -895,6 +902,9 @@ class StudentRepository(
         database.runInTransaction {
             val current = requireNotNull(database.sessionDao().get()) { "No session state" }
             require(current.sessionId != null) { "No active session" }
+            require(expectedSessionId == null || current.sessionId == expectedSessionId) {
+                "Session identity changed before transition"
+            }
             require(current.state == expectedState.name) {
                 "Session state changed before transition"
             }

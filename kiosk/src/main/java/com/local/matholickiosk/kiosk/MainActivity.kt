@@ -183,6 +183,7 @@ class MainActivity : ComponentActivity() {
     private val studentSelectionState = RefreshableSelectionState()
     private val webRecoveryGate = SingleFlightGate()
     private val adminDataOperationGate = SingleFlightGate()
+    private val studentLaunchGate = SingleFlightGate()
     private var issuedQrPreview: QrPreview? = null
     private var currentSession: ActiveSessionEntity? = null
     private var pendingTemporaryStudentIds: Set<String> = emptySet()
@@ -197,6 +198,7 @@ class MainActivity : ComponentActivity() {
     private var qrGuidanceGeneration = 0
     private var destroyed = false
     private var pendingCredentialBridgeId: String? = null
+    private var pendingWebSessionId: String? = null
     private var relockAdminOnStart = false
     private var suppressNextAdminStopRelock = false
     private var dedicatedDevicePolicyFailed = false
@@ -209,6 +211,7 @@ class MainActivity : ComponentActivity() {
     private var manualStudentSelectionOnly = false
     private var manualStudentSelectionFlowActive = false
     private var qrAcceptanceGeneration = 0
+    private var studentFlowGeneration = 0
     private var activeStudentDisplayName: String? = null
     private var pendingAdminUndo: PendingAdminUndo? = null
     private var adminUndoGeneration = 0
@@ -227,8 +230,15 @@ class MainActivity : ComponentActivity() {
     private val webSessionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        studentLaunchGate.finish()
         pendingCredentialBridgeId?.let(OneTimeCredentialBroker::revoke)
         pendingCredentialBridgeId = null
+        val expectedSessionId = pendingWebSessionId
+        pendingWebSessionId = null
+        if (expectedSessionId == null) {
+            diagnosticLog.record("STALE_WEB_SESSION_RESULT")
+            return@registerForActivityResult
+        }
         val failureReason = result.data
             ?.getStringExtra(CredentialBridgeContract.EXTRA_FAILURE_REASON)
             ?.take(80)
@@ -236,18 +246,25 @@ class MainActivity : ComponentActivity() {
         persistWebSessionResult(
             passed = result.resultCode == Activity.RESULT_OK,
             failureReason = failureReason,
+            expectedSessionId = expectedSessionId,
         )
     }
 
     private fun persistWebSessionResult(
         passed: Boolean,
         failureReason: String,
+        expectedSessionId: String,
     ) {
         diagnosticLog.record(
             if (passed) "WEB_SESSION_COMPLETE" else "WEB_SESSION_FAILED",
             if (passed) null else failureReason,
         )
         ioExecutor.execute {
+            val before = runCatching { studentRepository.currentSession() }.getOrNull()
+            if (before?.sessionId != expectedSessionId) {
+                diagnosticLog.record("STALE_WEB_SESSION_RESULT")
+                return@execute
+            }
             val outcome = WebSessionResultPersistence.persist(
                 passed = passed,
                 persistTransition = {
@@ -255,17 +272,21 @@ class MainActivity : ComponentActivity() {
                         studentRepository.transitionSession(
                             expectedState = KioskState.PRELOGIN_CHECK,
                             state = KioskState.QR_READY,
+                            expectedSessionId = expectedSessionId,
                         )
                     } else {
                         studentRepository.transitionSession(
                             expectedState = KioskState.PRELOGIN_CHECK,
                             state = KioskState.LOCKED,
+                            expectedSessionId = expectedSessionId,
                             lockedReason = failureReason,
                         )
                     }
                 },
                 loadSession = { studentRepository.currentSession() },
             )
+            val sessionAfterFailure = outcome.exceptionOrNull()
+                ?.let { runCatching { studentRepository.currentSession() }.getOrNull() }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
                 outcome.fold(
@@ -293,6 +314,10 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onFailure = {
+                        if (sessionAfterFailure?.sessionId != expectedSessionId) {
+                            currentSession = sessionAfterFailure
+                            return@fold
+                        }
                         reportPcStatus(
                             state = "복구 필요",
                             studentName = activeStudentDisplayName,
@@ -339,6 +364,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingRecoveryAction = restorePendingRecoveryAction(savedInstanceState)
+        pendingWebSessionId = savedInstanceState?.getString(KEY_PENDING_WEB_SESSION_ID)
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SECURE or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
@@ -540,7 +566,13 @@ class MainActivity : ComponentActivity() {
         sessionAdminButton.setOnClickListener {
             if (pcPairingMode) {
                 returnToAdminAfterPcPairing("PC 페어링을 취소했습니다.")
+            } else if (studentLaunchGate.isActive) {
+                scannerMessage.text = "학생 로그인을 준비하고 있습니다. 잠시 기다리세요"
             } else {
+                qrAcceptanceGeneration += 1
+                studentFlowGeneration += 1
+                cancelQrLoginButton.visibility = View.GONE
+                activeStudentDisplayName = null
                 requestSessionAdminAuthentication()
             }
         }
@@ -673,6 +705,8 @@ class MainActivity : ComponentActivity() {
 
     private fun showAuthentication(enrollment: Boolean) {
         remoteSupportWindowController.setSensitiveScreen(true)
+        qrAcceptanceGeneration += 1
+        studentFlowGeneration += 1
         activeStudentDisplayName = null
         stopCamera()
         pcPairingMode = false
@@ -3071,6 +3105,9 @@ class MainActivity : ComponentActivity() {
         adminPanel.visibility = View.GONE
         scannerPanel.visibility = View.VISIBLE
         scannerVisible = true
+        studentLaunchGate.finish()
+        manualStudentSelectionFlowActive = false
+        studentFlowGeneration += 1
         qrAcceptanceGeneration += 1
         cancelQrLoginButton.visibility = View.GONE
         activeStudentDisplayName = null
@@ -3386,6 +3423,12 @@ class MainActivity : ComponentActivity() {
         tokenHash: ByteArray,
         requiredDisplayNameExact: String? = null,
     ) {
+        val expectedSessionId = currentSession?.sessionId
+        if (expectedSessionId == null) {
+            tokenHash.fill(0)
+            return
+        }
+        val flowGeneration = studentFlowGeneration
         qrGuidanceGeneration += 1
         scannerMessage.text = "확인되었습니다"
         statusText.text = KioskState.QR_VALIDATING.name
@@ -3396,10 +3439,15 @@ class MainActivity : ComponentActivity() {
                 studentRepository.validateForActiveSession(
                     tokenHash = tokenHash,
                     requiredDisplayNameExact = requiredDisplayNameExact,
+                    expectedSessionId = expectedSessionId,
                 )
             }
             runOnUiThread {
-                if (!scannerVisible || destroyed) return@runOnUiThread
+                if (
+                    !scannerVisible || destroyed ||
+                    flowGeneration != studentFlowGeneration ||
+                    currentSession?.sessionId != expectedSessionId
+                ) return@runOnUiThread
                 result.fold(
                     onSuccess = { student ->
                         if (student == null) {
@@ -3422,12 +3470,15 @@ class MainActivity : ComponentActivity() {
                                 if (
                                     !destroyed &&
                                     scannerVisible &&
-                                    generation == qrAcceptanceGeneration
+                                    generation == qrAcceptanceGeneration &&
+                                    flowGeneration == studentFlowGeneration &&
+                                    currentSession?.sessionId == expectedSessionId &&
+                                    studentLaunchGate.tryStart()
                                 ) {
                                     cancelQrLoginButton.visibility = View.GONE
                                     scannerMessage.text =
                                         "${student.displayNameExact}\n로그인 중입니다"
-                                    launchSecureWebSession(student)
+                                    launchSecureWebSession(student, expectedSessionId)
                                 }
                             }, QR_ACCEPTED_DISPLAY_MS)
                         }
@@ -3444,7 +3495,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchSecureWebSession(student: ValidatedStudent) {
+    private fun launchSecureWebSession(
+        student: ValidatedStudent,
+        expectedSessionId: String,
+    ) {
         cancelQrLoginButton.visibility = View.GONE
         activeStudentDisplayName = student.displayNameExact
         reportPcStatus(
@@ -3458,6 +3512,7 @@ class MainActivity : ComponentActivity() {
                 studentRepository.transitionSession(
                     expectedState = KioskState.QR_READY,
                     state = KioskState.PRELOGIN_CHECK,
+                    expectedSessionId = expectedSessionId,
                     currentStudentId = student.studentId,
                     automationStep = "CREDENTIAL_BRIDGE",
                 )
@@ -3480,13 +3535,16 @@ class MainActivity : ComponentActivity() {
                         ) {
                             PreparedWebSessionDisposition.REVOKE_ONLY -> {
                                 OneTimeCredentialBroker.revoke(handle.id)
+                                studentLaunchGate.finish()
                             }
                             PreparedWebSessionDisposition.CANCEL_AND_RESTORE -> {
                                 OneTimeCredentialBroker.revoke(handle.id)
-                                restoreQrReadyAfterCancelledWebLaunch()
+                                studentLaunchGate.finish()
+                                restoreQrReadyAfterCancelledWebLaunch(expectedSessionId)
                             }
                             PreparedWebSessionDisposition.LAUNCH -> {
                                 pendingCredentialBridgeId = handle.id
+                                pendingWebSessionId = expectedSessionId
                                 scannerVisible = false
                                 stopCamera()
                                 val intent = Intent(
@@ -3510,25 +3568,35 @@ class MainActivity : ComponentActivity() {
                                     .onFailure {
                                         OneTimeCredentialBroker.revoke(handle.id)
                                         pendingCredentialBridgeId = null
-                                        lockAfterBridgeFailure("WEBPOC_NOT_AVAILABLE")
+                                        pendingWebSessionId = null
+                                        studentLaunchGate.finish()
+                                        lockAfterBridgeFailure(
+                                            "WEBPOC_NOT_AVAILABLE",
+                                            expectedSessionId,
+                                        )
                                     }
                             }
                         }
                     },
                     onFailure = {
-                        if (!destroyed) lockAfterBridgeFailure("CREDENTIAL_PREPARATION")
+                        studentLaunchGate.finish()
+                        if (!destroyed) {
+                            lockAfterBridgeFailure("CREDENTIAL_PREPARATION", expectedSessionId)
+                        }
                     },
                 )
             }
         }
     }
 
-    private fun restoreQrReadyAfterCancelledWebLaunch() {
+    private fun restoreQrReadyAfterCancelledWebLaunch(expectedSessionId: String) {
+        pendingWebSessionId = null
         ioExecutor.execute {
             val restored = runCatching {
                 studentRepository.transitionSession(
                     expectedState = KioskState.PRELOGIN_CHECK,
                     state = KioskState.QR_READY,
+                    expectedSessionId = expectedSessionId,
                 )
                 checkNotNull(studentRepository.currentSession()) {
                     "Prepared Web session was restored without an active session"
@@ -3561,13 +3629,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun lockAfterBridgeFailure(reason: String) {
+    private fun lockAfterBridgeFailure(reason: String, expectedSessionId: String) {
+        pendingWebSessionId = null
+        studentLaunchGate.finish()
         diagnosticLog.record("BRIDGE_FAILURE", reason)
         ioExecutor.execute {
             runCatching {
                 studentRepository.transitionSession(
                     expectedState = KioskState.PRELOGIN_CHECK,
                     state = KioskState.LOCKED,
+                    expectedSessionId = expectedSessionId,
                     lockedReason = reason,
                 )
             }
@@ -3600,6 +3671,7 @@ class MainActivity : ComponentActivity() {
     private fun cancelPendingQrLogin() {
         if (!scannerVisible || cancelQrLoginButton.visibility != View.VISIBLE) return
         qrAcceptanceGeneration += 1
+        studentFlowGeneration += 1
         cancelQrLoginButton.visibility = View.GONE
         activeStudentDisplayName = null
         scannerMessage.text = "로그인을 취소했습니다\n다른 QR 카드를 보여주세요"
@@ -3740,7 +3812,16 @@ class MainActivity : ComponentActivity() {
                 when (which) {
                     0 -> {
                         manualStudentSelectionFlowActive = true
-                        loadManualStudentChoices(className)
+                        val expectedSessionId = currentSession?.sessionId
+                        if (expectedSessionId == null) {
+                            finishManualStudentSelectionFlow()
+                        } else {
+                            loadManualStudentChoices(
+                                className,
+                                studentFlowGeneration,
+                                expectedSessionId,
+                            )
+                        }
                     }
                     else -> showAdmin()
                 }
@@ -3754,21 +3835,34 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    private fun loadManualStudentChoices(className: String) {
+    private fun loadManualStudentChoices(
+        className: String,
+        flowGeneration: Int,
+        expectedSessionId: String,
+    ) {
         scannerMessage.text = "현재 수업 학생 명단을 확인하고 있습니다"
         ioExecutor.execute {
             val result = runCatching {
                 studentRepository.listEligibleStudentsForActiveSession()
             }
             runOnUiThread {
-                if (destroyed || !scannerVisible) return@runOnUiThread
+                if (
+                    destroyed || !scannerVisible ||
+                    flowGeneration != studentFlowGeneration ||
+                    currentSession?.sessionId != expectedSessionId
+                ) return@runOnUiThread
                 result.fold(
                     onSuccess = { choices ->
                         if (choices.isEmpty()) {
                             scannerMessage.text = "수동 선택할 수 있는 학생이 없습니다"
                             finishManualStudentSelectionFlow()
                         } else {
-                            showManualStudentDialog(className, choices)
+                            showManualStudentDialog(
+                                className,
+                                choices,
+                                flowGeneration,
+                                expectedSessionId,
+                            )
                         }
                     },
                     onFailure = {
@@ -3784,13 +3878,19 @@ class MainActivity : ComponentActivity() {
     private fun showManualStudentDialog(
         className: String,
         choices: List<ValidatedStudent>,
+        flowGeneration: Int,
+        expectedSessionId: String,
     ) {
         var selectionMade = false
         AlertDialog.Builder(this)
             .setTitle("$className · 학생 선택")
             .setItems(choices.map(ValidatedStudent::displayNameExact).toTypedArray()) { _, which ->
                 selectionMade = true
-                validateManualStudent(choices[which].studentId)
+                validateManualStudent(
+                    choices[which].studentId,
+                    flowGeneration,
+                    expectedSessionId,
+                )
             }
             .setNegativeButton("취소", null)
             .setOnDismissListener {
@@ -3804,14 +3904,25 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    private fun validateManualStudent(studentId: String) {
+    private fun validateManualStudent(
+        studentId: String,
+        flowGeneration: Int,
+        expectedSessionId: String,
+    ) {
         scannerMessage.text = "선택한 학생을 확인하고 있습니다"
         ioExecutor.execute {
             val result = runCatching {
-                studentRepository.validateManualStudentForActiveSession(studentId)
+                studentRepository.validateManualStudentForActiveSession(
+                    studentId,
+                    expectedSessionId,
+                )
             }
             runOnUiThread {
-                if (destroyed || !scannerVisible) return@runOnUiThread
+                if (
+                    destroyed || !scannerVisible ||
+                    flowGeneration != studentFlowGeneration ||
+                    currentSession?.sessionId != expectedSessionId
+                ) return@runOnUiThread
                 result.fold(
                     onSuccess = { student ->
                         if (student == null) {
@@ -3822,8 +3933,13 @@ class MainActivity : ComponentActivity() {
                             scannerMessage.text =
                                 "${student.displayNameExact}\n수동 인증이 완료되었습니다"
                             mainHandler.postDelayed({
-                                if (!destroyed && scannerVisible) {
-                                    launchSecureWebSession(student)
+                                if (
+                                    !destroyed && scannerVisible &&
+                                    flowGeneration == studentFlowGeneration &&
+                                    currentSession?.sessionId == expectedSessionId &&
+                                    studentLaunchGate.tryStart()
+                                ) {
+                                    launchSecureWebSession(student, expectedSessionId)
                                 }
                             }, QR_ACCEPTED_DISPLAY_MS)
                         }
@@ -3839,6 +3955,7 @@ class MainActivity : ComponentActivity() {
 
     private fun finishManualStudentSelectionFlow() {
         manualStudentSelectionFlowActive = false
+        studentFlowGeneration += 1
         if (scannerVisible) {
             qrAnalyzer?.setEnabled(!manualStudentSelectionOnly)
         }
@@ -3895,6 +4012,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        pendingWebSessionId?.let { outState.putString(KEY_PENDING_WEB_SESSION_ID, it) }
         when (val action = pendingRecoveryAction) {
             PendingRecoveryAction.None -> outState.putString(
                 KEY_PENDING_RECOVERY_ACTION,
@@ -4078,6 +4196,7 @@ class MainActivity : ComponentActivity() {
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
         private const val ADMIN_UNDO_WINDOW_MS = 30_000L
         private const val KEY_PENDING_RECOVERY_ACTION = "pending_recovery_action"
+        private const val KEY_PENDING_WEB_SESSION_ID = "pending_web_session_id"
         private const val KEY_PENDING_RECOVERY_CLASS_ID = "pending_recovery_class_id"
         private const val KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS =
             "pending_recovery_temporary_student_ids"
