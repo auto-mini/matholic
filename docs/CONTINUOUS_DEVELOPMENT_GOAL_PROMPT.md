@@ -41,7 +41,8 @@ PIN 원문이나 복호화 결과를 읽거나 출력·기록하지 마라. 만�
 마라. PDF 원격 제출은 scripts\submit-test-qr-from-pdf.py로 표시명과 QR 개수를
 검증하고, QR 원문과 hash를 출력·파일 저장하지 않는 방식으로만 수행하라.
 
-현재 기준 상태는 Kiosk rc53/code 58, Device Owner 유지, Lock Task LOCKED,
+현재 기준 상태는 Kiosk rc55/code 60, Web POC rc117/code 134,
+Device Owner 유지, Lock Task LOCKED,
 릴리스 테스트 수업의 QR_READY이다. 작업을 재개할 때 이 상태를 읽기 전용으로
 다시 확인하고, 차이가 있으면 원인을 구분해 재부팅·데이터 삭제 없이 안전하게
 복원한 뒤 진행하라. 이후 같은 signer의 더 높은 versionCode APK만

@@ -1,22 +1,24 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24, 갱신일: 2026-07-28 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-08-02 (Asia/Seoul)
 
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer의 Kiosk RC34와 Web POC RC42를 설치했다. Kiosk DB, Device
+같은 signer의 Kiosk RC55와 Web POC RC117을 설치했다. Kiosk DB, Device
 Owner와 전용 HOME은 보존됐고 두 설치본의 해시는 보관 artifact와 일치한다.
-RC42에서 문제별 주관식 첫 입력 보존, 숫자 키패드, 뒤로가기 차단과 키보드
-표시 중 종료 버튼 겹침 방지 실기를 통과했다.
+현재 미배포 검증 묶음은 Kiosk RC56, Web POC RC118과 PC 수신기 0.1.4다.
+정확한 자동·릴리스 검증과 설치 여부는 `docs/BUILD_VERIFICATION.md`의 최신
+절을 기준으로 한다.
 
-- 현재 A: Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc42`/code 59
+- 현재 A: Kiosk `0.6.0-rc55`/code 60, Web POC `0.4.0-rc117`/code 134
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc34`/code 39, Web POC `0.4.0-rc42`/code 59
+  Kiosk `0.6.0-rc56`/code 61, Web POC `0.4.0-rc118`/code 135,
+  PC 수신기 `0.1.4`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC34/Web POC RC42, 기존 Device Owner·전용
+- 현재 A: release signer의 Kiosk RC55/Web POC RC117, 기존 Device Owner·전용
   HOME·Kiosk UID·firstInstallTime·dataDir 유지
-- Kiosk RC34는 Device Owner 정책으로 Web POC 제거를 차단한다.
+- Kiosk RC55는 Device Owner 정책으로 Web POC 제거를 차단한다.
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
 - 두 번째 오프라인 release 키 복구본: **별도 SanDisk USB에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
