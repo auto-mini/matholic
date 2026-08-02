@@ -455,9 +455,10 @@
         android:id="@+id/network_pause_panel"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F2102A43"
+        android:background="#FF102A43"
         android:clickable="true"
         android:focusable="true"
+        android:importantForAccessibility="yes"
         android:visibility="gone">
 
         <LinearLayout

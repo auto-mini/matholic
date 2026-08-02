@@ -23,6 +23,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JsResult
@@ -139,6 +140,7 @@ class MainActivity : Activity() {
     private var stateEnteredAtElapsedMs = SystemClock.elapsedRealtime()
     private var inactivityGeneration = 0
     private var networkCallbackRegistered = false
+    private var networkFallbackScheduled = false
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = refreshNetworkPause()
         override fun onLost(network: Network) = refreshNetworkPause()
@@ -146,6 +148,21 @@ class MainActivity : Activity() {
             network: Network,
             networkCapabilities: NetworkCapabilities,
         ) = refreshNetworkPause()
+    }
+    private val networkFallbackRunnable = object : Runnable {
+        override fun run() {
+            if (destroyed || !uiInitialized || networkCallbackRegistered) {
+                networkFallbackScheduled = false
+                return
+            }
+            updateNetworkPause()
+            if (tryRegisterNetworkCallback()) {
+                networkFallbackScheduled = false
+                updateNetworkPause()
+            } else {
+                handler.postDelayed(this, NETWORK_FALLBACK_INTERVAL_MS)
+            }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -876,6 +893,7 @@ class MainActivity : Activity() {
             consumeSystemBack()
             return true
         }
+        if (isNetworkPaused()) return true
         return super.onKeyDown(keyCode, event)
     }
 
@@ -885,6 +903,7 @@ class MainActivity : Activity() {
             consumeSystemBack()
             return true
         }
+        if (isNetworkPaused()) return true
         return super.onKeyUp(keyCode, event)
     }
 
@@ -2212,21 +2231,39 @@ class MainActivity : Activity() {
             cancelInactivityWarning()
             if (uiInitialized) {
                 idleWarningPanel.visibility = View.GONE
-                networkPausePanel.visibility = View.GONE
+                setNetworkPauseProtection(false)
             }
         }
         if (uiInitialized) handler.post(::updateNetworkPause)
     }
 
     private fun registerNetworkMonitor() {
-        val connectivity = getSystemService(ConnectivityManager::class.java) ?: return
-        runCatching {
+        if (!tryRegisterNetworkCallback()) {
+            PrivateDiagnosticLog.event(this, "NETWORK_MONITOR_FAILED")
+            scheduleNetworkFallback()
+        }
+        updateNetworkPause()
+    }
+
+    private fun tryRegisterNetworkCallback(): Boolean {
+        if (networkCallbackRegistered) return true
+        val connectivity = getSystemService(ConnectivityManager::class.java) ?: return false
+        return runCatching {
             connectivity.registerDefaultNetworkCallback(networkCallback)
             networkCallbackRegistered = true
-            updateNetworkPause()
-        }.onFailure {
-            PrivateDiagnosticLog.event(this, "NETWORK_MONITOR_FAILED")
-        }
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun scheduleNetworkFallback() {
+        if (networkFallbackScheduled) return
+        networkFallbackScheduled = true
+        handler.post(networkFallbackRunnable)
+    }
+
+    private fun cancelNetworkFallback() {
+        networkFallbackScheduled = false
+        handler.removeCallbacks(networkFallbackRunnable)
     }
 
     private fun refreshNetworkPause() {
@@ -2247,8 +2284,8 @@ class MainActivity : Activity() {
     private fun updateNetworkPause() {
         if (!uiInitialized) return
         val shouldPause = state == WebPocState.ACTIVE && !hasValidatedNetwork()
-        val wasPaused = networkPausePanel.visibility == View.VISIBLE
-        networkPausePanel.visibility = if (shouldPause) View.VISIBLE else View.GONE
+        val wasPaused = isNetworkPaused()
+        setNetworkPauseProtection(shouldPause)
         if (shouldPause && !wasPaused) {
             idleWarningPanel.visibility = View.GONE
             cancelInactivityWarning()
@@ -2256,6 +2293,36 @@ class MainActivity : Activity() {
         } else if (!shouldPause && wasPaused) {
             PrivateDiagnosticLog.event(this, "NETWORK_RESUME")
             scheduleInactivityWarning()
+        }
+    }
+
+    private fun isNetworkPaused(): Boolean =
+        uiInitialized && networkPausePanel.visibility == View.VISIBLE
+
+    private fun setNetworkPauseProtection(paused: Boolean) {
+        if (!uiInitialized || webViewReference == null) return
+        if (paused) {
+            networkPausePanel.visibility = View.VISIBLE
+            runCatching {
+                webView.evaluateJavascript(
+                    "document.activeElement && document.activeElement.blur();",
+                    null,
+                )
+            }
+            webView.clearFocus()
+            webView.isFocusable = false
+            webView.isFocusableInTouchMode = false
+            webView.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            webView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            getSystemService(InputMethodManager::class.java)
+                ?.hideSoftInputFromWindow(webView.windowToken, 0)
+            networkPausePanel.requestFocus()
+        } else {
+            networkPausePanel.visibility = View.GONE
+            webView.isFocusable = true
+            webView.isFocusableInTouchMode = true
+            webView.descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
+            webView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         }
     }
 
@@ -2284,6 +2351,7 @@ class MainActivity : Activity() {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (isNetworkPaused()) return true
         if (
             event.actionMasked == MotionEvent.ACTION_DOWN &&
             uiInitialized &&
@@ -2388,6 +2456,7 @@ class MainActivity : Activity() {
         }
         cancelTimeout()
         cancelInactivityWarning()
+        cancelNetworkFallback()
         clearUnresponsiveRendererGrace()
         try {
             if (networkCallbackRegistered) {
@@ -2499,6 +2568,7 @@ class MainActivity : Activity() {
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
         const val INACTIVITY_WARNING_MS = 10 * 60 * 1_000L
+        const val NETWORK_FALLBACK_INTERVAL_MS = 2_000L
         const val STUDENT_SESSION_BRIGHTNESS = 0.8f
         const val STUDENT_REVEAL_STABLE_PASSES = 2
         const val RESULT_EXTRACTION_RETRIES = 40
