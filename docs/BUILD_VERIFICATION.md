@@ -35,6 +35,12 @@
   미리보기를 생성했다. Poppler 150/300dpi 렌더에서 1페이지 9장, 2페이지
   1장의 절단선·QR·이름에 잘림이나 겹침이 없었다. ZXing 3.5.4로 렌더 PNG의
   합성 QR 10개를 모두 정확히 재판독했다.
+- 제공된 실제 2장 PDF도 QR을 재발급하거나 해석하지 않고 기존 55×80mm 카드
+  영역을 A4의 첫 행 1·2열에 5mm 간격으로 재배치했다. 입력·교정본의 두 QR
+  image pixmap SHA-256이 각각 일치하고, Poppler 300dpi 렌더에서 잘림·겹침이
+  없었다. 실제 로그인 QR을 포함하므로 이 교정본은 Git에 추가하지 않았다.
+- 실제 2장 절단용 교정본 640,275 bytes:
+  `A26D94ECBA56FE30A91C50D71E1319E8148EDFCCE43E49280928DDF9F1266757`.
 - 합성 미리보기 368,858 bytes:
   `BBF31CB72129AA724C147288E144146DA06B16A349C14E90189E519CC3F4C1BC`.
 - `scripts/build-release.ps1`: **158 tasks PASS**. unit, release lint, signed
