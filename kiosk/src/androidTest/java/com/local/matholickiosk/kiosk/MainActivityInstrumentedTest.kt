@@ -67,7 +67,9 @@ class MainActivityInstrumentedTest {
             Thread.sleep(600)
             scenario.onActivity { activity ->
                 assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
-                assertEquals(0, database.adminDao().get()?.consecutiveFailures)
+            }
+            assertEquals(0, database.adminDao().get()?.consecutiveFailures)
+            scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("7654321")
             }
@@ -574,48 +576,55 @@ class MainActivityInstrumentedTest {
         val database = KioskDatabase.get(context)
         database.clearAllTables()
         AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("가상반-결과저장실패")
+        val registered = repository.registerStudent(
+            displayNameExact = "가상학생-결과저장실패",
+            username = "synthetic-result-user".toCharArray(),
+            password = "synthetic-result-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntil(scenario) { activity ->
                 activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
             }
 
-            val repositoryField = MainActivity::class.java
-                .getDeclaredField("studentRepository")
-                .apply { isAccessible = true }
+            val activeSession = repository.startSession(classId)
             val persistMethod = MainActivity::class.java
                 .getDeclaredMethod(
                     "persistWebSessionResult",
                     Boolean::class.javaPrimitiveType,
                     String::class.java,
+                    String::class.java,
                 )
                 .apply { isAccessible = true }
-            lateinit var originalRepository: StudentRepository
-            try {
-                scenario.onActivity { activity ->
-                    originalRepository = repositoryField.get(activity) as StudentRepository
-                    repositoryField.set(activity, null)
-                    persistMethod.invoke(activity, true, "synthetic-result")
-                }
+            scenario.onActivity { activity ->
+                persistMethod.invoke(
+                    activity,
+                    true,
+                    "synthetic-result",
+                    checkNotNull(activeSession.sessionId),
+                )
+            }
 
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<android.widget.TextView>(R.id.status_text)
+            waitUntil(scenario) { activity ->
+                activity.findViewById<android.widget.TextView>(R.id.status_text)
+                    .text
+                    .toString() == "LOCKED" &&
+                    activity.findViewById<android.widget.TextView>(R.id.auth_error)
                         .text
-                        .toString() == "LOCKED" &&
-                        activity.findViewById<android.widget.TextView>(R.id.auth_error)
-                            .text
-                            .toString()
-                            .contains("관리자 PIN으로 상태를 확인하세요")
-                }
-                scenario.onActivity { activity ->
-                    assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
-                    assertEquals(View.GONE, activity.findViewById<View>(R.id.admin_panel).visibility)
-                    assertEquals(View.GONE, activity.findViewById<View>(R.id.scanner_panel).visibility)
-                }
-            } finally {
-                scenario.onActivity { activity ->
-                    repositoryField.set(activity, originalRepository)
-                }
+                        .toString()
+                        .contains("관리자 PIN으로 상태를 확인하세요")
+            }
+            scenario.onActivity { activity ->
+                assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.auth_panel).visibility)
+                assertEquals(View.GONE, activity.findViewById<View>(R.id.admin_panel).visibility)
+                assertEquals(View.GONE, activity.findViewById<View>(R.id.scanner_panel).visibility)
             }
         }
         database.clearAllTables()
@@ -637,14 +646,17 @@ class MainActivityInstrumentedTest {
                 .getDeclaredField("studentRepository")
                 .apply { isAccessible = true }
             val restoreMethod = MainActivity::class.java
-                .getDeclaredMethod("restoreQrReadyAfterCancelledWebLaunch")
+                .getDeclaredMethod(
+                    "restoreQrReadyAfterCancelledWebLaunch",
+                    String::class.java,
+                )
                 .apply { isAccessible = true }
             lateinit var originalRepository: StudentRepository
             try {
                 scenario.onActivity { activity ->
                     originalRepository = repositoryField.get(activity) as StudentRepository
                     repositoryField.set(activity, null)
-                    restoreMethod.invoke(activity)
+                    restoreMethod.invoke(activity, "synthetic-session")
                 }
 
                 waitUntil(scenario, timeoutMillis = 3_000) { activity ->
