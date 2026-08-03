@@ -1,5 +1,50 @@
 # 빌드·보안 검증 기록
 
+## PR #1 clean clone 병합 전 감사 — 2026-08-03
+
+### clean clone 재현 검증
+
+- 원본 workspace의 ignored 파일·기존 artifact·Gradle source cache를 사용하지
+  않도록 `%LOCALAPPDATA%\CodexAudits` 아래에 PR branch를 새로 clone했다.
+- 기존 스크립트는 전역 ASCII junction 하나를 원본 workspace에 고정해 다른
+  clean clone 실행을 거부했다. ASCII 경로에서는 clone 자체를 사용하고 한글
+  경로에서만 기존 junction을 쓰도록 `build.ps1`, `build-release.ps1`과 Kiosk/Web
+  emulator 시험 스크립트를 교정했다.
+- clean clone `scripts/build-release.ps1`: **158 tasks PASS**. unit, release lint,
+  signed assemble, version·non-debuggable·동일 signer 검증을 포함한다.
+- PC receiver: `python -m pytest pc_receiver/tests -q` **17 passed**.
+- Android 13 `matholic_rc03_api33` Web 계측시험은 JUnit XML 기준
+  **110 tests, 0 failures, 0 errors, 0 skipped**다.
+- Android 13 Kiosk 전체 계측시험은 JUnit XML 기준
+  **61 tests, 0 failures, 0 errors, 0 skipped**다. 최초 전체 실행에서 발견한
+  obsolete private method reflection 2건과 main-thread Room 조회 1건을 현재
+  session-ID·thread 계약에 맞춰 보정한 뒤 세 단독 시험과 전체 61개를 다시
+  통과했다.
+- clean clone에서 새로 생성한 Kiosk RC61과 Web RC121 APK는 설치 검증본과
+  full-file SHA-256이 다르다. 현재 Git commit을 담는
+  `META-INF/version-control-info.textproto`와 이에 대한 APK 서명이 달라지는 정상
+  결과이며, 해당 entry를 제외한 모든 APK entry 이름·길이·내용 SHA-256으로
+  계산한 payload fingerprint는 Kiosk와 Web 모두 설치 검증본과 일치했다.
+- release signer SHA-256은
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`로
+  동일하다.
+
+### 민감정보·생성물 감사
+
+- Gitleaks 8.30.1로 `origin/master..HEAD`의 409개 commit을 검사했고 finding은
+  **0건**이다.
+- 최종 tree의 generic API key 후보 1건은 `master`에도 존재하는
+  SharedPreferences 키 이름 `gate3_duration_ms`로, credential이 아닌 오탐임을
+  source와 기준선으로 확인했다.
+- PR 이력과 최종 tracked tree에 `diagnostics/`, `output/`, `tmp/`, `artifacts/`,
+  APK, PDF, log, keystore, DPAPI credential과 일반적인 고신뢰 token 패턴은
+  **0건**이다. 로컬 민감·재생성 산출물은 `.gitignore`로 제외했고 삭제하거나
+  업로드하지 않았다.
+
+관련 교정 commit은 `951bc5c`, 시험 계약 보정 commit은 `6e4ba90`이다.
+두 변경은 build/test infrastructure에만 한정되므로 실제 태블릿 RC61/RC121의
+재설치는 필요하지 않다.
+
 ## Web RC121 답안 현황판 터치 관통 교정 — 2026-08-03
 
 ### 결함·원인·교정
