@@ -10,6 +10,16 @@ import java.io.FileOutputStream
 import kotlin.math.ceil
 
 object BatchQrPdfExporter {
+    internal data class CutSheetLayout(
+        val startX: Float,
+        val startY: Float,
+        val cardWidth: Float,
+        val cardHeight: Float,
+        val gap: Float,
+        val gridWidth: Float,
+        val gridHeight: Float,
+    )
+
     fun export(
         context: Context,
         cards: List<BatchQrCard>,
@@ -20,7 +30,7 @@ object BatchQrPdfExporter {
         val attributes = PrintAttributes.Builder()
             .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asPortrait())
             .setResolution(PrintAttributes.Resolution("pdf", "pdf", 300, 300))
-            .setMinMargins(PrintAttributes.Margins(500, 500, 500, 500))
+            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
             .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
             .build()
         val document = PrintedPdfDocument(context.applicationContext, attributes)
@@ -30,26 +40,31 @@ object BatchQrPdfExporter {
                 val page = document.startPage(pageNumber)
                 page.canvas.drawColor(Color.WHITE)
                 val content = page.info.contentRect
-                val size = QrPrintCardRenderer.cardSizePoints()
-                val gridWidth = size.width * COLUMNS
-                val gridHeight = size.height * ROWS
-                require(content.width() >= gridWidth && content.height() >= gridHeight) {
-                    "A4 인쇄 가능 영역에 QR 카드를 배치할 수 없습니다."
-                }
-                val startX = content.left + (content.width() - gridWidth) / 2f
-                val startY = content.top + (content.height() - gridHeight) / 2f
+                val layout = cutSheetLayout(
+                    pageWidth = content.width().toFloat(),
+                    pageHeight = content.height().toFloat(),
+                )
                 cards.drop(pageNumber * CARDS_PER_PAGE)
                     .take(CARDS_PER_PAGE)
                     .forEachIndexed { index, card ->
                         val column = index % COLUMNS
                         val row = index / COLUMNS
-                        val left = startX + column * size.width
-                        val top = startY + row * size.height
+                        val left = content.left +
+                            layout.startX + column * (layout.cardWidth + layout.gap)
+                        val top = content.top +
+                            layout.startY + row * (layout.cardHeight + layout.gap)
                         QrPrintCardRenderer.drawCard(
                             canvas = page.canvas,
-                            card = RectF(left, top, left + size.width, top + size.height),
+                            card = RectF(
+                                left,
+                                top,
+                                left + layout.cardWidth,
+                                top + layout.cardHeight,
+                            ),
                             displayName = card.displayName,
                             qrBitmap = card.qrBitmap,
+                            borderColor = CUT_LINE_COLOR,
+                            borderStrokeWidthPoints = CUT_LINE_WIDTH_POINTS,
                         )
                     }
                 document.finishPage(page)
@@ -65,7 +80,29 @@ object BatchQrPdfExporter {
         }
     }
 
+    internal fun cutSheetLayout(pageWidth: Float, pageHeight: Float): CutSheetLayout {
+        val card = QrPrintCardRenderer.cardSizePoints()
+        val gap = QrPrintCardRenderer.millimetersToPoints(CARD_GAP_MM)
+        val gridWidth = card.width * COLUMNS + gap * (COLUMNS - 1)
+        val gridHeight = card.height * ROWS + gap * (ROWS - 1)
+        require(pageWidth >= gridWidth && pageHeight >= gridHeight) {
+            "A4 인쇄 가능 영역에 절단 여백을 포함한 QR 카드를 배치할 수 없습니다."
+        }
+        return CutSheetLayout(
+            startX = (pageWidth - gridWidth) / 2f,
+            startY = (pageHeight - gridHeight) / 2f,
+            cardWidth = card.width,
+            cardHeight = card.height,
+            gap = gap,
+            gridWidth = gridWidth,
+            gridHeight = gridHeight,
+        )
+    }
+
     private const val COLUMNS = 3
     private const val ROWS = 3
     private const val CARDS_PER_PAGE = COLUMNS * ROWS
+    private const val CARD_GAP_MM = 5f
+    private const val CUT_LINE_WIDTH_POINTS = 0.25f
+    private val CUT_LINE_COLOR = Color.rgb(173, 173, 173)
 }

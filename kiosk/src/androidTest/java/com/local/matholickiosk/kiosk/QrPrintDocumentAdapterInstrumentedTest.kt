@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
@@ -13,6 +14,8 @@ import android.os.ParcelFileDescriptor
 import android.print.PrintAttributes
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.local.matholickiosk.kiosk.print.BatchQrCard
+import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPrintCardRenderer
 import com.local.matholickiosk.kiosk.print.QrPrintPdfWriter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -188,6 +191,98 @@ class QrPrintDocumentAdapterInstrumentedTest {
     }
 
     @Test
+    fun cutSheetLayoutMatchesTheProvidedFiveMillimeterGapReference() {
+        val pointsPerMillimeter = 72f / 25.4f
+        val layout = BatchQrPdfExporter.cutSheetLayout(
+            pageWidth = 210f * pointsPerMillimeter,
+            pageHeight = 297f * pointsPerMillimeter,
+        )
+
+        assertEquals(17.5f, layout.startX / pointsPerMillimeter, 0.01f)
+        assertEquals(23.5f, layout.startY / pointsPerMillimeter, 0.01f)
+        assertEquals(55f, layout.cardWidth / pointsPerMillimeter, 0.01f)
+        assertEquals(80f, layout.cardHeight / pointsPerMillimeter, 0.01f)
+        assertEquals(5f, layout.gap / pointsPerMillimeter, 0.01f)
+        assertEquals(175f, layout.gridWidth / pointsPerMillimeter, 0.01f)
+        assertEquals(250f, layout.gridHeight / pointsPerMillimeter, 0.01f)
+    }
+
+    @Test
+    fun batchPdfKeepsCutGapsAndOnlyDrawsExistingCardsOnTheLastPage() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val cards = (1..10).map { index ->
+            BatchQrCard(
+                displayName = "가상학생 $index",
+                qrBitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888).apply {
+                    eraseColor(Color.BLACK)
+                },
+            )
+        }
+        var output: File? = null
+
+        try {
+            output = BatchQrPdfExporter.export(context, cards)
+            assertTrue(cards.all { it.qrBitmap.isRecycled })
+            assertTrue(output.length() > 1_024)
+
+            ParcelFileDescriptor.open(
+                output,
+                ParcelFileDescriptor.MODE_READ_ONLY,
+            ).use { source ->
+                PdfRenderer(source).use { renderer ->
+                    assertEquals(2, renderer.pageCount)
+                    renderer.openPage(0).use { firstPage ->
+                        val layout = BatchQrPdfExporter.cutSheetLayout(
+                            firstPage.width.toFloat(),
+                            firstPage.height.toFloat(),
+                        )
+                        val preview = renderAtFourTimes(firstPage)
+                        try {
+                            val sampleY = layout.startY +
+                                QrPrintCardRenderer.millimetersToPoints(5f)
+                            val firstRight = layout.startX + layout.cardWidth
+                            val secondLeft = firstRight + layout.gap
+                            assertTrue(hasNonWhitePixelNear(preview, layout.startX, sampleY))
+                            assertTrue(hasNonWhitePixelNear(preview, firstRight, sampleY))
+                            assertTrue(hasNonWhitePixelNear(preview, secondLeft, sampleY))
+                            assertTrue(
+                                isWhiteNear(
+                                    preview,
+                                    firstRight + layout.gap / 2f,
+                                    sampleY,
+                                ),
+                            )
+                        } finally {
+                            preview.recycle()
+                        }
+                    }
+                    renderer.openPage(1).use { lastPage ->
+                        val layout = BatchQrPdfExporter.cutSheetLayout(
+                            lastPage.width.toFloat(),
+                            lastPage.height.toFloat(),
+                        )
+                        val preview = renderAtFourTimes(lastPage)
+                        try {
+                            val sampleY = layout.startY +
+                                QrPrintCardRenderer.millimetersToPoints(5f)
+                            val secondLeft = layout.startX + layout.cardWidth + layout.gap
+                            assertTrue(hasNonWhitePixelNear(preview, layout.startX, sampleY))
+                            assertTrue(isWhiteNear(preview, secondLeft, sampleY))
+                        } finally {
+                            preview.recycle()
+                        }
+                    }
+                }
+            }
+        } finally {
+            cards.forEach { card ->
+                if (!card.qrBitmap.isRecycled) card.qrBitmap.recycle()
+            }
+            output?.delete()
+        }
+    }
+
+    @Test
     fun printableAreaSmallerThanTheCardIsRejectedInsteadOfScaled() {
         val output = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
         val qr = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
@@ -306,5 +401,49 @@ class QrPrintDocumentAdapterInstrumentedTest {
             assertTrue(qrBitmap.isRecycled)
             output.delete()
         }
+    }
+
+    private fun renderAtFourTimes(page: PdfRenderer.Page): Bitmap =
+        Bitmap.createBitmap(
+            page.width * RENDER_SCALE.toInt(),
+            page.height * RENDER_SCALE.toInt(),
+            Bitmap.Config.ARGB_8888,
+        ).apply {
+            eraseColor(Color.WHITE)
+            page.render(
+                this,
+                null,
+                Matrix().apply { setScale(RENDER_SCALE, RENDER_SCALE) },
+                PdfRenderer.Page.RENDER_MODE_FOR_PRINT,
+            )
+        }
+
+    private fun hasNonWhitePixelNear(bitmap: Bitmap, xPoints: Float, yPoints: Float): Boolean =
+        pixelsNear(bitmap, xPoints, yPoints).any { pixel ->
+            Color.red(pixel) < 245 || Color.green(pixel) < 245 || Color.blue(pixel) < 245
+        }
+
+    private fun isWhiteNear(bitmap: Bitmap, xPoints: Float, yPoints: Float): Boolean =
+        pixelsNear(bitmap, xPoints, yPoints).all { pixel ->
+            Color.red(pixel) > 250 && Color.green(pixel) > 250 && Color.blue(pixel) > 250
+        }
+
+    private fun pixelsNear(bitmap: Bitmap, xPoints: Float, yPoints: Float): Sequence<Int> {
+        val centerX = (xPoints * RENDER_SCALE).toInt()
+        val centerY = (yPoints * RENDER_SCALE).toInt()
+        return sequence {
+            for (y in (centerY - SAMPLE_RADIUS)..(centerY + SAMPLE_RADIUS)) {
+                for (x in (centerX - SAMPLE_RADIUS)..(centerX + SAMPLE_RADIUS)) {
+                    if (x in 0 until bitmap.width && y in 0 until bitmap.height) {
+                        yield(bitmap.getPixel(x, y))
+                    }
+                }
+            }
+        }
+    }
+
+    private companion object {
+        const val RENDER_SCALE = 4f
+        const val SAMPLE_RADIUS = 3
     }
 }

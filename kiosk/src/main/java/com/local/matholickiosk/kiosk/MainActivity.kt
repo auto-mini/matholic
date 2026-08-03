@@ -2060,7 +2060,7 @@ class MainActivity : ComponentActivity() {
             .setTitle("QR 재발급 영향 확인")
             .setMessage(
                 "선택 학생 ${studentIds.size}명의 기존 QR을 무효화합니다.\n" +
-                    "새 카드 PDF: $pages 페이지\n" +
+                    "새 카드 PDF: $pages 페이지 · 3×3 배치 · 카드 사이 절단 여백 5mm\n" +
                     "지정 PC의 저장 응답이 확인된 학생만 PDF 생성 완료로 기록합니다.",
             )
             .setNegativeButton("취소", null)
@@ -2181,7 +2181,7 @@ class MainActivity : ComponentActivity() {
             .setTitle("${selectedClass.label} QR 전체 재발급")
             .setMessage(
                 "선택 반 학생 전원의 기존 QR 카드가 즉시 무효화되고 새 카드가 발급됩니다.\n\n" +
-                    "A4 한 장에 55×80mm 카드가 최대 9장씩 배치됩니다. " +
+                    "A4 한 장에 55×80mm 카드가 5mm 절단 여백을 두고 최대 9장씩 배치됩니다. " +
                     "새 PDF는 페어링된 지정 PC에 암호화해 저장됩니다.",
             )
             .setNegativeButton("취소", null)

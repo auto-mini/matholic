@@ -85,6 +85,8 @@ internal object QrPrintCardRenderer {
         card: RectF,
         displayName: String,
         qrBitmap: Bitmap,
+        borderColor: Int = Color.BLACK,
+        borderStrokeWidthPoints: Float = millimetersToPoints(DEFAULT_BORDER_STROKE_MM),
     ) {
         val qrSize = qrSizePoints()
         val qrLeft = card.centerX() - qrSize.width / 2f
@@ -97,9 +99,9 @@ internal object QrPrintCardRenderer {
         )
 
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.BLACK
+            color = borderColor
             style = Paint.Style.STROKE
-            strokeWidth = millimetersToPoints(0.35f).coerceAtLeast(1f)
+            strokeWidth = borderStrokeWidthPoints
         }
         canvas.drawRect(layout.card, borderPaint)
 
@@ -157,7 +159,7 @@ internal object QrPrintCardRenderer {
         height = millimetersToPoints(QR_SIZE_MM),
     )
 
-    private fun millimetersToPoints(millimeters: Float): Float =
+    internal fun millimetersToPoints(millimeters: Float): Float =
         millimeters * POSTSCRIPT_POINTS_PER_INCH / MILLIMETERS_PER_INCH
 
     private const val CARD_WIDTH_MM = 55f
@@ -166,6 +168,7 @@ internal object QrPrintCardRenderer {
     private const val QR_TOP_MM = 18f
     private const val NAME_BASELINE_MM = 68f
     private const val NAME_SIDE_MARGIN_MM = 4f
+    private const val DEFAULT_BORDER_STROKE_MM = 0.35f
     private const val MILLIMETERS_PER_INCH = 25.4f
     private const val POSTSCRIPT_POINTS_PER_INCH = 72f
 }
