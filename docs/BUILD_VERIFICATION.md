@@ -1,5 +1,43 @@
 # 빌드·보안 검증 기록
 
+## RC59 반 학생 구성 현장 결함 교정 — 2026-08-03
+
+### 결함·원인·교정
+
+- `토요일2` 반의 학생 구성을 저장하면
+  `Inactive or unknown student selected`가 발생해 소속 변경 전체가 차단됐다.
+- 원인은 과거 버전에서 비활성화된 학생의 `class_memberships` 행이었다. 관리자
+  대화상자는 활성 학생만 표시했지만 초기 선택 집합에는 비활성 학생 ID도
+  포함해, 화면에서 해제할 수 없는 ID를 저장 요청에 다시 보냈다.
+- 심각도는 **P3 확정**으로 판정했다. 특정 기존 데이터가 있는 반의 핵심 관리자
+  작업을 막지만, repository의 활성 학생 검사가 실패 폐쇄했고 잘못된 소속이나
+  데이터 손실은 발생하지 않았다.
+- 활성 학생 소속만 조회하도록 DAO 경계를 좁히고, 학생 비활성화 transaction에서
+  기존 반 소속을 함께 제거했다. 활성 학생만 허용하는 repository 안전 검사는
+  제거하지 않았다. 사용자 오류 문구는 한국어로 구체화했다.
+- 회귀시험은 비활성화 시 소속 행 제거, 구버전의 잔존 행을 강제로 재현했을 때
+  관리자 선택에서 제외, 다음 정상 저장에서 잔존 행 제거를 모두 검증한다.
+
+### 자동·릴리스·실기 검증
+
+- `:kiosk:testDebugUnitTest :kiosk:compileDebugAndroidTestKotlin`: PASS. Kotlin
+  증분 캐시 등록 경고 뒤 비증분 컴파일로 자동 전환해 최종 성공했다.
+- `scripts/build-release.ps1`: **158 tasks PASS**. unit, release lint, signed
+  assemble, version·non-debuggable·동일 signer 검증을 포함한다.
+- Kiosk `0.6.0-rc59`/code 64, 35,225,680 bytes:
+  `CD389A9BB75D2EAE835EBF22CCB107E1B65A145DE711C66EBBED9E58FE82CC53`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- Samsung SM-P610 `R54TB029FHZ`에 `adb install -r`로 보존형 설치했다.
+  Kiosk UID 10288, firstInstallTime `2026-07-24 12:52:28`, Device Owner와 기존
+  반·학생 데이터가 유지됐다.
+- 실제 문제 반 `토요일2`의 기존 3명 구성을 그대로 저장해 종전 오류가 사라진
+  것을 확인했다. 이어 `이하윤`을 추가해 4명 저장, 다시 제외해 원래
+  `강기환, 강호영, 테스트` 3명으로 복구했다. 최종 상태는 `ADMIN_IDLE`,
+  LockTask `NONE`, Device Owner 유지다.
+
+관련 교정 commit은 `a97d695`, 버전 정렬 commit은 `d1a4a08`이다.
+
 ## RC58·RC120·PC 수신기 0.1.5 최종 현장 교정 검증 — 2026-08-03
 
 ### 현장에서 추가로 확인·교정한 결함

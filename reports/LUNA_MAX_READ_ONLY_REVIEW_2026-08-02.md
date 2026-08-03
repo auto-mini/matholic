@@ -1,5 +1,27 @@
 # LUNA MAX 읽기 전용 연속 리뷰 보고서
 
+## RC59 반 학생 구성 현장 결함 후속 정정 — 2026-08-03
+
+이 절이 아래 RC58 최종 정정보다 최신 상태다.
+
+- **P3 확정·해결:** 비활성 학생의 구버전 반 소속 행이 관리자 대화상자에는
+  보이지 않으면서 저장 선택 집합에는 포함되어, 해당 반의 모든 소속 변경을
+  `Inactive or unknown student selected`로 차단했다. 안전 검사가 잘못된 소속을
+  실패 폐쇄했고 데이터 손실은 없어 P2로 올리지는 않았다.
+- `Daos.kt`는 활성 학생 소속만 반환하고, `StudentRepository.kt`는 학생
+  비활성화 transaction에서 반 소속도 제거한다. 활성 학생만 소속 가능하다는
+  repository 불변조건은 유지했다. 구버전 잔존 행을 재현하는
+  `RepositoryInstrumentedTest.kt` 회귀시험을 추가했다.
+- Kiosk `0.6.0-rc59`/code 64의 unit·AndroidTest source compile과
+  `scripts/build-release.ps1` 158 tasks가 PASS했다. signed artifact SHA-256은
+  `CD389A9BB75D2EAE835EBF22CCB107E1B65A145DE711C66EBBED9E58FE82CC53`다.
+- Samsung SM-P610에 보존형 설치해 UID 10288, 최초 설치 시각, Device Owner,
+  기존 데이터를 유지했다. 실제 문제 반 `토요일2`에서 기존 3명 저장과
+  `이하윤` 추가 4명 저장을 확인한 뒤 원래 3명으로 복구했다. 오류는 재발하지
+  않았고 최종 상태는 `ADMIN_IDLE`, LockTask `NONE`다.
+- 교정 commit은 `a97d695`, 버전 정렬 commit은 `d1a4a08`이다. 실제 프린터의
+  물리 출력만 기존과 동일하게 외부 현장 확인 범위로 남는다.
+
 ## 교정·독립 현장 검증 최종 정정 — 2026-08-03 03:49:37 +09:00
 
 이 절은 위 읽기 전용 감사의 당시 사실을 삭제하지 않고, 기준선
