@@ -1,5 +1,46 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC63 요일 반 빠른 선택 레이아웃 고정 — 2026-08-03
+
+### 실기 재현·원인·교정
+
+- RC62를 Samsung SM-P610 `R54TB029FHZ`에서 12개 빠른 선택 버튼 모두 직접
+  눌러 확인했다. 선택 반에 따라 빠른 선택 영역 높이가 172px에서 178px로
+  6px 늘었고, 반 학생 구성·삭제 등 아래 컨트롤도 6px 이동했다. 단순한 눌림
+  착시가 아니라 선택 완료 뒤 접근성 경계 좌표가 달라지는 실제 레이아웃 결함이다.
+- 선택 버튼에 적용한 굵은 Typeface가 `GridLayout` 행 측정값을 바꾸는 것이
+  원인이었다. 선택 표시는 글꼴 굵기 변경 없이 alpha `1.0`, 비선택은 alpha
+  `0.72`만 사용하도록 고정했다. Android 기본 버튼의 눌림 elevation 이동도
+  없애도록 `stateListAnimator`를 비활성화했다. 반 선택·명단 조회·수업 상태
+  변경 로직은 바꾸지 않았다.
+- 계측 회귀시험은 `월1 → 월2` 선택 전후 12개 버튼 경계가 동일하고, 모든
+  버튼이 보통 굵기·`stateListAnimator == null`을 유지하며 선택 alpha만
+  바뀌는지 확인한다.
+
+### 자동·릴리스 검증
+
+- `:kiosk:compileDebugAndroidTestKotlin`: PASS.
+- `scripts/build-release.ps1`: **158 tasks PASS**. Kiosk/Web unit, release lint,
+  signed assemble, version·non-debuggable·동일 signer 검증을 포함한다.
+- Kiosk `0.6.0-rc63`/code 68, 35,225,680 bytes:
+  `E889B8593B104E566B8A6F3834ADE4186FB9917E09F378B9DD8CCBC6F5676CC3`.
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+
+### 실제 태블릿 12개 전수 검증·최종 상태
+
+- RC63을 같은 기기에 `adb install -r`로 보존형 설치했다. Kiosk UID 10288,
+  firstInstallTime `2026-07-24 12:52:28`, dataDir와 Device Owner를 유지했다.
+- `월1`, `월2`, `화1`, `화2`, `수1`, `수2`, `목1`, `목2`, `금1`, `금2`,
+  `토1`, `토2`를 실제 기기에서 하나씩 눌렀다. 매 탭 직전에 새 접근성 경계를
+  읽어 해당 버튼 중심을 계산했으며, 12건 모두 선택 반이 정확히 바뀌었다.
+  빠른 선택 영역 `[64,817][1195,981]`, 12개 버튼과 화면에 보이는 주변
+  컨트롤 경계는 전 건 동일했다. 검증 뒤 선택 반은 시작 상태 `목2`로 복원했다.
+- 앱의 `FLAG_SECURE` 때문에 ADB 화면 캡처는 0-byte로 차단됐다. 보안 설정을
+  우회하지 않고 실기 탭과 접근성 경계 좌표로 검증했으므로 화면 캡처 증적은 없다.
+- 검증 뒤 재부팅해 Kiosk RC63/code 68, 기본 HOME·전면 `MainActivity`,
+  `관리자 인증`, Device Owner와 Lock Task `LOCKED`를 다시 확인했다.
+
 ## Kiosk RC62 요일 반 빠른 선택 표시 복원 — 2026-08-03
 
 ### 결함·원인·교정

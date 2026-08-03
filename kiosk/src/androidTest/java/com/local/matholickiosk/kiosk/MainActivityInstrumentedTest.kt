@@ -20,6 +20,7 @@ import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -571,7 +572,7 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
-    fun quickClassButtonsRestorePreviousTypefaceAfterSelectionChanges() {
+    fun quickClassButtonsKeepStableGeometryAndTypographyAfterSelectionChanges() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
         database.clearAllTables()
@@ -592,7 +593,9 @@ class MainActivityInstrumentedTest {
                             .childCount == 12
                 }
 
+                lateinit var initialBounds: Map<String, android.graphics.Rect>
                 scenario.onActivity { activity ->
+                    initialBounds = quickClassButtonBounds(activity)
                     quickClassButton(activity, "월1").performClick()
                 }
                 waitUntil(scenario) { activity ->
@@ -602,8 +605,10 @@ class MainActivityInstrumentedTest {
                 }
                 scenario.onActivity { activity ->
                     val selected = quickClassButton(activity, "월1")
-                    assertTrue(selected.typeface.isBold)
+                    assertFalse(selected.typeface.isBold)
+                    assertNull(selected.stateListAnimator)
                     assertEquals(1f, selected.alpha, 0.001f)
+                    assertEquals(initialBounds, quickClassButtonBounds(activity))
                     quickClassButton(activity, "월2").performClick()
                 }
                 waitUntil(scenario) { activity ->
@@ -615,9 +620,12 @@ class MainActivityInstrumentedTest {
                     val previous = quickClassButton(activity, "월1")
                     val selected = quickClassButton(activity, "월2")
                     assertFalse(previous.typeface.isBold)
+                    assertNull(previous.stateListAnimator)
                     assertEquals(0.72f, previous.alpha, 0.001f)
-                    assertTrue(selected.typeface.isBold)
+                    assertFalse(selected.typeface.isBold)
+                    assertNull(selected.stateListAnimator)
                     assertEquals(1f, selected.alpha, 0.001f)
+                    assertEquals(initialBounds, quickClassButtonBounds(activity))
                 }
             }
         } finally {
@@ -1032,5 +1040,20 @@ class MainActivityInstrumentedTest {
             .map(grid::getChildAt)
             .filterIsInstance<android.widget.Button>()
             .first { it.text.toString() == label }
+    }
+
+    private fun quickClassButtonBounds(activity: MainActivity): Map<String, android.graphics.Rect> {
+        val grid = activity.findViewById<android.widget.GridLayout>(R.id.quick_class_grid)
+        return (0 until grid.childCount)
+            .map(grid::getChildAt)
+            .filterIsInstance<android.widget.Button>()
+            .associate { button ->
+                button.text.toString() to android.graphics.Rect(
+                    button.left,
+                    button.top,
+                    button.right,
+                    button.bottom,
+                )
+            }
     }
 }

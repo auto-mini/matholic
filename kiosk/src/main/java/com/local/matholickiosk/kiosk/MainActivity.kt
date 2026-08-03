@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Typeface
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.media.AudioManager
@@ -211,7 +210,6 @@ class MainActivity : ComponentActivity() {
     private var pcPairingMode = false
     private var pairedPcDisplayName: String? = null
     private val quickClassButtons = linkedMapOf<String, Button>()
-    private val quickClassButtonNormalTypefaces = linkedMapOf<String, Typeface>()
     private var manualStudentSelectionOnly = false
     private var manualStudentSelectionFlowActive = false
     private var qrAcceptanceGeneration = 0
@@ -1074,12 +1072,12 @@ class MainActivity : ComponentActivity() {
     private fun configureQuickClassButtons() {
         quickClassGrid.removeAllViews()
         quickClassButtons.clear()
-        quickClassButtonNormalTypefaces.clear()
         FixedClassSlots.names.forEach { className ->
             val button = Button(this).apply {
                 text = className
                 minHeight = dp(52)
                 textSize = 16f
+                stateListAnimator = null
                 filterTouchesWhenObscured = true
                 setOnClickListener { selectQuickClass(className) }
             }
@@ -1091,7 +1089,6 @@ class MainActivity : ComponentActivity() {
             }
             quickClassGrid.addView(button, params)
             quickClassButtons[className] = button
-            quickClassButtonNormalTypefaces[className] = button.typeface
         }
     }
 
@@ -1113,12 +1110,6 @@ class MainActivity : ComponentActivity() {
                 !webRecoveryGate.isActive &&
                 (currentSession?.sessionId == null || className == selectedName)
             button.alpha = if (isSelected) 1f else 0.72f
-            val normalTypeface = checkNotNull(quickClassButtonNormalTypefaces[className])
-            button.typeface = if (isSelected) {
-                Typeface.create(normalTypeface, Typeface.BOLD)
-            } else {
-                normalTypeface
-            }
         }
     }
 
