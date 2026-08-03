@@ -28,6 +28,9 @@ telegram*
 private-signing/
 
 # Potentially sensitive diagnostic material
+/diagnostics/
+/output/
+/tmp/
 *.mp4
 *.mov
 *.avi
