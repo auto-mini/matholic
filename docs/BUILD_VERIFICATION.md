@@ -1,5 +1,43 @@
 # 빌드·보안 검증 기록
 
+## RC60 QR 카드 PDF 확대 — 2026-08-03
+
+### 변경
+
+- 65×90mm 카드 케이스와 55×80mm 삽입 종이 크기는 유지했다.
+- QR을 30×30mm에서 40×40mm로 확대했다. 가로·세로는 각각 33.3%, 면적은
+  77.8% 증가한다.
+- QR 상단 위치를 삽입 종이 상단 기준 28mm에서 18mm로 옮겨 QR 하단과 학생
+  이름 기준선 사이 10mm 간격을 유지했다. 학생 이름 기준선 68mm와 좌우 이름
+  여백은 바꾸지 않았다.
+- 단건, 신규·변경 카드 묶음과 반 일괄 PDF가 같은
+  `QrPrintCardRenderer`를 사용하므로 세 경로에 동일하게 적용된다.
+
+### 검증
+
+- `:kiosk:testDebugUnitTest :kiosk:compileDebugAndroidTestKotlin`: PASS.
+- Android 13 `matholic_rc03_api33`에서
+  `QrPrintDocumentAdapterInstrumentedTest` **10 tests PASS**. 55×80mm 카드,
+  40×40mm QR, 상단 18mm, 이름 간격과 실제 Android PDF 1페이지 렌더를
+  검증했다.
+- A4 합성 미리보기를 Poppler 150dpi PNG로 렌더링해 테두리·QR·이름의
+  겹침·잘림이 없음을 확인했다. 렌더 PNG의 비로그인용 합성 QR은 ZXing
+  3.5.4로 원문을 정확히 재판독했다.
+- `scripts/build-release.ps1`: **158 tasks PASS**. unit, release lint, signed
+  assemble, version·non-debuggable·동일 signer 검증을 포함한다.
+- Kiosk `0.6.0-rc60`/code 65, 35,225,680 bytes:
+  `DEC2E07149E3D77EA19F5CBE3970BFD0CFD8FD2E28EB5C0104BF2C910FBB6D11`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- Samsung SM-P610 `R54TB029FHZ`에 `adb install -r`로 보존형 설치했다.
+  Kiosk UID 10288, firstInstallTime `2026-07-24 12:52:28`, Device Owner와
+  앱 데이터 영역이 유지됐고 기존 반 데이터가 관리자 화면에 표시됐다.
+- 최종 상태는 `ADMIN_IDLE`, LockTask `NONE`, 원격 점검 비활성이다.
+
+코드 commit은 `108a54a`, 버전·운영 문서 정렬 commit은 `e0bda43`이다.
+실제 프린터 종이 출력과 종이를 태블릿 카메라로 읽는 물리 시험은 수행하지
+않았다.
+
 ## RC59 반 학생 구성 현장 결함 교정 — 2026-08-03
 
 ### 결함·원인·교정
