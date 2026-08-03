@@ -745,8 +745,23 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getDouble("zoneWidth") > 100.0)
             assertTrue(proof.getDouble("zoneHeight") < 70.0)
             assertTrue(proof.getDouble("rowSeparation") >= -0.6)
-            assertEquals("true", proof.getString("selectedZone"))
-            assertNotEquals("rgba(0, 0, 0, 0)", proof.getString("selectedBackground"))
+            Thread.sleep(100)
+            val selectedProof = evaluate(
+                webView,
+                """
+                (() => {
+                  const zone = document.querySelectorAll(
+                    '.matholic-kiosk-objective-choice-zone'
+                  )[2];
+                  return JSON.stringify({
+                    selected: zone.dataset.selected,
+                    background: getComputedStyle(zone).backgroundColor
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("true", selectedProof.getString("selected"))
+            assertNotEquals("rgba(0, 0, 0, 0)", selectedProof.getString("background"))
             assertTrue(proof.getDouble("overlayTopDelta") < 0.6)
             assertTrue(proof.getDouble("overlayHeightDelta") < 0.6)
         }
@@ -1445,13 +1460,16 @@ class DomContractInstrumentedTest {
                 "document.getElementById('accidental-answer').click(); JSON.stringify({clicked:window.accidentalAnswerClicks})",
             ).also { assertEquals(0, it.getInt("clicked")) }
 
-            Thread.sleep(750)
-            assertFalse(
-                evaluate(
+            val transitionDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            var transitionActive: Boolean
+            do {
+                transitionActive = evaluate(
                     webView,
                     "JSON.stringify({active:document.documentElement.dataset.matholicKioskProblemMapTransition === 'true'})",
-                ).getBoolean("active"),
-            )
+                ).getBoolean("active")
+                if (transitionActive) Thread.sleep(100)
+            } while (transitionActive && System.nanoTime() < transitionDeadline)
+            assertFalse("problem-map transition did not settle", transitionActive)
 
             evaluate(
                 webView,
@@ -3067,7 +3085,9 @@ class DomContractInstrumentedTest {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
             """
-            <!doctype html><html><head></head><body>
+            <!doctype html><html><head>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+            </head><body>
               <main>
                 <div id="answer-input-form-0">
                   <div id="math-toolbar">
@@ -3116,6 +3136,8 @@ class DomContractInstrumentedTest {
               </main>
             </body></html>
             """.trimIndent(),
+            viewportWidthDp = 1_200,
+            viewportHeightDp = 800,
         ) { webView ->
             evaluate(webView, WebDomScripts.applyStudentExperience)
             evaluate(webView, WebDomScripts.applyStudentExperience)
@@ -3192,6 +3214,8 @@ class DomContractInstrumentedTest {
                      return {
                        width: buttonRect.width,
                        height: buttonRect.height,
+                       top: buttonRect.top,
+                       bottom: buttonRect.bottom,
                        centerOffset: Math.hypot(
                          buttonRect.left + buttonRect.width / 2 -
                            (iconRect.left + iconRect.width / 2),
@@ -3210,10 +3234,25 @@ class DomContractInstrumentedTest {
                      ...arrowRects.map(rect => rect.top)
                    );
                    const navigationRect = navigation.getBoundingClientRect();
-                   const maximumButtonRight = Math.max(
-                     ...Array.from(navigation.querySelectorAll('button'))
-                       .map(button => button.getBoundingClientRect().right)
+                   const buttonBounds = Array.from(
+                     navigation.querySelectorAll('button')
+                   ).map(button => {
+                     const rect = button.getBoundingClientRect();
+                     return {
+                       text: button.textContent,
+                       className: button.className,
+                       action: button.dataset.matholicKioskKeyAction || '',
+                       value: button.dataset.matholicKioskKeyValue || '',
+                       left: rect.left,
+                       right: rect.right,
+                       width: rect.width
+                     };
+                   });
+                   const maximumButton = buttonBounds.reduce(
+                     (maximum, button) =>
+                       button.right > maximum.right ? button : maximum
                    );
+                   const maximumButtonRight = maximumButton.right;
                    document.body.dispatchEvent(
                      new Event('pointerdown', { bubbles: true })
                    );
@@ -3250,6 +3289,14 @@ class DomContractInstrumentedTest {
                      navigationWidth: navigation.getBoundingClientRect().width,
                      buttonRightOverflow:
                        maximumButtonRight - navigationRect.right,
+                     layoutDebug: {
+                       viewportWidth: window.innerWidth,
+                       devicePixelRatio: window.devicePixelRatio,
+                       navigationLeft: navigationRect.left,
+                       navigationRight: navigationRect.right,
+                       navigationWidth: navigationRect.width,
+                       maximumButton
+                     },
                      numericSquares: numericRects.every(rect =>
                        Math.abs(rect.width - rect.height) < 0.6
                      ),
@@ -3316,7 +3363,11 @@ class DomContractInstrumentedTest {
             assertEquals(14.0, proof.getDouble("left"), 0.6)
             assertEquals("auto", proof.getString("right"))
             assertTrue(proof.getDouble("navigationWidth") <= 576.0)
-            assertTrue(proof.getDouble("buttonRightOverflow") <= 0.6)
+            assertTrue(
+                "buttonRightOverflow=${proof.getDouble("buttonRightOverflow")}, " +
+                    "layout=${proof.getJSONObject("layoutDebug")}",
+                proof.getDouble("buttonRightOverflow") <= 0.6,
+            )
             assertTrue(proof.getBoolean("numericSquares"))
             assertTrue(proof.getBoolean("arrowSquares"))
             assertTrue(proof.getBoolean("actionSquares"))
@@ -4637,13 +4688,23 @@ class DomContractInstrumentedTest {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun withFixture(baseUrl: String, html: String, block: (WebView) -> Unit) {
+    private fun withFixture(
+        baseUrl: String,
+        html: String,
+        viewportWidthDp: Int? = null,
+        viewportHeightDp: Int? = null,
+        block: (WebView) -> Unit,
+    ) {
         val loaded = CountDownLatch(1)
         val reference = AtomicReference<WebView>()
         instrumentation.runOnMainSync {
             val webView = WebView(instrumentation.targetContext)
             webView.settings.javaScriptEnabled = true
-            webView.layout(0, 0, 1_200, 800)
+            webView.settings.domStorageEnabled = true
+            val density = instrumentation.targetContext.resources.displayMetrics.density
+            val viewportWidthPx = viewportWidthDp?.let { (it * density).toInt() } ?: 1_200
+            val viewportHeightPx = viewportHeightDp?.let { (it * density).toInt() } ?: 800
+            webView.layout(0, 0, viewportWidthPx, viewportHeightPx)
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     loaded.countDown()
