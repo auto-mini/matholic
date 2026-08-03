@@ -9,10 +9,9 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
-import java.util.Collections
 import java.util.Locale
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.TimeUnit
 
 internal data class ConnectTarget(val host: String, val port: Int)
 
@@ -45,28 +44,56 @@ internal object ConnectTargetPolicy {
  */
 internal class LoopbackConnectProxy private constructor(
     private val serverSocket: ServerSocket,
+    private val onUnexpectedTermination: () -> Unit,
 ) : Closeable {
-    private val closed = AtomicBoolean(false)
-    private val executor = Executors.newCachedThreadPool { task ->
+    private val executor = Executors.newFixedThreadPool(MAX_TUNNELS * 2) { task ->
         Thread(task, "matholic-loopback-proxy").apply { isDaemon = true }
     }
-    private val activeSockets = Collections.synchronizedSet(mutableSetOf<Socket>())
+    private val connectionSlots = ResourcePermitPool(MAX_TUNNELS)
+    private val activeSockets = CloseableRegistry<Socket> { socket ->
+        runCatching { socket.close() }
+        Unit
+    }
 
     val port: Int = serverSocket.localPort
+    private val acceptThread = Thread(::acceptLoop, "matholic-loopback-proxy-accept").apply {
+        isDaemon = true
+    }
 
     init {
-        executor.execute(::acceptLoop)
+        acceptThread.start()
     }
 
     private fun acceptLoop() {
-        while (!closed.get()) {
+        while (!activeSockets.isClosed) {
             val client = try {
                 serverSocket.accept()
             } catch (_: IOException) {
+                if (!activeSockets.isClosed) onUnexpectedTermination()
                 return
             }
-            activeSockets += client
-            executor.execute { handle(client) }
+            if (!connectionSlots.tryAcquire()) {
+                runCatching {
+                    writeResponse(
+                        client,
+                        "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
+                    )
+                }
+                runCatching { client.close() }
+                continue
+            }
+            var taskOwnsPermit = false
+            try {
+                if (!activeSockets.register(client)) return
+                taskOwnsPermit = ProxyTaskSubmission.submit(
+                    executor = executor,
+                    task = { handle(client) },
+                    onRejected = { closeSocket(client) },
+                )
+                if (!taskOwnsPermit) return
+            } finally {
+                if (!taskOwnsPermit) connectionSlots.release()
+            }
         }
     }
 
@@ -82,27 +109,39 @@ internal class LoopbackConnectProxy private constructor(
                 return
             }
 
-            upstream = Socket().apply {
+            val connectedUpstream = Socket().apply {
                 connect(InetSocketAddress(target.host, target.port), CONNECT_TIMEOUT_MS)
-                soTimeout = 0
+                soTimeout = TUNNEL_IDLE_TIMEOUT_MS
             }
-            activeSockets += upstream
+            upstream = connectedUpstream
+            if (!activeSockets.register(connectedUpstream)) return
             writeResponse(client, "HTTP/1.1 200 Connection Established\r\n\r\n")
-            client.soTimeout = 0
+            client.soTimeout = TUNNEL_IDLE_TIMEOUT_MS
 
-            val upstreamSocket = upstream
-            executor.execute {
-                try {
-                    upstreamSocket.getInputStream().copyTo(client.getOutputStream(), COPY_BUFFER_SIZE)
-                } catch (_: IOException) {
-                    // Either peer closed the tunnel.
-                } finally {
-                    closeSocket(client)
-                    closeSocket(upstreamSocket)
-                }
+            if (
+                !ProxyTaskSubmission.submit(
+                    executor = executor,
+                    task = {
+                        try {
+                            connectedUpstream.getInputStream()
+                                .copyTo(client.getOutputStream(), COPY_BUFFER_SIZE)
+                        } catch (_: IOException) {
+                            // Either peer closed the tunnel.
+                        } finally {
+                            closeSocket(client)
+                            closeSocket(connectedUpstream)
+                        }
+                    },
+                    onRejected = {
+                        closeSocket(client)
+                        closeSocket(connectedUpstream)
+                    },
+                )
+            ) {
+                return
             }
             try {
-                input.copyTo(upstreamSocket.getOutputStream(), COPY_BUFFER_SIZE)
+                input.copyTo(connectedUpstream.getOutputStream(), COPY_BUFFER_SIZE)
             } catch (_: IOException) {
                 // Either peer closed the tunnel.
             }
@@ -113,6 +152,7 @@ internal class LoopbackConnectProxy private constructor(
         } finally {
             closeSocket(client)
             upstream?.let(::closeSocket)
+            connectionSlots.release()
         }
     }
 
@@ -146,29 +186,37 @@ internal class LoopbackConnectProxy private constructor(
     }
 
     private fun closeSocket(socket: Socket) {
-        activeSockets.remove(socket)
-        runCatching { socket.close() }
+        activeSockets.close(socket)
     }
 
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        runCatching { serverSocket.close() }
-        synchronized(activeSockets) { activeSockets.toList() }.forEach(::closeSocket)
+        if (
+            !activeSockets.closeAll {
+                runCatching { serverSocket.close() }
+            }
+        ) {
+            return
+        }
         executor.shutdownNow()
+        runCatching { acceptThread.join(THREAD_SHUTDOWN_TIMEOUT_MS) }
+        runCatching { executor.awaitTermination(THREAD_SHUTDOWN_TIMEOUT_MS, TimeUnit.MILLISECONDS) }
     }
 
     companion object {
-        fun start(): LoopbackConnectProxy {
+        fun start(onUnexpectedTermination: () -> Unit = {}): LoopbackConnectProxy {
             val server = ServerSocket().apply {
                 reuseAddress = true
                 bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), ACCEPT_BACKLOG)
             }
-            return LoopbackConnectProxy(server)
+            return LoopbackConnectProxy(server, onUnexpectedTermination)
         }
 
-        private const val ACCEPT_BACKLOG = 16
+        private const val ACCEPT_BACKLOG = 64
+        private const val MAX_TUNNELS = 32
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val IO_TIMEOUT_MS = 10_000
+        private const val TUNNEL_IDLE_TIMEOUT_MS = 60_000
+        private const val THREAD_SHUTDOWN_TIMEOUT_MS = 1_000L
         private const val MAX_HEADER_BYTES = 8 * 1024
         private const val COPY_BUFFER_SIZE = 16 * 1024
     }

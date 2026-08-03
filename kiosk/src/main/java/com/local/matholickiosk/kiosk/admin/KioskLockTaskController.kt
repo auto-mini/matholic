@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.SystemClock
 import android.os.UserManager
 import com.local.matholickiosk.kiosk.MainActivity
 import com.local.matholickiosk.kiosk.bridge.CredentialBridgeContract
@@ -36,6 +37,11 @@ class KioskLockTaskController(
             admin,
             DevicePolicyManager.LOCK_TASK_FEATURE_NONE,
         )
+        devicePolicyManager.setUninstallBlocked(
+            admin,
+            CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
+            true,
+        )
         check(devicePolicyManager.setKeyguardDisabled(admin, true)) {
             "Device keyguard could not be disabled"
         }
@@ -63,14 +69,20 @@ class KioskLockTaskController(
         )
         try {
             activity.startLockTask()
+            check(waitForMode(DedicatedDeviceMode.LOCKED)) {
+                "Lock Task did not enter LOCKED mode"
+            }
         } catch (failure: Throwable) {
+            if (currentMode() != DedicatedDeviceMode.NONE) {
+                runCatching { activity.stopLockTask() }
+            }
             devicePolicyManager.clearUserRestriction(
                 admin,
                 UserManager.DISALLOW_CREATE_WINDOWS,
             )
             throw failure
         }
-        currentMode() == DedicatedDeviceMode.LOCKED
+        true
     }
 
     fun exitForAdministrator(): Result<Boolean> = runCatching {
@@ -82,7 +94,7 @@ class KioskLockTaskController(
             admin,
             UserManager.DISALLOW_CREATE_WINDOWS,
         )
-        currentMode() == DedicatedDeviceMode.NONE
+        waitForMode(DedicatedDeviceMode.NONE)
     }
 
     fun status(): DedicatedDeviceStatus {
@@ -91,6 +103,11 @@ class KioskLockTaskController(
             isDeviceOwner = owner,
             isKioskPackagePermitted = owner &&
                 devicePolicyManager.isLockTaskPermitted(activity.packageName),
+            isWebPocUninstallBlocked = owner &&
+                devicePolicyManager.isUninstallBlocked(
+                    admin,
+                    CredentialBridgeContract.TRUSTED_CONSUMER_PACKAGE,
+                ),
             mode = currentMode(),
         )
     }
@@ -104,4 +121,18 @@ class KioskLockTaskController(
             ActivityManager.LOCK_TASK_MODE_PINNED -> DedicatedDeviceMode.PINNED
             else -> DedicatedDeviceMode.NONE
         }
+
+    private fun waitForMode(expected: DedicatedDeviceMode): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + LOCK_TASK_TRANSITION_TIMEOUT_MS
+        do {
+            if (currentMode() == expected) return true
+            SystemClock.sleep(LOCK_TASK_TRANSITION_POLL_MS)
+        } while (SystemClock.elapsedRealtime() < deadline)
+        return currentMode() == expected
+    }
+
+    companion object {
+        private const val LOCK_TASK_TRANSITION_TIMEOUT_MS = 1_500L
+        private const val LOCK_TASK_TRANSITION_POLL_MS = 25L
+    }
 }

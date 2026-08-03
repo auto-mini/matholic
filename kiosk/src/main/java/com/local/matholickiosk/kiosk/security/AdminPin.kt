@@ -12,6 +12,11 @@ data class PinVerifier(
     val iterations: Int = DEFAULT_ITERATIONS,
     val version: Int = CURRENT_VERSION,
 ) {
+    fun clear() {
+        salt.fill(0)
+        derivedKey.fill(0)
+    }
+
     companion object {
         const val CURRENT_VERSION = 1
         const val DEFAULT_ITERATIONS = 600_000
@@ -35,7 +40,12 @@ object AdminPin {
         require(isValidFormat(pin)) { "Admin PIN must contain 6 to 12 digits" }
         require(iterations >= 100_000) { "PBKDF2 iteration count is too low" }
         val salt = ByteArray(SALT_BYTES).also(secureRandom::nextBytes)
-        return PinVerifier(salt, derive(pin, salt, iterations), iterations)
+        return try {
+            PinVerifier(salt, derive(pin, salt, iterations), iterations)
+        } catch (failure: Throwable) {
+            salt.fill(0)
+            throw failure
+        }
     }
 
     fun verify(pin: CharArray, verifier: PinVerifier): Boolean {

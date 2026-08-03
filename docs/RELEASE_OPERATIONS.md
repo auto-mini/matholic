@@ -1,21 +1,35 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-08-03 (Asia/Seoul)
 
 ## 현재 상태
 
-운영 후보 RC02를 A에 release Device Owner로 배포하고 핵심 실기를 완료했다.
+RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
+같은 signer의 Kiosk RC61·Web POC RC121을 보존형 설치한다. Kiosk DB, Device
+Owner와 전용 HOME은 보존됐고 두 설치본의 해시는 보관 artifact와 일치해야 한다.
+현재 검증 묶음은 Kiosk RC61, Web POC RC121과 PC 수신기 0.1.5다.
+정확한 자동·릴리스 검증과 설치 여부는 `docs/BUILD_VERIFICATION.md`의 최신
+절을 기준으로 한다.
 
-- Kiosk: `0.5.0-rc02`/code 7
-- Web POC: `0.3.5-rc02`/code 19
+- 현재 A: Kiosk `0.6.0-rc61`/code 66, Web POC `0.4.0-rc121`/code 138
+- 내부 보관 현재 검증 묶음:
+  Kiosk `0.6.0-rc61`/code 66, Web POC `0.4.0-rc121`/code 138,
+  PC 수신기 `0.1.5`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 RC02 두 앱, Device Owner, `QR_READY`, `LOCKED`
+- 현재 A: release signer의 Kiosk RC61/Web POC RC121, 기존 Device Owner·전용
+  HOME·Kiosk UID·firstInstallTime·dataDir 유지
+- Kiosk RC55는 Device Owner 정책으로 Web POC 제거를 차단한다.
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
+- 두 번째 오프라인 release 키 복구본: **별도 SanDisk USB에서 SHA-256 일치 확인**
 - 복구 비밀번호 분리 보관: **사용자 확인 완료**
 - 두 번째 공장초기화·release 프로비저닝: **완료**
-- 정상 왕복·비정상 Web 세션 자체 복구·재부팅 복구: **완료**
-- 개발자 옵션·USB 디버깅 제거 및 ADB 없는 물리 실기: **완료**
-- 실제 프린터 출력·종이 QR 왕복·120분 연속 운전: **완료**
+- RC02 정상 왕복·비정상 Web 세션 자체 복구·재부팅 복구: **완료**
+- RC02 개발자 옵션·USB 디버깅 제거 및 ADB 없는 물리 실기: **완료**
+- RC02 실제 프린터 출력·종이 QR 왕복·120분 연속 운전: **완료**
+- RC27/RC29 관리자 뒤로가기·자동 학습지 진입 재검증: **통과**
+- RC42 문제별 주관식 입력·숫자 키패드·뒤로가기·키보드 겹침 실기: **통과**
+- 수식 답 저장 뒤 회색 삭제 제어가 숨겨질 때 약 0.2초 음영이 보일 수 있으나
+  기능·오입력 문제는 없고 사용자도 불편하지 않음을 확인
 
 debug signer에서 release signer로의 전환은 공장초기화와 새 Device Owner 등록으로 완료했다. 앞으로 같은 release signer와 더 높은 versionCode의 APK는 앱 데이터와 Device Owner를 보존해 덮어쓸 수 있다.
 
@@ -66,6 +80,14 @@ ADB가 허용된 개인 Android 폰을 복구 매체로 쓸 수도 있다.
 
 폰은 임시 휴대 복구본으로 인정하지만 유일한 장기 백업으로 보지 않는다. production 운영이 안정된 뒤 별도 USB 또는 오프라인 매체 한 부를 추가한다.
 
+2026-07-27 별도 SanDisk USB의
+`MatholicKioskSigningBackup/matholic-kiosk-release.p12`에 두 번째 복구본을
+추가하고 PC 원본과 SHA-256
+`81B543E21DB56707A122125BC1A99E47C17462DF2ED091BA7E1CF83E3391B111`
+일치를 확인했다. USB에는 암호화된 PKCS12 키만 복사했고 복구 비밀번호와
+Windows DPAPI 자격정보는 복사하지 않았다. 기존 Android 폰 복구 marker는
+변경하지 않았다.
+
 ## Release 빌드
 
 최초 한 번만 키를 만든다. 기존 키가 있으면 스크립트는 덮어쓰지 않는다.
@@ -88,6 +110,24 @@ ADB가 허용된 개인 Android 폰을 복구 매체로 쓸 수도 있다.
 - `artifacts/RELEASE_SHA256SUMS.txt` 생성
 
 서명 환경이 없는 직접 release 빌드는 `Release signing is required`로 실패한다.
+
+## Android 계측시험 안전 경계
+
+A와 에뮬레이터가 동시에 연결된 PC에서 raw
+`:webpoc:connectedDebugAndroidTest`를 실행하지 않는다. debug 시험 APK는
+release Web POC와 applicationId가 같고 signer가 달라, 시험 도구의 설치·정리
+동작이 생산 앱에 영향을 줄 수 있다.
+
+Web POC 계측시험은 반드시 아래 에뮬레이터 전용 스크립트로 실행한다.
+
+```powershell
+.\scripts\test-webpoc-emulator.ps1
+```
+
+스크립트는 `emulator-` serial과 `ro.kernel.qemu=1`을 모두 확인하고
+`ANDROID_SERIAL`을 고정한다. 물리 serial을 주면 시험 전에 실패한다.
+Kiosk RC34는 이 절차상의 경계와 별도로 Device Owner의
+`setUninstallBlocked` 정책을 적용해 Web POC 제거를 차단한다.
 
 ## Release 프로비저닝
 
@@ -145,3 +185,97 @@ A의 개발자 옵션과 USB 디버깅은 껐고 생산 잠금 물리 실기를 
 - release 등록 후 debug alpha로 복귀: 서명이 달라 덮어쓰기 불가, 공장초기화 필요
 - release 키 또는 복구 비밀번호 분실: 기존 설치본 업데이트 불가, 공장초기화와 새 application/signing 전략 필요
 - Web 세션 잠금: 관리자 자체 복구 후 기존 수업 안전 종료·재시작
+
+## 지정 PC로 QR 카드 PDF 보내기
+
+2026-07-29부터 A와 같은 사설 Wi-Fi에 있는 지정 PC로 카드 PDF를 암호화해
+직접 보낼 수 있다. 인터넷 서비스, 클라우드 계정, USB 연결과 주변 모든
+사용자에게 보이는 공유 모드를 사용하지 않는다.
+
+### 현재 PC 설치 상태
+
+- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.3`
+- 설치 파일:
+  `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
+- 수신 폴더:
+  `%USERPROFILE%\Downloads\Matholic QR Cards`
+- 수신 포트: TCP 48129
+- 방화벽: `Matholic PDF Receiver (Private)`, Private 프로필만 허용
+- 자동 시작:
+  `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Matholic PDF Receiver.lnk`
+- 지정 PC 표시 이름: `DESKTOP-D4AGJI7`
+
+### 최초 연결 또는 PC 재설치 뒤
+
+1. PC에서 `매쓰홀릭 PDF 수신기`를 연다.
+2. A의 관리자 PIN으로 반 관리 화면에 들어간다.
+3. `지정 PC 다시 페어링`을 누른다.
+4. PC 수신기에 표시된 페어링 QR을 A로 촬영한다.
+5. A에서 PC 이름이 `DESKTOP-D4AGJI7`로 표시되는지 확인한다.
+
+페어링 QR에는 이 PC로 암호화해 보낼 수 있는 비밀키가 들어 있으므로 학생
+QR과 마찬가지로 촬영본을 외부에 공유하지 않는다. PC를 교체하거나 수신기
+설정을 새로 만들었을 때만 다시 페어링한다. Kiosk RC46부터 같은 사설
+Wi-Fi 안에서 DHCP 때문에 지정 PC의 IPv4 주소만 바뀐 경우에는 기존
+페어링 키로 수신기를 인증해 새 주소를 자동 복구하므로 다시 페어링하지
+않아도 된다.
+
+### 카드 발급·전송
+
+1. 관리자 화면에서 학생을 선택한다.
+2. `QR 폐기 및 재발급`으로 새 카드를 만든다.
+3. `현재 카드 지정 PC로 보내기`를 누른다.
+4. A의 `지정 PC로 카드 PDF를 암호화해 보내는 중` 표시를 확인한다.
+5. PC 수신기의 `...pdf 저장 완료` 표시를 확인한다.
+6. PC의 `다운로드\Matholic QR Cards` 폴더에서 PDF를 열어 인쇄한다.
+
+QR 재발급은 기존 QR을 즉시 무효화한다. 전송만 다시 해야 한다면 새 QR을
+불필요하게 재발급하지 말고 현재 카드 전송 기능을 사용한다.
+
+### 장애 확인
+
+- PC가 표시되지 않거나 전송되지 않으면 먼저 A와 PC가 같은 사설 Wi-Fi인지,
+  PC 수신기 창이 실행 중인지 확인한다.
+- Kiosk RC46 이상은 저장된 주소 연결이 실패하면 현재 Wi-Fi의 같은
+  `/24` 사설망에서 수신기를 찾고, 기존 페어링의 challenge-response 인증에
+  성공한 PC만 새 주소로 저장한다. 자동 복구용 상태에는 학생 이름을 싣지
+  않고 PC 알림도 만들지 않는다.
+- 다른 Wi-Fi, 다른 `/24` 망, PC 방화벽 차단 또는 수신기 중지 상태에서는
+  자동 복구하지 않는다. 이 경우 네트워크를 바로잡고 다시 시도하며, PC가
+  실제로 교체됐거나 수신기 설정이 초기화됐다면 수동 재페어링한다.
+- PC 교체·수신기 설정 초기화 뒤에는 `지정 PC 다시 페어링`을 수행한다.
+- 방화벽을 전체 네트워크에 개방하거나 공용 네트워크 프로필을 허용하지 않는다.
+- 수신기를 제거할 때는 `pc_receiver\uninstall-receiver.ps1`을 사용한다.
+  실행 파일·자동 시작·방화벽 규칙은 제거하지만 이미 받은 PDF와 페어링
+  설정은 보존한다.
+- 2026-07-29 PC 완전 재부팅 뒤 수신기 자동 실행과 TCP 48129 대기를
+  확인했다. 별도로 수신기를 수동 실행할 필요가 없다.
+
+2026-07-29 실물 검증에서는 수신 PDF의 신규 QR로 로그인·문제 화면·채점
+끝내기·`QR_READY` 왕복을 통과했고, 재발급 전 QR 무효화도 통과했다.
+
+## ADB 전용 비공개 진단 로그
+
+Kiosk rc45와 Web rc68부터 사용자 화면이나 공유 저장소에 진단 로그를
+노출하지 않으면서, USB 디버깅을 승인한 관리 PC에서만 구조화된 최근
+기록을 확인할 수 있다. receiver는 시스템 `android.permission.DUMP`로
+보호되므로 일반 앱 UID의 요청은 Android가 거부한다.
+
+```powershell
+$nonce = [guid]::NewGuid().ToString('N').ToUpperInvariant()
+adb -s R54TB029FHZ shell am broadcast `
+  -a com.local.matholickiosk.kiosk.action.DUMP_PRIVATE_DIAGNOSTICS `
+  --es nonce $nonce `
+  -n com.local.matholickiosk.kiosk/.AdbDiagnosticDumpReceiver
+
+$nonce = [guid]::NewGuid().ToString('N').ToUpperInvariant()
+adb -s R54TB029FHZ shell am broadcast `
+  -a com.local.matholickiosk.webpoc.action.DUMP_PRIVATE_DIAGNOSTICS `
+  --es nonce $nonce `
+  -n com.local.matholickiosk.webpoc/.AdbDiagnosticDumpReceiver
+```
+
+출력은 nonce가 포함된 `BEGIN`/`END` 경계 안의 최근 최대 200줄로 제한된다.
+학생 이름·아이디·비밀번호·QR 원문·답안·점수·오답 번호·문항 내용이
+나오면 정상 동작으로 간주하지 말고 해당 출력을 공유하지 않은 채 릴리스를
+중단한다. 실제 장애를 만들기 위한 실패주입은 이 조회 절차에 포함되지 않는다.

@@ -11,6 +11,7 @@
         android:orientation="vertical">
 
         <LinearLayout
+            android:id="@+id/app_header"
             android:layout_width="match_parent"
             android:layout_height="60dp"
             android:background="#102A43"
@@ -22,7 +23,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="매쓰홀릭 QR 키오스크 · Gate 5"
+                android:text="@string/header_title"
                 android:textColor="#FFFFFF"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -32,17 +33,33 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="28dp"
-                android:text="전용기기 확인 중"
+                android:text="보안 확인 중"
                 android:textColor="#9FB3C8"
                 android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/status_text"
-                android:layout_width="wrap_content"
+                android:layout_width="240dp"
                 android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:gravity="end"
+                android:maxLines="1"
                 android:text="준비 중"
                 android:textColor="#D9EAF7"
                 android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/remote_support_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/remote_support_badge_background"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="5dp"
+                android:text="원격 점검 중"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <FrameLayout
@@ -146,6 +163,34 @@
                             android:textSize="20sp"
                             android:textStyle="bold" />
 
+                        <Button
+                            android:id="@+id/self_test_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="운영 준비 자가진단" />
+
+                        <Button
+                            android:id="@+id/feedback_settings_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="소리·진동 피드백 설정" />
+
+                        <Button
+                            android:id="@+id/keypad_layout_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="수식 키패드 배치 설정" />
+
+                        <Button
+                            android:id="@+id/remote_support_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="원격 점검 30분 시작" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -176,60 +221,71 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="20dp"
-                            android:text="학생 등록"
-                            android:textColor="#102A43"
-                            android:textSize="20sp"
+                            android:layout_marginTop="10dp"
+                            android:text="요일 반 빠른 선택"
+                            android:textColor="#334E68"
+                            android:textSize="15sp"
                             android:textStyle="bold" />
 
-                        <EditText
-                            android:id="@+id/student_name_input"
+                        <GridLayout
+                            android:id="@+id/quick_class_grid"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:columnCount="6"
+                            android:rowCount="2"
+                            android:useDefaultMargins="true" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/manage_class_members_button"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="반 학생 구성" />
+
+                            <Button
+                                android:id="@+id/delete_class_button"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="선택한 반 삭제" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/class_roster_text"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
-                            android:hint="매쓰홀릭 표시명(정확히)"
-                            android:maxLength="80" />
-
-                        <EditText
-                            android:id="@+id/student_masked_input"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="마스킹 표시명(예: 홍*동)"
-                            android:maxLength="80" />
-
-                        <EditText
-                            android:id="@+id/username_input"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="매쓰홀릭 아이디"
-                            android:importantForAutofill="no"
-                            android:inputType="textNoSuggestions"
-                            android:saveEnabled="false" />
-
-                        <EditText
-                            android:id="@+id/password_input"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:hint="매쓰홀릭 비밀번호"
-                            android:importantForAutofill="no"
-                            android:inputType="textPassword"
-                            android:saveEnabled="false" />
-
-                        <Button
-                            android:id="@+id/register_student_button"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="암호화 등록 및 QR 발급" />
+                            android:text="소속 학생 없음"
+                            android:textColor="#486581"
+                            android:textSize="15sp" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="20dp"
-                            android:text="등록 학생"
+                            android:text="학생 관리"
                             android:textColor="#102A43"
                             android:textSize="20sp"
                             android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/register_student_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="새 학생 등록 및 QR 발급" />
+
+                        <Button
+                            android:id="@+id/import_student_csv_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="지정 PC 학생 CSV 가져오기" />
 
                         <Spinner
                             android:id="@+id/student_spinner"
@@ -250,12 +306,11 @@
                                 android:text="QR 폐기·재발급" />
 
                             <Button
-                                android:id="@+id/add_temporary_button"
+                                android:id="@+id/update_profile_button"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="현재 수업 보강 추가"
-                                android:visibility="gone" />
+                                android:text="학생 이름 변경" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -264,39 +319,42 @@
                             android:orientation="horizontal">
 
                             <Button
-                                android:id="@+id/update_profile_button"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="선택 학생 표시명 수정" />
-
-                            <Button
                                 android:id="@+id/update_credentials_button"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="선택 학생 계정 갱신" />
+                                android:text="로그인 정보 변경" />
+
+                            <Button
+                                android:id="@+id/deactivate_student_button"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="학생 비활성화" />
                         </LinearLayout>
 
-                        <Button
-                            android:id="@+id/deactivate_student_button"
-                            android:layout_width="match_parent"
+                        <TextView
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="선택 학생 비활성화·QR 폐기" />
+                            android:layout_marginTop="20dp"
+                            android:text="수업 준비"
+                            android:textColor="#102A43"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
 
                         <Button
-                            android:id="@+id/recover_web_session_button"
+                            android:id="@+id/add_temporary_button"
                             android:layout_width="match_parent"
                             android:layout_height="52dp"
-                            android:layout_marginTop="16dp"
-                            android:text="Web 세션 안전 정리" />
+                            android:layout_marginTop="8dp"
+                            android:text="이번 수업 보강 학생 선택" />
 
                         <Button
                             android:id="@+id/start_session_button"
                             android:layout_width="match_parent"
                             android:layout_height="52dp"
                             android:layout_marginTop="8dp"
-                            android:text="선택한 반 수업 시작" />
+                            android:text="선택한 반 수업 안전 시작" />
 
                         <Button
                             android:id="@+id/resume_session_button"
@@ -306,6 +364,14 @@
                             android:text="QR 대기 화면으로 복귀"
                             android:visibility="gone" />
 
+                        <Button
+                            android:id="@+id/recover_session_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="오류 상태 원버튼 복구"
+                            android:visibility="gone" />
+
                         <TextView
                             android:id="@+id/admin_message"
                             android:layout_width="match_parent"
@@ -313,53 +379,103 @@
                             android:layout_marginTop="12dp"
                             android:textColor="#334E68"
                             android:textSize="15sp" />
+
+                        <Button
+                            android:id="@+id/undo_admin_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="방금 작업 실행취소"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </ScrollView>
 
-                <LinearLayout
+                <ScrollView
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_weight="0.8"
                     android:background="#FFFFFF"
-                    android:gravity="center_horizontal"
-                    android:orientation="vertical"
-                    android:padding="20dp">
+                    android:fillViewport="true">
 
-                    <TextView
-                        android:id="@+id/qr_card_name"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:text="발급한 QR은 이 화면에 한 번만 표시됩니다"
-                        android:textColor="#102A43"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical"
+                        android:padding="20dp">
 
-                    <ImageView
-                        android:id="@+id/qr_image"
-                        android:layout_width="360dp"
-                        android:layout_height="360dp"
-                        android:layout_marginTop="16dp"
-                        android:contentDescription="발급된 학생 QR"
-                        android:scaleType="fitCenter" />
+                        <TextView
+                            android:id="@+id/qr_card_name"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="발급한 QR은 이 화면에 한 번만 표시됩니다"
+                            android:textColor="#102A43"
+                            android:textSize="20sp"
+                            android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:gravity="center"
-                        android:text="화면 캡처·클립보드·외부 파일 저장은 차단됩니다. 현재 표시 QR만 신뢰하는 Android 인쇄 서비스로 보낼 수 있습니다."
-                        android:textColor="#627D98"
-                        android:textSize="14sp" />
+                        <ImageView
+                            android:id="@+id/qr_image"
+                            android:layout_width="360dp"
+                            android:layout_height="360dp"
+                            android:layout_marginTop="16dp"
+                            android:contentDescription="발급된 학생 QR"
+                            android:scaleType="fitCenter" />
 
-                    <Button
-                        android:id="@+id/print_qr_button"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:enabled="false"
-                        android:text="현재 표시 QR 인쇄" />
-                </LinearLayout>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center"
+                            android:text="화면 캡처·클립보드는 차단됩니다. 현재 표시 QR은 PDF로 저장하거나 페어링된 지정 PC로만 보낼 수 있습니다."
+                            android:textColor="#627D98"
+                            android:textSize="14sp" />
+
+                        <Button
+                            android:id="@+id/export_qr_pdf_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:enabled="false"
+                            android:text="카드 PDF Quick Share·저장" />
+
+                        <Button
+                            android:id="@+id/batch_qr_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="선택 반 QR 일괄 재발급·PC 전송" />
+
+                        <Button
+                            android:id="@+id/pending_cards_pdf_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="신규·변경 카드만 PC로 보내기" />
+
+                        <Button
+                            android:id="@+id/card_status_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="QR 카드 상태·이력" />
+
+                        <Button
+                            android:id="@+id/pair_pc_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:text="PC 무선 전송 페어링" />
+
+                        <Button
+                            android:id="@+id/send_pc_pdf_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:enabled="false"
+                            android:text="현재 카드 지정 PC로 보내기" />
+                    </LinearLayout>
+                </ScrollView>
             </LinearLayout>
 
             <FrameLayout
@@ -368,50 +484,85 @@
                 android:layout_height="match_parent"
                 android:visibility="gone">
 
-                <androidx.camera.view.PreviewView
-                    android:id="@+id/camera_preview"
+                <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    app:implementationMode="performance"
-                    app:scaleType="fillCenter" />
+                    android:background="#102A43">
 
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="#33000000" />
+                    <LinearLayout
+                        android:id="@+id/scanner_center_content"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="32dp">
+
+                        <TextView
+                            android:id="@+id/scanner_lens_instruction"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:contentDescription="QR 카메라 사용 안내"
+                            android:gravity="center"
+                            android:maxWidth="700dp"
+                            android:text="QR 카드를 전면 카메라 렌즈에 보여주세요"
+                            android:textColor="#FFFFFF"
+                            android:textSize="24sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/scanner_message"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="28dp"
+                            android:gravity="center"
+                            android:minHeight="64dp"
+                            android:textColor="#D9EAF7"
+                            android:textSize="22sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/cancel_qr_login_button"
+                            android:layout_width="220dp"
+                            android:layout_height="64dp"
+                            android:layout_marginTop="18dp"
+                            android:filterTouchesWhenObscured="true"
+                            android:text="다른 카드"
+                            android:textSize="20sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+                </FrameLayout>
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="bottom"
-                    android:background="#DD102A43"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="20dp"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="20dp">
+                    android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/scanner_message"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="QR카드를 카메라에 보여주세요"
-                        android:textColor="#FFFFFF"
-                        android:textSize="24sp"
-                        android:textStyle="bold" />
-
-                    <Button
+                    <ImageButton
                         android:id="@+id/switch_camera_button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
                         android:layout_marginEnd="12dp"
-                        android:contentDescription="카메라 전환"
-                        android:text="후면으로" />
+                        android:background="@drawable/scanner_icon_button_background"
+                        android:contentDescription="후면 카메라로 전환"
+                        android:padding="13dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_camera_switch"
+                        app:tint="#FFFFFF" />
 
-                    <Button
+                    <ImageButton
                         android:id="@+id/session_admin_button"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="관리자" />
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:background="@drawable/scanner_icon_button_background"
+                        android:contentDescription="관리자 인증"
+                        android:padding="13dp"
+                        android:scaleType="centerInside"
+                        android:src="@drawable/ic_admin_panel_settings"
+                        app:tint="#FFFFFF" />
                 </LinearLayout>
             </FrameLayout>
         </FrameLayout>

@@ -1,6 +1,32 @@
 package com.local.matholickiosk.webpoc
 
 object WebFailurePolicy {
+    fun shouldProcessStateGenerationCallback(
+        state: WebPocState,
+        expectedState: WebPocState,
+        callbackGeneration: Int,
+        currentGeneration: Int,
+    ): Boolean =
+        state == expectedState && callbackGeneration == currentGeneration
+
+    fun shouldProcessLogoutCallback(
+        state: WebPocState,
+        expectedState: WebPocState,
+        callbackGeneration: Int,
+        currentGeneration: Int,
+    ): Boolean =
+        shouldProcessStateGenerationCallback(
+            state,
+            expectedState,
+            callbackGeneration,
+            currentGeneration,
+        )
+
+    fun shouldProcessPageFinished(
+        callbackUrl: String?,
+        currentUrl: String?,
+    ): Boolean = callbackUrl != null && callbackUrl == currentUrl
+
     fun shouldIgnorePageFinishedWhilePreflightRetryPending(
         state: WebPocState,
         retryScheduled: Boolean,

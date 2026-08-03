@@ -2,6 +2,9 @@
 .gradle/
 .kotlin/
 **/build/
+**/dist/
+**/__pycache__/
+*.py[cod]
 local.properties
 .idea/
 *.iml
@@ -15,6 +18,7 @@ artifacts/
 *.p12
 *.pfx
 *.clixml
+*.dpapi
 keystore.properties
 secrets.properties
 *.env
@@ -24,6 +28,9 @@ telegram*
 private-signing/
 
 # Potentially sensitive diagnostic material
+/diagnostics/
+/output/
+/tmp/
 *.mp4
 *.mov
 *.avi

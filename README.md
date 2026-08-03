@@ -1,15 +1,25 @@
 # 매쓰홀릭 채점 키오스크
 
-학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)를 release signer 전용으로 다시 공장초기화해 `0.5.0-rc02`/`0.3.5-rc02`를 Device Owner로 배포했다. QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 홈·최근 앱·알림창 차단과 재부팅 복구를 확인했다. 개발자 옵션과 USB 디버깅을 끈 뒤 ADB 없는 물리 재부팅·복구·잠금, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복까지 통과했다. 별도 release signer와 Android 폰의 암호화 키 복구본도 준비했다.
+학생 개인계정의 로그인·학생 확인·로그아웃을 보조하는 Android 앱의 단계별 검증 저장소다. Android 앱 Gate 1 실기 조사는 최종 FAIL이고, 공식 웹 경로의 Web Gate 2·3과 QR 운영 Gate 4 alpha는 PASS다. Gate 5에는 Device Owner, 전용 HOME, 두 앱 allowlist와 Lock Task 잠금이 구현됐다. A 기기(SM-P610)는 release signer 전용 Device Owner 기기다. RC02에서 QR→Web 문제 화면→로그아웃 자동 복귀, 비정상 Web 세션의 관리자 자체 복구, 잠금과 재부팅 복구, 120분 연속 운전, 실제 프린터 출력과 종이 QR 왕복을 통과했다. 현재 A 기기에는 기존 앱 데이터를 보존한 Kiosk RC55와 Web POC RC117이 설치되어 있다. 화면에 보이는 앱명·관리자 헤더·시험 모드명·보안 상태는 `채점 관리`와 `학습` 중심의 중립 문구로 바꾸고 QR 모양 앱 아이콘도 일반 문서 확인 아이콘으로 교체했다. 학습 화면에는 112×96px 문제 이동 버튼, 좌상단 문제번호 배지, 답안 현황 지도, `모름` 안내와 직접 답안을 터치할 때만 열리는 하단 수식 키패드를 제공한다. ACTIVE 학생 세션 동안 앱 창 밝기를 80%로 적용하고 로그아웃·복구·종료 때 이전 밝기로 복원한다. 별도 release signer는 Android 폰과 별도 USB에 암호화 키 복구본을 보관한다.
 
 ## 현재 Gate
 
 - `probe`: 확인된 매쓰홀릭 패키지의 접근성 트리를 민감정보 없이 조사한다.
 - `poc`: Gate 1 FAIL로 기능이 잠긴 안내 앱이다. 승인 상수는 `false`다.
 - `webpoc`: 공식 웹에서 단일 시험계정 Gate 2와 두 시험계정 교차 Gate 3를 검증하는 별도 POC다.
-- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.5.0-rc02`다.
-- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.3.5-rc02`다.
-- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 A에 배포했고 정의된 운영 인수시험까지 완료했다.
+- `kiosk`: Gate 4 기능과 Gate 5 Device Owner·전용 HOME·Lock Task를 제공한다. 현재 소스는 `0.6.0-rc61`이다. 학생 CSV 가져오기, 신규·변경 QR 카드 PDF 생성, 카드 상태·이력, 관리자 30초 실행취소, 운영 자가진단·원버튼 복구, PC 상태·암호화 전송과 수식 키패드 배치 설정을 제공한다. Android 직접 인쇄는 제거됐고 기존 반·학생·QR 데이터와 secure session 경계는 유지한다.
+- `webpoc`: 화면 꺼짐을 막고 Lock Task allowlist 안에서 실행된다. 현재 소스는 `0.4.0-rc121`이다. 네트워크 단절 안전 대기, 10분 무입력 경고, 미입력 문항 순회, 수식 입력 실행취소·다시실행, 삭제 길게 누르기, 오른손·왼손·하단 중앙 키패드 프리셋과 가변 터치영역을 제공한다. 사용자에게 노출되지 않는 제한된 진단 로그에는 중단 단계·느린 처리·자동 재시도·결과 판독 실패의 비식별 구조 정보만 남긴다. 기존 문제 번호·답안 현황·MathQuill 복구·제출 연타 차단·오답 추출과 실패폐쇄 경계는 유지한다.
+- 외부 알림은 현재 요구사항에서 제외했다. release RC02는 정의된 운영 인수시험을 완료했다. Kiosk RC61/Web POC RC120/PC 수신기 0.1.5는 리뷰 교정과 A 기기 보존형 현장 검증을 반영한 묶음이다. 실제 프린터 물리 출력만 사용자 현장 확인 대상으로 남는다.
+
+RC03부터 학생 마스터 목록과 다중 반 소속, 학생을 보존하는 반 삭제,
+65×90mm 카드 케이스용 55×80mm 삽입 종이·40×40mm QR PDF 공유, 카메라 미리보기 비표시,
+학습지 자동 진입·진단평가 전환, 문제 입력 확대와 오답 번호 전용 결과 화면이
+포함된다. RC03 이력은 [docs/RC03_USABILITY.md](docs/RC03_USABILITY.md)에,
+RC04·RC05와 이후 소스 검증은 [docs/BUILD_VERIFICATION.md](docs/BUILD_VERIFICATION.md)에
+구분해 기록한다.
+
+사용자가 채택·배제한 후속 편의성 개선안과 재추천 금지 범위는
+[docs/PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md)를 기준으로 한다.
 
 ## 확인된 대상
 
@@ -89,6 +99,23 @@ Release RC 빌드:
 ```powershell
 .\scripts\build-release.ps1
 ```
+
+승인된 USB ADB로 관리자 원격 점검을 시작하고 현재 화면을 PC 임시 경로에
+캡처하려면 다음을 사용한다. 별도 네트워크 포트를 열지 않으며 기본 60분,
+최대 120분 뒤 자동으로 `FLAG_SECURE`가 복원된다.
+
+```powershell
+.\scripts\remote-tablet.ps1 -Action Start -Minutes 60
+.\scripts\remote-tablet.ps1 -Action Capture
+.\scripts\remote-tablet.ps1 -Action Stop
+```
+
+관리자 화면에서도 30분 원격 점검을 시작·종료할 수 있다. 점검 중에는 화면
+오른쪽 위에 `원격 점검 중` 배지가 보이며 관리자 PIN이나 비밀번호를 입력할
+때는 사용하지 않는다.
+승인 ADB의 실기 회귀에는 `TestQr` 동작으로 카메라가 이미 계산했을 때와 같은
+32바이트 QR 해시를 한 번 전달할 수 있다. 원격 점검이 활성이고 현재 수업이
+정확히 `QR_READY`일 때만 처리하며 QR 원문·계정정보는 전달하거나 기록하지 않는다.
 
 release 키 복구 확인, 공장초기화·운영 프로비저닝·관리자 Web 세션 복구 절차는 [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md)를 따른다.
 사용자가 단독으로 수행한 120분 연속 운전과 실제 프린터 시험 절차·결과는 [docs/OPERATOR_ACCEPTANCE_CHECKLIST.md](docs/OPERATOR_ACCEPTANCE_CHECKLIST.md)에 기록했다.

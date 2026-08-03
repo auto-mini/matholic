@@ -22,22 +22,24 @@ class DedicatedDevicePolicyTest {
     @Test
     fun lockedDeviceAndAdministratorExitHaveDistinctStatus() {
         assertEquals(
-            "전용기기 잠금 활성",
+            "보안 적용",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,
                     isKioskPackagePermitted = true,
+                    isWebPocUninstallBlocked = true,
                     mode = DedicatedDeviceMode.LOCKED,
                 ),
                 administratorUnlocked = false,
             ),
         )
         assertEquals(
-            "전용기기 · 관리자 잠금 해제",
+            "보안 일시 해제",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = true,
                     isKioskPackagePermitted = true,
+                    isWebPocUninstallBlocked = true,
                     mode = DedicatedDeviceMode.NONE,
                 ),
                 administratorUnlocked = true,
@@ -48,12 +50,29 @@ class DedicatedDevicePolicyTest {
     @Test
     fun missingDeviceOwnerIsReportedWithoutPretendingToBeLocked() {
         assertEquals(
-            "전용기기 잠금 미설정",
+            "보안 미설정",
             DedicatedDevicePolicy.statusLabel(
                 DedicatedDeviceStatus(
                     isDeviceOwner = false,
                     isKioskPackagePermitted = false,
+                    isWebPocUninstallBlocked = false,
                     mode = DedicatedDeviceMode.NONE,
+                ),
+                administratorUnlocked = false,
+            ),
+        )
+    }
+
+    @Test
+    fun missingWebPocUninstallProtectionIsReportedAsPolicyError() {
+        assertEquals(
+            "보안 정책 오류",
+            DedicatedDevicePolicy.statusLabel(
+                DedicatedDeviceStatus(
+                    isDeviceOwner = true,
+                    isKioskPackagePermitted = true,
+                    isWebPocUninstallBlocked = false,
+                    mode = DedicatedDeviceMode.LOCKED,
                 ),
                 administratorUnlocked = false,
             ),

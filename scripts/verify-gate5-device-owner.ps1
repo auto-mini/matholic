@@ -16,16 +16,16 @@ if ($owners -notmatch [regex]::Escape($kioskPackage)) {
     throw 'Kiosk is not the Device Owner.'
 }
 
-$policy = (& $adb -s $device.Serial shell dumpsys device_policy) -join "`n"
+$activity = (& $adb -s $device.Serial shell dumpsys activity activities) -join "`n"
 foreach ($packageName in @($kioskPackage, $webPocPackage)) {
-    if ($policy -notmatch [regex]::Escape($packageName)) {
+    if ($activity -notmatch [regex]::Escape($packageName)) {
         throw "Lock Task policy does not contain $packageName."
     }
 }
 
-$activity = (& $adb -s $device.Serial shell dumpsys activity activities) -join "`n"
 $mode = [regex]::Match($activity, 'mLockTaskModeState=(\w+)').Groups[1].Value
 if (-not $mode) { throw 'Could not read Lock Task mode.' }
+if ($mode -ne 'LOCKED') { throw "Lock Task mode must be LOCKED; found $mode." }
 
 $packageDump = (& $adb -s $device.Serial shell dumpsys package $kioskPackage) -join "`n"
 $versionName = [regex]::Match($packageDump, 'versionName=([^\s]+)').Groups[1].Value

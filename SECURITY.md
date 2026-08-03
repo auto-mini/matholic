@@ -23,8 +23,13 @@
 
 - `webpoc`에는 시험계정만 태블릿 화면에서 런타임 입력한다.
 - 자격정보와 예상 표시명은 파일, preference, saved state, 로그와 autofill에 저장하지 않는다.
-- WebView debugging, 디스크 cache, form data 저장, backup, 화면 캡처와 최근 앱 미리보기를 차단한다.
+- WebView debugging, 디스크 cache, form data 저장, backup과 최근 앱 미리보기를 차단한다.
+- 화면 캡처는 기본적으로 `FLAG_SECURE`로 차단한다. 관리자 또는
+  `android.permission.DUMP`를 가진 승인 ADB shell이 시간 제한 원격 점검을
+  명시적으로 시작한 동안에만 `FLAG_SECURE`를 해제하고 화면에 상태를 표시한다.
 - 상위 탐색은 공식 HTTPS의 `login.matholic.com`, `auth.matholic.com`, `im.matholic.com`만 허용한다.
+- 학생 사용 중 상위 탐색은 `im.matholic.com`의 학습지, 진단평가와 문제 경로로 더 좁게 제한하고 Android 뒤로가기를 소비한다.
+- 종합분석 DOM 계약을 확인한 경우에만 상세 결과를 불투명하게 가리고 틀린 문제 번호만 기기 화면에 표시한다. 계약이 바뀌면 상세 결과를 임의로 해석하지 않는다.
 - 정상 로그아웃 뒤 WebView Cookie, WebStorage, form data와 cache를 삭제하고 빈 로그인 화면을 다시 검증한다.
 - DOM fingerprint, 실제 표시명 정확 일치와 로그아웃 검증 중 하나라도 실패하면 다음 로그인을 허용하지 않는다.
 
@@ -34,13 +39,15 @@
 - 학생 매쓰홀릭 아이디·비밀번호는 Android Keystore AES-256-GCM으로 필드별 암호화한다.
 - AAD에는 학생 내부 UUID와 필드 종류를 넣고 레코드·필드마다 새 IV를 사용한다.
 - QR은 `MQR1:` 256비트 난수이며 DB에는 SHA-256 hash만 저장한다.
-- 학생 비활성화 시 기존 QR hash를 새 무작위 hash로 교체하고 활성 조회에서 제외한다. 이는 논리적 비활성화이며 암호화된 자격정보 레코드의 보안 삭제는 아니다.
-- QR 카드 인쇄에는 현재 화면에 표시된 1회성 원문만 사용하고, 마스킹 이름만 함께 표시한다. 인쇄 요청을 감사기록에 남기고 인쇄 서비스 전달 직후 화면 원문과 bitmap을 지운다.
-- Android 인쇄 서비스, 선택한 프린터·PDF 대상과 대기열은 앱 밖의 추가 신뢰 경계다. 운영에서는 통제된 로컬 프린터만 사용하고 잔류 작업·분실 카드는 폐기한다.
+- 학생 비활성화 시 기존 QR hash를 새 무작위 hash로 교체하고 활성 조회에서 제외한 뒤 live DB 행의 자격정보 암호문·IV를 즉시 폐기한다. SQLite `secure_delete`를 사용하지만 WAL·저장장치 사본의 물리적 보안 삭제까지 보장하지는 않는다.
+- QR 카드 PDF에는 발급 직후의 1회성 원문과 학생 전체 이름을 사용한다. PDF 생성·지정 PC 전송 요청을 감사기록에 남기고 외부 전달 직후 화면 원문과 bitmap을 지운다.
+- PDF는 앱 cache에 임시 생성하고 지정 PC 저장 응답 또는 공유 화면 복귀 뒤 삭제하며, 만료 파일도 정리한다. Android 직접 인쇄 경로는 제거했다. 지정 PC, 선택적 PDF 공유 대상, PC 프린터와 대기열은 앱 밖의 추가 신뢰 경계이므로 통제된 대상만 사용하고 잔류 파일·작업·분실 카드는 폐기한다.
 - `kiosk`에서 `webpoc`으로 자격정보를 넘길 때 Intent extra, 파일, clipboard와 로그를 사용하지 않는다.
 - 앱 간 브리지는 signature 권한·호출 package allowlist·30초 TTL·1회 조회를 모두 적용한 메모리 전용 provider다.
 - 외부 알림은 현재 요구사항에서 제외한다. 감사기록에는 자격정보, QR 원문, 답안, 점수와 학습지 내용을 저장하지 않는다.
-- `FLAG_SECURE`, backup/device transfer 전면 제외와 cleartext 차단을 적용한다.
+- `FLAG_SECURE`, backup/device transfer 전면 제외와 cleartext 차단을
+  기본 적용한다. 원격 점검은 같은 부팅에서 최대 2시간만 유효하고 만료·명시
+  종료 시 캡처 차단을 복원한다.
 
 ## Gate 5 전용기기 통제
 
@@ -49,6 +56,13 @@
 - QR 대기, 관리자 PIN과 Web 채점 구간은 Lock Task를 유지하고 홈·최근 앱·알림창 기능을 허용하지 않는다.
 - 관리자 PIN 성공 뒤에만 Lock Task를 종료한다. 관리자 화면 이탈 시 PIN 화면과 Lock Task를 다시 적용한다.
 - 수업 잠금 중 다른 앱의 overlay 창 생성을 제한한다.
+- 원격 점검은 네트워크 포트를 열지 않고 기존에 승인된 USB ADB 또는 관리자
+  PIN 화면에서만 시작한다. 캡처 파일은 PC 로컬 임시 경로의 최신 파일 하나로
+  덮어쓰며 점검 종료 시 삭제한다. 관리자 PIN·비밀번호 입력 중에는 사용하지
+  않는다.
+- 원격 QR 실기 입력은 같은 `android.permission.DUMP` 경계, 활성 원격 점검과
+  정확한 `QR_READY` 상태를 모두 요구한다. QR 원문 대신 32바이트 해시 한 건만
+  기존 학생·반 검증 경로에 넘기고 실패·완료 경로에서 메모리를 지운다.
 - Device Owner 제거와 관리자 PIN 분실 복구는 공장초기화로만 수행한다. 기존 Keystore 키·자격정보·QR을 외부로 우회 백업하지 않는다.
 
 ## Release signing

@@ -1,22 +1,33 @@
 package com.local.matholickiosk.webpoc
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.ValueCallback
+import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
@@ -57,12 +68,78 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun recoveryCanonicalizesRejectedLoginRedirectAndReturnsIdle() {
+        writeState(WebPocState.RECOVERY_REQUIRED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+            scenario.onUiInitialized { activity ->
+                assertEquals(
+                    WebSecurityPolicy.LOGIN_URL,
+                    activity.findViewById<WebView>(R.id.web_view).url,
+                )
+            }
+        }
+    }
+
+    @Test
     fun explicitLockDoesNotAutoResume() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use {
             TimeUnit.SECONDS.sleep(2)
             assertEquals(WebPocState.LOCKED, readState())
         }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun systemBackIsConsumedWithoutFinishingWebActivity() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                assertFalse(activity.isFinishing)
+                activity.onBackPressed()
+                assertFalse(activity.isFinishing)
+                assertTrue(
+                    activity.onKeyDown(
+                        KeyEvent.KEYCODE_BACK,
+                        KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK),
+                    ),
+                )
+                assertTrue(
+                    activity.onKeyUp(
+                        KeyEvent.KEYCODE_BACK,
+                        KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK),
+                    ),
+                )
+                assertFalse(activity.isFinishing)
+            }
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(
+                KeyEvent.KEYCODE_BACK,
+            )
+            scenario.onUiInitialized { activity ->
+                assertFalse(activity.isFinishing)
+                assertFalse(activity.isDestroyed)
+            }
+        }
+    }
+
+    @Test
+    fun untrustedSecureSessionCallerIsRejectedWithoutChangingPersistedState() {
+        writeState(WebPocState.IDLE)
+        val intent = Intent(context, MainActivity::class.java)
+            .setAction(ACTION_START_SECURE_SESSION)
+            .setData(Uri.parse("content://$CREDENTIAL_BRIDGE_AUTHORITY/v1/untrusted"))
+
+        ActivityScenario.launchActivityForResult<MainActivity>(intent).use { scenario ->
+            val result = scenario.result
+            assertEquals(Activity.RESULT_CANCELED, result.resultCode)
+            assertEquals(
+                "SECURE_SESSION_CALLER",
+                result.resultData?.getStringExtra(EXTRA_FAILURE_REASON),
+            )
+        }
+
+        assertEquals(WebPocState.IDLE, readState())
     }
 
     @Test
@@ -131,6 +208,397 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun navigationStopFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val client = activity.findViewById<WebView>(R.id.web_view).webViewClient
+                val replacement = ThrowingStopLoadingWebView(activity)
+                replaceWebView(activity, replacement)
+
+                assertTrue(
+                    runCatching {
+                        client.onPageStarted(
+                            replacement,
+                            "https://example.invalid/",
+                            null,
+                        )
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("NAVIGATION_BLOCKED", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun studentNavigationRestoreFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val client = activity.findViewById<WebView>(R.id.web_view).webViewClient
+                val replacement = ThrowingFirstLoadUrlWebView(activity)
+                replaceWebView(activity, replacement)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+
+                assertTrue(
+                    runCatching {
+                        client.onPageStarted(
+                            replacement,
+                            WebSecurityPolicy.COURSE_URL,
+                            null,
+                        )
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("NAVIGATION_BLOCKED", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun recoveryNavigationFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val replacement = ThrowingFirstLoadUrlWebView(activity)
+                replaceWebView(activity, replacement)
+                val beginRecovery = MainActivity::class.java.getDeclaredMethod(
+                    "beginRecovery",
+                ).apply { isAccessible = true }
+
+                assertTrue(runCatching { beginRecovery.invoke(activity) }.isSuccess)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_NAVIGATION", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun preflightDnsRetryStopFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val replacement = ThrowingStopLoadingWebView(activity)
+                replaceWebView(activity, replacement)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.PREFLIGHT)
+                }
+                val scheduleRetry = MainActivity::class.java.getDeclaredMethod(
+                    "schedulePreflightDnsRetry",
+                    WebView::class.java,
+                ).apply { isAccessible = true }
+
+                assertTrue(
+                    runCatching {
+                        scheduleRetry.invoke(activity, replacement)
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_NAVIGATION", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun webThreatRejectionFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val rejectAndLock = MainActivity::class.java.getDeclaredMethod(
+                    "rejectWebContentAndLock",
+                    String::class.java,
+                    kotlin.jvm.functions.Function0::class.java,
+                ).apply { isAccessible = true }
+
+                assertTrue(
+                    runCatching {
+                        rejectAndLock.invoke(
+                            activity,
+                            "TLS_ERROR",
+                            { throw IllegalStateException("synthetic rejection failure") },
+                        )
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("TLS_ERROR", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun rendererCrashRemovesUnusableWebViewAndFailsClosed() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                activity.findViewById<WebView>(R.id.web_view).loadUrl("chrome://crash")
+            }
+
+            assertTrueWithin(10) {
+                readState() == WebPocState.LOCKED &&
+                    preferences().getString(KEY_REASON, null) == "WEB_PROCESS_GONE"
+            }
+            scenario.onActivity { activity ->
+                assertNull(activity.findViewById<WebView?>(R.id.web_view))
+                activity.findViewById<View>(R.id.recovery_button).performClick()
+            }
+            scenario.onUiInitialized { activity ->
+                assertTrue(activity.findViewById<WebView?>(R.id.web_view) != null)
+            }
+        }
+    }
+
+    @Test
+    fun recoveryRendererRecycleRecreatesActivityWithFreshWebView() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            lateinit var discardedWebView: WebView
+            scenario.onUiInitialized { activity ->
+                discardedWebView = activity.findViewById(R.id.web_view)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.RECOVERY_REQUIRED)
+                }
+                MainActivity::class.java.getDeclaredField(
+                    "recoveryRendererRecycleAttempted",
+                ).apply {
+                    isAccessible = true
+                    setBoolean(activity, true)
+                }
+                MainActivity::class.java.getDeclaredField(
+                    "recoveryRendererRecyclePending",
+                ).apply {
+                    isAccessible = true
+                    setBoolean(activity, true)
+                }
+                writeState(WebPocState.RECOVERY_REQUIRED)
+                assertTrue(
+                    activity.findViewById<WebView>(R.id.web_view).webViewClient
+                        .onRenderProcessGone(discardedWebView, null),
+                )
+            }
+
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(UI_TIMEOUT_SECONDS)
+            var freshWebViewObserved = false
+            while (System.nanoTime() < deadline && !freshWebViewObserved) {
+                scenario.onActivity { activity ->
+                    val current = activity.findViewById<WebView?>(R.id.web_view)
+                    freshWebViewObserved =
+                        current != null &&
+                        current !== discardedWebView &&
+                        activity.intent.getBooleanExtra(
+                            "com.local.matholickiosk.extra.RECOVERY_RENDERER_RECYCLED",
+                            false,
+                        )
+                }
+                if (!freshWebViewObserved) TimeUnit.MILLISECONDS.sleep(100)
+            }
+            assertTrue("recovery did not create a fresh WebView", freshWebViewObserved)
+        }
+    }
+
+    @Test
+    fun persistentUnresponsiveRendererExpiresGraceAndFailsClosed() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                writeState(WebPocState.ACTIVE)
+                val activeWebView = activity.findViewById<WebView>(R.id.web_view)
+                activeWebView.webViewRenderProcessClient
+                    ?.onRenderProcessUnresponsive(activeWebView, null)
+
+                assertEquals(WebPocState.ACTIVE, readState())
+                assertSame(
+                    activeWebView,
+                    MainActivity::class.java.getDeclaredField("unresponsiveWebView")
+                        .apply { isAccessible = true }
+                        .get(activity),
+                )
+                MainActivity::class.java.getDeclaredMethod(
+                    "expireUnresponsiveRendererGrace",
+                ).apply { isAccessible = true }
+                    .invoke(activity)
+            }
+
+            assertTrueWithin(5) {
+                readState() == WebPocState.LOCKED &&
+                    preferences().getString(KEY_REASON, null) ==
+                    "WEB_PROCESS_UNRESPONSIVE"
+            }
+        }
+    }
+
+    @Test
+    fun responsiveRendererCallbackCancelsGraceWithoutLocking() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                writeState(WebPocState.ACTIVE)
+                val activeWebView = activity.findViewById<WebView>(R.id.web_view)
+                val client = activeWebView.webViewRenderProcessClient
+                client?.onRenderProcessUnresponsive(activeWebView, null)
+                client?.onRenderProcessResponsive(activeWebView, null)
+
+                assertNull(
+                    MainActivity::class.java.getDeclaredField("unresponsiveWebView")
+                        .apply { isAccessible = true }
+                        .get(activity),
+                )
+                MainActivity::class.java.getDeclaredMethod(
+                    "expireUnresponsiveRendererGrace",
+                ).apply { isAccessible = true }
+                    .invoke(activity)
+                assertEquals(WebPocState.ACTIVE, readState())
+            }
+        }
+    }
+
+    @Test
+    fun rendererCleanupFailureStillFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val client = activity.findViewById<WebView>(R.id.web_view).webViewClient
+                val replacement = ThrowingDestroyWebView(activity)
+                replaceWebView(activity, replacement)
+
+                assertTrue(
+                    runCatching {
+                        client.onRenderProcessGone(replacement, null)
+                    }.isSuccess,
+                )
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_PROCESS_GONE", preferences().getString(KEY_REASON, null))
+            scenario.onActivity { activity ->
+                assertNull(activity.findViewById<WebView?>(R.id.web_view))
+            }
+        }
+    }
+
+    @Test
+    fun synchronousJavascriptEvaluationFailureFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                replaceWebView(activity, ThrowingEvaluateWebView(activity))
+                invokeEvaluate(activity) { }
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_EVALUATION", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun asynchronousJavascriptCallbackFailureFailsClosedWithoutEscaping() {
+        writeState(WebPocState.IDLE)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { }
+            assertTrueWithin(TIMEOUT_SECONDS) { readState() == WebPocState.IDLE }
+
+            scenario.onActivity { activity ->
+                val replacement = CapturingEvaluateWebView(activity)
+                replaceWebView(activity, replacement)
+                invokeEvaluate(activity) {
+                    throw IllegalStateException("synthetic callback failure")
+                }
+
+                assertTrue(runCatching { replacement.deliver("null") }.isSuccess)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("WEB_CALLBACK", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
+    fun activityDestroyCleanupContinuesAfterIndividualWebViewFailure() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val replacement = ThrowingStopLoadingWebView(activity)
+                replaceWebView(activity, replacement)
+
+                val cleanup = MainActivity::class.java.getDeclaredMethod(
+                    "disposeWebViewForActivityDestroy",
+                    WebView::class.java,
+                ).apply { isAccessible = true }
+
+                assertTrue(runCatching { cleanup.invoke(activity, replacement) }.isSuccess)
+                assertTrue(replacement.blankLoadAttempted)
+                assertEquals(1, replacement.destroyCalls)
+                assertNull(replacement.parent)
+
+                MainActivity::class.java.getDeclaredField("webViewReference").apply {
+                    isAccessible = true
+                    set(activity, null)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun synchronousSessionCleanupFailureContinuesAndFailsClosed() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val replacement = ThrowingSessionCleanupWebView(activity)
+                replaceWebView(activity, replacement)
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.LOGOUT_VERIFY)
+                }
+                val cleanup = MainActivity::class.java.getDeclaredMethod(
+                    "clearWebAuthenticationAndReloadLogin",
+                ).apply { isAccessible = true }
+
+                assertTrue(runCatching { cleanup.invoke(activity) }.isSuccess)
+                assertEquals(1, replacement.clearCacheCalls)
+            }
+
+            assertEquals(WebPocState.LOCKED, readState())
+            assertEquals("SESSION_CLEAR", preferences().getString(KEY_REASON, null))
+        }
+    }
+
+    @Test
     fun activityPreventsScreenshotsAndRecentTaskPreview() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -143,6 +611,35 @@ class RecoveryInstrumentedTest {
                 assertEquals(
                     WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                     flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun activeStudentSessionUsesEightyPercentBrightnessAndRestoresPreviousValue() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val originalBrightness = activity.window.attributes.screenBrightness
+                val transition = MainActivity::class.java.getDeclaredMethod(
+                    "transition",
+                    WebPocState::class.java,
+                    String::class.java,
+                ).apply { isAccessible = true }
+
+                transition.invoke(activity, WebPocState.ACTIVE, null)
+                assertEquals(
+                    0.8f,
+                    activity.window.attributes.screenBrightness,
+                    0.001f,
+                )
+
+                transition.invoke(activity, WebPocState.LOCKED, "TEST_COMPLETE")
+                assertEquals(
+                    originalBrightness,
+                    activity.window.attributes.screenBrightness,
+                    0.001f,
                 )
             }
         }
@@ -312,6 +809,75 @@ class RecoveryInstrumentedTest {
         }
     }
 
+    @Test
+    fun completedResultOffersSameStudentContinuationButIncompleteResultDoesNot() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                MainActivity::class.java.getDeclaredMethod(
+                    "showResultSummary",
+                    List::class.java,
+                ).apply { isAccessible = true }
+                    .invoke(activity, listOf(1))
+
+                val continueButton = activity.findViewById<Button>(
+                    R.id.result_continue_button,
+                )
+                assertEquals(View.VISIBLE, continueButton.visibility)
+                assertEquals("다른 학습지 계속 채점", continueButton.text.toString())
+
+                MainActivity::class.java.getDeclaredField("resultSummaryDisplayed").apply {
+                    isAccessible = true
+                    setBoolean(activity, false)
+                }
+                MainActivity::class.java.getDeclaredMethod(
+                    "showResultSummaryUnavailable",
+                    JSONObject::class.java,
+                ).apply { isAccessible = true }
+                    .invoke(activity, JSONObject())
+
+                assertEquals(View.GONE, continueButton.visibility)
+
+                MainActivity::class.java.getDeclaredField("resultSummaryDisplayed").apply {
+                    isAccessible = true
+                    setBoolean(activity, false)
+                }
+                MainActivity::class.java.getDeclaredMethod(
+                    "showResultSummary",
+                    List::class.java,
+                ).apply { isAccessible = true }
+                    .invoke(activity, emptyList<Int>())
+                continueButton.performClick()
+
+                assertEquals(
+                    View.GONE,
+                    activity.findViewById<View>(R.id.result_summary_panel).visibility,
+                )
+                assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.blocker).visibility)
+                assertEquals(
+                    "학습 화면을 안전하게 준비 중입니다",
+                    activity.findViewById<android.widget.TextView>(
+                        R.id.blocker_message,
+                    ).text.toString(),
+                )
+                assertFalse(
+                    MainActivity::class.java.getDeclaredField(
+                        "resultSummaryDisplayed",
+                    ).apply { isAccessible = true }.getBoolean(activity),
+                )
+                assertFalse(
+                    MainActivity::class.java.getDeclaredField(
+                        "resultContinuationAllowed",
+                    ).apply { isAccessible = true }.getBoolean(activity),
+                )
+            }
+        }
+    }
+
     private fun preferences() = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private fun assertInterruptedGate3SensitiveState(interruptedState: WebPocState) {
@@ -381,12 +947,118 @@ class RecoveryInstrumentedTest {
         throw AssertionError("state did not reach expected safe value; final=${readState()}, reason=$reason")
     }
 
+    private fun replaceWebView(activity: MainActivity, replacement: WebView) {
+        val original = activity.findViewById<WebView>(R.id.web_view)
+        val parent = original.parent as FrameLayout
+        replacement.id = R.id.web_view
+        replacement.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+        )
+        parent.removeView(original)
+        original.destroy()
+        parent.addView(replacement, 0)
+        MainActivity::class.java.getDeclaredField("webViewReference").apply {
+            isAccessible = true
+            set(activity, replacement)
+        }
+    }
+
+    private fun invokeEvaluate(activity: MainActivity, callback: (Any?) -> Unit) {
+        MainActivity::class.java.getDeclaredMethod(
+            "evaluate",
+            String::class.java,
+            kotlin.jvm.functions.Function1::class.java,
+        ).apply { isAccessible = true }
+            .invoke(activity, "({ ok: true })", callback)
+    }
+
+    private class ThrowingEvaluateWebView(context: Context) : WebView(context) {
+        override fun evaluateJavascript(
+            script: String,
+            resultCallback: ValueCallback<String>?,
+        ) {
+            throw IllegalStateException("synthetic evaluation failure")
+        }
+    }
+
+    private class CapturingEvaluateWebView(context: Context) : WebView(context) {
+        private var pendingCallback: ValueCallback<String>? = null
+
+        override fun evaluateJavascript(
+            script: String,
+            resultCallback: ValueCallback<String>?,
+        ) {
+            pendingCallback = resultCallback
+        }
+
+        fun deliver(raw: String) {
+            checkNotNull(pendingCallback).onReceiveValue(raw)
+        }
+    }
+
+    private class ThrowingFirstLoadUrlWebView(context: Context) : WebView(context) {
+        private var loadAttempts = 0
+
+        override fun loadUrl(url: String) {
+            loadAttempts += 1
+            if (loadAttempts == 1) {
+                throw IllegalStateException("synthetic navigation restore failure")
+            }
+        }
+    }
+
+    private class ThrowingDestroyWebView(context: Context) : WebView(context) {
+        override fun destroy() {
+            throw IllegalStateException("synthetic destroy failure")
+        }
+    }
+
+    private class ThrowingStopLoadingWebView(context: Context) : WebView(context) {
+        var blankLoadAttempted = false
+            private set
+        var destroyCalls = 0
+            private set
+
+        override fun stopLoading() {
+            throw IllegalStateException("synthetic stopLoading failure")
+        }
+
+        override fun loadUrl(url: String) {
+            if (url == "about:blank") blankLoadAttempted = true
+        }
+
+        override fun destroy() {
+            destroyCalls += 1
+            super.destroy()
+        }
+    }
+
+    private class ThrowingSessionCleanupWebView(context: Context) : WebView(context) {
+        var clearCacheCalls = 0
+            private set
+
+        override fun clearHistory() {
+            throw IllegalStateException("synthetic session clear failure")
+        }
+
+        override fun clearCache(includeDiskFiles: Boolean) {
+            clearCacheCalls += 1
+            super.clearCache(includeDiskFiles)
+        }
+    }
+
     private companion object {
         const val PREFERENCES_NAME = "web_poc_state"
         const val KEY_STATE = "state"
         const val KEY_REASON = "reason"
         const val KEY_GATE3_STATUS = "gate3_status"
         const val KEY_GATE3_COMPLETED = "gate3_completed"
+        const val ACTION_START_SECURE_SESSION =
+            "com.local.matholickiosk.action.START_SECURE_WEB_SESSION"
+        const val CREDENTIAL_BRIDGE_AUTHORITY =
+            "com.local.matholickiosk.kiosk.credentials"
+        const val EXTRA_FAILURE_REASON = "failure_reason"
         const val UI_TIMEOUT_SECONDS = 10L
         const val TIMEOUT_SECONDS = 40L
     }

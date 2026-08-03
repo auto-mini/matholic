@@ -24,6 +24,28 @@ data class StudentEntity(
     val updatedAtEpochMs: Long,
 )
 
+@Entity(
+    tableName = "qr_card_status",
+    foreignKeys = [
+        ForeignKey(
+            entity = StudentEntity::class,
+            parentColumns = ["studentId"],
+            childColumns = ["studentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class QrCardStatusEntity(
+    @androidx.room.PrimaryKey val studentId: String,
+    val issuedAtEpochMs: Long,
+    val lastUsedAtEpochMs: Long?,
+    // Legacy schema names retained for Room/database compatibility. In product
+    // terms these mean "last PDF saved to the paired PC" and "card PDF needed";
+    // neither field asserts that a physical card was printed or handed out.
+    val lastDeliveredAtEpochMs: Long?,
+    val needsPrint: Boolean,
+)
+
 @Entity(tableName = "class_groups")
 data class ClassGroupEntity(
     @androidx.room.PrimaryKey val classId: String,
@@ -115,6 +137,7 @@ data class AdminCredentialEntity(
     val derivedKey: ByteArray,
     val iterations: Int,
     val verifierVersion: Int,
+    val pinLength: Int,
     val consecutiveFailures: Int,
     val lockedUntilEpochMs: Long,
     val updatedAtEpochMs: Long,

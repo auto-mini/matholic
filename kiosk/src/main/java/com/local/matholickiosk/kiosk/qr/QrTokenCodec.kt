@@ -1,5 +1,6 @@
 package com.local.matholickiosk.kiosk.qr
 
+import java.io.Closeable
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -7,7 +8,11 @@ import java.util.Base64
 class IssuedQrToken internal constructor(
     val payload: String,
     val hash: ByteArray,
-)
+) : Closeable {
+    override fun close() {
+        hash.fill(0)
+    }
+}
 
 sealed interface QrParseResult {
     data object Ignore : QrParseResult
@@ -26,10 +31,10 @@ sealed interface QrFrameDecision {
     data class Accept(val tokenHash: ByteArray) : QrFrameDecision
 }
 
-class QrTokenCodec(
+open class QrTokenCodec(
     private val secureRandom: SecureRandom = SecureRandom(),
 ) {
-    fun issue(): IssuedQrToken {
+    open fun issue(): IssuedQrToken {
         val token = ByteArray(TOKEN_BYTES).also(secureRandom::nextBytes)
         return try {
             val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(token)
@@ -39,7 +44,7 @@ class QrTokenCodec(
         }
     }
 
-    fun issueHashOnly(): ByteArray {
+    open fun issueHashOnly(): ByteArray {
         val token = ByteArray(TOKEN_BYTES).also(secureRandom::nextBytes)
         return try {
             sha256(token)

@@ -6,6 +6,96 @@ import org.junit.Test
 
 class WebFailurePolicyTest {
     @Test
+    fun `portal verification callback requires the current login probe generation`() {
+        assertTrue(
+            WebFailurePolicy.shouldProcessStateGenerationCallback(
+                state = WebPocState.LOGIN_VERIFY,
+                expectedState = WebPocState.LOGIN_VERIFY,
+                callbackGeneration = 4,
+                currentGeneration = 4,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessStateGenerationCallback(
+                state = WebPocState.LOGIN_VERIFY,
+                expectedState = WebPocState.LOGIN_VERIFY,
+                callbackGeneration = 3,
+                currentGeneration = 4,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessStateGenerationCallback(
+                state = WebPocState.ACTIVE,
+                expectedState = WebPocState.LOGIN_VERIFY,
+                callbackGeneration = 4,
+                currentGeneration = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun `logout callback requires both the expected state and current attempt generation`() {
+        assertTrue(
+            WebFailurePolicy.shouldProcessLogoutCallback(
+                state = WebPocState.LOGOUT_NAVIGATE,
+                expectedState = WebPocState.LOGOUT_NAVIGATE,
+                callbackGeneration = 2,
+                currentGeneration = 2,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessLogoutCallback(
+                state = WebPocState.LOGOUT_NAVIGATE,
+                expectedState = WebPocState.LOGOUT_NAVIGATE,
+                callbackGeneration = 1,
+                currentGeneration = 2,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessLogoutCallback(
+                state = WebPocState.LOGOUT_SUBMIT,
+                expectedState = WebPocState.LOGOUT_NAVIGATE,
+                callbackGeneration = 2,
+                currentGeneration = 2,
+            ),
+        )
+    }
+
+    @Test
+    fun `page finish is processed only for the current main document`() {
+        assertTrue(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://im.matholic.com/course",
+                currentUrl = "https://im.matholic.com/course",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://login.matholic.com/",
+                currentUrl = "https://im.matholic.com/course",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://im.matholic.com/course",
+                currentUrl = "https://im.matholic.com/workbook",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = null,
+                currentUrl = "https://im.matholic.com/course",
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldProcessPageFinished(
+                callbackUrl = "https://im.matholic.com/course",
+                currentUrl = null,
+            ),
+        )
+    }
+
+    @Test
     fun `error page finish is ignored only while preflight DNS retry is pending`() {
         assertTrue(
             WebFailurePolicy.shouldIgnorePageFinishedWhilePreflightRetryPending(

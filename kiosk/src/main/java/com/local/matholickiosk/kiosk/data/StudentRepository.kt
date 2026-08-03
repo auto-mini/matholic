@@ -9,14 +9,38 @@ import com.local.matholickiosk.kiosk.security.EncryptedValue
 import java.io.Closeable
 import java.util.UUID
 
+data class IssuedQrPayload(
+    val payload: String,
+)
+
 data class RegisteredStudent(
     val studentId: String,
-    val issuedQr: IssuedQrToken,
+    val issuedQr: IssuedQrPayload,
 )
 
 data class ValidatedStudent(
     val studentId: String,
     val displayNameExact: String,
+)
+
+data class BatchIssuedQr(
+    val studentId: String,
+    val displayNameExact: String,
+    val issuedQr: IssuedQrPayload,
+)
+
+private data class PendingBatchIssuedQr(
+    val result: BatchIssuedQr,
+    val token: IssuedQrToken,
+)
+
+data class QrCardStatusSummary(
+    val studentId: String,
+    val displayNameExact: String,
+    val issuedAtEpochMs: Long,
+    val lastUsedAtEpochMs: Long?,
+    val lastPdfSavedAtEpochMs: Long?,
+    val needsCardPdf: Boolean,
 )
 
 class DecryptedCredentials(
@@ -36,9 +60,46 @@ class StudentRepository(
     private val appVersion: String,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
 ) {
+    private var auditEventsSinceMaintenance = AUDIT_MAINTENANCE_INTERVAL
+
+    fun maintainAuditRetention() {
+        val now = nowEpochMs()
+        database.auditDao().deleteOlderThan(now - AUDIT_RETENTION_MS)
+        database.auditDao().deleteBeyondLatest(MAX_AUDIT_ROWS - 1)
+        auditEventsSinceMaintenance = 0
+    }
+
+    fun ensureClasses(classNames: List<String>) {
+        val normalized = classNames.map(String::trim)
+        require(normalized.all(String::isNotEmpty)) { "Class names are required" }
+        require(normalized.distinct().size == normalized.size) {
+            "Class names must be unique"
+        }
+        database.runInTransaction {
+            normalized.forEach { className ->
+                if (database.classDao().findActiveByName(className) == null) {
+                    val now = nowEpochMs()
+                    database.classDao().upsert(
+                        ClassGroupEntity(
+                            classId = UUID.randomUUID().toString(),
+                            className = className,
+                            isActive = true,
+                            createdAtEpochMs = now,
+                            updatedAtEpochMs = now,
+                    ),
+                    )
+                    audit("FIXED_CLASS_CREATED", null, null, null)
+                }
+            }
+        }
+    }
+
     fun createClass(className: String): String {
         val normalized = className.trim()
         require(normalized.isNotEmpty()) { "Class name is required" }
+        require(database.classDao().findActiveByName(normalized) == null) {
+            "같은 이름의 반이 이미 있습니다."
+        }
         val now = nowEpochMs()
         val classId = UUID.randomUUID().toString()
         database.classDao().upsert(
@@ -52,36 +113,37 @@ class StudentRepository(
 
     fun listStudents(): List<StudentEntity> = database.studentDao().listAllActive()
 
+    fun listStudentsForClass(classId: String): List<StudentEntity> =
+        database.studentDao().listActiveForClass(classId)
+
+    fun membershipStudentIds(classId: String): Set<String> =
+        database.classDao().listMembershipStudentIds(classId).toSet()
+
     fun currentSession(): ActiveSessionEntity? = database.sessionDao().get()
 
     fun registerStudent(
-        classId: String,
         displayNameExact: String,
-        displayNameMasked: String,
         username: CharArray,
         password: CharArray,
     ): RegisteredStudent {
         try {
-            require(database.classDao().findActiveById(classId) != null) {
-                "Active class not found"
-            }
             val exact = displayNameExact.trim()
-            val masked = displayNameMasked.trim()
             require(exact.isNotEmpty()) { "Exact display name is required" }
-            require(masked.isNotEmpty()) { "Masked display name is required" }
             require(username.isNotEmpty() && password.isNotEmpty()) { "Credentials are required" }
 
             val studentId = UUID.randomUUID().toString()
-            val issued = qrCodec.issue()
-            val usernameEncrypted = cipher.encrypt(studentId, CredentialField.USERNAME, username)
-            val passwordEncrypted = cipher.encrypt(studentId, CredentialField.PASSWORD, password)
-            val now = nowEpochMs()
-            database.runInTransaction {
-                database.studentDao().insert(
-                    StudentEntity(
+            qrCodec.issue().use { issued ->
+                val usernameEncrypted = cipher.encrypt(studentId, CredentialField.USERNAME, username)
+                val passwordEncrypted = cipher.encrypt(studentId, CredentialField.PASSWORD, password)
+                val now = nowEpochMs()
+                database.runInTransaction {
+                    database.studentDao().insert(
+                        StudentEntity(
                         studentId = studentId,
                         displayNameExact = exact,
-                        displayNameMasked = masked,
+                        // Schema-v1 compatibility only. Masked names are no longer
+                        // collected or displayed, so the exact name is mirrored here.
+                        displayNameMasked = exact,
                         usernameCiphertext = usernameEncrypted.ciphertext,
                         usernameIv = usernameEncrypted.iv,
                         usernameEncryptionVersion = usernameEncrypted.version,
@@ -93,51 +155,458 @@ class StudentRepository(
                         createdAtEpochMs = now,
                         updatedAtEpochMs = now,
                     ),
-                )
-                database.classDao().addMembership(ClassMembershipEntity(classId, studentId))
-                audit("STUDENT_REGISTERED", null, studentId, null)
-                audit("QR_ISSUED", null, studentId, null)
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                        studentId = studentId,
+                        issuedAtEpochMs = now,
+                        lastUsedAtEpochMs = null,
+                        lastDeliveredAtEpochMs = null,
+                        needsPrint = true,
+                        ),
+                    )
+                    audit("STUDENT_REGISTERED", null, studentId, null)
+                    audit("QR_ISSUED", null, studentId, null)
+                }
+                return RegisteredStudent(studentId, IssuedQrPayload(issued.payload))
             }
-            return RegisteredStudent(studentId, issued)
         } finally {
             username.fill('\u0000')
             password.fill('\u0000')
         }
     }
 
-    fun reissueQr(studentId: String): IssuedQrToken {
+    fun reissueQr(studentId: String): IssuedQrPayload {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
-        val issued = qrCodec.issue()
-        database.runInTransaction {
-            database.studentDao().update(
-                student.copy(qrTokenHash = issued.hash, updatedAtEpochMs = nowEpochMs()),
-            )
-            audit("QR_REISSUED", null, studentId, null)
+        qrCodec.issue().use { issued ->
+            database.runInTransaction {
+                val now = nowEpochMs()
+                database.studentDao().update(
+                    student.copy(qrTokenHash = issued.hash, updatedAtEpochMs = now),
+                )
+                database.qrCardStatusDao().upsert(
+                    QrCardStatusEntity(
+                    studentId = studentId,
+                    issuedAtEpochMs = now,
+                    lastUsedAtEpochMs =
+                        database.qrCardStatusDao().find(studentId)?.lastUsedAtEpochMs,
+                    lastDeliveredAtEpochMs = null,
+                    needsPrint = true,
+                ),
+                )
+                audit("QR_REISSUED", null, studentId, null)
+            }
+            return IssuedQrPayload(issued.payload)
         }
-        return issued
+    }
+
+    fun reissueClassQrBatch(classId: String): List<BatchIssuedQr> {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 반 QR을 일괄 재발급할 수 없습니다."
+        }
+        val group = requireNotNull(database.classDao().findActiveById(classId)) {
+            "Active class not found"
+        }
+        val students = database.studentDao().listActiveForClass(group.classId)
+        require(students.isNotEmpty()) { "선택한 반에 소속 학생이 없습니다." }
+        val issued = mutableListOf<PendingBatchIssuedQr>()
+        try {
+            students.forEach { student ->
+                val token = qrCodec.issue()
+                issued += PendingBatchIssuedQr(
+                    result = BatchIssuedQr(
+                        studentId = student.studentId,
+                        displayNameExact = student.displayNameExact,
+                        issuedQr = IssuedQrPayload(token.payload),
+                    ),
+                    token = token,
+                )
+            }
+            database.runInTransaction {
+                val now = nowEpochMs()
+                issued.forEach { item ->
+                    val student = requireNotNull(
+                        database.studentDao().findById(item.result.studentId),
+                    ) {
+                        "Student not found"
+                    }
+                    require(student.isActive) { "Student is inactive" }
+                    database.studentDao().update(
+                        student.copy(
+                            qrTokenHash = item.token.hash,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = item.result.studentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs =
+                                database.qrCardStatusDao().find(item.result.studentId)?.lastUsedAtEpochMs,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
+                }
+                audit("CLASS_QR_BATCH_REISSUED", issued.size.toString(), null, null)
+            }
+            return issued.map(PendingBatchIssuedQr::result)
+        } finally {
+            issued.forEach { it.token.close() }
+        }
+    }
+
+    fun reissueQrBatch(studentIds: Set<String>): List<BatchIssuedQr> {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 QR을 일괄 재발급할 수 없습니다."
+        }
+        require(studentIds.isNotEmpty()) { "재발급할 학생을 선택하세요." }
+        val students = database.studentDao().listAllActive()
+            .filter { it.studentId in studentIds }
+        require(students.size == studentIds.size) {
+            "비활성화되었거나 존재하지 않는 학생이 포함되어 있습니다."
+        }
+        val issued = mutableListOf<PendingBatchIssuedQr>()
+        try {
+            students.forEach { student ->
+                val token = qrCodec.issue()
+                issued += PendingBatchIssuedQr(
+                    result = BatchIssuedQr(
+                        studentId = student.studentId,
+                        displayNameExact = student.displayNameExact,
+                        issuedQr = IssuedQrPayload(token.payload),
+                    ),
+                    token = token,
+                )
+            }
+            database.runInTransaction {
+                val now = nowEpochMs()
+                issued.forEach { item ->
+                    val student = requireNotNull(database.studentDao().findById(item.result.studentId))
+                    require(student.isActive) { "Student is inactive" }
+                    database.studentDao().update(
+                        student.copy(
+                            qrTokenHash = item.token.hash,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = item.result.studentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs =
+                                database.qrCardStatusDao().find(item.result.studentId)?.lastUsedAtEpochMs,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
+                }
+                audit("SELECTED_QR_BATCH_REISSUED", issued.size.toString(), null, null)
+            }
+            return issued.map(PendingBatchIssuedQr::result)
+        } finally {
+            issued.forEach { it.token.close() }
+        }
+    }
+
+    fun listQrCardStatuses(): List<QrCardStatusSummary> {
+        val statuses = database.qrCardStatusDao().listForActiveStudents()
+            .associateBy(QrCardStatusEntity::studentId)
+        return database.studentDao().listAllActive().map { student ->
+            val status = statuses[student.studentId] ?: QrCardStatusEntity(
+                studentId = student.studentId,
+                issuedAtEpochMs = student.updatedAtEpochMs,
+                lastUsedAtEpochMs = null,
+                lastDeliveredAtEpochMs = null,
+                needsPrint = false,
+            )
+            QrCardStatusSummary(
+                studentId = student.studentId,
+                displayNameExact = student.displayNameExact,
+                issuedAtEpochMs = status.issuedAtEpochMs,
+                lastUsedAtEpochMs = status.lastUsedAtEpochMs,
+                lastPdfSavedAtEpochMs = status.lastDeliveredAtEpochMs,
+                needsCardPdf = status.needsPrint,
+            )
+        }
+    }
+
+    fun importStudents(rows: List<StudentCsvRow>): StudentCsvImportResult {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 학생 CSV를 가져올 수 없습니다."
+        }
+        require(rows.isNotEmpty()) { "가져올 학생이 없습니다." }
+        val classesByName = database.classDao().listActive()
+            .associateBy(ClassGroupEntity::className)
+        val unknownClasses = rows.flatMap(StudentCsvRow::classNames)
+            .filterNot(classesByName::containsKey)
+            .distinct()
+        require(unknownClasses.isEmpty()) {
+            "등록되지 않은 반이 있습니다: ${unknownClasses.joinToString(", ")}"
+        }
+        val existing = database.studentDao().listAllActive()
+        val existingUsernames = existing.map { student ->
+            student to cipher.decrypt(
+                student.studentId,
+                CredentialField.USERNAME,
+                EncryptedValue(
+                    student.usernameCiphertext,
+                    student.usernameIv,
+                    student.usernameEncryptionVersion,
+                ),
+            )
+        }
+        try {
+            var created = 0
+            var updated = 0
+            database.runInTransaction {
+                val now = nowEpochMs()
+                rows.forEach { row ->
+                    val matched = existingUsernames.firstOrNull { (_, username) ->
+                        username.contentEquals(row.username)
+                    }?.first
+                    val studentId = matched?.studentId ?: UUID.randomUUID().toString()
+                    val usernameEncrypted = cipher.encrypt(
+                        studentId,
+                        CredentialField.USERNAME,
+                        row.username,
+                    )
+                    val passwordEncrypted = cipher.encrypt(
+                        studentId,
+                        CredentialField.PASSWORD,
+                        row.password,
+                    )
+                    if (matched == null) {
+                        withIssuedHashOnly { qrTokenHash ->
+                            database.studentDao().insert(
+                                StudentEntity(
+                                    studentId = studentId,
+                                    displayNameExact = row.displayNameExact,
+                                    displayNameMasked = row.displayNameExact,
+                                    usernameCiphertext = usernameEncrypted.ciphertext,
+                                    usernameIv = usernameEncrypted.iv,
+                                    usernameEncryptionVersion = usernameEncrypted.version,
+                                    passwordCiphertext = passwordEncrypted.ciphertext,
+                                    passwordIv = passwordEncrypted.iv,
+                                    passwordEncryptionVersion = passwordEncrypted.version,
+                                    qrTokenHash = qrTokenHash,
+                                    isActive = true,
+                                    createdAtEpochMs = now,
+                                    updatedAtEpochMs = now,
+                                ),
+                            )
+                        }
+                        database.qrCardStatusDao().upsert(
+                            QrCardStatusEntity(
+                                studentId = studentId,
+                                issuedAtEpochMs = now,
+                                lastUsedAtEpochMs = null,
+                                lastDeliveredAtEpochMs = null,
+                                needsPrint = true,
+                            ),
+                        )
+                        created += 1
+                    } else {
+                        database.studentDao().update(
+                            matched.copy(
+                                displayNameExact = row.displayNameExact,
+                                displayNameMasked = row.displayNameExact,
+                                usernameCiphertext = usernameEncrypted.ciphertext,
+                                usernameIv = usernameEncrypted.iv,
+                                usernameEncryptionVersion = usernameEncrypted.version,
+                                passwordCiphertext = passwordEncrypted.ciphertext,
+                                passwordIv = passwordEncrypted.iv,
+                                passwordEncryptionVersion = passwordEncrypted.version,
+                                updatedAtEpochMs = now,
+                            ),
+                        )
+                        if (matched.displayNameExact != row.displayNameExact) {
+                            check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1)
+                        }
+                        updated += 1
+                    }
+                    database.classDao().clearStudentMemberships(studentId)
+                    row.classNames.forEach { className ->
+                        database.classDao().addMembership(
+                            ClassMembershipEntity(
+                                classId = requireNotNull(classesByName[className]).classId,
+                                studentId = studentId,
+                            ),
+                        )
+                    }
+                }
+                audit(
+                    "STUDENT_CSV_IMPORTED",
+                    "C$created-U$updated",
+                    null,
+                    null,
+                )
+            }
+            val needsCardPdf = listQrCardStatuses().count(QrCardStatusSummary::needsCardPdf)
+            return StudentCsvImportResult(created, updated, needsCardPdf)
+        } finally {
+            existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
+            rows.forEach(StudentCsvRow::clearSensitiveData)
+        }
+    }
+
+    fun previewStudentImport(rows: List<StudentCsvRow>): StudentCsvImportPreview {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 학생 CSV를 가져올 수 없습니다."
+        }
+        require(rows.isNotEmpty()) { "가져올 학생이 없습니다." }
+        val classesByName = database.classDao().listActive()
+            .associateBy(ClassGroupEntity::className)
+        val unknownClasses = rows.flatMap(StudentCsvRow::classNames)
+            .filterNot(classesByName::containsKey)
+            .distinct()
+        require(unknownClasses.isEmpty()) {
+            "등록되지 않은 반이 있습니다: ${unknownClasses.joinToString(", ")}"
+        }
+        val existing = database.studentDao().listAllActive()
+        val existingUsernames = existing.map { student ->
+            student to cipher.decrypt(
+                student.studentId,
+                CredentialField.USERNAME,
+                EncryptedValue(
+                    student.usernameCiphertext,
+                    student.usernameIv,
+                    student.usernameEncryptionVersion,
+                ),
+            )
+        }
+        try {
+            var created = 0
+            var updated = 0
+            var renamed = 0
+            rows.forEach { row ->
+                val matched = existingUsernames.firstOrNull { (_, username) ->
+                    username.contentEquals(row.username)
+                }?.first
+                if (matched == null) {
+                    created += 1
+                } else {
+                    updated += 1
+                    if (matched.displayNameExact != row.displayNameExact) renamed += 1
+                }
+            }
+            val alreadyPending = listQrCardStatuses().count(QrCardStatusSummary::needsCardPdf)
+            return StudentCsvImportPreview(
+                created = created,
+                updated = updated,
+                renamed = renamed,
+                cardsNeedingPdfAfterImport = alreadyPending + created + renamed,
+            )
+        } finally {
+            existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
+        }
+    }
+
+    fun markCardPdfsSavedToPc(studentIds: Set<String>) {
+        require(studentIds.isNotEmpty()) { "PDF 저장 완료 학생이 필요합니다." }
+        database.runInTransaction {
+            val updated = database.qrCardStatusDao().markPdfSavedToPc(studentIds, nowEpochMs())
+            require(updated == studentIds.size) { "일부 QR 카드 상태를 갱신하지 못했습니다." }
+            audit("QR_CARD_PDFS_SAVED_TO_PC", studentIds.size.toString(), null, null)
+        }
     }
 
     fun updateStudentProfile(
         studentId: String,
         displayNameExact: String,
-        displayNameMasked: String,
     ) {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
         val exact = displayNameExact.trim()
-        val masked = displayNameMasked.trim()
         require(exact.isNotEmpty()) { "Exact display name is required" }
-        require(masked.isNotEmpty()) { "Masked display name is required" }
         database.runInTransaction {
             database.studentDao().update(
                 student.copy(
                     displayNameExact = exact,
-                    displayNameMasked = masked,
+                    displayNameMasked = exact,
                     updatedAtEpochMs = nowEpochMs(),
                 ),
             )
+            check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1) {
+                "QR card status not found"
+            }
             audit("STUDENT_PROFILE_UPDATED", null, studentId, null)
+        }
+    }
+
+    fun replaceClassMemberships(classId: String, studentIds: Set<String>) {
+        database.runInTransaction {
+            require(database.sessionDao().get()?.sessionId == null) {
+                "수업 중에는 반 학생 구성을 변경할 수 없습니다."
+            }
+            require(database.classDao().findActiveById(classId) != null) {
+                "Active class not found"
+            }
+            val activeStudentIds = database.studentDao().listAllActive()
+                .mapTo(mutableSetOf(), StudentEntity::studentId)
+            require(studentIds.all(activeStudentIds::contains)) {
+                "활성 상태인 등록 학생만 반에 소속할 수 있습니다."
+            }
+            database.classDao().clearMemberships(classId)
+            studentIds.forEach { studentId ->
+                database.classDao().addMembership(
+                    ClassMembershipEntity(classId = classId, studentId = studentId),
+                )
+            }
+            audit("CLASS_MEMBERSHIPS_REPLACED", studentIds.size.toString(), null, null)
+        }
+    }
+
+    fun deleteClass(classId: String) {
+        requireNotNull(database.classDao().findActiveById(classId)) {
+            "Active class not found"
+        }
+        val current = database.sessionDao().get()
+        require(current?.sessionId == null || current.classId != classId) {
+            "Active session class cannot be deleted"
+        }
+        database.runInTransaction {
+            check(database.classDao().deleteById(classId) == 1) {
+                "Class delete failed"
+            }
+            audit("CLASS_DELETED", null, null, null)
+        }
+    }
+
+    fun restoreClass(
+        classId: String,
+        className: String,
+        studentIds: Set<String>,
+    ) {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업 중에는 삭제한 반을 복원할 수 없습니다."
+        }
+        require(database.classDao().findActiveByName(className) == null) {
+            "같은 이름의 반이 이미 있어 복원할 수 없습니다."
+        }
+        val activeStudentIds = database.studentDao().listAllActive()
+            .mapTo(mutableSetOf(), StudentEntity::studentId)
+        require(studentIds.all(activeStudentIds::contains)) {
+            "복원할 반에 비활성 학생이 포함되어 있습니다."
+        }
+        val now = nowEpochMs()
+        database.runInTransaction {
+            database.classDao().upsert(
+                ClassGroupEntity(
+                    classId = classId,
+                    className = className,
+                    isActive = true,
+                    createdAtEpochMs = now,
+                    updatedAtEpochMs = now,
+                ),
+            )
+            studentIds.forEach { studentId ->
+                database.classDao().addMembership(
+                    ClassMembershipEntity(classId, studentId),
+                )
+            }
+            audit("CLASS_DELETE_UNDONE", studentIds.size.toString(), null, null)
         }
     }
 
@@ -176,30 +645,34 @@ class StudentRepository(
     }
 
     fun deactivateStudent(studentId: String) {
-        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
-        require(student.isActive) { "Student is inactive" }
-        val revokedReplacementHash = qrCodec.issueHashOnly()
-        database.runInTransaction {
-            database.studentDao().update(
-                student.copy(
-                    qrTokenHash = revokedReplacementHash,
-                    isActive = false,
-                    updatedAtEpochMs = nowEpochMs(),
-                ),
-            )
-            audit("QR_REVOKED", null, studentId, null)
-            audit("STUDENT_DEACTIVATED", null, studentId, null)
+        withIssuedHashOnly { revokedReplacementHash ->
+            database.runInTransaction {
+                check(
+                    database.studentDao().deactivateAndPurgeCredentials(
+                        studentId,
+                        revokedReplacementHash,
+                        nowEpochMs(),
+                    ) == 1,
+                ) {
+                    "Student not found or inactive"
+                }
+                database.classDao().clearStudentMemberships(studentId)
+                audit("QR_REVOKED", null, studentId, null)
+                audit("STUDENT_DEACTIVATED", null, studentId, null)
+            }
         }
     }
 
-    fun recordQrPrintRequested(studentId: String) {
+    fun recordQrExportRequested(studentId: String) {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
-        audit("QR_PRINT_REQUESTED", null, studentId, null)
+        audit("QR_PDF_EXPORT_REQUESTED", null, studentId, null)
     }
 
-    fun startSession(classId: String): ActiveSessionEntity {
-        require(database.classDao().findActiveById(classId) != null) { "Active class not found" }
+    fun startSession(
+        classId: String,
+        temporaryStudentIds: Set<String> = emptySet(),
+    ): ActiveSessionEntity {
         val now = nowEpochMs()
         val session = ActiveSessionEntity(
             sessionId = UUID.randomUUID().toString(),
@@ -213,29 +686,79 @@ class StudentRepository(
             updatedAtEpochMs = now,
         )
         database.runInTransaction {
+            require(database.classDao().findActiveById(classId) != null) {
+                "Active class not found"
+            }
+            val activeStudentIds = database.studentDao().listAllActive()
+                .mapTo(mutableSetOf(), StudentEntity::studentId)
+            require(temporaryStudentIds.all(activeStudentIds::contains)) {
+                "Inactive or unknown temporary student selected"
+            }
+            require(
+                database.studentDao().listActiveForClass(classId).isNotEmpty() ||
+                    temporaryStudentIds.isNotEmpty(),
+            ) {
+                "수업에는 반 학생 또는 보강 학생이 한 명 이상 필요합니다."
+            }
+            require(database.sessionDao().get()?.sessionId == null) {
+                "이미 진행 중인 수업이 있습니다."
+            }
             database.sessionDao().save(session)
+            temporaryStudentIds.forEach { studentId ->
+                database.sessionDao().addTemporaryStudent(
+                    SessionStudentEntity(session.sessionId!!, studentId, now),
+                )
+            }
             audit("SESSION_STARTED", null, null, session.sessionId)
+            if (temporaryStudentIds.isNotEmpty()) {
+                audit(
+                    "TEMPORARY_STUDENTS_ADDED",
+                    temporaryStudentIds.size.toString(),
+                    null,
+                    session.sessionId,
+                )
+            }
         }
         return session
     }
 
-    fun addTemporaryStudent(sessionId: String, studentId: String) {
-        val session = requireNotNull(database.sessionDao().get()) { "No active session" }
-        require(session.sessionId == sessionId) { "Session mismatch" }
-        val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
-        require(student.isActive) { "Student is inactive" }
+    fun addTemporaryStudents(sessionId: String, studentIds: Set<String>) {
+        require(studentIds.isNotEmpty()) { "Temporary students are required" }
         database.runInTransaction {
-            database.sessionDao().addTemporaryStudent(
-                SessionStudentEntity(sessionId, studentId, nowEpochMs()),
+            val session = requireNotNull(database.sessionDao().get()) { "No active session" }
+            require(session.sessionId == sessionId) { "Session mismatch" }
+            require(session.state == KioskState.QR_READY.name) {
+                "Session is not ready for temporary students"
+            }
+            val activeStudentIds = database.studentDao().listAllActive()
+                .mapTo(mutableSetOf(), StudentEntity::studentId)
+            require(studentIds.all(activeStudentIds::contains)) {
+                "Inactive or unknown temporary student selected"
+            }
+            val now = nowEpochMs()
+            studentIds.forEach { studentId ->
+                database.sessionDao().addTemporaryStudent(
+                    SessionStudentEntity(sessionId, studentId, now),
+                )
+            }
+            audit(
+                "TEMPORARY_STUDENTS_ADDED",
+                studentIds.size.toString(),
+                null,
+                sessionId,
             )
-            audit("TEMPORARY_STUDENT_ADDED", null, studentId, sessionId)
         }
     }
 
-    fun validateForActiveSession(tokenHash: ByteArray): ValidatedStudent? {
+    fun validateForActiveSession(
+        tokenHash: ByteArray,
+        requiredDisplayNameExact: String? = null,
+        expectedSessionId: String? = null,
+    ): ValidatedStudent? {
         val session = database.sessionDao().get()
         if (
             session?.sessionId == null ||
+            (expectedSessionId != null && session.sessionId != expectedSessionId) ||
             session.classId == null ||
             session.state != KioskState.QR_READY.name
         ) {
@@ -257,8 +780,65 @@ class StudentRepository(
             )
             return null
         }
+        if (
+            requiredDisplayNameExact != null &&
+            student.displayNameExact != requiredDisplayNameExact
+        ) {
+            audit(
+                "QR_REJECTED",
+                "REQUIRED_DISPLAY_NAME_MISMATCH",
+                student.studentId,
+                session.sessionId,
+            )
+            return null
+        }
         audit("QR_ACCEPTED", null, student.studentId, session.sessionId)
+        check(database.qrCardStatusDao().markUsed(student.studentId, nowEpochMs()) == 1) {
+            "QR card status not found"
+        }
         return ValidatedStudent(student.studentId, student.displayNameExact)
+    }
+
+    fun validateManualStudentForActiveSession(
+        studentId: String,
+        expectedSessionId: String? = null,
+    ): ValidatedStudent? {
+        val session = database.sessionDao().get()
+        if (
+            session?.sessionId == null ||
+            (expectedSessionId != null && session.sessionId != expectedSessionId) ||
+            session.classId == null ||
+            session.state != KioskState.QR_READY.name
+        ) {
+            audit("MANUAL_STUDENT_REJECTED", "SESSION_NOT_READY", null, session?.sessionId)
+            return null
+        }
+        val student = database.studentDao().findEligibleById(
+            studentId = studentId,
+            classId = session.classId,
+            sessionId = session.sessionId,
+        )
+        if (student == null) {
+            audit("MANUAL_STUDENT_REJECTED", "OUTSIDE_CURRENT_CLASS", null, session.sessionId)
+            return null
+        }
+        audit("MANUAL_STUDENT_ACCEPTED", null, student.studentId, session.sessionId)
+        return ValidatedStudent(student.studentId, student.displayNameExact)
+    }
+
+    fun listEligibleStudentsForActiveSession(): List<ValidatedStudent> {
+        val session = database.sessionDao().get()
+        require(
+            session?.sessionId != null &&
+                session.classId != null &&
+                session.state == KioskState.QR_READY.name
+        ) {
+            "수동 선택이 가능한 수업 상태가 아닙니다."
+        }
+        return database.studentDao().listEligibleForSession(
+            classId = session.classId,
+            sessionId = session.sessionId,
+        ).map { ValidatedStudent(it.studentId, it.displayNameExact) }
     }
 
     fun recordQrRejection(reasonCode: String) {
@@ -322,45 +902,55 @@ class StudentRepository(
     }
 
     fun transitionSession(
+        expectedState: KioskState,
         state: KioskState,
+        expectedSessionId: String? = null,
         currentStudentId: String? = null,
         automationStep: String? = null,
         lockedReason: String? = null,
     ) {
-        val current = requireNotNull(database.sessionDao().get()) { "No session state" }
-        database.sessionDao().save(
-            current.copy(
-                state = state.name,
-                currentStudentId = currentStudentId,
-                automationStep = automationStep,
-                lockedReason = lockedReason,
-                previousCheckpoint = current.state,
-                updatedAtEpochMs = nowEpochMs(),
-            ),
-        )
-    }
-
-    fun endSession() {
-        val current = requireNotNull(database.sessionDao().get()) { "No session state" }
-        val sessionId = current.sessionId
         database.runInTransaction {
-            if (sessionId != null) database.sessionDao().clearTemporaryStudents(sessionId)
+            val current = requireNotNull(database.sessionDao().get()) { "No session state" }
+            require(current.sessionId != null) { "No active session" }
+            require(expectedSessionId == null || current.sessionId == expectedSessionId) {
+                "Session identity changed before transition"
+            }
+            require(current.state == expectedState.name) {
+                "Session state changed before transition"
+            }
             database.sessionDao().save(
-                ActiveSessionEntity(
-                    state = KioskState.ADMIN_IDLE.name,
-                    updatedAtEpochMs = nowEpochMs(),
-                    sessionId = null,
-                    classId = null,
-                    startedAtEpochMs = null,
-                    currentStudentId = null,
-                    automationStep = null,
-                    lockedReason = null,
+                current.copy(
+                    state = state.name,
+                    currentStudentId = currentStudentId,
+                    automationStep = automationStep,
+                    lockedReason = lockedReason,
                     previousCheckpoint = current.state,
+                    updatedAtEpochMs = nowEpochMs(),
                 ),
             )
-            audit("SESSION_ENDED", null, null, sessionId)
         }
     }
+
+    fun endSession(): ActiveSessionEntity =
+        database.runInTransaction<ActiveSessionEntity> {
+            val current = requireNotNull(database.sessionDao().get()) { "No session state" }
+            val sessionId = requireNotNull(current.sessionId) { "진행 중인 수업이 없습니다." }
+            database.sessionDao().clearTemporaryStudents(sessionId)
+            val idleSession = ActiveSessionEntity(
+                state = KioskState.ADMIN_IDLE.name,
+                updatedAtEpochMs = nowEpochMs(),
+                sessionId = null,
+                classId = null,
+                startedAtEpochMs = null,
+                currentStudentId = null,
+                automationStep = null,
+                lockedReason = null,
+                previousCheckpoint = current.state,
+            )
+            database.sessionDao().save(idleSession)
+            audit("SESSION_ENDED", null, null, sessionId)
+            idleSession
+        }
 
     private fun audit(
         eventType: String,
@@ -368,6 +958,11 @@ class StudentRepository(
         studentId: String?,
         sessionId: String?,
     ) {
+        val now = nowEpochMs()
+        auditEventsSinceMaintenance += 1
+        if (auditEventsSinceMaintenance >= AUDIT_MAINTENANCE_INTERVAL) {
+            maintainAuditRetention()
+        }
         database.auditDao().insert(
             AuditEventEntity(
                 eventType = eventType,
@@ -375,8 +970,23 @@ class StudentRepository(
                 subjectStudentId = studentId,
                 sessionId = sessionId,
                 appVersion = appVersion,
-                createdAtEpochMs = nowEpochMs(),
+                createdAtEpochMs = now,
             ),
         )
+    }
+
+    private inline fun <T> withIssuedHashOnly(block: (ByteArray) -> T): T {
+        val hash = qrCodec.issueHashOnly()
+        return try {
+            block(hash)
+        } finally {
+            hash.fill(0)
+        }
+    }
+
+    private companion object {
+        const val AUDIT_MAINTENANCE_INTERVAL = 256
+        const val MAX_AUDIT_ROWS = 10_000
+        const val AUDIT_RETENTION_MS = 90L * 24 * 60 * 60 * 1000
     }
 }
