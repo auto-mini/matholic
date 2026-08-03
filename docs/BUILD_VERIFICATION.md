@@ -1,5 +1,37 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC62 요일 반 빠른 선택 표시 복원 — 2026-08-03
+
+### 결함·원인·교정
+
+- `요일 반 빠른 선택`에서 한 번 선택해 굵어진 버튼이 다른 반을 선택한 뒤에도
+  굵게 남았다. 선택된 반 하나를 굵기와 alpha `1.0`으로 표시하고 나머지를
+  alpha `0.72`로 낮추는 의도는 맞지만, 비선택 버튼의 글꼴 복원이 실패했다.
+- 원인은 `setTypeface(button.typeface, NORMAL)`이 이미 굵어진 현재 Typeface를
+  다시 기준으로 사용한 것이다. `NORMAL`을 적용해도 굵은 Typeface 객체 자체가
+  남아 선택 이력이 시각적으로 누적됐다.
+- 버튼 생성 시 원래 Typeface를 반별로 보존한다. 선택 버튼은 그 원본에서
+  `BOLD`를 만들고, 비선택 버튼은 원본 Typeface 객체로 직접 복원한다. 실제 반
+  선택·명단 조회·수업 잠금과 활성화 조건은 바꾸지 않았다.
+
+### 검증·산출물
+
+- 새 Android 회귀시험은 `월1 → 월2`를 순서대로 선택하고 이전 `월1`이
+  `isBold == false`, alpha `0.72`로 돌아오며 `월2`만 `isBold == true`, alpha
+  `1.0`인지 확인한다. 교정 전 이 시험은 이전 버튼의 `assertFalse(isBold)`에서
+  실패했고, 교정 후 단독 실행은 PASS했다.
+- Android 13 `matholic_rc03_api33` Kiosk 전체 계측시험:
+  **62 tests, 0 failures, 0 errors, 0 skipped**.
+- `scripts/build-release.ps1`: **158 tasks PASS**. Kiosk/Web unit, release lint,
+  signed assemble, version·non-debuggable·동일 signer 검증을 포함한다. Kiosk
+  JVM 단위시험은 JUnit XML 합계 **84 tests, 0 failures, 0 errors, 0 skipped**다.
+- Kiosk `0.6.0-rc62`/code 67, 35,225,680 bytes:
+  `70341C86E59CEDD4BF4E69986742B69455B47D4C59E0947D09DB3F1056FC277F`.
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- 실제 A 태블릿에는 아직 설치하지 않았으므로 Kiosk RC61/code 66이 유지된다.
+  이번 변경은 관리자 화면의 선택 표시만 바꾸며 데이터·세션 형식 변경은 없다.
+
 ## PR #1 clean clone 병합 전 감사 — 2026-08-03
 
 ### clean clone 재현 검증
