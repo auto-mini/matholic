@@ -1,5 +1,26 @@
 # LUNA MAX 읽기 전용 연속 리뷰 보고서
 
+## Web RC121 답안 현황판 바깥 터치 관통 후속 교정 — 2026-08-03
+
+- **P2 확정·해결:** 현황판 밖을 누른 `pointerdown`에서 현황판을 즉시 닫아,
+  같은 손가락의 `pointerup`/`click`이 새로 드러난 객관식 답 또는 `모름`에
+  도달할 수 있었다. 한 번의 바깥 제스처 전체를 닫기 동작으로 소유·소비하고
+  손을 뗄 때만 현황판을 닫도록 교정했다. 다음 독립 터치만 답안 입력에
+  도달한다.
+- Android DOM 회귀시험은 첫 바깥 제스처의 pointerdown·pointerup·click이
+  아래 답안 요소에 0회, 다음 독립 제스처가 각 1회 도달함을 검증한다.
+  Android 13 전체 Web 계측시험은 **110 tests, failures/errors/skipped 0**으로
+  PASS했다. 별도로 `scripts/build-release.ps1` **158 tasks PASS**다.
+- Web `0.4.0-rc121`/code 138 signed APK의 SHA-256은
+  `66E953D4395D61D7ACC443249B44CAF7F09B449978C50E3205DDF557F42AF4C7`이며,
+  release signer는 종전과 동일하다.
+- Samsung SM-P610에 보존형 설치해 UID·firstInstallTime·Device Owner·앱
+  데이터를 유지했다. 실제 객관식 답과 `모름` 위치에서 길게 누르는 동안
+  현황판이 유지되고, 손을 뗀 뒤 닫혀도 답안 현황이 각각 **0/10**으로 남음을
+  확인했다. 답안은 입력·제출하지 않았다.
+- 최종 기기는 Kiosk `QR_READY`, LockTask `LOCKED`, 원격 지원 `INACTIVE`다.
+  관련 commit은 `de93987`, `0ce5b9c`, `b7e1119`다.
+
 ## RC61 QR 절단용 교정 현장 완료 — 2026-08-03
 
 - RC60의 40×40mm QR을 유지하면서 기준 절단용 PDF와 같은 A4 3×3,

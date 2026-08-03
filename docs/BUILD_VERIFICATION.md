@@ -1,5 +1,60 @@
 # 빌드·보안 검증 기록
 
+## Web RC121 답안 현황판 터치 관통 교정 — 2026-08-03
+
+### 결함·원인·교정
+
+- 답안 현황판이 열린 상태에서 현황판 밖의 답안 영역을 누르면 `pointerdown`
+  단계에서 현황판이 먼저 사라졌다. 같은 손가락의 뒤이은 `pointerup`/`click`이
+  새로 노출된 객관식 답이나 `모름` 버튼에 전달되어 의도하지 않은 답안 변경이
+  가능했다.
+- 사용자의 답안을 조용히 바꿀 수 있는 핵심 채점 흐름 결함이므로 **P2**로
+  판정했다.
+- 바깥 `pointerdown`부터 해당 포인터의 `pointerup`과 호환 `click`까지 하나의
+  닫기 제스처로 소유·소비한다. 현황판은 손가락을 누르는 동안 유지되고 손을
+  뗄 때 닫힌다. 그 제스처는 아래 답안 요소에 전달되지 않으며, 다음 독립
+  터치부터만 정상 입력된다. `pointercancel`과 키보드 `Escape` 종료도 별도로
+  처리한다.
+
+### 자동·릴리스 검증
+
+- 새 Android DOM 회귀시험은 바깥 요소에 `pointerdown`/`pointerup`/`click`을
+  연속 전달해 첫 제스처의 세 이벤트가 모두 0회임을 확인하고, 다음 독립
+  제스처는 각각 1회 도달함을 확인한다.
+- Android 13 `matholic_rc03_api33` 전체 Web 계측시험은 JUnit XML 기준
+  **110 tests, 0 failures, 0 errors, 0 skipped**로 PASS했다.
+- 전체 실행에서 발견한 제품 외 시험 결함도 함께 바로잡았다. DOM storage를
+  실제 설정과 맞추고, `requestAnimationFrame` 반영을 기다리며, WebView 포함
+  layout inflate를 main thread에서 실행했다. 수식 키패드 검사는 실제 태블릿
+  크기에 맞는 1200dp viewport와 완전한 화살표 좌표를 사용하고, 현황판 전환
+  종료는 고정 sleep 대신 제품의 4초 deadline을 포함하는 5초 bounded polling으로
+  확인한다.
+- `scripts/build-release.ps1`: **158 tasks PASS**. Kiosk/Web unit, release lint,
+  signed assemble, version·non-debuggable·동일 signer 검증을 포함한다.
+- Web `0.4.0-rc121`/code 138, 3,329,878 bytes:
+  `66E953D4395D61D7ACC443249B44CAF7F09B449978C50E3205DDF557F42AF4C7`
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+
+### 실제 태블릿 검증·최종 상태
+
+- Samsung SM-P610 `R54TB029FHZ`에 `adb install -r`로 보존형 설치했다.
+  Web UID 10293, firstInstallTime `2026-07-28 13:12:16`, Device Owner와 앱
+  데이터가 유지됐다.
+- 활성 Web session 중 업데이트로 Web 프로세스가 종료됐을 때 Kiosk는
+  `WEB_SESSION_FAILED`로 실패 폐쇄했다. 관리자 PIN과 기존 원버튼 복구로
+  학생·반·QR을 삭제하지 않고 안전 종료한 뒤 새 session의 공식 Web 로그인에
+  성공했다.
+- 객관식 답 2번과 `모름`이 각각 현황판 아래에 있는 위치에서 같은 좌표를 길게
+  눌렀다. 두 경우 모두 누르는 동안 현황판이 유지되고 손을 뗄 때 닫혔으며,
+  답안 현황은 **0/10**으로 유지됐다. 시험 답안은 입력·제출하지 않았다.
+- 최종 확인은 Web RC121/code 138, Device Owner 유지, Kiosk `QR_READY`,
+  LockTask `LOCKED`, 원격 지원 `INACTIVE`다. 실기 확인용 임시 화면 캡처 4개는
+  검증 뒤 삭제했다.
+
+교정 commit은 `de93987`, 버전·운영 정렬은 `0ce5b9c`, 시험 하니스 보정은
+`b7e1119`다.
+
 ## RC61 QR 카드 절단용 배치 교정 — 2026-08-03
 
 ### 제공 PDF 독립 비교
