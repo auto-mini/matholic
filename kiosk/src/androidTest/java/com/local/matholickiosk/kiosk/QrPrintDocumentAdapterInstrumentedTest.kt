@@ -159,22 +159,27 @@ class QrPrintDocumentAdapterInstrumentedTest {
 
         assertEquals(55f, card.width / 72f * 25.4f, 0.01f)
         assertEquals(80f, card.height / 72f * 25.4f, 0.01f)
-        assertEquals(30f, qr.width / 72f * 25.4f, 0.01f)
-        assertEquals(30f, qr.height / 72f * 25.4f, 0.01f)
+        assertEquals(40f, qr.width / 72f * 25.4f, 0.01f)
+        assertEquals(40f, qr.height / 72f * 25.4f, 0.01f)
     }
 
     @Test
-    fun qrIsLoweredAndFullNameIsPlacedBelowIt() {
+    fun enlargedQrKeepsFullNameBelowIt() {
         val layout = QrPrintCardRenderer.layout(Rect(0, 0, 1_000, 1_000))
         val pointsToMillimeters = 25.4f / 72f
 
         assertEquals(
-            28f,
+            18f,
             (layout.qr.top - layout.card.top) * pointsToMillimeters,
             0.01f,
         )
-        assertEquals(30f, layout.qr.width() * pointsToMillimeters, 0.01f)
+        assertEquals(40f, layout.qr.width() * pointsToMillimeters, 0.01f)
         assertTrue(layout.nameBaseline > layout.qr.bottom)
+        assertEquals(
+            10f,
+            (layout.nameBaseline - layout.qr.bottom) * pointsToMillimeters,
+            0.01f,
+        )
         assertEquals(
             68f,
             (layout.nameBaseline - layout.card.top) * pointsToMillimeters,

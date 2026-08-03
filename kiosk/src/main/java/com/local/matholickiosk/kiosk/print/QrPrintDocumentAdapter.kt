@@ -162,8 +162,8 @@ internal object QrPrintCardRenderer {
 
     private const val CARD_WIDTH_MM = 55f
     private const val CARD_HEIGHT_MM = 80f
-    private const val QR_SIZE_MM = 30f
-    private const val QR_TOP_MM = 28f
+    private const val QR_SIZE_MM = 40f
+    private const val QR_TOP_MM = 18f
     private const val NAME_BASELINE_MM = 68f
     private const val NAME_SIDE_MARGIN_MM = 4f
     private const val MILLIMETERS_PER_INCH = 25.4f

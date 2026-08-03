@@ -2201,7 +2201,7 @@ class MainActivity : ComponentActivity() {
         AlertDialog.Builder(this)
             .setTitle("QR 카드 PDF 전송·저장")
             .setMessage(
-                "55×80mm 세로 카드에 30×30mm QR과 학생 전체 이름을 넣습니다.\n" +
+                "55×80mm 세로 카드에 40×40mm QR과 학생 전체 이름을 넣습니다.\n" +
                     "학생 이름은 QR 아래에 표시됩니다.\n" +
                     "PDF에는 로그인 가능한 QR이 포함되므로 신뢰하는 PC나 저장 위치만 선택하세요.",
             )
