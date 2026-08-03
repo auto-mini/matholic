@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.local.matholickiosk.kiosk.data.ClassMembershipEntity
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.data.StudentCsvRow
@@ -542,6 +543,49 @@ class RepositoryInstrumentedTest {
             }.isFailure,
         )
         assertEquals(setOf(member.studentId), repository.membershipStudentIds(classId))
+    }
+
+    @Test
+    fun inactiveMembershipsCannotPoisonClassMembershipEdits() {
+        val classId = repository.createClass("월1")
+        val inactive = repository.registerStudent(
+            "비활성 학생",
+            "inactive-membership-user".toCharArray(),
+            "inactive-membership-password".toCharArray(),
+        )
+        val active = repository.registerStudent(
+            "활성 학생",
+            "active-membership-user".toCharArray(),
+            "active-membership-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(inactive.studentId))
+
+        repository.deactivateStudent(inactive.studentId)
+
+        database.openHelper.readableDatabase.query(
+            "SELECT COUNT(*) FROM class_memberships WHERE studentId = ?",
+            arrayOf(inactive.studentId),
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        assertEquals(emptySet<String>(), repository.membershipStudentIds(classId))
+
+        // Simulate a stale row created by an older app version. It must be hidden
+        // from the admin selection and removed by the next valid replacement.
+        database.classDao().addMembership(ClassMembershipEntity(classId, inactive.studentId))
+        assertEquals(emptySet<String>(), repository.membershipStudentIds(classId))
+
+        repository.replaceClassMemberships(classId, setOf(active.studentId))
+
+        assertEquals(setOf(active.studentId), repository.membershipStudentIds(classId))
+        database.openHelper.readableDatabase.query(
+            "SELECT COUNT(*) FROM class_memberships WHERE studentId = ?",
+            arrayOf(inactive.studentId),
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
     }
 
     @Test

@@ -160,7 +160,13 @@ interface ClassDao {
     @Query("DELETE FROM class_memberships WHERE studentId = :studentId")
     fun clearStudentMemberships(studentId: String)
 
-    @Query("SELECT studentId FROM class_memberships WHERE classId = :classId")
+    @Query(
+        """
+        SELECT cm.studentId FROM class_memberships cm
+        INNER JOIN students s ON s.studentId = cm.studentId
+        WHERE cm.classId = :classId AND s.isActive = 1
+        """,
+    )
     fun listMembershipStudentIds(classId: String): List<String>
 
     @Query("DELETE FROM class_groups WHERE classId = :classId")

@@ -546,7 +546,7 @@ class StudentRepository(
             val activeStudentIds = database.studentDao().listAllActive()
                 .mapTo(mutableSetOf(), StudentEntity::studentId)
             require(studentIds.all(activeStudentIds::contains)) {
-                "Inactive or unknown student selected"
+                "활성 상태인 등록 학생만 반에 소속할 수 있습니다."
             }
             database.classDao().clearMemberships(classId)
             studentIds.forEach { studentId ->
@@ -656,6 +656,7 @@ class StudentRepository(
                 ) {
                     "Student not found or inactive"
                 }
+                database.classDao().clearStudentMemberships(studentId)
                 audit("QR_REVOKED", null, studentId, null)
                 audit("STUDENT_DEACTIVATED", null, studentId, null)
             }
