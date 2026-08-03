@@ -11,20 +11,27 @@ $buildRoot = if ($env:MATHOLIC_BUILD_ROOT) {
     Join-Path $env:LOCALAPPDATA 'CodexBuild\matholic-kiosk'
 }
 $asciiParent = Join-Path $env:LOCALAPPDATA 'CodexWorkspaces'
-$asciiRoot = Join-Path $asciiParent 'matholic-kiosk'
+$requiresAsciiJunction = $projectRoot -match '[^\x00-\x7F]'
+$asciiRoot = if ($requiresAsciiJunction) {
+    Join-Path $asciiParent 'matholic-kiosk'
+} else {
+    $projectRoot
+}
 
 if (-not (Test-Path -LiteralPath $javaRoot)) { throw "JDK not found: $javaRoot" }
 if (-not (Test-Path -LiteralPath $sdkRoot)) { throw "Android SDK not found: $sdkRoot" }
 
-New-Item -ItemType Directory -Force -Path $asciiParent | Out-Null
-if (Test-Path -LiteralPath $asciiRoot) {
-    $existing = Get-Item -LiteralPath $asciiRoot -Force
-    $resolvedTarget = (Resolve-Path -LiteralPath $existing.Target).Path
-    if ($resolvedTarget -ne $projectRoot) {
-        throw "ASCII build junction points elsewhere: $asciiRoot -> $resolvedTarget"
+if ($requiresAsciiJunction) {
+    New-Item -ItemType Directory -Force -Path $asciiParent | Out-Null
+    if (Test-Path -LiteralPath $asciiRoot) {
+        $existing = Get-Item -LiteralPath $asciiRoot -Force
+        $resolvedTarget = (Resolve-Path -LiteralPath $existing.Target).Path
+        if ($resolvedTarget -ne $projectRoot) {
+            throw "ASCII build junction points elsewhere: $asciiRoot -> $resolvedTarget"
+        }
+    } else {
+        New-Item -ItemType Junction -Path $asciiRoot -Target $projectRoot | Out-Null
     }
-} else {
-    New-Item -ItemType Junction -Path $asciiRoot -Target $projectRoot | Out-Null
 }
 
 $env:JAVA_HOME = $javaRoot

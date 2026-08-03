@@ -10,7 +10,12 @@ $javaRoot = 'C:\Users\user\AppData\Local\Android\jdks\jdk-17.0.19+10'
 $sdkRoot = 'C:\Users\user\AppData\Local\Android\Sdk'
 $adbPath = Join-Path $sdkRoot 'platform-tools\adb.exe'
 $asciiParent = Join-Path $env:LOCALAPPDATA 'CodexWorkspaces'
-$asciiRoot = Join-Path $asciiParent 'matholic-kiosk'
+$requiresAsciiJunction = $projectRoot -match '[^\x00-\x7F]'
+$asciiRoot = if ($requiresAsciiJunction) {
+    Join-Path $asciiParent 'matholic-kiosk'
+} else {
+    $projectRoot
+}
 
 if (-not $Serial.StartsWith('emulator-', [StringComparison]::Ordinal)) {
     throw "Refusing Android tests on a non-emulator serial: $Serial"
@@ -31,15 +36,17 @@ if ($isEmulator -ne '1') {
     throw "Refusing Android tests because $Serial is not an Android emulator."
 }
 
-New-Item -ItemType Directory -Force -Path $asciiParent | Out-Null
-if (Test-Path -LiteralPath $asciiRoot) {
-    $existing = Get-Item -LiteralPath $asciiRoot -Force
-    $resolvedTarget = (Resolve-Path -LiteralPath $existing.Target).Path
-    if ($resolvedTarget -ne $projectRoot) {
-        throw "ASCII build junction points elsewhere: $asciiRoot -> $resolvedTarget"
+if ($requiresAsciiJunction) {
+    New-Item -ItemType Directory -Force -Path $asciiParent | Out-Null
+    if (Test-Path -LiteralPath $asciiRoot) {
+        $existing = Get-Item -LiteralPath $asciiRoot -Force
+        $resolvedTarget = (Resolve-Path -LiteralPath $existing.Target).Path
+        if ($resolvedTarget -ne $projectRoot) {
+            throw "ASCII build junction points elsewhere: $asciiRoot -> $resolvedTarget"
+        }
+    } else {
+        New-Item -ItemType Junction -Path $asciiRoot -Target $projectRoot | Out-Null
     }
-} else {
-    New-Item -ItemType Junction -Path $asciiRoot -Target $projectRoot | Out-Null
 }
 
 $env:JAVA_HOME = $javaRoot
