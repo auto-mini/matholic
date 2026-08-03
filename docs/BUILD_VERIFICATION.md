@@ -1,5 +1,55 @@
 # 빌드·보안 검증 기록
 
+## RC61 QR 카드 절단용 배치 교정 — 2026-08-03
+
+### 제공 PDF 독립 비교
+
+- `20260803-105709_3419dc14a19a786e_신규 변경 학생 QR.pdf`는 A4 1페이지에
+  55×80mm 카드 2장을 서로 붙여 배치했다. QR은 RC60의 40×40mm였지만 카드
+  사이 절단 여백이 없고 전체 3×3 절단 격자를 사용하지 않았다.
+- `매쓰홀릭_QR카드_통합_절단용_20260729.pdf`는 A4 2페이지이며 첫 페이지
+  9장, 둘째 페이지 5장을 왼쪽 위부터 배치했다. 각 카드는 55×80mm이고
+  가로·세로 5mm 간격, 좌우 17.5mm, 상하 23.5mm, 68% 회색 0.25pt 절단선을
+  사용했다.
+- 두 파일은 Poppler로 모든 페이지를 렌더링하고 pdfplumber의 page object
+  좌표로 카드 사각형·간격·페이지 크기를 독립 확인했다. 실제 QR 원문은
+  추출하거나 기록하지 않았다.
+
+### 교정
+
+- 여러 장 PDF를 A4 무여백 좌표계에서 3×3, 카드 55×80mm, 카드 간격 5mm로
+  배치한다. 마지막 페이지는 기준 파일처럼 필요한 카드만 왼쪽 위부터 채운다.
+- 절단선은 기준 파일의 68% 회색·0.25pt를 적용했다.
+- RC60에서 확대한 40×40mm QR과 QR 아래 학생 이름 위치는 유지했다.
+- 단건 PDF는 기존 A4 중앙 카드 배치를 유지하고, 신규·변경 카드 묶음과 반
+  일괄 PDF에 절단용 격자를 적용한다.
+
+### 검증·설치
+
+- `:kiosk:testDebugUnitTest :kiosk:compileDebugAndroidTestKotlin`: PASS.
+- Android 13 `matholic_rc03_api33`에서
+  `QrPrintDocumentAdapterInstrumentedTest` **12 tests PASS**. 210×297mm A4,
+  55×80mm 카드, 5mm 간격, 17.5/23.5mm 시작점, 3×3 페이지와 마지막 페이지
+  잔여 카드만 렌더하는 동작을 검증했다.
+- 실제 Android `PrintedPdfDocument`로 비로그인 합성 카드 10장의 2페이지
+  미리보기를 생성했다. Poppler 150/300dpi 렌더에서 1페이지 9장, 2페이지
+  1장의 절단선·QR·이름에 잘림이나 겹침이 없었다. ZXing 3.5.4로 렌더 PNG의
+  합성 QR 10개를 모두 정확히 재판독했다.
+- 합성 미리보기 368,858 bytes:
+  `BBF31CB72129AA724C147288E144146DA06B16A349C14E90189E519CC3F4C1BC`.
+- `scripts/build-release.ps1`: **158 tasks PASS**. unit, release lint, signed
+  assemble, version·non-debuggable·동일 signer 검증을 포함한다.
+- Kiosk `0.6.0-rc61`/code 66, 35,225,680 bytes:
+  `498683E87EAC8F3A520A7A20202A64B09DBBC3D37DBEE21026460F89277E4B4F`
+- Samsung SM-P610 `R54TB029FHZ`에 `adb install -r`로 보존형 설치했다.
+  Kiosk UID 10288, firstInstallTime `2026-07-24 12:52:28`, Device Owner와 앱
+  데이터 영역을 유지했다. 기존 실제 QR은 재발급·무효화하지 않았다.
+- 최종 상태는 `ADMIN_IDLE`, LockTask `NONE`, 원격 점검 비활성, Wi-Fi
+  validated다.
+
+코드 commit은 `7a32b4e`, 버전·운영 문서 정렬 commit은 `a57ec16`이다.
+실제 프린터 종이 절단과 종이 QR 카메라 재인식은 수행하지 않았다.
+
 ## RC60 QR 카드 PDF 확대 — 2026-08-03
 
 ### 변경
