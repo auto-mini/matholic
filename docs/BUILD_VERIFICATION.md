@@ -29,7 +29,9 @@
   `70341C86E59CEDD4BF4E69986742B69455B47D4C59E0947D09DB3F1056FC277F`.
 - release signer SHA-256:
   `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
-- 실제 A 태블릿에는 아직 설치하지 않았으므로 Kiosk RC61/code 66이 유지된다.
+- Samsung SM-P610 `R54TB029FHZ`에 `adb install -r`로 보존형 설치했다.
+  Kiosk UID 10288, firstInstallTime `2026-07-24 12:52:28`, dataDir와 Device Owner를
+  유지했다. 설치 뒤 RC62/code 67과 기본 HOME·전면 `MainActivity`를 확인했다.
   이번 변경은 관리자 화면의 선택 표시만 바꾸며 데이터·세션 형식 변경은 없다.
 
 ## PR #1 clean clone 병합 전 감사 — 2026-08-03
