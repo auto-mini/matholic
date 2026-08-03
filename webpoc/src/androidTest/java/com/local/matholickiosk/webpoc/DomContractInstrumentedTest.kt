@@ -1326,6 +1326,16 @@ class DomContractInstrumentedTest {
                 <button id="submit">답안제출</button>
                 <script>
                   window.accidentalAnswerClicks = 0;
+                  window.accidentalAnswerPointerDowns = 0;
+                  window.accidentalAnswerPointerUps = 0;
+                  document.getElementById('accidental-answer').addEventListener(
+                    'pointerdown',
+                    () => { window.accidentalAnswerPointerDowns += 1; }
+                  );
+                  document.getElementById('accidental-answer').addEventListener(
+                    'pointerup',
+                    () => { window.accidentalAnswerPointerUps += 1; }
+                  );
                   document.getElementById('unknown').addEventListener('click', event => {
                     const active = event.currentTarget.getAttribute('aria-pressed') === 'true';
                     event.currentTarget.setAttribute('aria-pressed', active ? 'false' : 'true');
@@ -1486,17 +1496,71 @@ class DomContractInstrumentedTest {
                 """
                 (() => {
                   const map = document.querySelector('.matholic-kiosk-problem-map');
+                  const accidental = document.getElementById('accidental-answer');
                   map.firstElementChild.click();
                   const opened = map.dataset.open;
-                  document.getElementById('submit').dispatchEvent(
-                    new Event('pointerdown', { bubbles: true })
-                  );
-                  return JSON.stringify({opened, closed: map.dataset.open});
+                  accidental.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 17,
+                    isPrimary: true
+                  }));
+                  const openAfterPointerDown = map.dataset.open;
+                  const pointerDownsAfterDismiss =
+                    window.accidentalAnswerPointerDowns;
+                  accidental.dispatchEvent(new PointerEvent('pointerup', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 17,
+                    isPrimary: true
+                  }));
+                  const openAfterPointerUp = map.dataset.open;
+                  const pointerUpsAfterDismiss = window.accidentalAnswerPointerUps;
+                  accidental.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  const clicksAfterDismiss = window.accidentalAnswerClicks;
+
+                  accidental.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 18,
+                    isPrimary: true
+                  }));
+                  accidental.dispatchEvent(new PointerEvent('pointerup', {
+                    bubbles: true,
+                    cancelable: true,
+                    pointerId: 18,
+                    isPrimary: true
+                  }));
+                  accidental.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true
+                  }));
+                  return JSON.stringify({
+                    opened,
+                    openAfterPointerDown,
+                    openAfterPointerUp,
+                    pointerDownsAfterDismiss,
+                    pointerUpsAfterDismiss,
+                    clicksAfterDismiss,
+                    finalPointerDowns: window.accidentalAnswerPointerDowns,
+                    finalPointerUps: window.accidentalAnswerPointerUps,
+                    finalClicks: window.accidentalAnswerClicks
+                  });
                 })()
                 """.trimIndent(),
             )
             assertEquals("true", outsideDismiss.getString("opened"))
-            assertEquals("false", outsideDismiss.getString("closed"))
+            assertEquals("true", outsideDismiss.getString("openAfterPointerDown"))
+            assertEquals("false", outsideDismiss.getString("openAfterPointerUp"))
+            assertEquals(0, outsideDismiss.getInt("pointerDownsAfterDismiss"))
+            assertEquals(0, outsideDismiss.getInt("pointerUpsAfterDismiss"))
+            assertEquals(0, outsideDismiss.getInt("clicksAfterDismiss"))
+            assertEquals(1, outsideDismiss.getInt("finalPointerDowns"))
+            assertEquals(1, outsideDismiss.getInt("finalPointerUps"))
+            assertEquals(1, outsideDismiss.getInt("finalClicks"))
 
             evaluate(
                 webView,

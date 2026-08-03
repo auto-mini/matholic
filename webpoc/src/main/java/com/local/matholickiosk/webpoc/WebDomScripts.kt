@@ -2714,19 +2714,77 @@ object WebDomScripts {
               problemStateMapEnhancements = 1;
             }
             if (!window.__matholicKioskProblemMapDismissGuard) {
-              document.addEventListener('pointerdown', event => {
-                const openMap = document.querySelector(
-                  '.matholic-kiosk-problem-map[data-open="true"]'
-                );
-                if (!openMap || openMap.contains(event.target)) return;
-                openMap.dataset.open = 'false';
-              }, true);
-              document.addEventListener('keydown', event => {
-                if (event.key !== 'Escape') return;
+              const dismissState = {
+                activePointerId: null,
+                swallowNextClick: false,
+                clickResetTimer: 0
+              };
+              const consumeDismissEvent = event => {
+                if (event.cancelable) event.preventDefault();
+                event.stopImmediatePropagation();
+              };
+              const closeOpenProblemMap = () => {
                 const openMap = document.querySelector(
                   '.matholic-kiosk-problem-map[data-open="true"]'
                 );
                 if (openMap) openMap.dataset.open = 'false';
+              };
+              document.addEventListener('pointerdown', event => {
+                const openMap = document.querySelector(
+                  '.matholic-kiosk-problem-map[data-open="true"]'
+                );
+                if (!openMap) {
+                  dismissState.swallowNextClick = false;
+                  clearTimeout(dismissState.clickResetTimer);
+                  return;
+                }
+                if (openMap.contains(event.target)) return;
+                dismissState.activePointerId = event.pointerId;
+                dismissState.swallowNextClick = false;
+                clearTimeout(dismissState.clickResetTimer);
+                consumeDismissEvent(event);
+              }, true);
+              document.addEventListener('pointerup', event => {
+                if (
+                  dismissState.activePointerId === null ||
+                  event.pointerId !== dismissState.activePointerId
+                ) return;
+                consumeDismissEvent(event);
+                dismissState.activePointerId = null;
+                dismissState.swallowNextClick = true;
+                closeOpenProblemMap();
+                dismissState.clickResetTimer = setTimeout(() => {
+                  dismissState.swallowNextClick = false;
+                }, 750);
+              }, true);
+              document.addEventListener('pointercancel', event => {
+                if (
+                  dismissState.activePointerId === null ||
+                  event.pointerId !== dismissState.activePointerId
+                ) return;
+                consumeDismissEvent(event);
+                dismissState.activePointerId = null;
+                dismissState.swallowNextClick = false;
+                clearTimeout(dismissState.clickResetTimer);
+                closeOpenProblemMap();
+              }, true);
+              document.addEventListener('click', event => {
+                if (dismissState.swallowNextClick) {
+                  consumeDismissEvent(event);
+                  dismissState.swallowNextClick = false;
+                  clearTimeout(dismissState.clickResetTimer);
+                  return;
+                }
+                const openMap = document.querySelector(
+                  '.matholic-kiosk-problem-map[data-open="true"]'
+                );
+                if (!openMap || openMap.contains(event.target)) return;
+                consumeDismissEvent(event);
+                closeOpenProblemMap();
+              }, true);
+              document.addEventListener('keydown', event => {
+                if (event.key !== 'Escape') return;
+                closeOpenProblemMap();
               }, true);
               window.__matholicKioskProblemMapDismissGuard = true;
             }
