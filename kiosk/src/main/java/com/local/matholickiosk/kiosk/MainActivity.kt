@@ -1077,6 +1077,7 @@ class MainActivity : ComponentActivity() {
                 text = className
                 minHeight = dp(52)
                 textSize = 16f
+                stateListAnimator = null
                 filterTouchesWhenObscured = true
                 setOnClickListener { selectQuickClass(className) }
             }
@@ -1104,18 +1105,11 @@ class MainActivity : ComponentActivity() {
     private fun updateQuickClassButtons() {
         val selectedName = classes.getOrNull(classSpinner.selectedItemPosition)?.label
         quickClassButtons.forEach { (className, button) ->
+            val isSelected = className == selectedName
             button.isEnabled = !adminDataOperationGate.isActive &&
                 !webRecoveryGate.isActive &&
                 (currentSession?.sessionId == null || className == selectedName)
-            button.alpha = if (className == selectedName) 1f else 0.72f
-            button.setTypeface(
-                button.typeface,
-                if (className == selectedName) {
-                    android.graphics.Typeface.BOLD
-                } else {
-                    android.graphics.Typeface.NORMAL
-                },
-            )
+            button.alpha = if (isSelected) 1f else 0.72f
         }
     }
 

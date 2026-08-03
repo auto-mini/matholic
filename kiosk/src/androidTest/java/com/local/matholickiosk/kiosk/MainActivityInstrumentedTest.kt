@@ -20,6 +20,7 @@ import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -571,6 +572,68 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun quickClassButtonsKeepStableGeometryAndTypographyAfterSelectionChanges() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<android.widget.GridLayout>(R.id.quick_class_grid)
+                            .childCount == 12
+                }
+
+                lateinit var initialBounds: Map<String, android.graphics.Rect>
+                scenario.onActivity { activity ->
+                    initialBounds = quickClassButtonBounds(activity)
+                    quickClassButton(activity, "월1").performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                        .selectedItem
+                        ?.toString() == "월1"
+                }
+                scenario.onActivity { activity ->
+                    val selected = quickClassButton(activity, "월1")
+                    assertFalse(selected.typeface.isBold)
+                    assertNull(selected.stateListAnimator)
+                    assertEquals(1f, selected.alpha, 0.001f)
+                    assertEquals(initialBounds, quickClassButtonBounds(activity))
+                    quickClassButton(activity, "월2").performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                        .selectedItem
+                        ?.toString() == "월2"
+                }
+                scenario.onActivity { activity ->
+                    val previous = quickClassButton(activity, "월1")
+                    val selected = quickClassButton(activity, "월2")
+                    assertFalse(previous.typeface.isBold)
+                    assertNull(previous.stateListAnimator)
+                    assertEquals(0.72f, previous.alpha, 0.001f)
+                    assertFalse(selected.typeface.isBold)
+                    assertNull(selected.stateListAnimator)
+                    assertEquals(1f, selected.alpha, 0.001f)
+                    assertEquals(initialBounds, quickClassButtonBounds(activity))
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun failedWebSessionResultPersistenceShowsClosedRecoveryUi() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
@@ -966,5 +1029,31 @@ class MainActivityInstrumentedTest {
             Thread.sleep(100)
         }
         throw AssertionError("UI condition was not met before timeout")
+    }
+
+    private fun quickClassButton(
+        activity: MainActivity,
+        label: String,
+    ): android.widget.Button {
+        val grid = activity.findViewById<android.widget.GridLayout>(R.id.quick_class_grid)
+        return (0 until grid.childCount)
+            .map(grid::getChildAt)
+            .filterIsInstance<android.widget.Button>()
+            .first { it.text.toString() == label }
+    }
+
+    private fun quickClassButtonBounds(activity: MainActivity): Map<String, android.graphics.Rect> {
+        val grid = activity.findViewById<android.widget.GridLayout>(R.id.quick_class_grid)
+        return (0 until grid.childCount)
+            .map(grid::getChildAt)
+            .filterIsInstance<android.widget.Button>()
+            .associate { button ->
+                button.text.toString() to android.graphics.Rect(
+                    button.left,
+                    button.top,
+                    button.right,
+                    button.bottom,
+                )
+            }
     }
 }
