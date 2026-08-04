@@ -2,34 +2,59 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 19:22:51 +09:00
+- `last_updated`: 2026-08-04 20:39:47 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
-- 현재 branch tip / upstream: `abb23855fa5d8db908d318772826198ac5172877` /
+- 보고서 갱신 직전 branch tip / upstream:
+  `485834859919319ee078e405d54b2a278edd889f` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `abb23855fa5d8db908d318772826198ac5172877`
+- 마지막 push 성공 commit: `485834859919319ee078e405d54b2a278edd889f`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 현재 작업 중: `SOL-0005` — 실제 A 전체 흐름·화면 품질 재검증
+- 실제 A 마지막 확인: 2026-08-04 20:38~20:39 +09:00. 승인 ADB device는
+  serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
+  - Kiosk `0.6.0-rc70`/code 75, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-04 20:20:07`.
+  - Web POC `0.4.0-rc132`/code 149, UID 10293, first install
+    `2026-07-28 13:12:16`.
+  - 기존 설치본과 RC70 artifact signer SHA-256은
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`로
+    일치한다. 보존형 `adb install -r` 뒤 UID와 first install이 유지됐다.
+  - Device Owner와 preferred HOME은 각각
+    `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
+    `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
+  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 화면은 정확히 `관리자 인증`,
+    `ADMIN_IDLE`, `보안 적용`이며 PIN 입력란은 값 대신 `관리자 PIN` hint 상태다.
+  - 시험용 반 `SOL-TEST-0804-2030`은 목록 위·아래 끝을 안정화해 확인한 전체
+    13개 반에 없고, 원격 지원은 `INACTIVE`다. 로컬·A 임시 캡처도 없다.
+  - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
+- 현재 작업 중: `SOL-0005` — 현장검증 증거 checkpoint 및 안전 상태 확인
 - 다음 우선 큐:
-  1. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
-  2. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
+  1. scanner·학생 흐름에서 원격 지원 활성 배지가 보이지 않는 경계를
+     `SOL-0006` 후보로 독립 재현·확정
+  2. `MainActivityInstrumentedTest.qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`
+     단독 timeout의 비결정적 초기화·layout 경계 조사
+  3. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현재 검토 P2 후보: `SOL-0005` 1건. 아직 결함으로 확정하지 않았다.
+- 현장검증 완료 P2: `SOL-0005` 1건. 열린 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
 - 기각: `SOL-0002` 1건.
 - 이미 수정됨: `SOL-0003`, `SOL-0004` 2건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
-  - 비민감 화면 확인을 위해 원격 지원 Start→Capture를 시도했으나 태블릿이
-    screenshot을 거부했다. 실패 직후 Stop을 실행해 `REMOTE_SUPPORT=INACTIVE`를
-    확인했다. 화면 내용과 세션 상태는 미검증이며 성공으로 기록하지 않는다.
+  - Kiosk `MainActivityInstrumentedTest` 전체는 16개 중 15개만 통과했다.
+    기존 `qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`이 timeout으로
+    실패했고 단독 실행도 16.943초에 같은 timeout으로 실패했다. SOL-0005 수정과
+    독립인 기존 계측시험 문제로 분리했으며 전체 계측 PASS로 기록하지 않는다.
+  - 시험 QR은 공식 PDF를 허용된 원격 제출 도구로 전달했다. 카메라 활성·중단·
+    재연결은 실제 A에서 확인했지만 인쇄 카드의 광학 인식, 조명·거리·반사는
+    시험하지 않았다.
   - 설치 APK signer 대조용으로 만든 로컬 임시 디렉터리
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
@@ -245,18 +270,125 @@
   `git revert 47b76ec1d78b1bf3f96c9bab071762de040e3ac2`이지만 PDF idempotency와
   resource 보호를 함께 제거하므로 현재 rollback 사유가 없다.
 
-### SOL-0005 — 실제 A 전체 흐름·화면 품질 재검증
+### SOL-0005 — 원격 시험 QR 거부 후 스캐너 카메라가 재연결되지 않음
 
-- 영역: 실제 A·핵심 사용자 흐름·UI/UX
-- 심각도: P2 후보
-- 신뢰도: 낮음
-- 상태: 후보
-- 사용자 영향 후보: 관리자→수업→QR 대기→시험계정 로그인→문제풀이→종료·재개
-  중 화면 잘림·입력 가림·상태 불일치나 답안 잔존이 있으면 현장 채점 흐름이
-  중단되거나 잘못된 계정·과제 상태를 이어갈 수 있다.
-- 현재 근거: 비민감 원격 캡처가 태블릿에서 거부돼 현재 화면은 아직 확인하지
-  못했다. 원격 지원을 짧게 다시 시도하고 실패하면 상태를 안전하게 정리한 뒤,
-  가능한 비파괴 ADB/UI 증거와 독립 코드 경계를 검토한다.
+- 영역: 실제 A·Kiosk scanner·카메라 lifecycle 복구
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 현장검증 완료
+- 사용자 영향: 관리자가 허용된 원격 시험 QR로 stale·사용 불가 카드를 점검했을
+  때 앱은 QR을 정상 거부하지만 카메라를 다시 연결하지 않았다. 화면은 scanner에
+  남아도 다음 정상 카드를 읽을 수 없어 수업 QR 흐름이 관리자 개입 전까지
+  중단된다.
+- 재현 조건:
+  1. active session의 QR 대기 scanner에서 원격 지원을 짧게 활성화한다.
+  2. 정확히 `테스트`인 공식 PDF 카드 하나를
+     `scripts/submit-test-qr-from-pdf.py`로 전달한다.
+  3. 카드 검증이 null을 반환하는 stale·사용 불가 경로에서 카메라 client가
+     다시 활성화되는지 확인한다.
+- 기대 결과: 거부 기록과 cooldown 뒤 현재 lifecycle이 `STARTED` 이상이면
+  scanner camera를 다시 bind하고, 이미 bind된 경우에만 analyzer를 재활성화한다.
+- 실제 결과(수정 전 RC69): 원격 QR broadcast는 Kiosk에서 수락됐고 Web session
+  event는 없었으며 DB session은 QR 대기 상태를 유지했다. 그러나 scanner camera
+  client는 중단된 뒤 돌아오지 않아 다음 QR을 읽을 수 없었다.
+- 정적 근거:
+  - `handleRemoteQrTest()`는 scanner를 표시한 뒤 `stopCamera()`를 호출한다.
+  - `stopCamera()`는 analyzer를 비활성화하고 `cameraProvider = null`로 만든 뒤
+    모든 use case를 unbind한다.
+  - null QR validation branch는 `resumeScannerAfterCooldown()`을 호출했지만 수정
+    전 구현은 `qrAnalyzer?.setEnabled(true)`만 수행했다. provider가 없으므로
+    analyzer를 켜도 camera frame이 공급되지 않는다.
+- 수정 전 동적 근거:
+  - 실제 A RC69에서 공식 PDF 원격 시험 QR이 수락된 뒤 camera client가 중단됐고
+    cooldown 뒤에도 재연결되지 않았다. Web launch·답안 변경은 발생하지 않았다.
+  - AVD `matholic_rc03_api33`의 임시 직접 회귀시험
+    `scannerCooldownRebindsCameraAfterRemoteTestStopsIt`는 수정 전 1/1 실패했다.
+    `cameraBindGeneration`이 증가하지 않아 UI 조건 timeout으로 끝났다.
+- 원인·결정: camera가 이미 bind됐다는 잘못된 전제로 analyzer만 다시 켠 것이
+  원인이다. UI callback에서 직접 lifecycle·provider 조합을 복제하지 않고
+  `ScannerCameraResumePolicy`로 다음 세 동작을 결정하도록 최소 수정했다.
+  - 관리자 수동 모드: `NONE`
+  - provider가 이미 존재: `ENABLE_ANALYZER`
+  - provider가 없고 lifecycle이 `STARTED` 이상: `REBIND_CAMERA` 후 `ensureCamera()`
+  - background: `NONE`; 다음 `onStart()`가 camera를 복구
+- 변경 파일:
+  - `kiosk/src/main/java/com/local/matholickiosk/kiosk/MainActivity.kt`
+  - `kiosk/src/main/java/com/local/matholickiosk/kiosk/domain/ScannerCameraResumePolicy.kt`
+  - `kiosk/src/test/java/com/local/matholickiosk/kiosk/ScannerCameraResumePolicyTest.kt`
+  - RC70/code 75와 release 경로를 맞춘 `kiosk/build.gradle.kts`, `README.md`,
+    `scripts/build-release.ps1`, `scripts/provision-release-device-owner.ps1`,
+    `scripts/verify-release-apks.ps1`
+- 관련 commit: `485834859919319ee078e405d54b2a278edd889f`
+  (`fix(kiosk): restore scanner after rejected remote QR (SOL-0005)`). 전용 origin
+  branch push 성공, 갱신 직전 ahead/behind `0/0`.
+- 자동검증:
+  - 임시 AVD 직접 회귀시험은 수정 전 1/1 timeout 실패, 수정 후 1/1 PASS
+    (`4.462s`). CAMERA permission이 다른 시험에 남는 부작용을 피하기 위해 이
+    임시 Activity 시험은 source에서 완전히 제거했고, 순수 policy 회귀시험을
+    영구 보존했다.
+  - `ScannerCameraResumePolicyTest` 3/3 PASS.
+  - Kiosk JVM unit 87/87, Web POC JVM unit 65/65 PASS;
+    failures/errors/skipped 0.
+  - `:kiosk:compileDebugAndroidTestKotlin` PASS.
+  - `MainActivityInstrumentedTest` 전체는 15/16 PASS. 기존
+    `qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`이 UI condition timeout으로
+    실패했고 단독 실행도 1/1 실패(`16.943s`)했다. 임시 회귀시험이 CAMERA
+    permission을 남긴 첫 전체 실행의 추가 실패는 시험 제거와 permission revoke
+    뒤 사라졌고, scanner header 시험은 통과했다. 따라서 전체 계측 PASS로
+    기록하지 않는다.
+- release 검증:
+  - 첫 release build의 Gradle tasks는 성공했지만 Windows PowerShell 5.1이
+    BOM 없는 UTF-8 verifier의 한글 app label literal을 직접 parse하지 못해
+    artifact verification이 실패했다. label을 Unicode code point 조합으로 바꾼
+    뒤 Windows PowerShell 5.1 직접 parse와 수동 verifier가 모두 통과했다.
+  - `scripts/build-release.ps1`를 처음부터 다시 실행해 158 tasks를 완료했고
+    `BUILD SUCCESSFUL in 2m 29s`; Kiosk/Web unit, release lint, assemble, 최초·보관
+    artifact verifier가 모두 통과했다.
+  - RC70 APK:
+    `artifacts/matholic-kiosk-0.6.0-rc70-release.apk`, 36,671,949 bytes,
+    SHA-256
+    `1B78497A836DB0749ABAF395424B94717BAD1DCFCBB20CC48D7226925247149F`,
+    signer SHA-256
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+    `artifacts/`는 ignore 상태이고 Git에 stage하지 않았다.
+- A 설치·현장검증:
+  - 설치 전 승인 A 한 대, Kiosk RC69/code 74, Web RC132/code 149, signer 일치,
+    UID/first install, Device Owner, HOME, Lock Task와 정확한 `ADMIN_IDLE` 안전 지점을
+    확인했다.
+  - `adb install -r artifacts\matholic-kiosk-0.6.0-rc70-release.apk`는 `Success`.
+    Kiosk는 RC70/code 75로 올라갔고 UID 10288·first install·관리자 등록·Device
+    Owner·HOME가 보존됐다. 현재 process fatal/ANR는 0/0이다.
+  - 임시 반 `SOL-TEST-0804-2030`을 만들고 정확히 `테스트` 한 명만 구성한 뒤
+    session을 시작했다. 실제 학생·답안·점수는 사용하거나 변경하지 않았다.
+  - 원격 지원 15분 window에서 공식 PDF 하나를 허용된 도구로 제출했다.
+    표시명 exact check와 remote QR acceptance가 성공했고, camera는 제출 전 active
+    → 원격 시험 중 stop → cooldown 뒤 reconnect → 최종 active로 전이했다.
+    Web session event는 없었고 Kiosk top·Lock Task `LOCKED`를 유지했다.
+  - 원격 지원을 Stop하고 정상 관리자 경로로 session을 안전 종료했다. 임시 반을
+    삭제한 뒤 spinner를 위·아래 끝까지 안정화해 전체 13개 반에 fixture가 없음을
+    확인했다. 최종 화면은 `관리자 인증`·`ADMIN_IDLE`·`보안 적용`, Lock Task
+    `LOCKED`; 원격 지원 `INACTIVE`, Settings task와 원격 임시 캡처는 없다.
+- 실패·제약·반대 근거:
+  - 두 사전점검 script가 각각 PowerShell 예약/읽기 전용 변수 `$home`, `$pid`를
+    사용해 실패했고, 한 script는 Samsung HOME resolver의 두 줄 출력을 한 줄로
+    가정해 실패했다. 변수명과 parser를 진단 script에서만 고쳐 재확인했으며 그
+    실패 시점에는 install·PIN·제품 상태 변경이 없었다.
+  - Windows PowerShell 5.1로 관리자 PIN 도구를 호출한 한 번은
+    `SHA256.HashData` API 부재로 PIN 전송 전에 실패했다. 현재 PowerShell에서
+    전용 도구를 직접 실행해 성공했으며 잘못된 PIN 시도는 없었다.
+  - session preflight 확인과 UI polling 일부는 기대 문자열을 과도하게 제한하거나
+    camera analyzer 중 `uiautomator` idle을 기다려 timeout했다. 실제 state와 source
+    계약을 다시 확인한 뒤 안전하게 계속했으며 제품 실패로 세지 않았다.
+  - 공식 PDF 원격 hash 경로는 camera reconnect를 증명하지만 실물 카드의 광학
+    인식·인쇄 품질·반사·거리·조명을 증명하지 않는다. 답안 입력·제출·60초 지연
+    복원 시험도 이번 finding에 필요하지 않아 수행하지 않았다.
+- rollback:
+  - 코드: `git revert 485834859919319ee078e405d54b2a278edd889f` 후 policy unit,
+    Kiosk/Web unit, AndroidTest compile, release build/verifier를 다시 실행한다.
+  - A는 code 75에서 downgrade 설치할 수 없다. 기기 rollback이 필요하면 revert된
+    source를 같은 signer와 versionCode 75보다 높은 복구 release로 만들어
+    `adb install -r`하는 forward rollback을 사용한다. uninstall·`pm clear`·서명이
+    다른 APK는 사용하지 않는다.
 
 ## 최근 변경·검증·전달
 
@@ -270,5 +402,10 @@
   `efe86575646e1d27e517a22fdf6151c0fff82478`.
 - `SOL-0003` 이미 수정됨·다음 큐 commit:
   `abb23855fa5d8db908d318772826198ac5172877`.
-- 위 commit 모두 전용 원격 branch push 성공.
+- `SOL-0004` 이미 수정됨·다음 큐 commit:
+  `9b9b4fe698d19a8a4b0e0d4df884040d462dfab5`.
+- `SOL-0005` scanner camera 복구 구현·회귀·RC70 release 준비 commit:
+  `485834859919319ee078e405d54b2a278edd889f`.
+- 위 구현·문서 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0005
+  실제 A 증거는 별도 문서 checkpoint로 stage·commit·push할 예정이다.
 - rollback 수행 없음.
