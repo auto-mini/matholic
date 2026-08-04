@@ -158,7 +158,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var scannerHelpButton: ImageButton
     private lateinit var scannerHelpPanel: FrameLayout
     private lateinit var scannerHelpCloseButton: Button
-    private lateinit var scannerHelpSampleQr: ImageView
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var automaticAuthenticationGeneration = 0
@@ -493,10 +492,6 @@ class MainActivity : ComponentActivity() {
         scannerHelpButton = findViewById(R.id.scanner_help_button)
         scannerHelpPanel = findViewById(R.id.scanner_help_panel)
         scannerHelpCloseButton = findViewById(R.id.scanner_help_close_button)
-        scannerHelpSampleQr = findViewById(R.id.scanner_help_sample_qr)
-        scannerHelpSampleQr.setImageBitmap(
-            QrImageRenderer.render("MATHOLIC-HELP-QR-EXAMPLE", 256),
-        )
         (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
             .registerDisplayListener(scannerDisplayListener, mainHandler)
     }

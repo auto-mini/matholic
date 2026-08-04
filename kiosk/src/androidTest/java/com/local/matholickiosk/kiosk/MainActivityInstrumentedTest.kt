@@ -110,6 +110,40 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.findViewById<View>(R.id.scanner_panel).visibility = View.VISIBLE
+                activity.findViewById<View>(R.id.scanner_help_panel).visibility = View.VISIBLE
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.scanner_help_caution).height > 0 &&
+                    activity.findViewById<View>(R.id.scanner_help_simulation).width > 0
+            }
+            scenario.onActivity { activity ->
+                val panel = activity.findViewById<View>(R.id.scanner_help_panel)
+                val caution = activity.findViewById<View>(R.id.scanner_help_caution)
+                val simulation = activity.findViewById<android.widget.ImageView>(
+                    R.id.scanner_help_simulation,
+                )
+                val panelLocation = IntArray(2).also(panel::getLocationOnScreen)
+                val cautionLocation = IntArray(2).also(caution::getLocationOnScreen)
+                assertTrue(simulation.drawable != null)
+                assertTrue(simulation.contentDescription.contains("QR 명찰"))
+                assertTrue(
+                    cautionLocation[1] + caution.height <=
+                        panelLocation[1] + panel.height,
+                )
+                assertEquals(
+                    13f * activity.resources.displayMetrics.density,
+                    activity.findViewById<View>(R.id.scanner_lens_pointer).translationY,
+                    0.6f,
+                )
+            }
+        }
+    }
+
+    @Test
     fun scannerHidesHeaderAndUsesAccessibleIconControls() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
