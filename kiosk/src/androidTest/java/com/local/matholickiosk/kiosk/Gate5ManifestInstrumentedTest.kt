@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -129,6 +130,86 @@ class Gate5ManifestInstrumentedTest {
     }
 
     @Test
+    fun remoteSupportBadgeRemainsVisibleWhenScannerHidesHeader() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var scannerBadgeExists = false
+        var headerBadgeHidden = false
+        var scannerBadgeVisible = false
+        var scannerBadgeInsideBounds = false
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val root = LayoutInflater.from(context).inflate(R.layout.activity_main, null, false)
+            val header = root.findViewById<View>(R.id.app_header).apply {
+                visibility = View.GONE
+            }
+            root.findViewById<View>(R.id.scanner_panel).visibility = View.VISIBLE
+            root.findViewById<View>(R.id.remote_support_badge).visibility = View.VISIBLE
+            val scannerBadgeId = context.resources.getIdentifier(
+                "scanner_remote_support_badge",
+                "id",
+                context.packageName,
+            )
+            scannerBadgeExists = scannerBadgeId != 0
+            if (scannerBadgeExists) {
+                val scannerBadge = root.findViewById<TextView>(scannerBadgeId).apply {
+                    visibility = View.VISIBLE
+                }
+                root.measure(
+                    View.MeasureSpec.makeMeasureSpec(2_000, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(1_200, View.MeasureSpec.EXACTLY),
+                )
+                root.layout(0, 0, root.measuredWidth, root.measuredHeight)
+                headerBadgeHidden = !header.isVisibleThroughAncestors()
+                scannerBadgeVisible = scannerBadge.isVisibleThroughAncestors()
+                scannerBadgeInsideBounds =
+                    scannerBadge.left >= 0 &&
+                        scannerBadge.top >= 0 &&
+                        scannerBadge.right <= root.width &&
+                        scannerBadge.bottom <= root.height
+            }
+        }
+
+        assertTrue(scannerBadgeExists)
+        assertTrue(headerBadgeHidden)
+        assertTrue(scannerBadgeVisible)
+        assertTrue(scannerBadgeInsideBounds)
+    }
+
+    @Test
+    fun remoteSupportControllerUpdatesHeaderAndScannerBadgesTogether() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val store = RemoteSupportStore(context)
+        store.enable(60_000L)
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                scenario.onActivity { activity ->
+                    assertEquals(
+                        View.VISIBLE,
+                        activity.findViewById<View>(R.id.remote_support_badge).visibility,
+                    )
+                    assertEquals(
+                        View.VISIBLE,
+                        activity.findViewById<View>(R.id.scanner_remote_support_badge).visibility,
+                    )
+                }
+                store.disable()
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+                scenario.onActivity { activity ->
+                    assertEquals(
+                        View.GONE,
+                        activity.findViewById<View>(R.id.remote_support_badge).visibility,
+                    )
+                    assertEquals(
+                        View.GONE,
+                        activity.findViewById<View>(R.id.scanner_remote_support_badge).visibility,
+                    )
+                }
+            }
+        } finally {
+            store.disable()
+        }
+    }
+
+    @Test
     fun pcTransferControlsRemainReachableInsideScrollableCardPanel() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         var pairReachable = false
@@ -152,5 +233,14 @@ class Gate5ManifestInstrumentedTest {
             ancestor = ancestor.parent
         }
         return false
+    }
+
+    private fun View.isVisibleThroughAncestors(): Boolean {
+        var current: View? = this
+        while (current != null) {
+            if (current.visibility != View.VISIBLE) return false
+            current = current.parent as? View
+        }
+        return true
     }
 }

@@ -13,8 +13,11 @@ internal class RemoteSupportWindowController(
     private val store: RemoteSupportStore,
     private val onStateChanged: (Boolean) -> Unit = {},
 ) : SharedPreferences.OnSharedPreferenceChangeListener {
-    private val badge: TextView? by lazy {
-        activity.findViewById(R.id.remote_support_badge)
+    private val badges: List<TextView> by lazy {
+        listOfNotNull(
+            activity.findViewById(R.id.remote_support_badge),
+            activity.findViewById(R.id.scanner_remote_support_badge),
+        )
     }
     private var started = false
     private var sensitiveScreen = true
@@ -73,11 +76,11 @@ internal class RemoteSupportWindowController(
     }
 
     private fun showBadge() {
-        badge?.visibility = View.VISIBLE
+        badges.forEach { badge -> badge.visibility = View.VISIBLE }
     }
 
     private fun removeBadge() {
-        badge?.visibility = View.GONE
+        badges.forEach { badge -> badge.visibility = View.GONE }
     }
 
     private companion object {

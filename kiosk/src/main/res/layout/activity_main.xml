@@ -735,6 +735,21 @@
                         </LinearLayout>
                     </LinearLayout>
                 </FrameLayout>
+
+                <TextView
+                    android:id="@+id/scanner_remote_support_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="20dp"
+                    android:background="@drawable/remote_support_badge_background"
+                    android:elevation="32dp"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="원격 점검 중"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
             </FrameLayout>
         </FrameLayout>
     </LinearLayout>
