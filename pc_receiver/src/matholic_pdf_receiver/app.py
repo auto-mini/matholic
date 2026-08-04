@@ -20,6 +20,7 @@ APP_TITLE = "매쓰홀릭 PDF 수신기"
 PAIRING_QR_PREVIEW_PX = 240
 MAX_EVENT_QUEUE = 256
 MAX_EVENTS_PER_POLL = 64
+LAN_ADDRESS_REFRESH_MS = 5_000
 
 
 def _tray_image() -> Image.Image:
@@ -51,7 +52,8 @@ class ReceiverApplication:
     def _initialize(self, show_window: bool) -> None:
         self.store = ConfigStore()
         self.config = self.store.load_or_create()
-        self.host = current_lan_ipv4()
+        self.host: str | None = None
+        self._pairing_qr_available = False
         self.events: queue.Queue[ReceiveEvent] = queue.Queue(maxsize=MAX_EVENT_QUEUE)
         self.receiver_state = ReceiverState(self.config, self.store, self._enqueue_event)
         self.root = tk.Tk()
@@ -72,7 +74,10 @@ class ReceiverApplication:
             ),
         )
         self.address_var = tk.StringVar(
-            value=f"{self.config.display_name} · {self.host}:{self.config.port}",
+            value=f"{self.config.display_name} · 로컬 네트워크 확인 중",
+        )
+        self.pairing_status_var = tk.StringVar(
+            value="사설 LAN 주소를 확인하는 중입니다.",
         )
         self._build_window()
         if not show_window:
@@ -105,6 +110,7 @@ class ReceiverApplication:
         )
         self.tray_thread.start()
         self.root.after(200, self._poll_events)
+        self.root.after(0, self._refresh_lan_address)
 
     def _enqueue_event(self, event: ReceiveEvent) -> None:
         try:
@@ -157,22 +163,12 @@ class ReceiverApplication:
             font=("Malgun Gothic", 11),
         ).pack(pady=(14, 12))
 
-        pairing_text = encode_pairing(self.config.pairing(self.host))
-        qr = qrcode.QRCode(
-            version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=7,
-            border=4,
+        self.pairing_qr_label = ttk.Label(
+            frame,
+            textvariable=self.pairing_status_var,
+            justify=tk.CENTER,
         )
-        qr.add_data(pairing_text)
-        qr.make(fit=True)
-        qr_image = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-        qr_image.thumbnail(
-            (PAIRING_QR_PREVIEW_PX, PAIRING_QR_PREVIEW_PX),
-            Image.Resampling.NEAREST,
-        )
-        self.qr_photo = ImageTk.PhotoImage(qr_image)
-        ttk.Label(frame, image=self.qr_photo).pack(pady=8)
+        self.pairing_qr_label.pack(pady=8)
 
         ttk.Separator(frame).pack(fill=tk.X, pady=12)
         state_box = ttk.LabelFrame(frame, text="A 태블릿 실시간 상태", padding=12)
@@ -241,6 +237,71 @@ class ReceiverApplication:
             font=("Malgun Gothic", 9),
             foreground="#52606D",
         ).pack(side=tk.BOTTOM, pady=(16, 0))
+
+    def _render_pairing_qr(self, host: str) -> None:
+        pairing_text = encode_pairing(self.config.pairing(host))
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=7,
+            border=4,
+        )
+        qr.add_data(pairing_text)
+        qr.make(fit=True)
+        qr_image = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+        qr_image.thumbnail(
+            (PAIRING_QR_PREVIEW_PX, PAIRING_QR_PREVIEW_PX),
+            Image.Resampling.NEAREST,
+        )
+        self.qr_photo = ImageTk.PhotoImage(qr_image)
+        self.pairing_status_var.set("")
+        self.pairing_qr_label.configure(image=self.qr_photo)
+
+    def _refresh_lan_address(self) -> None:
+        if self._shutting_down:
+            return
+        try:
+            host = current_lan_ipv4()
+        except (OSError, RuntimeError, ValueError):
+            self._pairing_qr_available = False
+            self.address_var.set(
+                f"{self.config.display_name} · 로컬 네트워크 연결 대기",
+            )
+            self.pairing_status_var.set(
+                "사설 LAN 연결을 기다리고 있습니다.\n"
+                "연결되면 페어링 QR이 자동으로 표시됩니다.",
+            )
+            self.pairing_qr_label.configure(image="")
+            self.qr_photo = None
+            if self.host is not None:
+                self.status_var.set(
+                    "PC 네트워크 연결을 기다리고 있습니다. 주소가 복구되면 QR이 갱신됩니다.",
+                )
+        else:
+            address_changed = self.host is not None and host != self.host
+            if address_changed or not self._pairing_qr_available:
+                self._render_pairing_qr(host)
+            self.host = host
+            self._pairing_qr_available = True
+            self.address_var.set(
+                f"{self.config.display_name} · {host}:{self.config.port}",
+            )
+            if address_changed:
+                self.status_var.set(
+                    "PC 주소가 바뀌었습니다. A 태블릿에서 새 QR로 다시 페어링하세요.",
+                )
+                tray = self.tray
+                if tray is not None:
+                    try:
+                        tray.notify(
+                            "PC 주소가 바뀌었습니다. 새 페어링 QR을 확인하세요.",
+                            APP_TITLE,
+                        )
+                    except (NotImplementedError, RuntimeError):
+                        pass
+        finally:
+            if not self._shutting_down:
+                self.root.after(LAN_ADDRESS_REFRESH_MS, self._refresh_lan_address)
 
     def run(self) -> None:
         self.root.mainloop()
