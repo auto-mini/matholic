@@ -1517,6 +1517,12 @@ class MainActivity : Activity() {
         finishConfirmationDialog = dialog
         try {
             dialog.show()
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                if (finishConfirmationDialog === dialog) {
+                    finishConfirmationDialog = null
+                }
+                dialog.dismiss()
+            }
         } catch (_: RuntimeException) {
             finishConfirmationDialog = null
             showLocked("FINISH_CONFIRMATION")
