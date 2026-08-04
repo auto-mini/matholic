@@ -1612,7 +1612,10 @@ object WebDomScripts {
             };
             const objectiveAnswerControls = () => Array.from(
               document.querySelectorAll(
-                '.ant-radio-group .ant-radio-button-wrapper'
+                '.ant-radio-group .ant-radio-button-wrapper,' +
+                '.ant-radio-group .ant-radio-wrapper,' +
+                '.ant-radio-group [role="radio"],' +
+                '[role="radiogroup"] [role="radio"]'
               )
             ).filter(control => {
               if (!visible(control)) return false;
@@ -1620,6 +1623,9 @@ object WebDomScripts {
               return !input?.disabled &&
                 !control.classList.contains(
                   'ant-radio-button-wrapper-disabled'
+                ) &&
+                !control.classList.contains(
+                  'ant-radio-wrapper-disabled'
                 );
             });
             const detectObjectiveChoiceMarkers = (image, expectedCount) => {
@@ -1662,6 +1668,7 @@ object WebDomScripts {
                 const visited = new Uint8Array(size);
                 const stack = new Int32Array(size);
                 const candidates = [];
+                const relaxedCandidates = [];
                 for (let seed = 0; seed < size; seed += 1) {
                   if (!dark[seed] || visited[seed]) continue;
                   let stackSize = 0;
@@ -1698,14 +1705,6 @@ object WebDomScripts {
                   const componentWidth = maxX - minX + 1;
                   const componentHeight = maxY - minY + 1;
                   const density = area / (componentWidth * componentHeight);
-                  if (
-                    minY <= height * 0.12 ||
-                    componentWidth < 18 || componentWidth > 35 ||
-                    componentHeight < 18 || componentHeight > 35 ||
-                    componentWidth / componentHeight < 0.75 ||
-                    componentWidth / componentHeight > 1.25 ||
-                    density < 0.08 || density > 0.22
-                  ) continue;
                   const innerLeft = minX + Math.round(componentWidth * 0.28);
                   const innerRight = minX + Math.round(componentWidth * 0.72);
                   const innerTop = minY + Math.round(componentHeight * 0.22);
@@ -1716,12 +1715,54 @@ object WebDomScripts {
                       innerInk += dark[y * width + x];
                     }
                   }
-                  if (innerInk < 8) continue;
-                  candidates.push({
+                  const marker = {
                     x: (minX + maxX) / 2 / width,
                     y: (minY + maxY) / 2 / height,
                     radius: Math.max(componentWidth, componentHeight) / 2 / width
-                  });
+                  };
+                  const aspect = componentWidth / componentHeight;
+                  if (
+                    minY > height * 0.12 &&
+                    componentWidth >= 12 && componentWidth <= 52 &&
+                    componentHeight >= 12 && componentHeight <= 52 &&
+                    aspect >= 0.62 && aspect <= 1.55 &&
+                    density >= 0.045 && density <= 0.38 &&
+                    innerInk >= 3
+                  ) {
+                    const edgeBandX = Math.max(
+                      1,
+                      Math.round(componentWidth * 0.18)
+                    );
+                    const edgeBandY = Math.max(
+                      1,
+                      Math.round(componentHeight * 0.18)
+                    );
+                    let topInk = 0;
+                    let bottomInk = 0;
+                    let leftInk = 0;
+                    let rightInk = 0;
+                    for (let y = minY; y <= maxY; y += 1) {
+                      for (let x = minX; x <= maxX; x += 1) {
+                        if (!dark[y * width + x]) continue;
+                        if (y < minY + edgeBandY) topInk += 1;
+                        if (y > maxY - edgeBandY) bottomInk += 1;
+                        if (x < minX + edgeBandX) leftInk += 1;
+                        if (x > maxX - edgeBandX) rightInk += 1;
+                      }
+                    }
+                    if (topInk && bottomInk && leftInk && rightInk) {
+                      relaxedCandidates.push(marker);
+                    }
+                  }
+                  if (
+                    minY <= height * 0.12 ||
+                    componentWidth < 18 || componentWidth > 35 ||
+                    componentHeight < 18 || componentHeight > 35 ||
+                    aspect < 0.75 || aspect > 1.25 ||
+                    density < 0.08 || density > 0.22 ||
+                    innerInk < 8
+                  ) continue;
+                  candidates.push(marker);
                 }
                 candidates.sort((left, right) =>
                   Math.abs(left.y - right.y) < 0.05 ?
@@ -1734,7 +1775,57 @@ object WebDomScripts {
                   Math.abs(left.y - right.y) < 0.05 ?
                     left.x - right.x : left.y - right.y
                 );
-                return markers.length === expectedCount ? markers : [];
+                if (markers.length === expectedCount) return markers;
+                if (expectedCount !== 2 || relaxedCandidates.length < 2) {
+                  return [];
+                }
+                const pairCandidates = [];
+                for (let leftIndex = 0;
+                  leftIndex < relaxedCandidates.length - 1;
+                  leftIndex += 1
+                ) {
+                  for (let rightIndex = leftIndex + 1;
+                    rightIndex < relaxedCandidates.length;
+                    rightIndex += 1
+                  ) {
+                    const left = relaxedCandidates[leftIndex];
+                    const right = relaxedCandidates[rightIndex];
+                    const averageRadius = (left.radius + right.radius) / 2;
+                    const radiusDifference = Math.abs(
+                      left.radius - right.radius
+                    );
+                    const deltaX = Math.abs(left.x - right.x);
+                    const deltaY = Math.abs(left.y - right.y);
+                    const alignedHorizontally =
+                      deltaY <= Math.max(0.055, averageRadius * 2.5) &&
+                      deltaX >= 0.06;
+                    const alignedVertically =
+                      deltaX <= Math.max(0.055, averageRadius * 2.5) &&
+                      deltaY >= 0.06;
+                    if (
+                      radiusDifference > averageRadius * 0.45 ||
+                      (!alignedHorizontally && !alignedVertically)
+                    ) continue;
+                    const alignmentError = alignedHorizontally ?
+                      deltaY : deltaX;
+                    pairCandidates.push({
+                      markers: [left, right],
+                      horizontal: alignedHorizontally,
+                      score:
+                        (left.y + right.y) * 2 -
+                        alignmentError * 8 -
+                        radiusDifference * 12
+                    });
+                  }
+                }
+                const selectedPair = pairCandidates.sort(
+                  (left, right) => right.score - left.score
+                )[0] || null;
+                if (!selectedPair) return [];
+                selectedPair.markers.sort((left, right) =>
+                  selectedPair.horizontal ? left.x - right.x : left.y - right.y
+                );
+                return selectedPair.markers;
               } catch (_) {
                 return [];
               }
@@ -1827,6 +1918,9 @@ object WebDomScripts {
               return !!input?.checked ||
                 control?.classList?.contains(
                   'ant-radio-button-wrapper-checked'
+                ) ||
+                control?.classList?.contains(
+                  'ant-radio-wrapper-checked'
                 ) ||
                 control?.getAttribute?.('aria-checked') === 'true';
             };
@@ -1929,7 +2023,9 @@ object WebDomScripts {
                   );
                 }
                 const handler = event => {
-                  if (event.target?.closest?.('.ant-radio-group')) return;
+                  if (event.target?.closest?.(
+                    '.ant-radio-group,[role="radiogroup"]'
+                  )) return;
                   const liveControls = objectiveAnswerControls();
                   if (liveControls.length < 2 || liveControls.length > 5) return;
                   const liveImage = Array.from(document.querySelectorAll(

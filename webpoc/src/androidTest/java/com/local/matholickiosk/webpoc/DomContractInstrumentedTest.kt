@@ -768,6 +768,77 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testBinaryImageTapSupportsNonButtonRadioWrappers() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <picture class="no-select">
+                  <img id="binary-image" class="no-select"
+                       style="width:560px;height:160px"
+                       src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
+                </picture>
+                <div class="ant-radio-group" id="binary-choices">
+                  <label class="ant-radio-wrapper"><input type="radio" name="answer" value="1">1</label>
+                  <label class="ant-radio-wrapper"><input type="radio" name="answer" value="2">2</label>
+                </div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                (() => {
+                  const image = document.getElementById('binary-image');
+                  const controls = Array.from(document.querySelectorAll(
+                    '.ant-radio-group .ant-radio-wrapper'
+                  ));
+                  image.matholicKioskObjectiveMarkers = [
+                    {x:0.12,y:0.72}, {x:0.48,y:0.72}
+                  ];
+                  image.matholicKioskObjectiveMarkerKey = [
+                    image.currentSrc || image.src,
+                    image.naturalWidth,
+                    image.naturalHeight,
+                    controls.length
+                  ].join('|');
+                  return JSON.stringify({ready:true});
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const image = document.getElementById('binary-image');
+                  const rect = image.getBoundingClientRect();
+                  document.querySelectorAll(
+                    '.matholic-kiosk-objective-choice-zone'
+                  )[1].dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: rect.left + rect.width * 0.52,
+                    clientY: rect.top + rect.height * 0.72
+                  }));
+                  return JSON.stringify({
+                    selected: document.querySelector('input:checked')?.value || '',
+                    zoneCount: document.querySelectorAll(
+                      '.matholic-kiosk-objective-choice-zone'
+                    ).length
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("2", proof.getString("selected"))
+            assertEquals(2, proof.getInt("zoneCount"))
+        }
+    }
+
+    @Test
     fun testObjectiveHelpTracksVisibleControlsAndClosesWithoutActivatingThem() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
