@@ -2,24 +2,24 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 20:39:47 +09:00
+- `last_updated`: 2026-08-04 21:15:37 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `485834859919319ee078e405d54b2a278edd889f` /
+  `c982874c49b319722c7c9bb366dee333af6db43d` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `485834859919319ee078e405d54b2a278edd889f`
+- 마지막 push 성공 commit: `c982874c49b319722c7c9bb366dee333af6db43d`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 확인: 2026-08-04 20:38~20:39 +09:00. 승인 ADB device는
+- 실제 A 마지막 확인: 2026-08-04 21:09~21:11 +09:00. 승인 ADB device는
   serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc70`/code 75, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-04 20:20:07`.
+  - Kiosk `0.6.0-rc71`/code 76, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-04 21:01:14`.
   - Web POC `0.4.0-rc132`/code 149, UID 10293, first install
     `2026-07-28 13:12:16`.
-  - 기존 설치본과 RC70 artifact signer SHA-256은
+  - 기존 설치본과 RC71 artifact signer SHA-256은
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`로
     일치한다. 보존형 `adb install -r` 뒤 UID와 first install이 유지됐다.
   - Device Owner와 preferred HOME은 각각
@@ -27,22 +27,20 @@
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - Kiosk가 top resumed이고 Lock Task `LOCKED`; 화면은 정확히 `관리자 인증`,
     `ADMIN_IDLE`, `보안 적용`이며 PIN 입력란은 값 대신 `관리자 PIN` hint 상태다.
-  - 시험용 반 `SOL-TEST-0804-2030`은 목록 위·아래 끝을 안정화해 확인한 전체
+  - 시험용 반 `SOL-TEST-0804-2105`는 목록 위·아래 끝을 안정화해 확인한 전체
     13개 반에 없고, 원격 지원은 `INACTIVE`다. 로컬·A 임시 캡처도 없다.
   - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 현재 작업 중: `SOL-0005` — 현장검증 증거 checkpoint 및 안전 상태 확인
+- 현재 작업 중: `SOL-0006` — 현장검증 증거 checkpoint 및 운영 문서 정렬
 - 다음 우선 큐:
-  1. scanner·학생 흐름에서 원격 지원 활성 배지가 보이지 않는 경계를
-     `SOL-0006` 후보로 독립 재현·확정
-  2. `MainActivityInstrumentedTest.qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`
+  1. `MainActivityInstrumentedTest.qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`
      단독 timeout의 비결정적 초기화·layout 경계 조사
-  3. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
+  2. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현장검증 완료 P2: `SOL-0005` 1건. 열린 P2는 없다.
+- 현장검증 완료 P2: `SOL-0005`, `SOL-0006` 2건. 열린 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
 - 기각: `SOL-0002` 1건.
 - 이미 수정됨: `SOL-0003`, `SOL-0004` 2건.
@@ -390,6 +388,109 @@
     `adb install -r`하는 forward rollback을 사용한다. uninstall·`pm clear`·서명이
     다른 APK는 사용하지 않는다.
 
+### SOL-0006 — scanner에서 원격 점검 활성 배지가 숨겨짐
+
+- 영역: Kiosk scanner·원격 지원 고지·개인정보 UI
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 현장검증 완료
+- 사용자 영향: 원격 지원이 활성인 동안 QR·학생 이름·학습 화면을 캡처할 수
+  있지만 scanner에서는 활성 표시가 전혀 보이지 않았다. 교사와 주변 사용자는
+  캡처 가능 상태를 즉시 알아차릴 수 없어 README와 확인 대화상자의 명시적 고지
+  계약을 위반한다.
+- 재현 조건: active session의 QR 대기 scanner에서 원격 지원을 활성화한다.
+- 기대 결과: README와 `원격 점검 30분 시작` 대화상자 설명처럼 화면 우측 상단에
+  `원격 점검 중` 배지가 계속 보이고 scanner 제어·안내와 겹치지 않는다.
+- 실제 결과(수정 전): 원격 지원 상태 자체와 캡처는 활성인데 scanner에는 배지가
+  보이지 않았다. RC69 실제 A에서 관찰했고 RC70 source에도 같은 구조가 유지됐다.
+- 정적 근거:
+  - `remote_support_badge`는 `app_header`의 child였다.
+  - `showScanner()`와 PC pairing scanner는 `appHeader.visibility = View.GONE`으로
+    전체 header를 숨긴다.
+  - `RemoteSupportWindowController`는 header 안의 단일 badge visibility만 바꿔,
+    active 상태여도 숨겨진 parent를 벗어나 표시할 수 없었다.
+- 회귀시험 선행 증거:
+  - `Gate5ManifestInstrumentedTest.remoteSupportBadgeRemainsVisibleWhenScannerHidesHeader`
+    를 scanner 전용 badge resource가 없으면 실패하도록 먼저 추가했다.
+  - `ANDROID_SERIAL=emulator-5556`과 Android SDK 경로를 고정한 수정 전 단일 실행은
+    1/1 `AssertionError`로 실패했다. 첫 재시도는 SDK 환경변수 누락으로 시험 전
+    Gradle 구성에서 실패했으며 제품 실패로 세지 않는다.
+- 원인·결정:
+  - 기존 header badge와 정렬을 유지하고, scanner panel의 마지막 overlay child로
+    같은 모양의 `scanner_remote_support_badge`를 추가했다.
+  - controller가 active/inactive 전이 때 두 badge를 함께 `VISIBLE`/`GONE`으로
+    바꾼다. scanner overlay는 top/end 20dp, elevation 32dp로 도움말 overlay 위에도
+    고지가 유지되며 기존 하단 동작 제어와 위치가 분리된다.
+- 변경 파일:
+  - `kiosk/src/main/res/layout/activity_main.xml`
+  - `kiosk/src/main/java/com/local/matholickiosk/kiosk/RemoteSupportWindowController.kt`
+  - `kiosk/src/androidTest/java/com/local/matholickiosk/kiosk/Gate5ManifestInstrumentedTest.kt`
+  - RC71/code 76 및 release 경로를 맞춘 `kiosk/build.gradle.kts`, `README.md`,
+    `scripts/build-release.ps1`, `scripts/provision-release-device-owner.ps1`,
+    `scripts/verify-release-apks.ps1`
+- 관련 commit: `c982874c49b319722c7c9bb366dee333af6db43d`
+  (`fix(kiosk): keep remote support badge visible in scanner (SOL-0006)`). 전용 origin
+  branch push 성공, 증거 갱신 직전 ahead/behind `0/0`.
+- 자동검증:
+  - 수정 후 `Gate5ManifestInstrumentedTest` 전체 8/8 PASS. 첫 수정 후 실행은
+    detached root에서 `View.isShown`을 사용한 시험 하니스 때문에 7/8이었고,
+    ancestor visibility를 직접 검사하도록 고친 뒤 통과했다.
+  - `MainActivityInstrumentedTest.scannerHidesHeaderAndUsesAccessibleIconControls` 1/1
+    PASS.
+  - 활성화와 비활성화를 모두 검사하는
+    `remoteSupportControllerUpdatesHeaderAndScannerBadgesTogether` 최종 단독 1/1 PASS.
+  - Kiosk JVM unit 87/87, Web POC JVM unit 65/65 PASS;
+    failures/errors/skipped 0.
+  - `scripts/build-release.ps1`: 158 tasks, `BUILD SUCCESSFUL in 2m 38s`; Kiosk/Web
+    unit, release lint, assemble, 최초·보관 artifact verification PASS.
+  - Windows PowerShell 5.1에서 `scripts/verify-release-apks.ps1`를 직접 실행해
+    별도로 PASS했다.
+  - 이 cycle에서는 기존 실패가 있는 `MainActivityInstrumentedTest` 전체 class를
+    다시 실행하지 않았다. 직전 cycle의 15/16과 `qrHelp...` 단독 timeout은 열린
+    제약으로 그대로 유지한다.
+- RC71 artifact:
+  - `artifacts/matholic-kiosk-0.6.0-rc71-release.apk`
+  - versionName `0.6.0-rc71`, versionCode 76, 36,672,045 bytes
+  - SHA-256
+    `0CAC0CF2B3485CE53C0BF413BFC9418971FA0A220B4A8AB343B885091248F933`
+  - signer SHA-256
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
+  - `artifacts/`는 ignore 상태이고 stage하지 않았다.
+- A 설치·현장검증:
+  - 설치 전 승인 A 한 대, RC70/code 75→RC71/code 76 증가, signer·artifact hash,
+    UID 10288·first install, Device Owner, HOME, Lock Task와 `ADMIN_IDLE` 안전 화면을
+    모두 확인했다.
+  - `adb install -r artifacts\matholic-kiosk-0.6.0-rc71-release.apk`는 `Success`.
+    설치 직후 전용 HOME process 교체 동안 Samsung Recents가 전면이고 Lock Task가
+    `NONE`여서 첫 postcheck를 실패로 처리했다. 정상 HOME key로 Kiosk를 재진입한
+    뒤 RC71/code 76, UID·first install·관리자 등록·Device Owner·HOME 보존,
+    `관리자 인증`·`ADMIN_IDLE`·Lock Task `LOCKED`와 process fatal/ANR 0/0을 확인했다.
+  - 임시 반 `SOL-TEST-0804-2105`에 정확히 `테스트` 한 명만 구성하고 session을
+    시작했다. 답안·점수·QR 제출은 하지 않았다.
+  - scanner camera active 상태에서 원격 지원 15분 window를 시작했다. 실제 A
+    2000×1128 캡처를 직접 확인한 결과 `원격 점검 중`이 우측 상단에 완전히
+    표시됐고 도움말, 렌즈 안내, 중앙 문구, 하단 카메라·관리자 제어와 겹치거나
+    잘리지 않았다. 캡처는 보고서·Git에 보존하지 않고 즉시 Stop·삭제했다.
+  - session을 정상 안전 종료하고 fixture를 삭제했다. spinner 위·아래 끝이 모두
+    안정될 때까지 확인한 13개 반에 fixture가 없었다. 최근 앱→HOME lifecycle로
+    다시 잠가 최종 `관리자 인증`·`ADMIN_IDLE`·`보안 적용`, Kiosk top, Lock Task
+    `LOCKED`, 원격 지원 `INACTIVE`, 임시 캡처 없음, fatal/ANR 0/0을 확인했다.
+- 도구 실패·반대 근거:
+  - membership 저장 좌표 계산에서 존재하지 않는 `ValueAsInt` 속성을 사용해
+    `(0,0)`을 한 번 탭했지만 대화상자와 checked 상태가 그대로임을 확인한 뒤
+    정확한 저장 버튼을 한 번 눌렀다.
+  - scroll 안정화 뒤 낡은 좌표로 session 시작 대신 보강 학생 대화상자를 열었으나
+    `SOL-TEST-0804-2105 이번 수업 보강 학생`임을 확인하고 Back으로 취소했다.
+    fresh bounds와 정확한 preflight를 확인한 뒤 시작했으며 보강 명단 변경은 없다.
+  - 실제 A의 한 landscape 해상도에서 검증했다. 다른 화면 크기·회전, 접근성
+    글자 확대와 Web POC 화면의 badge는 이번 변경 범위에서 새로 검증하지 않았다.
+- rollback:
+  - 코드: `git revert c982874c49b319722c7c9bb366dee333af6db43d` 후 Gate5 계측,
+    scanner Activity 계측, Kiosk/Web unit과 release build/verifier를 다시 실행한다.
+  - A는 code 76을 downgrade할 수 없다. 기기 rollback은 revert source에서 같은
+    signer와 versionCode 76보다 높은 forward-recovery release를 만들어
+    `adb install -r`한다. uninstall·`pm clear`·서명이 다른 APK는 사용하지 않는다.
+
 ## 최근 변경·검증·전달
 
 - 누적 보고서 기준선 commit:
@@ -406,6 +507,10 @@
   `9b9b4fe698d19a8a4b0e0d4df884040d462dfab5`.
 - `SOL-0005` scanner camera 복구 구현·회귀·RC70 release 준비 commit:
   `485834859919319ee078e405d54b2a278edd889f`.
-- 위 구현·문서 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0005
-  실제 A 증거는 별도 문서 checkpoint로 stage·commit·push할 예정이다.
+- `SOL-0005` 실제 A 설치·현장검증 증거 commit:
+  `a5dcc3e3de1bc76089231e8adb272e7f7b3c88ae`.
+- `SOL-0006` scanner 원격 지원 배지 구현·회귀·RC71 release 준비 commit:
+  `c982874c49b319722c7c9bb366dee333af6db43d`.
+- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0006
+  실제 A 증거와 현재 release 운영 기준은 이 문서 checkpoint에서 정렬한다.
 - rollback 수행 없음.
