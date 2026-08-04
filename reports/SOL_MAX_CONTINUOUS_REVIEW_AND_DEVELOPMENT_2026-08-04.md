@@ -2,18 +2,18 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 21:15:37 +09:00
+- `last_updated`: 2026-08-04 21:28:40 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `c982874c49b319722c7c9bb366dee333af6db43d` /
+  `219d0c45f813bfce00c4dc070a442c7c2c552520` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `c982874c49b319722c7c9bb366dee333af6db43d`
+- 마지막 push 성공 commit: `219d0c45f813bfce00c4dc070a442c7c2c552520`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 확인: 2026-08-04 21:09~21:11 +09:00. 승인 ADB device는
+- 실제 A 마지막 확인: 2026-08-04 21:28 +09:00. 승인 ADB device는
   serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc71`/code 76, UID 10288, first install
     `2026-07-24 12:52:28`, last update `2026-08-04 21:01:14`.
@@ -30,11 +30,10 @@
   - 시험용 반 `SOL-TEST-0804-2105`는 목록 위·아래 끝을 안정화해 확인한 전체
     13개 반에 없고, 원격 지원은 `INACTIVE`다. 로컬·A 임시 캡처도 없다.
   - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 현재 작업 중: `SOL-0006` — 현장검증 증거 checkpoint 및 운영 문서 정렬
+- 현재 작업 중: `SOL-0007` — 계측시험 환경 정정 증거 checkpoint
 - 다음 우선 큐:
-  1. `MainActivityInstrumentedTest.qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`
-     단독 timeout의 비결정적 초기화·layout 경계 조사
-  2. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
+  1. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
+  2. Kiosk/Web protocol의 PC 전송 재시도·주소 변경 후 복구 경계 재검토
 
 ### 열린 finding과 제약
 
@@ -42,14 +41,15 @@
   열린 결함으로 승격하지 않는다.
 - 현장검증 완료 P2: `SOL-0005`, `SOL-0006` 2건. 열린 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
+- 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
 - 이미 수정됨: `SOL-0003`, `SOL-0004` 2건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
-  - Kiosk `MainActivityInstrumentedTest` 전체는 16개 중 15개만 통과했다.
-    기존 `qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`이 timeout으로
-    실패했고 단독 실행도 16.943초에 같은 timeout으로 실패했다. SOL-0005 수정과
-    독립인 기존 계측시험 문제로 분리했으며 전체 계측 PASS로 기록하지 않는다.
+  - Kiosk `MainActivityInstrumentedTest`는 SOL-0007 정정 뒤 전체 16/16 PASS다.
+    도움말 layout 회귀는 지원 A의 정확한 2000×1128·240dpi·font scale 1.1을
+    결정적으로 측정한다. Pixel 2형 420dpi AVD나 다른 크기의 제품 호환성을
+    검증한 것으로 확대하지 않는다.
   - 시험 QR은 공식 PDF를 허용된 원격 제출 도구로 전달했다. 카메라 활성·중단·
     재연결은 실제 A에서 확인했지만 인쇄 카드의 광학 인식, 조명·거리·반사는
     시험하지 않았다.
@@ -491,6 +491,78 @@
     signer와 versionCode 76보다 높은 forward-recovery release를 만들어
     `adb install -r`한다. uninstall·`pm clear`·서명이 다른 APK는 사용하지 않는다.
 
+### SOL-0007 — QR 도움말 layout 시험이 실행 AVD를 지원 A로 오인함
+
+- 영역: Kiosk 계측시험·UI layout 검증 재현성
+- 심각도: P4
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: release 앱 동작 결함은 아니지만, 일반 Pixel 2형 AVD에서 지원 A용
+  도움말 layout 시험이 항상 timeout으로 실패해 전체 계측 결과를 15/16으로
+  만들었다. 실제 회귀와 시험 환경 불일치를 구분하기 어렵고 검증 신뢰도가 낮아진다.
+- 재현 조건:
+  - AVD `matholic_rc03_api33`은 1080×1920·420dpi Pixel 2 profile이며 landscape
+    앱 영역은 1920×1080, 논리 폭은 약 731dp다.
+  - 이 AVD에서
+    `MainActivityInstrumentedTest#qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation`
+    을 단독 실행한다.
+- 기대 결과: 시험 이름과 제품 기준처럼 지원 A의 2000×1128·240dpi·font scale
+  1.1 viewport에서 도움말 경고·시뮬레이션·렌즈 보정이 화면 안에 있는지를 실행
+  기기 profile과 무관하게 검증한다.
+- 실제 결과(수정 전): 시험은 현재 Activity window와 density를 암묵적으로 사용했다.
+  420dpi AVD의 약 731×411dp viewport에 1180dp 도움말 카드를 측정하면서 마지막
+  경고 view 높이가 0이 됐고 15초 조건 대기가 timeout했다.
+- 정적·동적 근거:
+  - source는 `ActivityScenario` 실행 직후 scanner/help visibility만 직접 바꾸고
+    실제 runner window에서 자식 크기를 기다렸다. A 기준 configuration이나 exact
+    viewport 측정은 없었다.
+  - 수정 전 단독 실행은 1/1 실패, `BUILD FAILED in 36s`; 정확한 실패는
+    `UI condition was not met before timeout`이다.
+  - 초기 상태 로딩 race가 원인이라는 첫 가설에 따라 PIN UI 완료 대기를 임시로
+    추가했지만 다시 1/1 실패, `BUILD FAILED in 54s`였다. 이 임시 수정은 최종
+    diff에 남기지 않았고 초기화 race를 단독 원인으로 기각했다.
+  - 실패 대기 중 emulator UI hierarchy를 읽은 결과 scanner/help panel과
+    시뮬레이션은 표시됐지만 경고 view는 hierarchy에 없었다. AVD 420dpi와 실제 A
+    240dpi를 각각 `wm density`로 대조했다.
+- 원인·결정:
+  - 지원 기기 A 전용 layout 계약을 임의 instrumentation runner의 display profile로
+    측정한 시험 하니스 결함이다.
+  - A 기준 `Configuration`(240dpi, font scale 1.1, landscape, 1333×752dp,
+    smallest width 800dp)을 만든 뒤 layout을 off-screen inflate한다. 실제 scanner
+    상태처럼 header/auth/admin을 숨기고 scanner/help를 보인 다음 2000×1128 exact
+    measure/layout으로 경고·시뮬레이션 크기, 경고 하단 경계, 그림·접근성 문구와
+    렌즈 13dp 보정을 검사하도록 교정했다.
+- 변경 파일:
+  - `kiosk/src/androidTest/java/com/local/matholickiosk/kiosk/MainActivityInstrumentedTest.kt`
+- 관련 commit: `219d0c45f813bfce00c4dc070a442c7c2c552520`
+  (`test(kiosk): measure QR help at device A viewport (SOL-0007)`). 전용 origin branch
+  push 성공, 증거 갱신 직전 ahead/behind `0/0`.
+- 자동검증:
+  - 정정 후 같은 420dpi AVD에서 대상 단독 1/1 PASS,
+    `BUILD SUCCESSFUL in 36s`.
+  - `MainActivityInstrumentedTest` 전체 16/16 PASS, failures/errors/skipped 0,
+    `BUILD SUCCESSFUL in 1m 43s`; 결과 XML 실행 시간 85.213초.
+  - Kiosk JVM unit 87/87 PASS, failures/errors/skipped 0.
+  - `:kiosk:lintDebug` PASS, unit과 함께 `BUILD SUCCESSFUL in 1m 18s`.
+- 기기·릴리스 검증:
+  - 제품 source, resource, version과 APK가 바뀌지 않은 test-only 정정이므로 새
+    release build·A 설치를 수행하지 않았다.
+  - A에 debug signer 계측 APK를 설치하지 않았다. AVD를 종료한 뒤 승인 물리 A
+    한 대만 남고 Kiosk RC71/code 76, top resumed, Lock Task `LOCKED`, 원격 지원
+    `INACTIVE`임을 확인했다.
+  - RC69 실제 A에서 QR 도움말 그림과 아래 문구가 잘리지 않았다는 기존 현장 증거는
+    반대 근거로 유지하지만 이번 cycle에 도움말을 다시 열어 캡처하지는 않았다.
+- 제약·정리:
+  - 이 시험은 지원 A 기준을 결정적으로 검증하며 작은 phone viewport의 제품
+    호환성을 증명하지 않는다. 420dpi AVD에서 실제 layout이 잘린 사실을 A의 결함
+    또는 다른 기기 지원 PASS로 확대하지 않는다.
+  - emulator 진단 XML은 `/sdcard/sol-layout-diagnostic.xml`에서 즉시 삭제했고,
+    AVD `emulator-5556`도 종료했다. 저장소에는 사용자 소유 `outputs/` 외 새
+    미추적 파일이 없다.
+- rollback: `git revert 219d0c45f813bfce00c4dc070a442c7c2c552520` 후 대상
+  단독·MainActivity 전체 계측, Kiosk unit과 debug lint를 다시 실행한다. A 설치본과
+  release artifact에는 영향이 없다.
+
 ## 최근 변경·검증·전달
 
 - 누적 보고서 기준선 commit:
@@ -511,6 +583,10 @@
   `a5dcc3e3de1bc76089231e8adb272e7f7b3c88ae`.
 - `SOL-0006` scanner 원격 지원 배지 구현·회귀·RC71 release 준비 commit:
   `c982874c49b319722c7c9bb366dee333af6db43d`.
-- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0006
-  실제 A 증거와 현재 release 운영 기준은 이 문서 checkpoint에서 정렬한다.
+- `SOL-0006` 실제 A 설치·현장검증·release 운영 기준 증거 commit:
+  `8916c80ab3a20fb564c5b3ca2563050399c48e8b`.
+- `SOL-0007` 지원 A 기준 QR 도움말 layout 계측 정정 commit:
+  `219d0c45f813bfce00c4dc070a442c7c2c552520`.
+- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0007
+  검증 근거와 다음 큐는 이 문서 checkpoint에서 정렬한다.
 - rollback 수행 없음.
