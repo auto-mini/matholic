@@ -215,4 +215,25 @@ class WebDomScriptsTest {
         assertTrue(script.contains(".ant-alert-success"))
         assertTrue(script.contains("wrongNumbers"))
     }
+
+    @Test
+    fun `student help tracks real controls and separates answer types`() {
+        val objective = WebDomScripts.showStudentHelp("PROBLEM_OBJECTIVE")
+        val subjective = WebDomScripts.showStudentHelp("PROBLEM_SUBJECTIVE")
+        val workbook = WebDomScripts.showStudentHelp("WORKBOOK")
+        listOf(objective, subjective, workbook).forEach { script ->
+            assertTrue(script.contains("matholic-kiosk-live-help"))
+            assertTrue(script.contains("getBoundingClientRect"))
+            assertTrue(script.contains("requestAnimationFrame(update)"))
+            assertTrue(script.contains("실제 화면 안내"))
+            assertTrue(script.contains("pointer-events:none"))
+        }
+        assertTrue(objective.contains("객관식 문제"))
+        assertTrue(objective.contains(".ant-radio-group"))
+        assertTrue(subjective.contains("주관식 문제"))
+        assertTrue(subjective.contains(".mq-editable-field"))
+        assertTrue(subjective.contains("분수·소수 형식을 지정"))
+        assertFalse(workbook.contains("학습지가 선택됐는지"))
+        assertTrue(WebDomScripts.closeStudentHelp.contains("controller?.close?.()"))
+    }
 }

@@ -667,12 +667,65 @@
                             android:textColor="#FF486581"
                             android:textSize="20sp" />
 
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="210dp"
+                            android:layout_marginTop="20dp"
+                            android:background="@drawable/student_help_simulation_background"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:padding="18dp">
+
+                            <TextView
+                                android:layout_width="170dp"
+                                android:layout_height="match_parent"
+                                android:gravity="center"
+                                android:text="화면 가장자리\n파란 화살표가\n가리키는 실제 렌즈\n\n●"
+                                android:textColor="#FF0B5CAD"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="180dp"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:text="←  10~20cm  →"
+                                android:textColor="#FF334E68"
+                                android:textSize="19sp"
+                                android:textStyle="bold" />
+
+                            <LinearLayout
+                                android:layout_width="210dp"
+                                android:layout_height="match_parent"
+                                android:background="@drawable/student_help_card_background"
+                                android:gravity="center"
+                                android:orientation="vertical"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:id="@+id/scanner_help_sample_qr"
+                                    android:layout_width="146dp"
+                                    android:layout_height="146dp"
+                                    android:contentDescription="도움말용 QR 카드 예시"
+                                    android:scaleType="fitCenter" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:text="QR 면이 렌즈를 향하게"
+                                    android:textColor="#FF102A43"
+                                    android:textSize="15sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+                        </LinearLayout>
+
                         <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="24dp"
                             android:lineSpacingExtra="8dp"
-                            android:text="1. 카드 앞면의 QR이 카메라를 향하게 듭니다.&#10;2. 렌즈에서 약 10~20cm 떨어진 곳에 카드를 놓습니다.&#10;3. 화면 안내에 따라 좌우·위아래·거리를 조금씩 조절합니다.&#10;4. 내 이름이 나오면 카드를 내리고 잠시 기다립니다."
+                            android:text="1. 화면 가장자리의 파란 화살표로 실제 렌즈 위치를 찾습니다.&#10;2. 카드 앞면의 QR을 렌즈에서 약 10~20cm 떨어뜨립니다.&#10;3. 화면 안내에 따라 좌우·위아래·거리를 조금씩 조절합니다.&#10;4. 내 이름이 나오면 카드를 내리고 잠시 기다립니다."
                             android:textColor="#FF102A43"
                             android:textSize="21sp" />
 

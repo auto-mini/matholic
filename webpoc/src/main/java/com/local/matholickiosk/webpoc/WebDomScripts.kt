@@ -322,6 +322,12 @@ object WebDomScripts {
               learningPage: false, enhancedButtons: 0
             });
           }
+          if (
+            window.__matholicKioskLiveHelp &&
+            window.__matholicKioskLiveHelp.path !== page.pathname
+          ) {
+            window.__matholicKioskLiveHelp.close?.();
+          }
 
           const normalize = value =>
             (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
@@ -5088,9 +5094,24 @@ object WebDomScripts {
           ).some(element =>
             visible(element) && normalize(element.textContent) === '전체답안'
           );
+          const subjectiveHelpReady = isLearning && Array.from(
+            document.querySelectorAll(
+              '.mq-editable-field,' +
+              '[id^="answer-input-form-"] input,' +
+              '[id^="answer-input-form-"] textarea'
+            )
+          ).some(visible);
+          const objectiveHelpReady = isLearning && Array.from(
+            document.querySelectorAll(
+              '.ant-radio-group,input[type="radio"],' +
+              '[role="radiogroup"],[role="radio"]'
+            )
+          ).some(visible);
           const helpContext = isWorkbook ? 'WORKBOOK' :
             isDiagnostic ? 'DIAGNOSTIC' :
             reviewHelpOpen ? 'REVIEW' :
+            subjectiveHelpReady ? 'PROBLEM_SUBJECTIVE' :
+            objectiveHelpReady ? 'PROBLEM_OBJECTIVE' :
             isLearning ? 'PROBLEM' : 'NONE';
           const currentProblemBadge = document.querySelector(
             '.matholic-kiosk-current-problem-badge'
@@ -5110,6 +5131,7 @@ object WebDomScripts {
           return JSON.stringify({
             version, ok: true, path,
             helpContext,
+            liveHelpOpen: !!window.__matholicKioskLiveHelp,
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning, contentReady,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
@@ -5136,6 +5158,335 @@ object WebDomScripts {
             $applyStudentExperience
         """.trimIndent()
     }
+
+    fun showStudentHelp(context: String): String {
+        val normalized = context.trim().uppercase()
+        require(
+            normalized in setOf(
+                "WORKBOOK",
+                "DIAGNOSTIC",
+                "PROBLEM",
+                "PROBLEM_OBJECTIVE",
+                "PROBLEM_SUBJECTIVE",
+                "REVIEW",
+            ),
+        )
+        val contextJson = "'$normalized'"
+        return """
+            (() => {
+              const version = '${CONTRACT_VERSION}';
+              const context = $contextJson;
+              let page = null;
+              try { page = new URL(location.href); } catch (_) {}
+              if (
+                page === null ||
+                page.protocol !== 'https:' ||
+                page.hostname !== 'im.matholic.com' ||
+                page.port !== '' ||
+                page.username !== '' ||
+                page.password !== '' ||
+                page.hash !== ''
+              ) return JSON.stringify({ version, ok: false, opened: false });
+
+              window.__matholicKioskLiveHelp?.close?.();
+              const normalize = value =>
+                (value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+              const visible = element => {
+                if (!element?.isConnected) return false;
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' &&
+                  style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const firstVisible = selector => Array.from(
+                document.querySelectorAll(selector)
+              ).find(visible) || null;
+              const controls = () => Array.from(document.querySelectorAll(
+                'button,[role="button"],a[href]'
+              )).filter(visible);
+              const findControl = labels => {
+                const compact = new Set(
+                  labels.map(label => normalize(label).replace(/\s+/g, ''))
+                );
+                return controls().find(control => compact.has(
+                  normalize(control.textContent).replace(/\s+/g, '')
+                )) || null;
+              };
+              const copy = {
+                WORKBOOK: {
+                  eyebrow: '학습지',
+                  title: '채점할 학습지를 고르세요',
+                  lead: '선생님이 안내한 제목과 단원을 확인한 뒤 표시된 시작 버튼을 누릅니다.'
+                },
+                DIAGNOSTIC: {
+                  eyebrow: '진단평가',
+                  title: '응시할 평가를 고르세요',
+                  lead: '평가 이름을 확인한 뒤 같은 줄의 시작 버튼을 누릅니다.'
+                },
+                PROBLEM: {
+                  eyebrow: '문제 풀이',
+                  title: '답을 입력하고 다음 문제로 이동하세요',
+                  lead: '노란 박스가 실제로 눌러야 하는 곳입니다. 답은 최종 제출 전까지 바꿀 수 있습니다.'
+                },
+                PROBLEM_OBJECTIVE: {
+                  eyebrow: '객관식 문제',
+                  title: '정답이라고 생각하는 보기 하나를 누르세요',
+                  lead: '고른 보기는 바로 저장됩니다. 모르겠으면 ‘모름’을 누르고 다음 문제로 이동합니다.'
+                },
+                PROBLEM_SUBJECTIVE: {
+                  eyebrow: '주관식 문제',
+                  title: '답 입력칸을 누르고 수식 키패드를 사용하세요',
+                  lead: '키패드는 ‘답안 현황’ 바로 아래에 열립니다. 문제가 분수·소수 형식을 지정하면 그 형식대로 입력합니다.'
+                },
+                REVIEW: {
+                  eyebrow: '전체답안 확인',
+                  title: '빠진 답을 확인한 뒤 최종 제출하세요',
+                  lead: '여기서는 아직 채점되지 않았습니다. 수정이 필요하면 닫고 문제로 돌아갑니다.'
+                }
+              }[context];
+              if (!copy) {
+                return JSON.stringify({ version, ok: false, opened: false });
+              }
+
+              const entries = [];
+              const add = (target, caption, side = 'auto') => {
+                if (!target || entries.some(entry => entry.target === target)) return;
+                entries.push({ target, caption, side });
+              };
+              if (context === 'WORKBOOK' || context === 'DIAGNOSTIC') {
+                const start = findControl(
+                  context === 'WORKBOOK' ?
+                    ['학습하기'] :
+                    ['시작', '시작하기', '응시', '응시하기', '학습하기']
+                );
+                const row = start?.closest?.(
+                  'tr,[role="row"],li,article,[class*="item"],[class*="row"]'
+                );
+                add(row, '이 줄의 평가 이름과 단원이 맞는지 먼저 확인하세요.', 'above');
+                add(start, '확인한 평가를 시작하는 버튼입니다.', 'below');
+              } else if (context === 'REVIEW') {
+                const dialog = firstVisible(
+                  '.ant-modal[role="dialog"],.ant-modal-wrap,' +
+                  '.ant-drawer-content,[role="dialog"]'
+                );
+                add(dialog, '1번부터 마지막 문제까지 빠진 답이 없는지 확인하세요.', 'left');
+                add(findControl(['닫기']), '답을 고치려면 닫고 문제 화면으로 돌아갑니다.', 'left');
+                add(
+                  findControl(['답안 제출', '답안제출', '완료하기']),
+                  '확인을 마친 뒤에만 누르세요. 누르면 실제 채점이 시작됩니다.',
+                  'left'
+                );
+              } else {
+                add(
+                  firstVisible('.matholic-kiosk-current-problem-badge'),
+                  '현재 문제 번호입니다. 이 표시는 눌러도 이동하지 않습니다.',
+                  'right'
+                );
+                if (context === 'PROBLEM_OBJECTIVE') {
+                  add(
+                    firstVisible(
+                      '.ant-radio-group,[role="radiogroup"],' +
+                      '.matholic-kiosk-objective-choice-overlay'
+                    ) || firstVisible('input[type="radio"]')?.closest('div'),
+                    '정답이라고 생각하는 보기 하나를 누르세요.',
+                    'left'
+                  );
+                } else {
+                  add(
+                    firstVisible(
+                      '.mq-editable-field,' +
+                      '[id^="answer-input-form-"] input,' +
+                      '[id^="answer-input-form-"] textarea'
+                    ),
+                    '이 답 입력칸을 누르면 숫자·분수 수식 키패드가 열립니다.',
+                    'left'
+                  );
+                }
+                add(
+                  findControl(['모름']),
+                  '답을 모르겠을 때 선택합니다. 다시 누르면 해제할 수 있습니다.',
+                  'left'
+                );
+                add(
+                  firstVisible('.matholic-kiosk-problem-map > button'),
+                  '입력한 문제와 빠진 문제를 한눈에 확인합니다.',
+                  'left'
+                );
+                add(
+                  firstVisible('[data-matholic-kiosk-problem-direction="next"]'),
+                  '답을 입력한 뒤 다음 문제로 이동합니다.',
+                  'left'
+                );
+                add(
+                  findControl(['답안제출', '답안 제출', '완료하기']),
+                  '모든 문제를 확인한 뒤 전체답안 화면을 엽니다.',
+                  'left'
+                );
+              }
+
+              const root = document.createElement('div');
+              root.id = 'matholic-kiosk-live-help';
+              root.setAttribute('role', 'dialog');
+              root.setAttribute('aria-modal', 'true');
+              root.setAttribute('aria-label', copy.title);
+              root.style.cssText = [
+                'position:fixed', 'inset:0', 'z-index:2147483647',
+                'background:rgba(16,42,67,.12)', 'pointer-events:auto',
+                'touch-action:none', 'user-select:none'
+              ].join(';');
+
+              const panel = document.createElement('section');
+              panel.style.cssText = [
+                'position:fixed', 'left:24px', 'bottom:24px',
+                'width:min(620px,calc(100vw - 48px))',
+                'box-sizing:border-box', 'padding:22px 24px',
+                'border:3px solid #173f6d', 'border-radius:20px',
+                'background:#fff', 'color:#102a43',
+                'box-shadow:0 18px 50px rgba(16,42,67,.34)',
+                'font-family:Arial,sans-serif'
+              ].join(';');
+              const eyebrow = document.createElement('div');
+              eyebrow.textContent = copy.eyebrow + ' · 실제 화면 안내';
+              eyebrow.style.cssText = [
+                'display:inline-flex', 'padding:5px 11px',
+                'border-radius:999px', 'background:#e8f2ff',
+                'color:#0b5cad', 'font-size:16px', 'font-weight:800'
+              ].join(';');
+              const title = document.createElement('h2');
+              title.textContent = copy.title;
+              title.style.cssText = [
+                'margin:12px 120px 6px 0', 'font-size:26px',
+                'line-height:1.25', 'color:#102a43'
+              ].join(';');
+              const lead = document.createElement('p');
+              lead.textContent = copy.lead;
+              lead.style.cssText = [
+                'margin:0', 'font-size:18px', 'line-height:1.45',
+                'color:#486581'
+              ].join(';');
+              const close = document.createElement('button');
+              close.type = 'button';
+              close.textContent = '도움말 닫기';
+              close.setAttribute('aria-label', '도움말 닫기');
+              close.style.cssText = [
+                'position:absolute', 'top:20px', 'right:20px',
+                'min-width:122px', 'min-height:52px', 'padding:8px 14px',
+                'border:0', 'border-radius:14px', 'background:#173f6d',
+                'color:#fff', 'font-size:17px', 'font-weight:800'
+              ].join(';');
+              panel.append(eyebrow, title, lead, close);
+              root.appendChild(panel);
+
+              entries.forEach((entry, index) => {
+                const box = document.createElement('div');
+                box.style.cssText = [
+                  'position:fixed', 'box-sizing:border-box',
+                  'border:4px solid #f59e0b', 'border-radius:14px',
+                  'background:rgba(251,191,36,.08)',
+                  'box-shadow:0 0 0 3px rgba(255,255,255,.96)',
+                  'pointer-events:none'
+                ].join(';');
+                const caption = document.createElement('div');
+                caption.textContent = String(index + 1) + '. ' + entry.caption;
+                caption.style.cssText = [
+                  'position:fixed', 'box-sizing:border-box',
+                  'width:330px', 'max-width:calc(100vw - 32px)',
+                  'padding:11px 14px', 'border:2px solid #d97706',
+                  'border-radius:12px', 'background:#fff8e6',
+                  'color:#713f12', 'box-shadow:0 8px 24px rgba(16,42,67,.22)',
+                  'font-size:17px', 'font-weight:800', 'line-height:1.35',
+                  'pointer-events:none'
+                ].join(';');
+                entry.box = box;
+                entry.captionElement = caption;
+                root.append(box, caption);
+              });
+
+              const clamp = (value, minimum, maximum) =>
+                Math.max(minimum, Math.min(value, maximum));
+              let frame = 0;
+              const update = () => {
+                entries.forEach(entry => {
+                  if (!visible(entry.target)) {
+                    entry.box.style.display = 'none';
+                    entry.captionElement.style.display = 'none';
+                    return;
+                  }
+                  const rect = entry.target.getBoundingClientRect();
+                  const margin = 6;
+                  entry.box.style.display = 'block';
+                  entry.box.style.left = Math.round(rect.left - margin) + 'px';
+                  entry.box.style.top = Math.round(rect.top - margin) + 'px';
+                  entry.box.style.width = Math.round(rect.width + margin * 2) + 'px';
+                  entry.box.style.height = Math.round(rect.height + margin * 2) + 'px';
+                  entry.captionElement.style.display = 'block';
+                  const captionWidth = Math.min(330, window.innerWidth - 32);
+                  const captionHeight = entry.captionElement.offsetHeight || 70;
+                  let left = rect.right + 14;
+                  let top = rect.top;
+                  const side = entry.side === 'auto' ?
+                    (rect.left > window.innerWidth * .55 ? 'left' : 'right') :
+                    entry.side;
+                  if (side === 'left') {
+                    left = rect.left - captionWidth - 14;
+                    top = rect.top;
+                  } else if (side === 'above') {
+                    left = rect.left;
+                    top = rect.top - captionHeight - 14;
+                  } else if (side === 'below') {
+                    left = rect.left;
+                    top = rect.bottom + 14;
+                  }
+                  entry.captionElement.style.left = Math.round(
+                    clamp(left, 16, window.innerWidth - captionWidth - 16)
+                  ) + 'px';
+                  entry.captionElement.style.top = Math.round(
+                    clamp(top, 16, window.innerHeight - captionHeight - 16)
+                  ) + 'px';
+                });
+                frame = requestAnimationFrame(update);
+              };
+              const controller = {
+                version,
+                path: page.pathname,
+                close: () => {
+                  cancelAnimationFrame(frame);
+                  root.remove();
+                  if (window.__matholicKioskLiveHelp === controller) {
+                    delete window.__matholicKioskLiveHelp;
+                  }
+                }
+              };
+              close.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                controller.close();
+              });
+              window.__matholicKioskLiveHelp = controller;
+              document.body.appendChild(root);
+              update();
+              close.focus();
+              return JSON.stringify({
+                version,
+                ok: true,
+                opened: true,
+                context,
+                targetCount: entries.length
+              });
+            })()
+        """.trimIndent()
+    }
+
+    val closeStudentHelp: String =
+        """
+        (() => {
+          const version = '${CONTRACT_VERSION}';
+          const controller = window.__matholicKioskLiveHelp;
+          controller?.close?.();
+          return JSON.stringify({ version, ok: true, closed: !!controller });
+        })()
+        """.trimIndent()
 
     fun navigateStudentSection(targetPath: String): String {
         require(targetPath == "/workbook" || targetPath == "/diagnostic")

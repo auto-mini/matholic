@@ -5,6 +5,8 @@ internal enum class StudentHelpContext {
     WORKBOOK,
     DIAGNOSTIC,
     PROBLEM,
+    PROBLEM_OBJECTIVE,
+    PROBLEM_SUBJECTIVE,
     REVIEW,
     RESULT,
     ;
@@ -39,18 +41,16 @@ internal object StudentHelpContent {
             eyebrow = "학습지",
             title = "채점할 학습지를 고르는 화면",
             lead = "제목과 단원을 확인한 뒤 해당 줄의 ‘학습하기’를 누르세요.",
-            steps = "1. 위쪽에서 ‘학습지’가 선택됐는지 확인합니다.\n" +
-                "2. 채점할 학습지의 제목과 단원을 찾습니다.\n" +
-                "3. 같은 줄의 ‘학습하기’를 누르면 문제 화면으로 이동합니다.",
+            steps = "1. 선생님이 안내한 학습지의 제목과 단원을 찾습니다.\n" +
+                "2. 같은 줄의 ‘학습하기’를 누르면 문제 화면으로 이동합니다.",
             caution = "내 이름이나 학습지가 다르면 더 누르지 말고 선생님을 불러주세요.",
         )
         StudentHelpContext.DIAGNOSTIC -> StudentHelpCopy(
             eyebrow = "진단평가",
             title = "응시할 진단평가를 고르는 화면",
             lead = "평가 이름을 확인하고 해당 줄의 시작 버튼을 누르세요.",
-            steps = "1. 위쪽에서 ‘진단평가’가 선택됐는지 확인합니다.\n" +
-                "2. 선생님이 안내한 평가 이름을 찾습니다.\n" +
-                "3. 같은 줄의 시작 버튼을 누르면 문제 화면으로 이동합니다.",
+            steps = "1. 선생님이 안내한 평가 이름을 찾습니다.\n" +
+                "2. 같은 줄의 시작 버튼을 누르면 문제 화면으로 이동합니다.",
             caution = "안내받은 평가가 없거나 다른 평가만 보이면 선생님을 불러주세요.",
         )
         StudentHelpContext.PROBLEM -> StudentHelpCopy(
@@ -63,6 +63,24 @@ internal object StudentHelpContent {
                 "4. ‘답안 현황’에서 빠진 문제를 확인합니다.\n" +
                 "5. 모두 풀었으면 오른쪽 위 ‘답안제출’을 누릅니다.",
             caution = "빨간 ‘채점 끝내기’는 답안 제출이 아니라 현재 학생의 채점을 중단하는 버튼입니다.",
+        )
+        StudentHelpContext.PROBLEM_OBJECTIVE -> StudentHelpCopy(
+            eyebrow = "객관식 문제",
+            title = "보기에서 정답을 하나 고르는 화면",
+            lead = "고른 보기는 바로 저장되며 제출 전까지 다시 바꿀 수 있습니다.",
+            steps = "1. 정답이라고 생각하는 보기 하나를 누릅니다.\n" +
+                "2. 모르겠으면 ‘모름’을 누릅니다.\n" +
+                "3. ‘다음 문제’로 이동하고 ‘답안 현황’에서 빠진 답을 확인합니다.",
+            caution = "‘답안제출’을 누르기 전까지는 최종 채점되지 않습니다.",
+        )
+        StudentHelpContext.PROBLEM_SUBJECTIVE -> StudentHelpCopy(
+            eyebrow = "주관식 문제",
+            title = "숫자나 수식을 직접 입력하는 화면",
+            lead = "답 입력칸을 누르면 ‘답안 현황’ 바로 아래에 수식 키패드가 열립니다.",
+            steps = "1. 답 입력칸을 누르고 숫자·소수점·분수·루트·파이를 입력합니다.\n" +
+                "2. 문제가 분수나 소수 형식을 지정하면 그 형식에 맞춥니다.\n" +
+                "3. ‘다음 문제’로 이동하고 ‘답안 현황’에서 빠진 답을 확인합니다.",
+            caution = "키오스크는 입력값을 바꾸지 않고 매쓰홀릭 채점 서버에 전달합니다.",
         )
         StudentHelpContext.REVIEW -> StudentHelpCopy(
             eyebrow = "전체답안 확인",

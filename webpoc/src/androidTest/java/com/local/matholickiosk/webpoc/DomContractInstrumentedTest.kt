@@ -768,6 +768,119 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testObjectiveHelpTracksVisibleControlsAndClosesWithoutActivatingThem() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div class="matholic-kiosk-current-problem-badge"
+                     style="position:fixed;left:20px;top:80px;width:90px;height:52px">3번</div>
+                <div class="ant-radio-group" id="choices" style="margin:180px 0 0 380px">
+                  <label><input type="radio" name="answer" value="1">1</label>
+                  <label><input type="radio" name="answer" value="2">2</label>
+                </div>
+                <button id="unknown" style="margin-left:380px">모름</button>
+                <div class="matholic-kiosk-problem-map" style="margin-left:760px">
+                  <button id="map">답안 현황</button>
+                </div>
+                <button data-matholic-kiosk-problem-direction="next"
+                        style="margin-left:800px">다음 문제</button>
+                <button id="submit" style="margin-left:800px">답안제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val opened = evaluate(webView, WebDomScripts.showStudentHelp("PROBLEM_OBJECTIVE"))
+            assertTrue(opened.getBoolean("ok"))
+            assertTrue(opened.getBoolean("opened"))
+            assertTrue(opened.getInt("targetCount") >= 4)
+            Thread.sleep(100)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('matholic-kiosk-live-help');
+                  const boxes = Array.from(root.children).filter(element =>
+                    element.tagName === 'DIV' && element.style.borderWidth === '4px'
+                  );
+                  const firstBox = boxes[0]?.getBoundingClientRect();
+                  const badge = document.querySelector(
+                    '.matholic-kiosk-current-problem-badge'
+                  ).getBoundingClientRect();
+                  root.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: 400,
+                    clientY: 200
+                  }));
+                  return JSON.stringify({
+                    exists: !!root,
+                    modal: root?.getAttribute('aria-modal'),
+                    boxCount: boxes.length,
+                    firstTracksBadge: !!firstBox &&
+                      Math.abs(firstBox.left - (badge.left - 6)) < 1,
+                    selected: document.querySelector('input:checked')?.value || ''
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("exists"))
+            assertEquals("true", proof.getString("modal"))
+            assertTrue(proof.getInt("boxCount") >= 4)
+            assertTrue(proof.getBoolean("firstTracksBadge"))
+            assertEquals("", proof.getString("selected"))
+            assertTrue(evaluate(webView, WebDomScripts.closeStudentHelp).getBoolean("closed"))
+            assertFalse(
+                evaluate(
+                    webView,
+                    "JSON.stringify({open:!!document.getElementById('matholic-kiosk-live-help')})",
+                ).getBoolean("open"),
+            )
+        }
+    }
+
+    @Test
+    fun testSubjectiveHelpTargetsAnswerEditorAndUsesFormatSpecificGuidance() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div class="matholic-kiosk-current-problem-badge"
+                     style="width:90px;height:52px">8번</div>
+                <div id="answer-input-form-8" style="margin:100px 0 0 300px">
+                  <input id="answer" placeholder="주관식 답" style="width:220px;height:52px">
+                </div>
+                <button>모름</button>
+                <div class="matholic-kiosk-problem-map"><button>답안 현황</button></div>
+                <button data-matholic-kiosk-problem-direction="next">다음 문제</button>
+                <button>답안제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val opened = evaluate(webView, WebDomScripts.showStudentHelp("PROBLEM_SUBJECTIVE"))
+            assertTrue(opened.getBoolean("opened"))
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('matholic-kiosk-live-help');
+                  return JSON.stringify({
+                    text: root.textContent,
+                    inputValue: document.getElementById('answer').value
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getString("text").contains("분수·소수 형식을 지정"))
+            assertTrue(proof.getString("text").contains("답 입력칸"))
+            assertEquals("", proof.getString("inputValue"))
+        }
+    }
+
+    @Test
     fun testOfficialProblemTransitionDoesNotCommitStaleObjectiveValueIntoSubjectiveAnswer() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",

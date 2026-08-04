@@ -1,6 +1,7 @@
 package com.local.matholickiosk.webpoc
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -20,6 +21,14 @@ class StudentHelpContentTest {
     fun `dom contract values fail closed and cover review`() {
         assertEquals(StudentHelpContext.REVIEW, StudentHelpContext.fromContract("REVIEW"))
         assertEquals(StudentHelpContext.PROBLEM, StudentHelpContext.fromContract("problem"))
+        assertEquals(
+            StudentHelpContext.PROBLEM_OBJECTIVE,
+            StudentHelpContext.fromContract("problem_objective"),
+        )
+        assertEquals(
+            StudentHelpContext.PROBLEM_SUBJECTIVE,
+            StudentHelpContext.fromContract("PROBLEM_SUBJECTIVE"),
+        )
         assertEquals(StudentHelpContext.NONE, StudentHelpContext.fromContract("unexpected"))
         assertEquals(StudentHelpContext.NONE, StudentHelpContext.fromContract(null))
     }
@@ -35,5 +44,13 @@ class StudentHelpContentTest {
             assertTrue(copy.caution.isNotBlank())
         }
         assertNull(StudentHelpContent.forContext(StudentHelpContext.NONE))
+    }
+
+    @Test
+    fun `list help does not tell students to reconfirm an already selected tab`() {
+        val workbook = StudentHelpContent.forContext(StudentHelpContext.WORKBOOK)!!
+        val diagnostic = StudentHelpContent.forContext(StudentHelpContext.DIAGNOSTIC)!!
+        assertFalse(workbook.steps.contains("선택됐는지 확인"))
+        assertFalse(diagnostic.steps.contains("선택됐는지 확인"))
     }
 }

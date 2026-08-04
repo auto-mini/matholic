@@ -133,6 +133,7 @@ class MainActivity : Activity() {
     private var studentContentRevealPasses = 0
     private var pendingStudentRevealPath: String? = null
     private var studentHelpContext = StudentHelpContext.NONE
+    private var studentLiveHelpVisible = false
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
@@ -902,7 +903,7 @@ class MainActivity : Activity() {
     }
 
     private fun consumeSystemBack() {
-        if (studentHelpPanel.visibility == View.VISIBLE) {
+        if (studentLiveHelpVisible || studentHelpPanel.visibility == View.VISIBLE) {
             hideStudentHelp()
             return
         }
@@ -1332,9 +1333,12 @@ class MainActivity : Activity() {
                     return@evaluate
                 }
                 val path = result.optString("path")
-                updateStudentHelpContext(
-                    StudentHelpContext.fromContract(result.optString("helpContext")),
-                )
+                val nextHelpContext =
+                    StudentHelpContext.fromContract(result.optString("helpContext"))
+                val helpContextChanged = nextHelpContext != studentHelpContext
+                updateStudentHelpContext(nextHelpContext)
+                studentLiveHelpVisible =
+                    !helpContextChanged && result.optBoolean("liveHelpOpen", false)
                 updateStudentChrome(path)
                 if (studentContentRevealPending) {
                     if (
@@ -1968,6 +1972,9 @@ class MainActivity : Activity() {
     }
 
     private fun updateStudentHelpContext(context: StudentHelpContext) {
+        if (studentHelpContext != context && studentLiveHelpVisible) {
+            hideStudentHelp()
+        }
         studentHelpContext = context
         val copy = StudentHelpContent.forContext(context)
         studentHelpButton.visibility = if (copy == null) View.GONE else View.VISIBLE
@@ -2004,6 +2011,33 @@ class MainActivity : Activity() {
             idleWarningPanel.visibility == View.VISIBLE ||
             networkPausePanel.visibility == View.VISIBLE
         ) return
+        if (studentHelpContext == StudentHelpContext.RESULT) {
+            showStudentHelpCard(copy)
+            return
+        }
+        val requestedContext = studentHelpContext
+        evaluate(WebDomScripts.showStudentHelp(requestedContext.name)) { result ->
+            if (
+                state != WebPocState.ACTIVE ||
+                studentHelpContext != requestedContext
+            ) return@evaluate
+            if (
+                result?.optString("version") == WebDomScripts.CONTRACT_VERSION &&
+                result.optBoolean("ok") &&
+                result.optBoolean("opened")
+            ) {
+                studentLiveHelpVisible = true
+                studentHelpPanel.visibility = View.GONE
+                setStudentHelpBackgroundAccessibility(hidden = false)
+                scheduleInactivityWarning()
+                hideSystemNavigation()
+            } else {
+                showStudentHelpCard(copy)
+            }
+        }
+    }
+
+    private fun showStudentHelpCard(copy: StudentHelpCopy) {
         bindStudentHelpCopy(copy)
         setStudentHelpBackgroundAccessibility(hidden = true)
         studentHelpPanel.visibility = View.VISIBLE
@@ -2023,6 +2057,10 @@ class MainActivity : Activity() {
 
     private fun hideStudentHelp() {
         if (!::studentHelpPanel.isInitialized) return
+        if (studentLiveHelpVisible) {
+            evaluate(WebDomScripts.closeStudentHelp) {}
+        }
+        studentLiveHelpVisible = false
         studentHelpPanel.visibility = View.GONE
         setStudentHelpBackgroundAccessibility(hidden = false)
         hideSystemNavigation()
