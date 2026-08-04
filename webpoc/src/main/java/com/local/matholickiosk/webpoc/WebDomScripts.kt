@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-04.5"
+    const val CONTRACT_VERSION = "web-2026-08-04.6"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -2752,7 +2752,12 @@ object WebDomScripts {
                 selectorRoot?.querySelector?.('select')
               ) {
                 clearProblemNavigation();
-                selectProblemDirectly(number);
+                const selectedDirectly = selectProblemDirectly(number);
+                updateProblemNumberLabel(
+                  readCurrentProblemNumber(),
+                  totalProblems,
+                  selectedDirectly ? number : problemMapTransition.target
+                );
                 return;
               }
               clearProblemNavigation();
