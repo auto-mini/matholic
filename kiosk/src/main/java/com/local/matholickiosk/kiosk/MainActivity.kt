@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.hardware.display.DisplayManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.media.AudioManager
@@ -24,6 +25,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.Surface
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -148,6 +150,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var scannerCenterContent: LinearLayout
     private lateinit var scannerActionControls: LinearLayout
     private lateinit var scannerInstruction: TextView
+    private lateinit var scannerLensPointer: TextView
     private lateinit var scannerMessage: TextView
     private lateinit var cancelQrLoginButton: Button
     private lateinit var switchCameraButton: ImageButton
@@ -159,6 +162,20 @@ class MainActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var automaticAuthenticationGeneration = 0
     private var scannerHelpPausedAnalyzer = false
+    private val scannerDisplayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+
+        override fun onDisplayChanged(displayId: Int) {
+            if (
+                ::scannerPanel.isInitialized &&
+                scannerPanel.display?.displayId == displayId
+            ) {
+                updateScannerLensPointer()
+            }
+        }
+    }
     private var enrolledAdminPinLength: Int? = null
     private val automaticAuthenticationRunnable = Runnable {
         if (
@@ -467,6 +484,7 @@ class MainActivity : ComponentActivity() {
         scannerCenterContent = findViewById(R.id.scanner_center_content)
         scannerActionControls = findViewById(R.id.scanner_action_controls)
         scannerInstruction = findViewById(R.id.scanner_lens_instruction)
+        scannerLensPointer = findViewById(R.id.scanner_lens_pointer)
         scannerMessage = findViewById(R.id.scanner_message)
         cancelQrLoginButton = findViewById(R.id.cancel_qr_login_button)
         switchCameraButton = findViewById(R.id.switch_camera_button)
@@ -474,6 +492,8 @@ class MainActivity : ComponentActivity() {
         scannerHelpButton = findViewById(R.id.scanner_help_button)
         scannerHelpPanel = findViewById(R.id.scanner_help_panel)
         scannerHelpCloseButton = findViewById(R.id.scanner_help_close_button)
+        (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+            .registerDisplayListener(scannerDisplayListener, mainHandler)
     }
 
     private fun configureSensitiveViews() {
@@ -3325,6 +3345,35 @@ class MainActivity : ComponentActivity() {
         }
         switchCameraButton.contentDescription = label
         switchCameraButton.tooltipText = label
+        updateScannerLensPointer()
+    }
+
+    private fun updateScannerLensPointer() {
+        if (!::scannerLensPointer.isInitialized) return
+        if (activeCameraFacing != CameraFacing.FRONT) {
+            scannerLensPointer.visibility = View.GONE
+            return
+        }
+        val rotation = scannerPanel.display?.rotation ?: Surface.ROTATION_90
+        val lensOnLeft = rotation != Surface.ROTATION_270
+        val layoutParams = scannerLensPointer.layoutParams as FrameLayout.LayoutParams
+        val horizontalGravity = if (lensOnLeft) Gravity.START else Gravity.END
+        val targetGravity = Gravity.CENTER_VERTICAL or horizontalGravity
+        if (layoutParams.gravity != targetGravity) {
+            layoutParams.gravity = targetGravity
+            scannerLensPointer.layoutParams = layoutParams
+        }
+        scannerLensPointer.text = if (lensOnLeft) {
+            "←  전면 카메라 렌즈"
+        } else {
+            "전면 카메라 렌즈  →"
+        }
+        scannerLensPointer.contentDescription = if (lensOnLeft) {
+            "왼쪽 전면 카메라 렌즈 위치"
+        } else {
+            "오른쪽 전면 카메라 렌즈 위치"
+        }
+        scannerLensPointer.visibility = View.VISIBLE
     }
 
     private fun setSessionControlMode(admin: Boolean) {
@@ -3391,10 +3440,11 @@ class MainActivity : ComponentActivity() {
             ) {
                 return@runOnUiThread
             }
+            if (quality == QrFrameQuality.GLARE) return@runOnUiThread
             val generation = ++qrGuidanceGeneration
             scannerMessage.text = when (quality) {
                 QrFrameQuality.TOO_DARK -> "QR이 보이지 않습니다\n카드에 빛이 닿게 해주세요"
-                QrFrameQuality.GLARE -> "빛 반사가 강합니다\n카드 각도를 조금 바꿔주세요"
+                QrFrameQuality.GLARE -> return@runOnUiThread
                 QrFrameQuality.LOW_CONTRAST -> "QR이 흐리게 보입니다\n카드를 렌즈에 가까이 해주세요"
             }
             mainHandler.postDelayed({
@@ -4165,6 +4215,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         destroyed = true
+        if (::scannerPanel.isInitialized) {
+            (getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+                .unregisterDisplayListener(scannerDisplayListener)
+        }
         RemoteQrTestBridge.unregister(this)
         pendingCredentialBridgeId?.let(OneTimeCredentialBroker::revoke)
         pendingCredentialBridgeId = null
