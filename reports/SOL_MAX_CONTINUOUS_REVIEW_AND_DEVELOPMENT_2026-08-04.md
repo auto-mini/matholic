@@ -2,29 +2,29 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 19:17:14 +09:00
+- `last_updated`: 2026-08-04 19:22:51 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
-- 현재 branch tip / upstream: `efe86575646e1d27e517a22fdf6151c0fff82478` /
+- 현재 branch tip / upstream: `abb23855fa5d8db908d318772826198ac5172877` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `efe86575646e1d27e517a22fdf6151c0fff82478`
+- 마지막 push 성공 commit: `abb23855fa5d8db908d318772826198ac5172877`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 현재 작업 중: `SOL-0004` — PC receiver 연결·frame·queue resource bound 재감사
+- 현재 작업 중: `SOL-0005` — 실제 A 전체 흐름·화면 품질 재검증
 - 다음 우선 큐:
-  1. PC receiver의 frame deadline·동시 연결·queue·shutdown resource bound 재감사
-  2. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
+  1. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
+  2. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현재 검토 P2 후보: `SOL-0004` 1건. 아직 결함으로 확정하지 않았다.
+- 현재 검토 P2 후보: `SOL-0005` 1건. 아직 결함으로 확정하지 않았다.
 - 완료 P3: `SOL-0001` 1건.
 - 기각: `SOL-0002` 1건.
-- 이미 수정됨: `SOL-0003` 1건.
+- 이미 수정됨: `SOL-0003`, `SOL-0004` 2건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
   - 비민감 화면 확인을 위해 원격 지원 Start→Capture를 시도했으나 태블릿이
@@ -201,13 +201,62 @@
 
 - 영역: PC receiver·통신 프로토콜·장시간 운용
 - 심각도: P2 후보
-- 신뢰도: 낮음
-- 상태: 후보
+- 신뢰도: 높음
+- 상태: 이미 수정됨
 - 사용자 영향 후보: 느린·부분 연결이나 동시 요청이 connection thread·memory·UI
   queue를 고갈시키면 카드 PDF 저장과 상태 알림이 지연되거나 수신기가 응답하지
   않을 수 있다.
-- 현재 근거: 없음. 현재 listener, frame read deadline, admission bound, event
-  dispatcher와 shutdown join을 재검증하기 전에는 결함으로 확정하지 않는다.
+- 정적 근거:
+  - body를 할당하기 전에 protocol header에서 PDF 5MB·control 1MB 상한을
+    검증한다.
+  - 각 handler는 monotonic 기준 30초 누적 deadline과 recv당 10초 timeout을
+    공유해 작은 조각을 계속 보내는 연결도 무기한 유지되지 않는다.
+  - `BoundedSemaphore(32)`가 활성 handler 수를 제한하고 초과 연결은 thread를
+    만들지 않고 즉시 닫는다. listen backlog도 16으로 제한된다.
+  - UI event queue는 256개, poll당 처리는 64개로 제한되며 queue가 찼을 때 가장
+    오래된 event 하나를 버리고 최신 event를 보존한다.
+  - listener와 tray worker는 handle을 보관해 shutdown·server_close 뒤 2초
+    bounded join한다. request handler는 daemon thread라 별도 join하지 않지만
+    최대 32개·30초로 제한되고 앱 종료와 함께 프로세스에서 제거된다.
+- 동적 근거:
+  - PC receiver 전체 pytest 17/17 PASS.
+  - loopback 실제 socket에서 총 deadline을 시험용 0.20초로 낮추고 1 byte만
+    전송했을 때 0.218초에 거부 event가 발생했다.
+  - 활성 연결 한도를 시험용 1개로 낮춘 상태에서 첫 partial 연결이 slot을 점유한
+    동안 두 번째 연결이 즉시 닫혔고, 첫 연결 종료 뒤 slot이 다시 1로 복구됐다.
+  - 크기 2의 event queue에 3개 event를 넣었을 때 `two`, `three`만 남아 bounded
+    최신 이벤트 정책을 확인했다.
+- 반대 근거·제약: 32개의 실제 5MB 암호화 frame을 동시에 보내는 부하시험,
+  저사양 운영 PC의 peak RSS 측정, Windows 로그오프·종료 중 실제 전송은 이번
+  주기에 수행하지 않았다. daemon request handler를 종료 시 개별 join하지 않는
+  설계는 확인했지만 bounded process 종료 경계이며 현재 사용자 영향이나 데이터
+  오적용 증거는 없다.
+- 판정: 과거 무제한 연결·queue·read 후보는
+  `47b76ec1d78b1bf3f96c9bab071762de040e3ac2`에서 이미 교정됐고 현재 source와
+  동적 probe에 유지된다. 추가 resource-limit 변경은 근거가 없어 하지 않는다.
+- 실행한 검증:
+  - `cd pc_receiver; python -m pytest -q`
+  - 결과: `17 passed in 1.35s`.
+  - `python -` loopback probe로 cumulative deadline, admission semaphore,
+    event queue eviction을 검증; 세 항목 모두 PASS.
+- 수행하지 않은 검증: 실제 운영 PC 부하·Windows 종료, 실제 A→PC 동시 PDF
+  전송은 수행하지 않았으며 그 조건의 PASS로 확대하지 않는다.
+- 변경 파일·commit·rollback: 이번 source 변경 없음. 기존 교정 rollback은
+  `git revert 47b76ec1d78b1bf3f96c9bab071762de040e3ac2`이지만 PDF idempotency와
+  resource 보호를 함께 제거하므로 현재 rollback 사유가 없다.
+
+### SOL-0005 — 실제 A 전체 흐름·화면 품질 재검증
+
+- 영역: 실제 A·핵심 사용자 흐름·UI/UX
+- 심각도: P2 후보
+- 신뢰도: 낮음
+- 상태: 후보
+- 사용자 영향 후보: 관리자→수업→QR 대기→시험계정 로그인→문제풀이→종료·재개
+  중 화면 잘림·입력 가림·상태 불일치나 답안 잔존이 있으면 현장 채점 흐름이
+  중단되거나 잘못된 계정·과제 상태를 이어갈 수 있다.
+- 현재 근거: 비민감 원격 캡처가 태블릿에서 거부돼 현재 화면은 아직 확인하지
+  못했다. 원격 지원을 짧게 다시 시도하고 실패하면 상태를 안전하게 정리한 뒤,
+  가능한 비파괴 ADB/UI 증거와 독립 코드 경계를 검토한다.
 
 ## 최근 변경·검증·전달
 
@@ -219,5 +268,7 @@
   `9a76515ec5caf39a803264512d33a47fffee93c0`.
 - `SOL-0002` 기각·다음 큐 commit:
   `efe86575646e1d27e517a22fdf6151c0fff82478`.
+- `SOL-0003` 이미 수정됨·다음 큐 commit:
+  `abb23855fa5d8db908d318772826198ac5172877`.
 - 위 commit 모두 전용 원격 branch push 성공.
 - rollback 수행 없음.
