@@ -2,30 +2,29 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 19:09:40 +09:00
+- `last_updated`: 2026-08-04 19:14:03 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
-- 현재 제품·운영 문서 HEAD / upstream: `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545` /
+- 현재 branch tip / upstream: `9a76515ec5caf39a803264512d33a47fffee93c0` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545`
+- 마지막 push 성공 commit: `9a76515ec5caf39a803264512d33a47fffee93c0`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 현재 작업 중: `SOL-0002` — Kiosk↔Web 세션 결과의 중복·지연 상태 전이 재감사
+- 현재 작업 중: `SOL-0003` — 네트워크 단절 중 Web 입력 차단 경계 재검증
 - 다음 우선 큐:
-  1. Kiosk↔Web launch/result의 session ID 결합, 중복 완료·늦은 결과 상태 전이
-     독립 재감사
-  2. 네트워크 단절 overlay의 WebView·IME·hardware key·DOM 입력 차단 재검증
-  3. PC receiver의 frame deadline·동시 연결·queue·shutdown resource bound 재감사
-  4. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
+  1. 네트워크 단절 overlay의 WebView·IME·hardware key·DOM 입력 차단 재검증
+  2. PC receiver의 frame deadline·동시 연결·queue·shutdown resource bound 재감사
+  3. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현재 검토 P2 후보: `SOL-0002` 1건. 아직 결함으로 확정하지 않았다.
+- 현재 검토 P2 후보: `SOL-0003` 1건. 아직 결함으로 확정하지 않았다.
 - 완료 P3: `SOL-0001` 1건.
+- 기각: `SOL-0002` 1건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
   - 비민감 화면 확인을 위해 원격 지원 Start→Capture를 시도했으나 태블릿이
@@ -128,17 +127,50 @@
 
 - 영역: 데이터·세션 상태·프로세스 수명주기
 - 심각도: P2 후보
-- 신뢰도: 낮음
-- 상태: 후보
+- 신뢰도: 높음
+- 상태: 기각
 - 사용자 영향 후보: 이전 Web launch의 늦은 결과나 중복 완료 callback이 새
   수업 또는 이미 종료된 session에 적용되면 학생·과제 연결, QR 재개 상태와
   종료 결과가 불일치할 수 있다.
-- 현재 근거: 없음. 이 항목은 위험 우선순위에 따라 먼저 검토할 범위이며 과거
-  수정 이력만으로 결함을 주장하지 않는다.
-- 재현·판정 계획: 현재 `MainActivity`의 Web launch gate, session ID snapshot,
-  Activity result callback, repository 상태 전이와 관련 시험을 함께 대조하고,
-  가능한 경합을 fixture로 먼저 재현한다.
-- 수행하지 않은 검증: 아직 source 재감사와 시험을 시작하지 않았다.
+- 정적 근거:
+  - Web launch 직전에 현재 session ID를 `pendingWebSessionId`에 보관하고 결과
+    callback 첫 진입에서 꺼낸 뒤 즉시 null로 만들어 중복 결과를 폐기한다.
+  - 결과 저장 전 현재 DB session ID를 대조하고, 실제 상태 변경은 Room
+    transaction 안에서 expected session ID와 `PRELOGIN_CHECK` 상태를 모두
+    비교한 뒤에만 수행한다.
+  - 교체 session이면 결과를 버리고, 같은 session의 상태가 이미 바뀌었으면
+    성공으로 오인하지 않고 실패 폐쇄한다.
+  - `RepositoryInstrumentedTest`에는 process restart 뒤 stale 결과와 종료·재시작
+    뒤 원래 session callback이 replacement session을 변경하지 못하는 회귀가 있다.
+- 반대 근거: process death·Activity result 실제 전달과 Room runtime 동작을 이번
+  주기에 A에서 새로 실행하지는 않았다.
+- 판정: 현재 가정한 중복·지연 결과의 다른 session 적용 경로는 source와 기존
+  회귀 계약으로 반증됐다. 새 결함이나 수정 필요성을 확정할 근거가 없어 기각한다.
+- 실행한 검증:
+  - `gradlew.bat :kiosk:testDebugUnitTest --tests
+    com.local.matholickiosk.kiosk.WebSessionResultPersistenceTest --tests
+    com.local.matholickiosk.kiosk.KioskStatePolicyTest
+    :kiosk:compileDebugAndroidTestKotlin --no-daemon --stacktrace`
+  - 결과: BUILD SUCCESSFUL, 33 tasks 중 9 executed·24 up-to-date.
+  - `WebSessionResultPersistenceTest` 4/4, `KioskStatePolicyTest` 3/3 PASS;
+    failures/errors/skipped 0. AndroidTest Kotlin compile PASS.
+- 수행하지 않은 검증: A에는 같은 applicationId의 release 앱이 설치돼 있어 debug
+  signer 계측 설치가 운영 앱·Device Owner에 영향을 줄 수 있으므로 instrumentation
+  실행을 생략했다. 실제 Web 왕복도 답안·세션 상태를 바꾸지 않기 위해 수행하지
+  않았다.
+- 변경 파일·commit·rollback: source 변경 없음. rollback 불필요.
+
+### SOL-0003 — 네트워크 단절 중 Web 입력 차단 경계 재검증
+
+- 영역: 답안 무결성·offline 복구·입력 경계
+- 심각도: P2 후보
+- 신뢰도: 낮음
+- 상태: 후보
+- 사용자 영향 후보: 네트워크 단절 overlay가 보이는 동안 이미 focus된 Web
+  수식 입력기나 IME·hardware key가 답안을 바꾸면 사용자는 차단 화면 뒤의
+  변경을 인지하지 못할 수 있다.
+- 현재 근거: 없음. 현재 source의 focus·IME·WebView·접근성 차폐와 회귀시험을
+  다시 대조하기 전에는 결함으로 확정하지 않는다.
 
 ## 최근 변경·검증·전달
 
@@ -146,5 +178,7 @@
   `e24a7d5cb9b73305feb7c82d226346e63b986e12`.
 - `SOL-0001` 운영 문서 교정 commit:
   `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545`.
-- 두 commit 모두 전용 원격 branch push 성공.
+- `SOL-0001` 증거·다음 큐 commit:
+  `9a76515ec5caf39a803264512d33a47fffee93c0`.
+- 위 commit 모두 전용 원격 branch push 성공.
 - rollback 수행 없음.
