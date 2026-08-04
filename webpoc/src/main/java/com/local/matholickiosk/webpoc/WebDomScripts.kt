@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-04.2"
+    const val CONTRACT_VERSION = "web-2026-08-04.3"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -5310,16 +5310,19 @@ object WebDomScripts {
                   }
                 }
               } else if (context === 'REVIEW') {
-                const dialog = firstVisible(
-                  '.ant-modal[role="dialog"],.ant-modal-wrap,' +
-                  '.ant-drawer-content,[role="dialog"]'
-                );
-                add(dialog, '1번부터 마지막 문제까지 빠진 답이 없는지 확인하세요.', 'left');
-                add(findControl(['닫기']), '답을 고치려면 닫고 문제 화면으로 돌아갑니다.', 'left');
+                const reviewClose = findControl(['닫기']);
+                const reviewSubmit = findControl([
+                  '답안 제출', '답안제출', '완료하기'
+                ]);
+                const reviewFooter = reviewClose?.closest?.(
+                  '.ant-modal-footer,[class*="footer"]'
+                ) || reviewSubmit?.closest?.(
+                  '.ant-modal-footer,[class*="footer"]'
+                ) || reviewClose?.parentElement || reviewSubmit?.parentElement;
                 add(
-                  findControl(['답안 제출', '답안제출', '완료하기']),
-                  '확인을 마친 뒤에만 누르세요. 누르면 실제 채점이 시작됩니다.',
-                  'left'
+                  reviewFooter,
+                  '답을 고치려면 ‘닫기’, 확인을 마쳤으면 ‘답안 제출’을 누르세요.',
+                  'above'
                 );
               } else {
                 if (context === 'PROBLEM_SUBJECTIVE') {
@@ -5448,10 +5451,10 @@ object WebDomScripts {
                 caption.style.cssText = [
                   'position:fixed', 'box-sizing:border-box',
                   'width:370px', 'max-width:calc(100vw - 32px)',
-                  'padding:11px 14px', 'border:2px solid #d97706',
+                  'padding:9px 12px', 'border:2px solid #d97706',
                   'border-radius:12px', 'background:#fff8e6',
                   'color:#713f12', 'box-shadow:0 8px 24px rgba(16,42,67,.22)',
-                  'font-size:16px', 'font-weight:800', 'line-height:1.35',
+                  'font-size:16px', 'font-weight:800', 'line-height:1.3',
                   'pointer-events:none'
                 ].join(';');
                 entry.box = box;
