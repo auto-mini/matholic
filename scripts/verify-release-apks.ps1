@@ -4,7 +4,7 @@ param(
     [string]$KioskApk,
     [Parameter(Mandatory = $true)]
     [string]$WebPocApk,
-    [string]$ExpectedKioskVersion = '0.6.0-rc69',
+    [string]$ExpectedKioskVersion = '0.6.0-rc70',
     [string]$ExpectedWebPocVersion = '0.4.0-rc132'
 )
 
@@ -22,6 +22,14 @@ $apksigner = Join-Path $sdkRoot 'build-tools\37.0.0\apksigner.bat'
 $zipalign = Join-Path $sdkRoot 'build-tools\37.0.0\zipalign.exe'
 $apkanalyzer = Join-Path $sdkRoot 'cmdline-tools\latest\bin\apkanalyzer.bat'
 $debugSignerSha256 = '0b6bef1c18a3beb397b655e895d30412aa749b712fd801c26a9b9e386e8579f8'
+$kioskAppLabel = -join @(
+    [char]0xCC44,
+    [char]0xC810,
+    [char]0x20,
+    [char]0xAD00,
+    [char]0xB9AC
+)
+$webPocAppLabel = -join @([char]0xD559, [char]0xC2B5)
 
 $env:JAVA_HOME = $javaRoot
 foreach ($path in @($KioskApk, $WebPocApk, $apksigner, $zipalign, $apkanalyzer)) {
@@ -180,7 +188,7 @@ try {
         -ApkPath $stagedKioskApk `
         -ExpectedPackage 'com.local.matholickiosk.kiosk' `
         -ExpectedVersion $ExpectedKioskVersion `
-        -ExpectedAppLabel '채점 관리' `
+        -ExpectedAppLabel $kioskAppLabel `
         -RequiredPermissions @(
             'android.permission.CAMERA',
             'android.permission.ACCESS_NETWORK_STATE',
@@ -193,7 +201,7 @@ try {
         -ApkPath $stagedWebPocApk `
         -ExpectedPackage 'com.local.matholickiosk.webpoc' `
         -ExpectedVersion $ExpectedWebPocVersion `
-        -ExpectedAppLabel '학습' `
+        -ExpectedAppLabel $webPocAppLabel `
         -RequiredPermissions @(
             'android.permission.INTERNET',
             'android.permission.ACCESS_NETWORK_STATE',

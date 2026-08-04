@@ -47,6 +47,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
 import com.local.matholickiosk.kiosk.admin.KioskLockTaskController
 import com.local.matholickiosk.kiosk.bridge.CredentialBridgeContract
 import com.local.matholickiosk.kiosk.bridge.OneTimeCredentialBroker
@@ -73,6 +74,8 @@ import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
 import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
+import com.local.matholickiosk.kiosk.domain.ScannerCameraResumeAction
+import com.local.matholickiosk.kiosk.domain.ScannerCameraResumePolicy
 import com.local.matholickiosk.kiosk.print.BatchQrCard
 import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -3780,7 +3783,17 @@ class MainActivity : ComponentActivity() {
             scannerMessage.text = ""
             statusText.text = KioskState.QR_READY.name
             scannerHelpButton.visibility = View.VISIBLE
-            qrAnalyzer?.setEnabled(true)
+            when (
+                ScannerCameraResumePolicy.decide(
+                    manualStudentSelectionOnly = manualStudentSelectionOnly,
+                    cameraBound = cameraProvider != null,
+                    activityStarted = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+                )
+            ) {
+                ScannerCameraResumeAction.REBIND_CAMERA -> ensureCamera()
+                ScannerCameraResumeAction.ENABLE_ANALYZER -> qrAnalyzer?.setEnabled(true)
+                ScannerCameraResumeAction.NONE -> Unit
+            }
         }, SCAN_COOLDOWN_MS)
     }
 
