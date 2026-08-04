@@ -944,8 +944,8 @@ class DomContractInstrumentedTest {
                 })()
                 """.trimIndent(),
             )
-            assertEquals("4/10", moving.getString("label"))
-            assertTrue(moving.isNull("busy"))
+            assertEquals("5/10", moving.getString("label"))
+            assertEquals("true", moving.getString("busy"))
             assertFalse(moving.getBoolean("feedbackPresent"))
 
             evaluate(webView, WebDomScripts.applyStudentExperience)
@@ -958,7 +958,7 @@ class DomContractInstrumentedTest {
                 }))()
                 """.trimIndent(),
             )
-            assertEquals("4/10", maintained.getString("label"))
+            assertEquals("5/10", maintained.getString("label"))
 
             evaluate(
                 webView,
@@ -1143,8 +1143,8 @@ class DomContractInstrumentedTest {
                 })()
                 """.trimIndent(),
             )
-            assertEquals("1/5", started.getString("pendingLabel"))
-            assertTrue(started.isNull("numberBusy"))
+            assertEquals("4/5", started.getString("pendingLabel"))
+            assertEquals("true", started.getString("numberBusy"))
             Thread.sleep(3_000)
             val proof = evaluate(
                 webView,
@@ -1444,7 +1444,7 @@ class DomContractInstrumentedTest {
             assertFalse(proof.getBoolean("guidePresent"))
             assertEquals("relative", proof.getString("mapPosition"))
             assertTrue(proof.getBoolean("mapFollowsNavigation"))
-            assertEquals("2/3", proof.getString("numberLabel"))
+            assertEquals("3/3", proof.getString("numberLabel"))
             assertEquals(3, proof.getInt("legendItemCount"))
             assertEquals("false", proof.getString("open"))
 
@@ -3314,7 +3314,8 @@ class DomContractInstrumentedTest {
                      arrowIconsCentered: arrowRects.every(rect =>
                        rect.centerOffset < 0.6
                      ),
-                     bottom: parseFloat(getComputedStyle(navigation).bottom),
+                      top: parseFloat(getComputedStyle(navigation).top),
+                      bottom: getComputedStyle(navigation).bottom,
                      firstGap: sectionRects[1].left - sectionRects[0].right,
                      secondGap: sectionRects[2].left - sectionRects[1].right,
                       bottomSpread: Math.max(
@@ -3374,7 +3375,8 @@ class DomContractInstrumentedTest {
             assertTrue(proof.getBoolean("arrowsMatchNumeric"))
             assertTrue(proof.getBoolean("actionsAboveArrows"))
             assertTrue(proof.getBoolean("arrowIconsCentered"))
-            assertEquals(12.0, proof.getDouble("bottom"), 0.6)
+            assertEquals(96.0, proof.getDouble("top"), 0.6)
+            assertEquals("auto", proof.getString("bottom"))
             assertEquals(
                 proof.getDouble("firstGap"),
                 proof.getDouble("secondGap"),

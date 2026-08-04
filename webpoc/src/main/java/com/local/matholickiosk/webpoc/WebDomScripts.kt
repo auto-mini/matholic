@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-02.2"
+    const val CONTRACT_VERSION = "web-2026-08-04.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -652,15 +652,15 @@ object WebDomScripts {
             }
             .matholic-kiosk-math-nav {
               position: fixed !important;
-              left: 14px !important;
+              left: var(--matholic-kiosk-keypad-left, 14px) !important;
               right: auto !important;
-              bottom: 12px !important;
-              top: auto !important;
+              bottom: auto !important;
+              top: var(--matholic-kiosk-keypad-top, 96px) !important;
               z-index: 2147482500 !important;
               display: none !important;
               box-sizing: border-box !important;
-              width: min(574px, calc(100vw - 246px)) !important;
-              max-width: calc(100vw - 246px) !important;
+              width: min(574px, calc(100vw - 32px)) !important;
+              max-width: calc(100vw - 32px) !important;
               margin: 0 !important;
               padding: 10px !important;
               border: 2px solid #9fb3c8 !important;
@@ -673,10 +673,10 @@ object WebDomScripts {
               display: block !important;
             }
             html[data-matholic-kiosk-keypad-active="true"] body {
-              padding-bottom: 196px !important;
+              padding-bottom: 0 !important;
             }
             html[data-matholic-kiosk-keypad-active="true"] #root {
-              padding-bottom: 196px !important;
+              padding-bottom: 0 !important;
             }
             .matholic-kiosk-keypad-inner {
               display: grid !important;
@@ -925,6 +925,38 @@ object WebDomScripts {
               color: #fff !important;
               font-size: 28px !important;
               font-weight: 800 !important;
+            }
+            .matholic-kiosk-current-problem-badge {
+              position: fixed !important;
+              top: 78px !important;
+              left: 20px !important;
+              z-index: 2147482300 !important;
+              display: grid !important;
+              place-items: center !important;
+              min-width: 92px !important;
+              min-height: 64px !important;
+              padding: 8px 18px !important;
+              border: 3px solid #ffffff !important;
+              border-radius: 18px !important;
+              background: #173f6d !important;
+              color: #ffffff !important;
+              box-shadow: 0 8px 24px rgba(16, 42, 67, 0.34) !important;
+              font-size: 30px !important;
+              font-weight: 900 !important;
+              line-height: 1 !important;
+              pointer-events: none !important;
+              touch-action: none !important;
+              user-select: none !important;
+            }
+            .matholic-kiosk-current-problem-badge[aria-busy="true"] {
+              border-color: #fbbf24 !important;
+              background: #0d47a1 !important;
+            }
+            [data-matholic-kiosk-pressed="true"] {
+              transform: scale(0.94) !important;
+              filter: brightness(0.82) saturate(1.12) !important;
+              box-shadow: 0 0 0 4px #fbbf24 !important;
+              transition: none !important;
             }
             [data-matholic-kiosk-problem-navigation="true"] {
               display: grid !important;
@@ -1983,7 +2015,7 @@ object WebDomScripts {
             const totalProblems = Number(
               numberTokens[numberTokens.length - 1] || '0'
             );
-            const updateProblemNumberLabel = (current, total) => {
+            const updateProblemNumberLabel = (current, total, pending = 0) => {
               const cluster = currentProblemNumberCluster();
               if (
                 !cluster ||
@@ -1999,9 +2031,32 @@ object WebDomScripts {
                 navigation.dataset.matholicKioskSingleProblem =
                   total === 1 ? 'true' : 'false';
               }
+              const displayed = Number.isInteger(pending) && pending > 0 ?
+                pending : current;
               cluster.dataset.matholicKioskLabel =
-                `${'$'}{current}/${'$'}{total}`;
-              cluster.removeAttribute('aria-busy');
+                `${'$'}{displayed}/${'$'}{total}`;
+              if (displayed !== current) {
+                cluster.setAttribute('aria-busy', 'true');
+              } else {
+                cluster.removeAttribute('aria-busy');
+              }
+              let badge = document.querySelector(
+                '.matholic-kiosk-current-problem-badge'
+              );
+              if (!badge) {
+                badge = document.createElement('div');
+                badge.className = 'matholic-kiosk-current-problem-badge';
+                badge.setAttribute('role', 'status');
+                badge.setAttribute('aria-live', 'polite');
+                badge.setAttribute('aria-label', '현재 문제 번호');
+                document.body.appendChild(badge);
+              }
+              badge.textContent = `${'$'}{displayed}번`;
+              if (displayed !== current) {
+                badge.setAttribute('aria-busy', 'true');
+              } else {
+                badge.removeAttribute('aria-busy');
+              }
             };
             if (
               problemNumberCluster &&
@@ -2012,7 +2067,10 @@ object WebDomScripts {
             ) {
               updateProblemNumberLabel(
                 currentProblemNumber,
-                totalProblems
+                totalProblems,
+                Number(
+                  window.__matholicKioskProblemMapTransition?.target || 0
+                )
               );
             }
             const canonicalTaskLocation = (() => {
@@ -2338,10 +2396,15 @@ object WebDomScripts {
               problemMapTransition.token = token;
               problemMapTransition.target = target;
               problemMapTransition.stableChecks = 0;
-              problemMapTransition.deadline = Date.now() + 4_000;
-              problemMapTransition.quietUntil = Date.now() + 700;
+              problemMapTransition.deadline = Date.now() + 2_500;
+              problemMapTransition.quietUntil = Date.now() + 340;
               document.documentElement.dataset
                 .matholicKioskProblemMapTransition = 'true';
+              updateProblemNumberLabel(
+                readCurrentProblemNumber(),
+                totalProblems,
+                target
+              );
               try { document.activeElement?.blur?.(); } catch (_) {}
               const keypad = document.querySelector(
                 '.matholic-kiosk-math-nav[data-matholic-kiosk-active="true"]'
@@ -2372,10 +2435,34 @@ object WebDomScripts {
                   releaseProblemMapTransition(token);
                   return;
                 }
-                problemMapTransition.timer = setTimeout(checkSettled, 100);
+                problemMapTransition.timer = setTimeout(checkSettled, 50);
               };
-              problemMapTransition.timer = setTimeout(checkSettled, 100);
+              problemMapTransition.timer = setTimeout(checkSettled, 50);
             };
+            const priorTouchFeedback = window.__matholicKioskTouchFeedback;
+            if (priorTouchFeedback?.version !== version) {
+              if (priorTouchFeedback?.handler) {
+                document.removeEventListener(
+                  'pointerdown',
+                  priorTouchFeedback.handler,
+                  true
+                );
+              }
+              const handler = event => {
+                const control = event.target?.closest?.(
+                  'button,[role="button"],a[href]'
+                );
+                if (!control || !visible(control)) return;
+                control.dataset.matholicKioskPressed = 'true';
+                clearTimeout(control.matholicKioskPressedTimer || 0);
+                control.matholicKioskPressedTimer = setTimeout(() => {
+                  delete control.dataset.matholicKioskPressed;
+                  control.matholicKioskPressedTimer = 0;
+                }, 180);
+              };
+              document.addEventListener('pointerdown', handler, true);
+              window.__matholicKioskTouchFeedback = { version, handler };
+            }
             const priorProblemMapInputGuard =
               window.__matholicKioskProblemMapInputGuard;
             if (priorProblemMapInputGuard?.version !== version) {
@@ -2394,7 +2481,6 @@ object WebDomScripts {
                     .matholicKioskProblemMapTransition !== 'true' ||
                   window.__matholicKioskProblemMapInternalClick === true
                 ) return;
-                problemMapTransition.quietUntil = Date.now() + 700;
                 event.preventDefault();
                 event.stopImmediatePropagation();
               };
@@ -2521,7 +2607,7 @@ object WebDomScripts {
               ) {
                 problemNavigationController.staleChecks += 1;
                 if (problemNavigationController.staleChecks <= 6) {
-                  scheduleProblemNavigation(200);
+                  scheduleProblemNavigation(80);
                   return;
                 }
               } else {
@@ -2545,7 +2631,7 @@ object WebDomScripts {
               problemNavigationController.staleChecks = 0;
               problemNavigationController.attempts += 1;
               runProblemMapInternalClick(() => directionButton.click());
-              scheduleProblemNavigation(250);
+              scheduleProblemNavigation(100);
             };
             const navigateToProblem = number => {
               if (
@@ -2575,7 +2661,7 @@ object WebDomScripts {
                 number
               );
               if (selectProblemDirectly(number)) {
-                scheduleProblemNavigation(800);
+                scheduleProblemNavigation(150);
                 return;
               }
               continueProblemNavigation();
@@ -3723,6 +3809,43 @@ object WebDomScripts {
                 delete document.documentElement.dataset
                   .matholicKioskKeypadActive;
               };
+              const positionMathNavigation = navigation => {
+                requestAnimationFrame(() => {
+                  if (
+                    !navigation?.isConnected ||
+                    navigation.dataset.matholicKioskActive !== 'true'
+                  ) return;
+                  const anchor = document.querySelector(
+                    '.matholic-kiosk-problem-map'
+                  );
+                  if (!anchor || !visible(anchor)) return;
+                  const anchorRect = anchor.getBoundingClientRect();
+                  const keypadWidth = Math.min(574, window.innerWidth - 32);
+                  const keypadHeight = navigation.offsetHeight || 176;
+                  const left = Math.max(
+                    16,
+                    Math.min(
+                      window.innerWidth - keypadWidth - 16,
+                      anchorRect.right - keypadWidth
+                    )
+                  );
+                  const top = Math.max(
+                    16,
+                    Math.min(
+                      anchorRect.bottom + 8,
+                      window.innerHeight - keypadHeight - 16
+                    )
+                  );
+                  document.documentElement.style.setProperty(
+                    '--matholic-kiosk-keypad-left',
+                    `${'$'}{Math.round(left)}px`
+                  );
+                  document.documentElement.style.setProperty(
+                    '--matholic-kiosk-keypad-top',
+                    `${'$'}{Math.round(top)}px`
+                  );
+                });
+              };
               const scrollMathEditorAboveKeypad = (
                 editor,
                 navigation
@@ -3804,6 +3927,7 @@ object WebDomScripts {
                 navigation.setAttribute('aria-hidden', 'false');
                 document.documentElement.dataset
                   .matholicKioskKeypadActive = 'true';
+                positionMathNavigation(navigation);
                 scrollMathEditorAboveKeypad(editor, navigation);
               };
               const bindMathNavigationActivation = (
@@ -3830,6 +3954,36 @@ object WebDomScripts {
                     dismissMathNavigation();
                   }, true);
                   window.__matholicKioskMathNavigationDismissGuard = true;
+                }
+                const priorPositionGuard =
+                  window.__matholicKioskMathNavigationPositionGuard;
+                if (priorPositionGuard?.version !== version) {
+                  if (priorPositionGuard?.handler) {
+                    window.removeEventListener(
+                      'resize',
+                      priorPositionGuard.handler
+                    );
+                    document.removeEventListener(
+                      'scroll',
+                      priorPositionGuard.handler,
+                      true
+                    );
+                  }
+                  const handler = () => {
+                    const activeNavigation = document.querySelector(
+                      '.matholic-kiosk-math-nav[' +
+                        'data-matholic-kiosk-active="true"]'
+                    );
+                    if (activeNavigation) {
+                      positionMathNavigation(activeNavigation);
+                    }
+                  };
+                  window.addEventListener('resize', handler);
+                  document.addEventListener('scroll', handler, true);
+                  window.__matholicKioskMathNavigationPositionGuard = {
+                    version,
+                    handler
+                  };
                 }
               };
               const hideOriginalMathToolbar = scope => {
@@ -3867,6 +4021,9 @@ object WebDomScripts {
                 if (navigation) {
                   hideOriginalMathToolbar(scope);
                   bindMathNavigationActivation(editor, scope, navigation);
+                  if (navigation.dataset.matholicKioskActive === 'true') {
+                    positionMathNavigation(navigation);
+                  }
                   mathKeypadEnhancements = Math.max(
                     mathKeypadEnhancements,
                     navigation.querySelectorAll(
@@ -4935,6 +5092,16 @@ object WebDomScripts {
             isDiagnostic ? 'DIAGNOSTIC' :
             reviewHelpOpen ? 'REVIEW' :
             isLearning ? 'PROBLEM' : 'NONE';
+          const currentProblemBadge = document.querySelector(
+            '.matholic-kiosk-current-problem-badge'
+          );
+          if (currentProblemBadge) {
+            currentProblemBadge.style.setProperty(
+              'display',
+              reviewHelpOpen || analysisReady ? 'none' : 'grid',
+              'important'
+            );
+          }
           const contentReady = !isLearning ||
             enhancedButtons > 0 ||
             subjectiveTouchTargets > 0 ||
