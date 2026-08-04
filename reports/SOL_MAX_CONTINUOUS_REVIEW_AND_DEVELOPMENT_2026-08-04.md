@@ -2,18 +2,18 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 21:28:40 +09:00
+- `last_updated`: 2026-08-04 23:57:39 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `219d0c45f813bfce00c4dc070a442c7c2c552520` /
+  `a7ac871573c31ec81c212087734bfd5815546367` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `219d0c45f813bfce00c4dc070a442c7c2c552520`
+- 마지막 push 성공 commit: `a7ac871573c31ec81c212087734bfd5815546367`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 확인: 2026-08-04 21:28 +09:00. 승인 ADB device는
+- 실제 A 마지막 확인: 2026-08-04 23:57 +09:00. 승인 ADB device는
   serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc71`/code 76, UID 10288, first install
     `2026-07-24 12:52:28`, last update `2026-08-04 21:01:14`.
@@ -30,16 +30,25 @@
   - 시험용 반 `SOL-TEST-0804-2105`는 목록 위·아래 끝을 안정화해 확인한 전체
     13개 반에 없고, 원격 지원은 `INACTIVE`다. 로컬·A 임시 캡처도 없다.
   - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 현재 작업 중: `SOL-0007` — 계측시험 환경 정정 증거 checkpoint
-- 다음 우선 큐:
-  1. PC receiver의 Windows 시작 시 LAN 주소 탐색·복구 경계 재감사
-  2. Kiosk/Web protocol의 PC 전송 재시도·주소 변경 후 복구 경계 재검토
+- 실제 운영 PC 마지막 확인: 2026-08-04 23:57 +09:00. 설치 실행 파일은 보관
+  0.1.5 artifact와 같은 21,925,051 bytes·SHA-256
+  `BA94DCC1ADA65383C7F9EFD515B79C4CC4B273BA8FABC880E348A59BEEE1B136`이다.
+  PyInstaller process 2개, `0.0.0.0:48129` listener 1개와 listener owner의 정확한
+  설치 path, Startup shortcut target·`--background` 인자를 확인했다. 0.1.6
+  artifact process와 smoke PDF 잔존은 각각 0개다.
+- 현재 작업 중: `SOL-0008` — PC receiver LAN 부재·주소 변경 복구의 증거
+  checkpoint와 Goal 종료 정리
+- 다음 우선 큐: 없음. 사용자가 현재 작업까지만 완결한 뒤 Goal을 중단하라고
+  명시했으므로 새 finding을 시작하지 않는다.
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현장검증 완료 P2: `SOL-0005`, `SOL-0006` 2건. 열린 P2는 없다.
+- 현장검증 완료 P2: `SOL-0005`, `SOL-0006` 2건.
+- 자동검증 완료 P2: `SOL-0008` 1건. 0.1.6 artifact의 실제 운영 PC 실행·인증
+  smoke는 통과했지만 운영 설치본은 0.1.5로 복구해 설치 rollout은 수행하지 않았다.
+  열린 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
 - 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
@@ -53,6 +62,10 @@
   - 시험 QR은 공식 PDF를 허용된 원격 제출 도구로 전달했다. 카메라 활성·중단·
     재연결은 실제 A에서 확인했지만 인쇄 카드의 광학 인식, 조명·거리·반사는
     시험하지 않았다.
+  - PC 수신기 0.1.6의 LAN 부재→복구와 주소 변경은 unit test로 전이를 검증했다.
+    실제 Wi-Fi 단절·재연결, DHCP 주소 변경, Windows 재로그인·재부팅과
+    다중 NIC·VPN의 올바른 주소 선택은 수행하지 않았다. 현재 운영 설치본은
+    검증 산출물보다 한 버전 낮은 0.1.5다.
   - 설치 APK signer 대조용으로 만든 로컬 임시 디렉터리
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
@@ -563,6 +576,108 @@
   단독·MainActivity 전체 계측, Kiosk unit과 debug lint를 다시 실행한다. A 설치본과
   release artifact에는 영향이 없다.
 
+### SOL-0008 — PC 수신기가 LAN 부재 때 종료되고 주소 변경을 반영하지 못함
+
+- 영역: PC receiver 시작·LAN 복구·페어링 QR
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: Windows 로그인 시 Wi-Fi가 아직 준비되지 않으면 수신기가 종료돼
+  운영자가 수동 재시작하기 전까지 A의 PDF·상태·CSV 전송을 받을 수 없다. 이미
+  실행 중인 PC 주소만 바뀐 경우 서버는 계속 열려 있고 Kiosk RC46+의 같은 `/24`
+  자동 복구가 성공할 수 있지만, 수신기는 이전 주소의 QR을 계속 표시해 최초·복구
+  페어링이 stale endpoint를 저장할 수 있고 운영자가 주소 변경을 알 수 없었다.
+- 재현 조건:
+  - 사설 RFC1918 IPv4 주소를 얻지 못하는 상태에서 자동 시작 수신기를 실행한다.
+  - 또는 수신기를 시작한 뒤 기본 경로의 사설 IPv4 주소를 다른 값으로 바꾼다.
+- 기대 결과:
+  - LAN 주소를 아직 얻지 못해도 TCP 서버와 트레이는 먼저 살아 있고 연결을
+    기다린다.
+  - 사설 주소가 생기거나 바뀌면 현재 주소의 페어링 QR을 자동 생성·갱신한다.
+- 실제 결과(수정 전):
+  - `ReceiverApplication._initialize()`가 Tk 창과 TCP 서버를 만들기 전에
+    `current_lan_ipv4()`를 호출했다. 주소가 없으면 `RuntimeError`가 `main()`까지
+    올라가 시작 실패로 종료됐다.
+  - host·주소 문구·QR은 시작할 때 한 번만 계산해 실행 중 주소 변경을 감지하거나
+    복구하는 경로가 없었다.
+- 정적·동적 근거:
+  - 서버는 이미 `0.0.0.0`에 bind하도록 구현돼 있어 NIC 주소 확정은 서버 시작의
+    필수조건이 아니라 페어링 QR 생성 조건뿐이었다.
+  - Startup shortcut은 설치 실행 파일을 `--background`로 실행하므로 Windows
+    로그인과 네트워크 준비 순서가 엇갈리는 조건이 현실적으로 존재한다.
+  - 수정 전 LAN 회귀 5개 묶음의 첫 실행은 3 failed·2 passed였고, 실패 3개는
+    새 refresh method가 없어 발생한 `AttributeError`였다. 제품 코드 수정 뒤 같은
+    대상은 5/5 PASS했고, 초기화 순서와 동일 주소 복구 회귀를 추가한 최종
+    `test_app.py`는 6/6 PASS했다.
+- 원인·결정:
+  - LAN 주소 탐색을 시작 필수조건으로 둔 수명주기 결합이 원인이다.
+  - server·tray를 먼저 시작하고 Tk `after(0, ...)`에서 주소를 확인한다. 주소가
+    없으면 QR을 비우고 대기 문구를 표시하며 5초 뒤 재시도한다.
+  - 주소가 처음 생기거나 outage 뒤 복구되거나 값이 바뀌면 QR을 다시 만든다.
+    값이 실제로 바뀐 경우 창 상태와 Windows 알림으로 새 QR을 안내한다.
+  - Kiosk RC46 이상은 같은 `/24`에서 기존 secret challenge-response로 주소를
+    자동 복구할 수 있다. 그 복구가 성공하면 수동 재페어링은 필요 없고, 새 QR은
+    최초 페어링 또는 자동 복구 실패 때 사용할 수 있다.
+- 변경 파일:
+  - `pc_receiver/src/matholic_pdf_receiver/app.py`
+  - `pc_receiver/tests/test_app.py`
+  - 버전 0.1.6으로 맞춘 `pc_receiver/pyproject.toml`,
+    `pc_receiver/src/matholic_pdf_receiver/__init__.py`
+  - artifact 이름·checksum과 hidden smoke 실행을 맞춘
+    `pc_receiver/build-receiver.ps1`
+- 관련 commit: `a7ac871573c31ec81c212087734bfd5815546367`
+  (`fix(receiver): recover pairing after LAN changes (SOL-0008)`). 전용 origin
+  branch push 성공, 증거 갱신 직전 ahead/behind `0/0`.
+- 자동검증:
+  - `python -m pytest .\tests -q` (`pc_receiver`에서 실행): 구현 직후 22/22 PASS
+    (`0.83s`), 최종 증거 재실행도 22/22 PASS (`1.06s`).
+  - `python -m compileall .\src .\tests`: 성공.
+  - package version import: 정확히 `0.1.6`.
+  - `pc_receiver/build-receiver.ps1`의 PowerShell parser 오류: 0건.
+  - `pc_receiver\build-receiver.ps1`: 전용 venv에서 pytest 22/22 PASS
+    (`1.43s`), PyInstaller 6.15.0/Python 3.11.9 package build 성공,
+    packaged `--smoke-check`의 인증된 loopback PDF 저장·ACK·정리 성공.
+- artifact:
+  - `artifacts/matholic-pdf-receiver-0.1.6.exe`, 22,785,740 bytes
+  - SHA-256
+    `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`
+  - `artifacts/PC_RECEIVER_SHA256.txt`가 같은 파일·hash를 가리킨다.
+    `artifacts/`는 ignore 상태이고 Git에 stage하지 않았다.
+- 실제 운영 PC의 package 실행 검증:
+  - 기준 설치본은 0.1.5이며
+    `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`에서
+    PyInstaller parent/child 2개와 `0.0.0.0:48129` listener가 실행 중이었다.
+    Startup shortcut target과 `--background` 인자도 설치본을 가리켰다.
+  - 정확한 설치본 process만 잠시 종료하고 0.1.6 artifact를 `--background` hidden
+    상태로 실행했다. listener owner가 정확한 artifact path인 것을 확인했고,
+    별도 artifact `--smoke-check`도 exit 0이었다.
+  - 첫 현장 검사 script는 DPAPI `secret_protected` 암호문이 저장 전후 byte
+    identical이어야 한다는 잘못된 진단 가정 때문에 최종 exit 1이었다. DPAPI는
+    같은 평문도 보호할 때마다 무작위 ciphertext를 만들므로 이것은 제품 실패가
+    아니다. script의 `finally`가 운영 0.1.5를 즉시 복구했고 listener도 돌아왔다.
+  - 후속 비파괴 검사에서 secret 평문 fingerprint를 외부에 출력하지 않고 내부
+    비교해 보존을 확인했다. receiver ID·endpoint fields도 보존됐고 DPAPI
+    ciphertext rotation은 예상 동작이었다.
+  - 복구된 0.1.5 `--smoke-check` exit 0, 설치본 listener owner 일치, artifact
+    process 0개, `__receiver_smoke_*.pdf` 잔존 0개, Startup shortcut target과
+    `--background` 인자 일치를 확인해 `FIELD_RESTORE=PASS`로 끝냈다.
+- 설치·수행하지 않은 검증:
+  - 0.1.6은 빌드·실행 검증만 했고 운영 설치를 수행하지 않았다. 현재 운영 PC는
+    계속 0.1.5이며 기존 방화벽·Startup·receiver identity와 저장 PDF를 보존한다.
+  - 실제 Wi-Fi를 끊었다 연결하거나 DHCP 주소를 강제로 바꾸지 않았다. LAN
+    부재→복구·주소 변경 전이는 unit test에서 resolver 결과를 제어해 검증했다.
+  - Windows 재로그인·재부팅, GUI의 QR을 실제 A 카메라로 다시 촬영, 다중
+    NIC·VPN에서 원하는 adapter 선택은 이번 cycle에 수행하지 않았다. 서버가
+    `0.0.0.0` listener를 연 사실과 현재 LAN에서 package가 실행된 사실을 물리
+    네트워크 전이 PASS로 확대하지 않는다.
+- rollback:
+  - 코드: `git revert a7ac871573c31ec81c212087734bfd5815546367` 후 receiver
+    pytest 22개, compileall, package build와 packaged smoke를 다시 실행한다.
+  - 운영 PC에는 0.1.6을 설치하지 않았으므로 현재 설치본 rollback은 필요 없다.
+    나중에 설치한 뒤 rollback이 필요하면 receiver ID·DPAPI secret·수신 파일을
+    보존하는 정상 설치/복구 절차로 검증된 0.1.5 실행 파일을 사용하며, 설정 삭제나
+    새 identity 생성으로 우회하지 않는다.
+
 ## 최근 변경·검증·전달
 
 - 누적 보고서 기준선 commit:
@@ -587,6 +702,16 @@
   `8916c80ab3a20fb564c5b3ca2563050399c48e8b`.
 - `SOL-0007` 지원 A 기준 QR 도움말 layout 계측 정정 commit:
   `219d0c45f813bfce00c4dc070a442c7c2c552520`.
-- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0007
-  검증 근거와 다음 큐는 이 문서 checkpoint에서 정렬한다.
+- `SOL-0007` 전체 계측·unit·lint 증거 commit:
+  `13e46747ad7cbc805c4c8fd7af49ad0f0a14573e`.
+- `SOL-0008` PC receiver LAN 복구 구현·회귀·0.1.6 package 준비 commit:
+  `a7ac871573c31ec81c212087734bfd5815546367`.
+- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0008
+  package 현장검증·운영 설치 미수행·Goal 종료 상태는 현재 증거 checkpoint에서
+  정렬한다.
+- Goal 종료 A 안전점검의 첫 wrapper는 `adb devices -l`의 model token
+  `SM_P610`을 `SM-P610`으로 직접 비교해 승인 A 판정을 false로 냈고, 원격 임시
+  파일 검사에는 Android shell 인용 오류가 있었다. 제품 실패나 상태 변경은
+  없었다. `getprop ro.product.model`과 단순 file existence 검사로 각각 승인 A
+  한 대와 임시 캡처 없음이 확인됐다.
 - rollback 수행 없음.

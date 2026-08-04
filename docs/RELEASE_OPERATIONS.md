@@ -7,14 +7,18 @@
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
 같은 signer의 Kiosk RC71·Web POC RC132가 보존형 설치돼 있다. Kiosk DB, Device
 Owner와 전용 HOME은 보존됐고 두 설치본의 해시는 보관 artifact와 일치해야 한다.
-현재 보관 검증 묶음은 Kiosk RC71, Web POC RC132와 PC 수신기 0.1.5다.
-정확한 자동·릴리스 검증과 설치 여부는 `docs/BUILD_VERIFICATION.md`의 최신
-절을 기준으로 한다.
+현재 보관 검증 묶음은 Kiosk RC71, Web POC RC132와 PC 수신기 0.1.6이다.
+Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
+`docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.6의 검증·설치 여부는
+`reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
+`SOL-0008`을 기준으로 한다.
 
 - 현재 A: Kiosk `0.6.0-rc71`/code 76, Web POC `0.4.0-rc132`/code 149
 - 내부 보관 현재 검증 묶음:
   Kiosk `0.6.0-rc71`/code 76, Web POC `0.4.0-rc132`/code 149,
-  PC 수신기 `0.1.5`
+  PC 수신기 `0.1.6`
+- 현재 운영 PC 설치본: PC 수신기 `0.1.5`; 검증 묶음의 `0.1.6`은 아직 설치하지
+  않았다.
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
 - 현재 A: release signer의 Kiosk RC71/Web POC RC132, 기존 Device Owner·전용
   HOME·Kiosk UID·firstInstallTime·dataDir 유지
@@ -194,7 +198,7 @@ A의 개발자 옵션과 USB 디버깅은 껐고 생산 잠금 물리 실기를 
 
 ### 현재 PC 설치 상태
 
-- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.3`
+- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.5`
 - 설치 파일:
   `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
 - 수신 폴더:
@@ -236,6 +240,10 @@ QR 재발급은 기존 QR을 즉시 무효화한다. 전송만 다시 해야 한
 
 - PC가 표시되지 않거나 전송되지 않으면 먼저 A와 PC가 같은 사설 Wi-Fi인지,
   PC 수신기 창이 실행 중인지 확인한다.
+- 수신기 0.1.6은 사설 LAN 주소가 아직 없어도 TCP 서버와 트레이를 먼저 시작하고
+  5초마다 주소를 다시 확인한다. 주소가 생기거나 바뀌면 현재 주소의 페어링 QR을
+  자동으로 표시·갱신한다. 운영 PC의 0.1.5 설치본에는 이 동작이 아직 반영되지
+  않았다.
 - Kiosk RC46 이상은 저장된 주소 연결이 실패하면 현재 Wi-Fi의 같은
   `/24` 사설망에서 수신기를 찾고, 기존 페어링의 challenge-response 인증에
   성공한 PC만 새 주소로 저장한다. 자동 복구용 상태에는 학생 이름을 싣지
@@ -243,6 +251,9 @@ QR 재발급은 기존 QR을 즉시 무효화한다. 전송만 다시 해야 한
 - 다른 Wi-Fi, 다른 `/24` 망, PC 방화벽 차단 또는 수신기 중지 상태에서는
   자동 복구하지 않는다. 이 경우 네트워크를 바로잡고 다시 시도하며, PC가
   실제로 교체됐거나 수신기 설정이 초기화됐다면 수동 재페어링한다.
+- 0.1.6 수신기는 주소 변경 시 새 QR 확인을 알린다. 같은 `/24`에서 Kiosk의
+  인증된 자동 복구가 성공하면 수동 재페어링은 필요 없고, 자동 복구가 되지
+  않을 때만 새 QR로 다시 페어링한다.
 - PC 교체·수신기 설정 초기화 뒤에는 `지정 PC 다시 페어링`을 수행한다.
 - 방화벽을 전체 네트워크에 개방하거나 공용 네트워크 프로필을 허용하지 않는다.
 - 수신기를 제거할 때는 `pc_receiver\uninstall-receiver.ps1`을 사용한다.
