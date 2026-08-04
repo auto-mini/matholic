@@ -136,6 +136,7 @@ class MainActivity : Activity() {
     private var studentLiveHelpVisible = false
     private var studentLiveHelpControlStates: Map<View, Boolean>? = null
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
+    private var finishConfirmationDialog: AlertDialog? = null
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
     private var recoveryRendererRecycleAttempted = false
@@ -824,8 +825,7 @@ class MainActivity : Activity() {
         gate3AbortButton.setOnClickListener { abortGate3AndRecover() }
         finishButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
-                pendingLockReason = null
-                beginLogout()
+                showFinishConfirmation()
             }
         }
         workbookButton.setOnClickListener {
@@ -1486,6 +1486,41 @@ class MainActivity : Activity() {
         transition(WebPocState.INPUT_BLOCKED)
         if (gate3Session != null) showGate3Progress() else showBlocking(getString(R.string.status_logout))
         startLogoutAttempt()
+    }
+
+    private fun showFinishConfirmation() {
+        if (
+            state != WebPocState.ACTIVE ||
+            finishConfirmationDialog != null ||
+            activeJavaScriptDialog != null
+        ) return
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("채점을 끝낼까요?")
+            .setMessage(
+                "아직 제출하지 않은 답은 채점되지 않습니다. " +
+                    "계속 풀려면 ‘계속 채점’을 누르세요.",
+            )
+            .setNegativeButton("계속 채점", null)
+            .setPositiveButton("채점 끝내기") { _, _ ->
+                if (state == WebPocState.ACTIVE) {
+                    pendingLockReason = null
+                    beginLogout()
+                }
+            }
+            .create()
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.setOnDismissListener {
+            if (finishConfirmationDialog === dialog) {
+                finishConfirmationDialog = null
+            }
+        }
+        finishConfirmationDialog = dialog
+        try {
+            dialog.show()
+        } catch (_: RuntimeException) {
+            finishConfirmationDialog = null
+            showLocked("FINISH_CONFIRMATION")
+        }
     }
 
     private fun startLogoutAttempt() {
@@ -2699,6 +2734,8 @@ class MainActivity : Activity() {
                 networkCallbackRegistered = false
             }
             restoreWindowBrightness()
+            finishConfirmationDialog?.dismiss()
+            finishConfirmationDialog = null
             val activeDialog = activeJavaScriptDialog
             if (activeDialog != null) {
                 activeDialog.dismiss()

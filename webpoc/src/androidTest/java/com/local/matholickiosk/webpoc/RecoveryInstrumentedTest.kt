@@ -878,6 +878,45 @@ class RecoveryInstrumentedTest {
         }
     }
 
+    @Test
+    fun finishButtonRequiresASecondConfirmedAction() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val stateField = MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                val finish = activity.findViewById<Button>(R.id.finish_button)
+                finish.visibility = View.VISIBLE
+                finish.performClick()
+
+                assertEquals(WebPocState.ACTIVE, stateField.get(activity))
+                val dialogField = MainActivity::class.java.getDeclaredField(
+                    "finishConfirmationDialog",
+                ).apply { isAccessible = true }
+                val dialog = dialogField.get(activity) as android.app.AlertDialog
+                assertTrue(dialog.isShowing)
+                assertEquals(
+                    "채점 끝내기",
+                    dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).text.toString(),
+                )
+                assertEquals(
+                    "계속 채점",
+                    dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).text.toString(),
+                )
+                assertTrue(
+                    dialog.findViewById<android.widget.TextView>(android.R.id.message)
+                        ?.text?.contains("아직 제출하지 않은 답") == true,
+                )
+
+                dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+                assertEquals(WebPocState.ACTIVE, stateField.get(activity))
+                assertNull(dialogField.get(activity))
+            }
+        }
+    }
+
     private fun preferences() = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private fun assertInterruptedGate3SensitiveState(interruptedState: WebPocState) {
