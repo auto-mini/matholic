@@ -2,29 +2,29 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 19:14:03 +09:00
+- `last_updated`: 2026-08-04 19:17:14 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
-- 현재 branch tip / upstream: `9a76515ec5caf39a803264512d33a47fffee93c0` /
+- 현재 branch tip / upstream: `efe86575646e1d27e517a22fdf6151c0fff82478` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `9a76515ec5caf39a803264512d33a47fffee93c0`
+- 마지막 push 성공 commit: `efe86575646e1d27e517a22fdf6151c0fff82478`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 현재 작업 중: `SOL-0003` — 네트워크 단절 중 Web 입력 차단 경계 재검증
+- 현재 작업 중: `SOL-0004` — PC receiver 연결·frame·queue resource bound 재감사
 - 다음 우선 큐:
-  1. 네트워크 단절 overlay의 WebView·IME·hardware key·DOM 입력 차단 재검증
-  2. PC receiver의 frame deadline·동시 연결·queue·shutdown resource bound 재감사
-  3. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
+  1. PC receiver의 frame deadline·동시 연결·queue·shutdown resource bound 재감사
+  2. 실제 A의 관리자→QR→시험계정→문제→종료 흐름과 화면 품질 재검증
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현재 검토 P2 후보: `SOL-0003` 1건. 아직 결함으로 확정하지 않았다.
+- 현재 검토 P2 후보: `SOL-0004` 1건. 아직 결함으로 확정하지 않았다.
 - 완료 P3: `SOL-0001` 1건.
 - 기각: `SOL-0002` 1건.
+- 이미 수정됨: `SOL-0003` 1건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
   - 비민감 화면 확인을 위해 원격 지원 Start→Capture를 시도했으나 태블릿이
@@ -164,13 +164,50 @@
 
 - 영역: 답안 무결성·offline 복구·입력 경계
 - 심각도: P2 후보
-- 신뢰도: 낮음
-- 상태: 후보
+- 신뢰도: 높음
+- 상태: 이미 수정됨
 - 사용자 영향 후보: 네트워크 단절 overlay가 보이는 동안 이미 focus된 Web
   수식 입력기나 IME·hardware key가 답안을 바꾸면 사용자는 차단 화면 뒤의
   변경을 인지하지 못할 수 있다.
-- 현재 근거: 없음. 현재 source의 focus·IME·WebView·접근성 차폐와 회귀시험을
-  다시 대조하기 전에는 결함으로 확정하지 않는다.
+- 정적 근거:
+  - `setNetworkPauseProtection(true)`는 불투명 panel을 최상단에 놓은 뒤 DOM
+    active element blur, WebView focus·descendant focus 차단, IME 숨김,
+    accessibility subtree `NO_HIDE_DESCENDANTS`와 panel focus를 함께 적용한다.
+  - `dispatchTouchEvent`, `onKeyDown`, `onKeyUp`은 pause 동안 입력을 소비하며
+    학생 header·탐색·종료 control도 숨긴다.
+  - 네트워크 복귀 때 현재 URL 정책으로 학생 chrome을 다시 계산하며, ACTIVE가
+    아닌 상태에서는 pause 보호를 해제하고 blocker/terminal UI가 WebView를
+    별도로 숨긴다.
+- 반대 근거: 실제 제조사 IME의 이미 대기 중인 composition commit, hardware
+  keyboard와 접근성 service 입력을 이번 주기에 A에서 직접 주입하지 않았다.
+- 판정: 과거 단순 panel만으로 입력 차단이 불충분했던 경계는
+  `d2f69ccfe9b77613da9d4a3ae061750ebb37dd13`에서 이미 교정됐고 현재 source에도
+  유지된다. 새 결함 증거가 없어 추가 변경하지 않는다.
+- 실행한 검증:
+  - `gradlew.bat :webpoc:testDebugUnitTest --tests
+    com.local.matholickiosk.webpoc.NetworkFailureReasonTest
+    :webpoc:compileDebugAndroidTestKotlin --no-daemon --stacktrace`
+  - 결과: BUILD SUCCESSFUL, 30 tasks 중 1 executed·29 up-to-date.
+  - `NetworkFailureReasonTest` 1/1 PASS; failures/errors/skipped 0.
+  - `NetworkPauseLayoutInstrumentedTest`를 포함한 AndroidTest Kotlin compile PASS.
+- 수행하지 않은 검증: A의 Wi-Fi·보안 설정과 진행 상태를 변경하지 않았고 실제
+  network disconnect·IME·hardware key·접근성 fault injection은 수행하지 않았다.
+  따라서 실제 현장 입력 차단 PASS로 확대하지 않는다.
+- 변경 파일·commit·rollback: 이번 source 변경 없음. 기존 교정 rollback은
+  `git revert d2f69ccfe9b77613da9d4a3ae061750ebb37dd13`이지만 입력 무결성 보호를
+  제거하므로 현재 rollback 사유가 없다.
+
+### SOL-0004 — PC receiver 연결·frame·queue resource bound 재감사
+
+- 영역: PC receiver·통신 프로토콜·장시간 운용
+- 심각도: P2 후보
+- 신뢰도: 낮음
+- 상태: 후보
+- 사용자 영향 후보: 느린·부분 연결이나 동시 요청이 connection thread·memory·UI
+  queue를 고갈시키면 카드 PDF 저장과 상태 알림이 지연되거나 수신기가 응답하지
+  않을 수 있다.
+- 현재 근거: 없음. 현재 listener, frame read deadline, admission bound, event
+  dispatcher와 shutdown join을 재검증하기 전에는 결함으로 확정하지 않는다.
 
 ## 최근 변경·검증·전달
 
@@ -180,5 +217,7 @@
   `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545`.
 - `SOL-0001` 증거·다음 큐 commit:
   `9a76515ec5caf39a803264512d33a47fffee93c0`.
+- `SOL-0002` 기각·다음 큐 commit:
+  `efe86575646e1d27e517a22fdf6151c0fff82478`.
 - 위 commit 모두 전용 원격 branch push 성공.
 - rollback 수행 없음.
