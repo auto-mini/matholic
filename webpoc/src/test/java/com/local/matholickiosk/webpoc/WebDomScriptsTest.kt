@@ -235,6 +235,9 @@ class WebDomScriptsTest {
         assertTrue(subjective.contains("분수·소수 형식을 지정"))
         assertFalse(workbook.contains("학습지가 선택됐는지"))
         assertTrue(workbook.contains("학습지 제목과 단원"))
+        assertTrue(workbook.contains("지금 채점할 학습지가 없습니다"))
+        assertTrue(subjective.contains("matholicKioskKeypadActive"))
+        assertTrue(subjective.contains("document.activeElement?.blur?.()"))
         assertTrue(WebDomScripts.closeStudentHelp.contains("controller?.close?.()"))
     }
 }

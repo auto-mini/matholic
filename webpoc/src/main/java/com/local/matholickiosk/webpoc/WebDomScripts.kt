@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-04.1"
+    const val CONTRACT_VERSION = "web-2026-08-04.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -5213,6 +5213,19 @@ object WebDomScripts {
                   normalize(control.textContent).replace(/\s+/g, '')
                 )) || null;
               };
+              const findExactText = labels => {
+                const wanted = new Set(labels.map(normalize));
+                return Array.from(document.querySelectorAll('body *'))
+                  .filter(element =>
+                    visible(element) && wanted.has(normalize(element.textContent))
+                  )
+                  .sort((left, right) => {
+                    const leftRect = left.getBoundingClientRect();
+                    const rightRect = right.getBoundingClientRect();
+                    return leftRect.width * leftRect.height -
+                      rightRect.width * rightRect.height;
+                  })[0] || null;
+              };
               const copy = {
                 WORKBOOK: {
                   eyebrow: '학습지',
@@ -5260,17 +5273,42 @@ object WebDomScripts {
                     ['학습하기'] :
                     ['시작', '시작하기', '응시', '응시하기', '학습하기']
                 );
-                const row = start?.closest?.(
-                  'tr,[role="row"],li,article,[class*="item"],[class*="row"]'
-                );
-                add(
-                  row,
-                  context === 'WORKBOOK' ?
-                    '이 줄의 학습지 제목과 단원이 맞는지 먼저 확인하세요.' :
-                    '이 줄의 평가 이름이 맞는지 먼저 확인하세요.',
-                  'above'
-                );
-                add(start, '확인한 평가를 시작하는 버튼입니다.', 'below');
+                if (start) {
+                  const row = start.closest?.(
+                    'tr,[role="row"],li,article,[class*="item"],[class*="row"]'
+                  );
+                  add(
+                    row,
+                    context === 'WORKBOOK' ?
+                      '이 줄의 학습지 제목과 단원이 맞는지 먼저 확인하세요.' :
+                      '이 줄의 평가 이름이 맞는지 먼저 확인하세요.',
+                    'above'
+                  );
+                  add(start, '확인한 평가를 시작하는 버튼입니다.', 'below');
+                } else {
+                  const emptyState = findExactText(
+                    context === 'WORKBOOK' ?
+                      ['학습지가 없습니다', '학습지가 없습니다.'] :
+                      ['진단평가가 없습니다', '진단평가가 없습니다.']
+                  );
+                  if (context === 'WORKBOOK') {
+                    copy.title = '지금 채점할 학습지가 없습니다';
+                    copy.lead = '이 안내가 보이면 더 누르지 말고 선생님에게 알려주세요.';
+                    add(
+                      emptyState,
+                      '현재 목록이 비어 있습니다. 선생님에게 학습지를 확인해 달라고 하세요.',
+                      'below'
+                    );
+                  } else {
+                    copy.title = '지금 응시할 진단평가가 없습니다';
+                    copy.lead = '이 안내가 보이면 더 누르지 말고 선생님에게 알려주세요.';
+                    add(
+                      emptyState,
+                      '현재 목록이 비어 있습니다. 선생님에게 진단평가를 확인해 달라고 하세요.',
+                      'below'
+                    );
+                  }
+                }
               } else if (context === 'REVIEW') {
                 const dialog = firstVisible(
                   '.ant-modal[role="dialog"],.ant-modal-wrap,' +
@@ -5284,6 +5322,18 @@ object WebDomScripts {
                   'left'
                 );
               } else {
+                if (context === 'PROBLEM_SUBJECTIVE') {
+                  const keypad = document.querySelector(
+                    '.matholic-kiosk-math-nav[data-matholic-kiosk-active="true"]'
+                  );
+                  if (keypad) {
+                    delete keypad.dataset.matholicKioskActive;
+                    keypad.setAttribute('aria-hidden', 'true');
+                    delete document.documentElement.dataset
+                      .matholicKioskKeypadActive;
+                  }
+                  document.activeElement?.blur?.();
+                }
                 add(
                   firstVisible('.matholic-kiosk-current-problem-badge'),
                   '현재 문제 번호입니다. 이 표시는 눌러도 이동하지 않습니다.',
@@ -5397,11 +5447,11 @@ object WebDomScripts {
                 caption.textContent = String(index + 1) + '. ' + entry.caption;
                 caption.style.cssText = [
                   'position:fixed', 'box-sizing:border-box',
-                  'width:330px', 'max-width:calc(100vw - 32px)',
+                  'width:370px', 'max-width:calc(100vw - 32px)',
                   'padding:11px 14px', 'border:2px solid #d97706',
                   'border-radius:12px', 'background:#fff8e6',
                   'color:#713f12', 'box-shadow:0 8px 24px rgba(16,42,67,.22)',
-                  'font-size:17px', 'font-weight:800', 'line-height:1.35',
+                  'font-size:16px', 'font-weight:800', 'line-height:1.35',
                   'pointer-events:none'
                 ].join(';');
                 entry.box = box;
@@ -5427,7 +5477,7 @@ object WebDomScripts {
                   entry.box.style.width = Math.round(rect.width + margin * 2) + 'px';
                   entry.box.style.height = Math.round(rect.height + margin * 2) + 'px';
                   entry.captionElement.style.display = 'block';
-                  const captionWidth = Math.min(330, window.innerWidth - 32);
+                  const captionWidth = Math.min(370, window.innerWidth - 32);
                   const captionHeight = entry.captionElement.offsetHeight || 70;
                   let left = rect.right + 14;
                   let top = rect.top;
