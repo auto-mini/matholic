@@ -3922,8 +3922,14 @@ object WebDomScripts {
                   );
                   if (!anchor || !visible(anchor)) return;
                   const anchorRect = anchor.getBoundingClientRect();
+                  const editor = navigation.matholicKioskScope?.querySelector(
+                    '.mq-editable-field'
+                  );
+                  const editorRect = editor && visible(editor) ?
+                    editor.getBoundingClientRect() : null;
                   const keypadWidth = Math.min(574, window.innerWidth - 32);
                   const keypadHeight = navigation.offsetHeight || 176;
+                  const finishButtonClearance = 88;
                   const left = Math.max(
                     16,
                     Math.min(
@@ -3934,10 +3940,16 @@ object WebDomScripts {
                   const top = Math.max(
                     16,
                     Math.min(
-                      anchorRect.bottom + 8,
-                      window.innerHeight - keypadHeight - 16
+                      Math.max(
+                        anchorRect.bottom + 8,
+                        editorRect ? editorRect.bottom + 16 : 0
+                      ),
+                      window.innerHeight -
+                        keypadHeight - finishButtonClearance
                     )
                   );
+                  navigation.dataset.matholicKioskBottomClearance =
+                    String(finishButtonClearance);
                   document.documentElement.style.setProperty(
                     '--matholic-kiosk-keypad-left',
                     `${'$'}{Math.round(left)}px`
@@ -3959,32 +3971,10 @@ object WebDomScripts {
                   ) return;
                   const editorRect = editor.getBoundingClientRect();
                   const keypadRect = navigation.getBoundingClientRect();
-                  const occludedContent = Array.from(document.querySelectorAll(
-                    'picture.no-select,img.no-select,table,' +
-                    '[data-matholic-kiosk-long-page-media="true"]'
-                  )).filter(element => {
-                    if (!visible(element) || navigation.contains(element)) return false;
-                    const rect = element.getBoundingClientRect();
-                    return rect.left < keypadRect.right &&
-                      rect.right > keypadRect.left &&
-                      rect.top < keypadRect.bottom &&
-                      rect.bottom > keypadRect.top;
-                  });
-                  const contentOverlap = occludedContent.reduce(
-                    (largest, element) => Math.max(
-                      largest,
-                      element.getBoundingClientRect().bottom -
-                        (keypadRect.top - 16)
-                    ),
-                    0
-                  );
-                  const overlap = Math.max(
-                    editorRect.bottom - (keypadRect.top - 16),
-                    contentOverlap
-                  );
+                  const overlap =
+                    editorRect.bottom - (keypadRect.top - 16);
                   if (overlap <= 0) return;
-                  let scrollingParent =
-                    occludedContent[0]?.parentElement || editor.parentElement;
+                  let scrollingParent = editor.parentElement;
                   let remaining = overlap;
                   while (
                     scrollingParent &&

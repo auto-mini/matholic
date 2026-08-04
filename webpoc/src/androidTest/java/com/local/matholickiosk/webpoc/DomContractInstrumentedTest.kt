@@ -3716,6 +3716,84 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testMathKeypadOpensBelowTheAnswerAndAboveTheFinishButtonArea() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+            </head><body>
+              <div class="matholic-kiosk-problem-map"
+                   style="position:fixed;right:32px;top:120px;width:220px;height:76px">
+                <button>답안 현황</button>
+              </div>
+              <div id="answer-input-form-0"
+                   style="position:fixed;right:32px;top:320px;width:260px;height:64px">
+                <div><button>루트</button><button>분수</button><button>파이</button></div>
+                <span id="positioned-editor" class="mq-editable-field mq-math-mode"
+                      style="display:block;width:240px;height:60px">
+                  <span class="mq-textarea"><textarea></textarea></span>
+                  <span class="mq-root-block"></span>
+                </span>
+                <button>입력기</button>
+              </div>
+              <script>
+                const editor = document.getElementById('positioned-editor');
+                editor.fieldApi = {
+                  latex: () => '', write: () => {}, keystroke: () => {}, focus: () => {}
+                };
+                window.MathQuill = { getInterface: () => element => element.fieldApi || null };
+              </script>
+            </body></html>
+            """.trimIndent(),
+            viewportWidthDp = 1_200,
+            viewportHeightDp = 800,
+        ) { webView ->
+            assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
+            evaluate(
+                webView,
+                """
+                document.getElementById('positioned-editor').dispatchEvent(
+                  new Event('pointerdown', { bubbles: true })
+                ); JSON.stringify({opened:true})
+                """.trimIndent(),
+            )
+            Thread.sleep(100)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const editor = document.getElementById('positioned-editor')
+                    .getBoundingClientRect();
+                  const keypad = document.querySelector(
+                    '.matholic-kiosk-math-nav[data-matholic-kiosk-active="true"]'
+                  ).getBoundingClientRect();
+                  const navigation = document.querySelector(
+                    '.matholic-kiosk-math-nav[data-matholic-kiosk-active="true"]'
+                  );
+                  const clearance = Number(
+                    navigation.dataset.matholicKioskBottomClearance
+                  );
+                  return JSON.stringify({
+                    editorBottom: editor.bottom,
+                    keypadTop: keypad.top,
+                    keypadBottom: keypad.bottom,
+                    viewportBottom: window.innerHeight,
+                    clearance
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getDouble("keypadTop") >= proof.getDouble("editorBottom") + 15.0)
+            assertTrue(
+                proof.getDouble("keypadBottom") <=
+                    proof.getDouble("viewportBottom") - proof.getDouble("clearance") + 0.6,
+            )
+            assertEquals(88.0, proof.getDouble("clearance"), 0.1)
+        }
+    }
+
+    @Test
     fun testStudentExperienceDismissesMathNavigationWhenAnswerSubmitIsTouched() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
