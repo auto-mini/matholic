@@ -2,12 +2,12 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 23:57:39 +09:00
+- `last_updated`: 2026-08-05 00:11:18 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `a7ac871573c31ec81c212087734bfd5815546367` /
+  `d865bbdf8727c396ea339586504912021f5ed81d` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `a7ac871573c31ec81c212087734bfd5815546367`
+- 마지막 push 성공 commit: `d865bbdf8727c396ea339586504912021f5ed81d`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
@@ -30,14 +30,14 @@
   - 시험용 반 `SOL-TEST-0804-2105`는 목록 위·아래 끝을 안정화해 확인한 전체
     13개 반에 없고, 원격 지원은 `INACTIVE`다. 로컬·A 임시 캡처도 없다.
   - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 실제 운영 PC 마지막 확인: 2026-08-04 23:57 +09:00. 설치 실행 파일은 보관
-  0.1.5 artifact와 같은 21,925,051 bytes·SHA-256
-  `BA94DCC1ADA65383C7F9EFD515B79C4CC4B273BA8FABC880E348A59BEEE1B136`이다.
+- 실제 운영 PC 마지막 확인: 2026-08-05 00:11 +09:00. 설치 실행 파일은 보관
+  0.1.6 artifact와 같은 22,785,740 bytes·SHA-256
+  `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`이다.
   PyInstaller process 2개, `0.0.0.0:48129` listener 1개와 listener owner의 정확한
-  설치 path, Startup shortcut target·`--background` 인자를 확인했다. 0.1.6
-  artifact process와 smoke PDF 잔존은 각각 0개다.
-- 현재 작업 중: `SOL-0008` — PC receiver LAN 부재·주소 변경 복구의 증거
-  checkpoint와 Goal 종료 정리
+  설치 path, Startup shortcut target·`--background`, 기존 Private TCP 48129
+  방화벽 경계를 확인했다. 별도 artifact process와 smoke PDF 잔존은 각각 0개다.
+- 현재 작업 중: 없음. 사용자의 후속 지시로 SOL-0008의 PC 수신기 0.1.6 운영
+  설치까지 완료했으며, 중단된 연속 Goal은 재개하지 않았다.
 - 다음 우선 큐: 없음. 사용자가 현재 작업까지만 완결한 뒤 Goal을 중단하라고
   명시했으므로 새 finding을 시작하지 않는다.
 
@@ -46,9 +46,9 @@
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
 - 현장검증 완료 P2: `SOL-0005`, `SOL-0006` 2건.
-- 자동검증 완료 P2: `SOL-0008` 1건. 0.1.6 artifact의 실제 운영 PC 실행·인증
-  smoke는 통과했지만 운영 설치본은 0.1.5로 복구해 설치 rollout은 수행하지 않았다.
-  열린 P2는 없다.
+- 자동검증 완료 P2: `SOL-0008` 1건. 0.1.6을 운영 PC에 설치하고 인증 smoke까지
+  통과했지만 실제 네트워크 전이는 수행하지 않아 상태를 현장검증 완료로 확대하지
+  않는다. 열린 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
 - 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
@@ -65,7 +65,7 @@
   - PC 수신기 0.1.6의 LAN 부재→복구와 주소 변경은 unit test로 전이를 검증했다.
     실제 Wi-Fi 단절·재연결, DHCP 주소 변경, Windows 재로그인·재부팅과
     다중 NIC·VPN의 올바른 주소 선택은 수행하지 않았다. 현재 운영 설치본은
-    검증 산출물보다 한 버전 낮은 0.1.5다.
+    검증 산출물과 같은 0.1.6이다.
   - 설치 APK signer 대조용으로 만든 로컬 임시 디렉터리
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
@@ -658,12 +658,25 @@
   - 후속 비파괴 검사에서 secret 평문 fingerprint를 외부에 출력하지 않고 내부
     비교해 보존을 확인했다. receiver ID·endpoint fields도 보존됐고 DPAPI
     ciphertext rotation은 예상 동작이었다.
-  - 복구된 0.1.5 `--smoke-check` exit 0, 설치본 listener owner 일치, artifact
-    process 0개, `__receiver_smoke_*.pdf` 잔존 0개, Startup shortcut target과
-    `--background` 인자 일치를 확인해 `FIELD_RESTORE=PASS`로 끝냈다.
-- 설치·수행하지 않은 검증:
-  - 0.1.6은 빌드·실행 검증만 했고 운영 설치를 수행하지 않았다. 현재 운영 PC는
-    계속 0.1.5이며 기존 방화벽·Startup·receiver identity와 저장 PDF를 보존한다.
+  - 당시 후속 검사는 process 이름을 정확히 `MatholicPdfReceiver.exe`로만 필터링해
+    artifact 파일명 `matholic-pdf-receiver-0.1.6.exe`의 parent/child process를
+    놓쳤다. 따라서 artifact process 0개라는 이전 판정은 잘못이었고 아래 운영
+    설치에서 현재 path 전체를 기준으로 정정했다.
+- 2026-08-05 운영 설치:
+  - 사용자의 후속 설치 지시 뒤 설치 파일을 다시 대조했을 때 정식 설치 path와
+    Startup shortcut은 0.1.5였지만, 별도 artifact path의 0.1.6 parent/child가
+    2026-08-04 21:37부터 남아 있었다. 설치본 0.1.5 process를 종료한 첫 교체
+    시도는 이 artifact process가 TCP 48129 listener를 유지해 파일 복사 전에
+    `Installed receiver did not stop cleanly`로 중단됐다. 제품 파일·설정·방화벽은
+    그 시점에 바뀌지 않았다.
+  - 두 실행 path의 process를 모두 정확히 종료하고 기존 0.1.5 실행 파일을
+    `%LOCALAPPDATA%\MatholicPdfReceiver\backup\MatholicPdfReceiver-before-0.1.6-20260805-000829.exe`에
+    hash 일치 상태로 보존한 뒤, 검증된 0.1.6 artifact를 정식 설치 path에 복사했다.
+  - 설치본 hash·process 2개·정확한 listener owner, 인증 `--smoke-check` exit 0,
+    receiver ID·DPAPI secret 평문·port·표시명·수신 폴더 보존, Startup shortcut과
+    기존 Private/Inbound/Allow/TCP 48129/설치 EXE 방화벽 경계, smoke PDF 잔존
+    0개를 확인했다. 별도 artifact path process는 0개다.
+- 남은 미검증:
   - 실제 Wi-Fi를 끊었다 연결하거나 DHCP 주소를 강제로 바꾸지 않았다. LAN
     부재→복구·주소 변경 전이는 unit test에서 resolver 결과를 제어해 검증했다.
   - Windows 재로그인·재부팅, GUI의 QR을 실제 A 카메라로 다시 촬영, 다중
@@ -673,10 +686,10 @@
 - rollback:
   - 코드: `git revert a7ac871573c31ec81c212087734bfd5815546367` 후 receiver
     pytest 22개, compileall, package build와 packaged smoke를 다시 실행한다.
-  - 운영 PC에는 0.1.6을 설치하지 않았으므로 현재 설치본 rollback은 필요 없다.
-    나중에 설치한 뒤 rollback이 필요하면 receiver ID·DPAPI secret·수신 파일을
-    보존하는 정상 설치/복구 절차로 검증된 0.1.5 실행 파일을 사용하며, 설정 삭제나
-    새 identity 생성으로 우회하지 않는다.
+  - 운영 PC rollback은 수신기 process를 정확한 설치 path 기준으로 종료하고 위
+    backup의 SHA-256이 기존 0.1.5 hash와 일치하는지 확인한 뒤 정식 설치 path로
+    복원·`--background` 실행한다. receiver ID·DPAPI secret·수신 파일은 보존하고
+    설정 삭제나 새 identity 생성으로 우회하지 않는다.
 
 ## 최근 변경·검증·전달
 
@@ -707,8 +720,9 @@
 - `SOL-0008` PC receiver LAN 복구 구현·회귀·0.1.6 package 준비 commit:
   `a7ac871573c31ec81c212087734bfd5815546367`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0008
-  package 현장검증·운영 설치 미수행·Goal 종료 상태는 현재 증거 checkpoint에서
-  정렬한다.
+  package 검증·0.1.6 운영 설치·Goal 종료 상태는 현재 증거 checkpoint에서
+  정렬한다. Goal 종료 뒤 사용자의 명시적 후속 지시로 설치만 수행했으며 연속
+  리뷰 cycle은 재개하지 않았다.
 - Goal 종료 A 안전점검의 첫 wrapper는 `adb devices -l`의 model token
   `SM_P610`을 `SM-P610`으로 직접 비교해 승인 A 판정을 false로 냈고, 원격 임시
   파일 검사에는 Android shell 인용 오류가 있었다. 제품 실패나 상태 변경은

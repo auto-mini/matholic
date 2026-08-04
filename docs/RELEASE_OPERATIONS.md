@@ -17,8 +17,7 @@ Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 - 내부 보관 현재 검증 묶음:
   Kiosk `0.6.0-rc71`/code 76, Web POC `0.4.0-rc132`/code 149,
   PC 수신기 `0.1.6`
-- 현재 운영 PC 설치본: PC 수신기 `0.1.5`; 검증 묶음의 `0.1.6`은 아직 설치하지
-  않았다.
+- 현재 운영 PC 설치본: PC 수신기 `0.1.6`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
 - 현재 A: release signer의 Kiosk RC71/Web POC RC132, 기존 Device Owner·전용
   HOME·Kiosk UID·firstInstallTime·dataDir 유지
@@ -198,7 +197,7 @@ A의 개발자 옵션과 USB 디버깅은 껐고 생산 잠금 물리 실기를 
 
 ### 현재 PC 설치 상태
 
-- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.5`
+- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.6`
 - 설치 파일:
   `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
 - 수신 폴더:
@@ -242,8 +241,7 @@ QR 재발급은 기존 QR을 즉시 무효화한다. 전송만 다시 해야 한
   PC 수신기 창이 실행 중인지 확인한다.
 - 수신기 0.1.6은 사설 LAN 주소가 아직 없어도 TCP 서버와 트레이를 먼저 시작하고
   5초마다 주소를 다시 확인한다. 주소가 생기거나 바뀌면 현재 주소의 페어링 QR을
-  자동으로 표시·갱신한다. 운영 PC의 0.1.5 설치본에는 이 동작이 아직 반영되지
-  않았다.
+  자동으로 표시·갱신한다.
 - Kiosk RC46 이상은 저장된 주소 연결이 실패하면 현재 Wi-Fi의 같은
   `/24` 사설망에서 수신기를 찾고, 기존 페어링의 challenge-response 인증에
   성공한 PC만 새 주소로 저장한다. 자동 복구용 상태에는 학생 이름을 싣지

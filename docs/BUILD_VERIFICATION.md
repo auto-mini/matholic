@@ -1,5 +1,26 @@
 # 빌드·보안 검증 기록
 
+## PC 수신기 0.1.6 운영 설치 — 2026-08-05
+
+- `artifacts/matholic-pdf-receiver-0.1.6.exe`, 22,785,740 bytes, SHA-256
+  `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`를
+  `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`에 설치했다.
+- 기존 receiver ID, DPAPI로 보호된 pairing secret의 평문, port·표시명·수신 폴더를
+  내부 비교해 모두 보존됨을 확인했다. secret과 fingerprint는 출력하지 않았다.
+- 설치본 `--smoke-check`는 인증된 PDF 저장·ACK·정리를 완료하고 exit 0이었다.
+  설치 경로의 PyInstaller process 2개, `0.0.0.0:48129` listener owner, Startup
+  shortcut `--background`, 기존 `Private / Inbound / Allow / TCP 48129 / 설치 EXE`
+  방화벽 경계를 확인했다. smoke PDF 잔존은 0개다.
+- 이전 0.1.5 실행 파일은
+  `%LOCALAPPDATA%\MatholicPdfReceiver\backup\MatholicPdfReceiver-before-0.1.6-20260805-000829.exe`에
+  SHA-256 일치 상태로 보존했다.
+- 교체 전 별도 artifact 경로의 0.1.6 parent/child process가 남아 있었음을 뒤늦게
+  확인했다. 이전 검사는 설치 파일명만 필터링해 이를 놓쳤다. 두 경로의 process를
+  모두 종료한 뒤 설치 경로 하나만 다시 실행해 중복을 제거했다.
+- 실제 Wi-Fi 단절·복구, DHCP 주소 변경, Windows 재로그인·재부팅과 다중 NIC·VPN
+  주소 선택은 이 설치 단계에서 수행하지 않았다. 해당 전이는 receiver unit test로
+  검증됐지만 물리 환경 PASS로 확대하지 않는다.
+
 ## Kiosk RC69 / Web RC132 상황별 도움말·QR·입력 안전성 교정 — 2026-08-04
 
 ### 교정 범위
