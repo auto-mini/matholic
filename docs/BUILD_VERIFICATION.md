@@ -62,7 +62,20 @@
 - 실제 외장 키보드가 연결돼 있지 않고 접근성 서비스도 활성화돼 있지 않아
   해당 두 입력원은 직접 주입하지 않았다. 보안 설정을 시험 편의로 약화시키지
   않았다.
-- 이 기록 시점에는 Windows 재부팅 후 Startup 자동실행 검증이 아직 남아 있다.
+
+### Windows 재부팅·Startup 자동실행
+
+- 재부팅 전 OS boot time을 보존하고 일회성 Startup 점검을 등록한 뒤, 실행 중
+  앱을 강제 종료하는 `/f` 없이 Windows를 실제 재부팅했다.
+- 재부팅 뒤 boot time이 전진했고, 로그인 Startup에서 설치 수신기 0.1.6이
+  `--background`로 자동 실행됐다. 설치 실행 파일 hash 일치, Startup shortcut
+  target·argument 일치, 정확한 설치 path의 PyInstaller process 2개,
+  `0.0.0.0:48129` listener 1개와 owner path 일치, 설치본 `--smoke-check` exit 0을
+  모두 확인했다.
+- 일회성 점검 결과는 `success=true`, `error=null`이었고 점검용 Startup shortcut은
+  실행 직후 스스로 제거됐다. Codex 재개 뒤 같은 항목을 독립 재확인해 process
+  2개, listener 1개, hash·owner 일치와 smoke exit 0을 다시 확인했다. 현재 Wi-Fi
+  IPv4 Internet 연결도 정상이다.
 
 ## PC 수신기 0.1.6 운영 설치 — 2026-08-05
 

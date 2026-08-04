@@ -2,12 +2,12 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-05 01:04:24 +09:00
+- `last_updated`: 2026-08-05 05:58:13 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `29ecdccfca939a7edc0d6f74824611804122e7b2` /
+  `2b766a176128700865afd8741a4f23fb3107fbda` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `29ecdccfca939a7edc0d6f74824611804122e7b2`
+- 마지막 push 성공 commit: `2b766a176128700865afd8741a4f23fb3107fbda`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
@@ -30,7 +30,7 @@
   - 시험용 반 `SOL-TEST-0805-0023`은 전체 반 목록 끝까지 확인해 존재하지 않고,
     원격 지원은 `INACTIVE`다. 시험 중 답안은 한 글자도 저장·제출하지 않았다.
   - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 실제 운영 PC 마지막 확인: 2026-08-05 01:03 +09:00. 설치 실행 파일은 보관
+- 실제 운영 PC 마지막 확인: 2026-08-05 05:58 +09:00. 설치 실행 파일은 보관
   0.1.6 artifact와 같은 22,785,740 bytes·SHA-256
   `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`이다.
   PyInstaller process 2개, `0.0.0.0:48129` listener 1개와 listener owner의 정확한
@@ -39,6 +39,9 @@
   32×5MiB 동시 전송 32/32 내용 검증, 32개 partial connection과 33번째 즉시
   거부, 실제 Wi-Fi disconnect/reconnect, DHCP release/renew, 실제 Wi-Fi와 가상
   interface 두 주소의 listener 도달까지 통과했다.
+  Windows를 실제 재부팅한 뒤 로그인 Startup 자동실행도 통과했다. 새 boot time,
+  process 2개, listener 1개, hash·Startup target/argument·listener owner 일치,
+  smoke exit 0과 현재 Wi-Fi Internet 연결을 확인했다.
 - 현재 작업 중: 없음. 사용자의 후속 지시로 SOL-0008의 PC 수신기 0.1.6 운영
   설치까지 완료했으며, 중단된 연속 Goal은 재개하지 않았다.
 - 다음 우선 큐: 없음. 사용자가 현재 작업까지만 완결한 뒤 Goal을 중단하라고
@@ -48,10 +51,8 @@
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현장검증 완료 P2: `SOL-0003`, `SOL-0005`, `SOL-0006` 3건.
-- 자동검증 완료 P2: `SOL-0008` 1건. 0.1.6 운영 설치, 실제 Wi-Fi·DHCP 전이와
-  다중 interface listener 도달은 통과했지만 Windows 재부팅 자동실행이 남아 있어
-  아직 상태를 현장검증 완료로 확대하지 않는다. 열린 P2는 없다.
+- 현장검증 완료 P2: `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008` 4건.
+- 열린 P2와 자동검증에만 머문 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
 - 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
@@ -64,10 +65,10 @@
   - 시험 QR은 공식 PDF를 허용된 원격 제출 도구로 전달했다. 카메라 활성·중단·
     재연결은 실제 A에서 확인했지만 인쇄 카드의 광학 인식, 조명·거리·반사는
     시험하지 않았다.
-  - PC 수신기 0.1.6은 실제 Wi-Fi 단절·재연결, DHCP 주소 반납·재할당과 실제
-    Wi-Fi+가상 interface 두 주소의 listener 도달을 통과했다. 활성 VPN adapter가
-    없어 VPN 경유 주소 선택은 수행하지 않았고 Windows 재부팅 자동실행은 아직
-    남아 있다. 현재 운영 설치본은 검증 산출물과 같은 0.1.6이다.
+  - PC 수신기 0.1.6은 실제 Wi-Fi 단절·재연결, DHCP 주소 반납·재할당, 실제
+    Wi-Fi+가상 interface 두 주소의 listener 도달과 Windows 재부팅 뒤 Startup
+    자동실행을 통과했다. 활성 VPN adapter가 없어 VPN 경유 주소 선택은 수행하지
+    않았다. 현재 운영 설치본은 검증 산출물과 같은 0.1.6이다.
   - A에는 실제 외장 키보드가 없고 접근성 서비스가 활성화돼 있지 않아 이 두
     입력원은 직접 검증하지 않았다. 기본 Samsung IME·Matholic 키패드·ADB text와
     key event의 네트워크 pause 차단은 실제 A에서 통과했다.
@@ -607,7 +608,7 @@
 - 영역: PC receiver 시작·LAN 복구·페어링 QR
 - 심각도: P2
 - 신뢰도: 높음
-- 상태: 자동검증 완료
+- 상태: 현장검증 완료
 - 사용자 영향: Windows 로그인 시 Wi-Fi가 아직 준비되지 않으면 수신기가 종료돼
   운영자가 수동 재시작하기 전까지 A의 PDF·상태·CSV 전송을 받을 수 없다. 이미
   실행 중인 PC 주소만 바뀐 경우 서버는 계속 열려 있고 Kiosk RC46+의 같은 `/24`
@@ -712,11 +713,22 @@
     Internet·IPv4는 1초 안에 복구됐다. 이후 listener 1개와 smoke exit 0이었다.
   - 실제 Wi-Fi 1개와 활성 가상 interface 1개의 IPv4로 TCP 48129에 각각 연결해
     2/2 도달을 확인했다. 활성 default IPv4 route는 1개였다.
+- Windows 재부팅·자동실행:
+  - 재부팅 전 OS boot time을 보존하고 일회성 Startup 검증을 등록한 뒤 강제 종료
+    옵션 없이 Windows를 실제 재부팅했다. 재개 뒤 boot time은
+    `2026-08-05T01:10:24.5714280+09:00`으로 전진해 새 부팅을 확인했다.
+  - 로그인 시 정식 Startup shortcut의 `--background` 수신기가 자동 실행됐다.
+    일회성 결과는 실행 파일 hash, Startup target·argument, process 2개,
+    listener 1개, listener owner의 정확한 설치 path와 smoke exit 0을 모두
+    만족해 `success=true`, `error=null`이었다.
+  - 일회성 검증 shortcut은 실행 즉시 제거됐다. Codex 재개 뒤 같은 상태를 다시
+    조회하고 smoke를 별도로 실행해 process 2개, listener 1개, hash·owner 일치,
+    smoke exit 0과 Wi-Fi IPv4 Internet 연결을 재확인했다.
 - 남은 미검증:
   - 활성 VPN adapter가 0개라 VPN 경유 adapter 선택은 수행할 수 없었다.
-  - 이 기록 시점에는 Windows 재로그인·재부팅 후 Startup 자동실행과 GUI QR의
-    실제 A 카메라 재촬영이 남아 있다. QR PDF의 공식 원격 제출은 성공했지만
-    PC GUI QR 광학 촬영으로 확대하지 않는다.
+  - PC GUI pairing QR의 실제 A 카메라 재촬영은 수행하지 않았다. 시험 QR PDF의
+    공식 원격 제출과 PC 수신기 통신은 성공했지만 GUI pairing QR 광학 촬영으로
+    확대하지 않는다.
 - rollback:
   - 코드: `git revert a7ac871573c31ec81c212087734bfd5815546367` 후 receiver
     pytest 22개, compileall, package build와 packaged smoke를 다시 실행한다.
@@ -753,10 +765,12 @@
   `13e46747ad7cbc805c4c8fd7af49ad0f0a14573e`.
 - `SOL-0008` PC receiver LAN 복구 구현·회귀·0.1.6 package 준비 commit:
   `a7ac871573c31ec81c212087734bfd5815546367`.
+- 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
+  `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0008
   package 검증·0.1.6 운영 설치·Goal 종료 상태는 현재 증거 checkpoint에서
-  정렬한다. Goal 종료 뒤 사용자의 명시적 후속 지시로 설치만 수행했으며 연속
-  리뷰 cycle은 재개하지 않았다.
+  정렬한다. Goal 종료 뒤 사용자의 명시적 후속 지시로 설치와 추가 현장검증만
+  수행했으며 연속 리뷰 cycle은 재개하지 않았다.
 - Goal 종료 A 안전점검의 첫 wrapper는 `adb devices -l`의 model token
   `SM_P610`을 `SM-P610`으로 직접 비교해 승인 A 판정을 false로 냈고, 원격 임시
   파일 검사에는 Android shell 인용 오류가 있었다. 제품 실패나 상태 변경은
