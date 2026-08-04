@@ -86,6 +86,8 @@ Git 규칙을 완화하지 않는다. 계약의 오류나 개선 필요성을 �
 5. 저장소 구조, 현재 브랜치, 정확한 HEAD, upstream, ahead/behind, remote,
    `git status --short --branch`, 기존 tracked diff와 untracked 파일을 기록한다.
    기존 변경과 미추적 파일은 사용자 또는 이전 작업자의 소유로 간주한다.
+   네트워크가 가능하면 `git fetch --prune origin`으로 원격 참조만 갱신하고,
+   pull·merge·rebase로 working tree나 history를 자동 변경하지 않는다.
 6. 문서가 주장하는 설치 상태와 실제 A 기기 상태를 구분한다. package,
    versionName/versionCode, signer, UID, firstInstallTime, Device Owner, HOME,
    Lock Task, 현재 앱 화면·세션 상태를 변경 없이 확인할 수 있는 만큼 확인한다.
@@ -96,26 +98,35 @@ Git 규칙을 완화하지 않는다. 계약의 오류나 개선 필요성을 �
 `git status`, 현재 HEAD/upstream과 진행 중 diff를 먼저 확인한다. 관련 자료가
 바뀌었거나 판단에 필요한 경우에만 대형 과거 문서의 특정 구간을 다시 읽는다.
 
-### 3.1 2026-08-04 관찰 기준선
+### 3.1 2026-08-04 보존 기준선과 준비 상태
 
-이 계약 작성 시점의 관찰값은 다음과 같지만, Goal 시작 시 반드시 다시
-확인한다.
+이 계약을 만들기 직전의 기준선은 다음과 같다.
 
-- 현재 브랜치: `master`
-- 현재 HEAD: `ccf410d6b9758c7594a07e94e459bf7e83c554bc`
+- 당시 브랜치: `master`
+- 당시 HEAD: `ccf410d6b9758c7594a07e94e459bf7e83c554bc`
 - `master`는 `origin/master`보다 24개 커밋 앞서 있다.
 - 기존 미추적 경로 `outputs/`가 있다.
 
-이 값은 시작 시점 안전장치이지 영구 진실이 아니다. 특히 `master`를 그대로
-push하면 기존 24개 커밋까지 원격 `master`에 반영될 수 있으므로 그렇게 하지
-않는다. 상태가 달라졌으면 실제 상태를 기준선으로 기록하고 아래 Git 규칙을
-적용한다.
+이후 정확한 당시 HEAD에서 `codex/sol-continuous-development-20260804` 브랜치를
+만들고 이 계약의 최초 commit `8b8be3013cfb9df48b85dc361eba2278f815e7a4`을
+push해 원격 tracking을 설정했다. Goal 시작 시 현재 branch/HEAD/upstream과
+working tree를 다시 확인하되, 위 값은 사용자 기존 작업과 Sol 변경을 나누는
+역사적 기준선으로 보존한다.
+
+특히 `master`를 그대로 push하면 기존 24개 커밋까지 원격 `master`에 반영될 수
+있으므로 그렇게 하지 않는다. 현재 상태가 위 준비 상태와 다르면 무엇이 바뀌었는지
+확인해 새 기준선으로 기록한 뒤 아래 Git 규칙을 적용한다.
 
 ## 4. 전용 브랜치와 기존 작업 보존
 
-첫 파일 변경 전에 정확한 시작 HEAD에서 전용 브랜치를 만든다.
+첫 코드·제품 문서 변경 전에 전용 브랜치 상태를 확정한다.
 
 - 기본 이름: `codex/sol-continuous-development-20260804`
+- 이미 이 브랜치에 있고 같은 이름의 `origin` branch를 정상 추적하면 새 브랜치를
+  만들지 않고 그대로 사용한다.
+- 다른 브랜치에 있다면 tracked/untracked 변경과 branch tip을 먼저 확인한다.
+  작업 트리를 덮어쓰지 않고 안전하게 전환할 수 있을 때만 기존 전용 브랜치로
+  이동한다.
 - 이미 존재하면서 다른 목적이나 다른 tip을 가리키면 삭제·재지정하지 않고
   충돌하지 않는 날짜·일련번호 suffix를 붙인다.
 - 현재 `master`와 `origin/master`를 이동, merge, push 또는 rewrite하지 않는다.
@@ -197,6 +208,19 @@ finding은 `SOL-0001` 형식의 안정된 ID를 사용한다. 심각도, 신뢰�
 가능성만 있는 후보를 확정 결함처럼 고치지 않는다. Luna finding과 현재 코드가
 불일치하면 `이미 수정됨`, `기각`, `중복`, `부분 잔존` 중 하나로 정정한다.
 
+심각도는 다음 기준으로 일관되게 사용한다.
+
+- `P0`: 현재 운영 중 즉각적인 중요 데이터 손실·보안 침해·안전 문제 또는 전체
+  서비스 불능이 재현되며 다른 작업보다 먼저 격리해야 함
+- `P1`: 핵심 흐름이 광범위하게 실패하거나 중요 데이터·인증 경계에 높은 위험이
+  있지만 즉각적인 전면 사고는 아님
+- `P2`: 일반 사용자가 현실적으로 만날 수 있는 기능·복구·사용성 결함
+- `P3`: 영향이 제한적이거나 드문 경계 조건, 유지보수·성능·접근성 개선
+- `P4`: 낮은 위험의 관찰, 문서 불일치, 검증 공백 또는 추가 증거가 필요한 후보
+
+심각도는 추측의 강도가 아니라 확인된 사용자 영향으로 정한다. 증거가 약하면
+심각도를 임의로 높이는 대신 신뢰도를 낮추고 후보 상태로 둔다.
+
 디자인은 DOM 수치나 자동시험만으로 합격 처리하지 않는다. 의미 있는 화면은
 진입 직후와 안정화 뒤, 제어·키패드·대화상자 표시 전후, 스크롤·문제 이동·제출·
 오류·복구 전후의 실제 캡처를 직접 읽는다. 가림, 잘림, 불필요한 가로 스크롤,
@@ -260,12 +284,21 @@ finding은 `SOL-0001` 형식의 안정된 ID를 사용한다. 심각도, 신뢰�
 - 관련 검증 결과 확인
 - `git add -- <정확한 파일 목록>`
 - `git diff --cached --name-status`
+- `git diff --cached --check`
 - `git diff --cached` 최종 검토
 
 commit 뒤 즉시 현재 전용 브랜치를 `origin`에 push하고 upstream을 확인한다.
+push 전에는 최신 원격 tip이 직전에 확인한 값과 일치하거나 로컬 history의
+ancestor인지 확인한다. 다른 작업자가 같은 원격 브랜치를 전진·분기시켰으면
+force-push하거나 무조건 merge하지 않는다. 외부 commit의 범위와 충돌을 확인해
+안전하게 통합할 수 있을 때만 일반 merge를 별도 commit으로 수행하고, 그렇지
+않으면 보존 가능한 새 suffix branch에 push한 뒤 보고서에 분기 사실을 남긴다.
+
 push가 일시 실패하면 원인을 기록하고 제한적으로 재시도하되, `master` push나
 force-push로 우회하지 않는다. 로컬에만 존재하는 commit은 보고서에서
-`push 미완료`로 명확히 표시한다.
+`push 미완료`로 명확히 표시한다. 원격 체크포인트가 없는 동안에는 A 설치,
+migration 또는 테스트 서버 상태 변경처럼 Git만으로 즉시 복구되지 않는 다음
+단계를 진행하지 않는다. 정적 조사와 안전한 로컬 자동검증은 계속할 수 있다.
 
 다음을 하지 않는다.
 
@@ -286,6 +319,10 @@ force-push로 우회하지 않는다. 로컬에만 존재하는 commit은 보고
 - 코드 롤백 명령: 원칙적으로 `git revert <commit>`
 - 롤백 후 다시 실행할 시험과 build
 - A 설치본에 미치는 영향과 별도의 기기 롤백 절차
+
+실제로 rollback을 수행하면 revert commit을 push한 뒤, 해당 finding의 상태와
+현재 동작을 고치는 별도 보고서 commit도 push한다. 구현 commit을 되돌렸다고
+과거 검증 기록을 삭제하지 않는다.
 
 Git revert만으로 A에 이미 설치된 APK가 되돌아가지는 않는다. Android는 보통
 versionCode downgrade를 거부하므로, 기기 롤백이 필요하면 되돌린 source에서
@@ -313,7 +350,7 @@ forward-compatible·reversible 설계와 migration 시험을 먼저 마련한다
 - 최초 기준선과 보존 대상
 - 실제 A의 마지막 확인 시각·설치 version·핵심 운영 상태
 - 현재 작업 중인 finding 한 개와 다음 우선 큐
-- 열린 P0/P1/P2와 사용자 판단 대기 항목
+- 열린 P0/P1/P2, 현재 검토할 P3/P4와 사용자 판단 대기 항목
 - 최근 구현/검증/설치/commit/push 요약
 - 현재 알려진 실패·미검증·제약
 
@@ -343,13 +380,21 @@ release를 만들고 A에 보존형 설치한 뒤 실제 흐름을 확인한다.
 
 설치 전에는 최소한 다음을 확인한다.
 
-- 정확한 target serial과 package
+- 물리 A가 Samsung `SM-P610`, serial `R54TB029FHZ`인 유일한 승인 ADB
+  `device`인지 확인한다. 없거나 둘 이상이거나 serial·model이 다르면 다른
+  기기를 임의 선택하지 않는다.
+- 정확한 target package
 - 현재 versionName/versionCode
 - 기존 APK와 새 artifact의 signer 일치
 - 새 versionCode가 설치본보다 큼
 - UID, firstInstallTime, Device Owner, preferred HOME, Lock Task 상태
 - 현재 수업·QR·세션·앱 상태와 설치가 가능한 안전한 지점
 - migration과 data-preservation 관련 시험 결과
+
+기존 release signing 절차와 signer를 그대로 사용한다. signing key·비밀번호를
+출력·보고서·commit·새 외부 저장소에 기록하지 않는다. 기존 signer에 접근할 수
+없거나 signer 일치를 증명하지 못하면 새 keystore, debug APK 또는 서명이 다른
+APK로 우회 설치하지 말고 A 설치를 `차단`으로 남긴다.
 
 설치는 같은 signer의 더 높은 versionCode APK를 `adb install -r`로 수행한다.
 앱 삭제 후 재설치, `pm clear`, DB·Keystore·PIN 초기화, factory reset으로 설치
@@ -416,6 +461,8 @@ Capture가 실패해도 가능한 경우 Stop을 실행해 상태와 임시 파�
 - hash 직접 제출은 서버·앱 경로 검증이지 카메라 광학 인식, 인쇄 품질, 반사,
   거리 또는 조명을 증명하지 않는다. 이를 명확히 구분해 보고한다.
 - 실제 학생, 정체가 불분명한 QR·계정·수업은 사용하지 않는다.
+- `테스트` 계정이 포함되어 있어도 같은 수업·과제·세션에 실제 학생 또는
+  정체가 불분명한 사용자가 함께 연결돼 있으면 그 공유 상태를 변경하지 않는다.
 
 시험계정의 답 선택·입력·임시저장·제출·다시풀기와 테스트용 QR·수업 상태 변경은
 필요한 범위에서 허용된다. 다만 과거 시험 답안이 서버에서 지연 복원된 사례가
