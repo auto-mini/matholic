@@ -234,6 +234,7 @@ class WebDomScriptsTest {
         assertTrue(subjective.contains(".mq-editable-field"))
         assertTrue(subjective.contains("분수·소수 형식을 지정"))
         assertFalse(workbook.contains("학습지가 선택됐는지"))
+        assertTrue(workbook.contains("학습지 제목과 단원"))
         assertTrue(WebDomScripts.closeStudentHelp.contains("controller?.close?.()"))
     }
 }

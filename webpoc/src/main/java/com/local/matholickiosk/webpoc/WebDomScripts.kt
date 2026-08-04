@@ -5263,7 +5263,13 @@ object WebDomScripts {
                 const row = start?.closest?.(
                   'tr,[role="row"],li,article,[class*="item"],[class*="row"]'
                 );
-                add(row, '이 줄의 평가 이름과 단원이 맞는지 먼저 확인하세요.', 'above');
+                add(
+                  row,
+                  context === 'WORKBOOK' ?
+                    '이 줄의 학습지 제목과 단원이 맞는지 먼저 확인하세요.' :
+                    '이 줄의 평가 이름이 맞는지 먼저 확인하세요.',
+                  'above'
+                );
                 add(start, '확인한 평가를 시작하는 버튼입니다.', 'below');
               } else if (context === 'REVIEW') {
                 const dialog = firstVisible(

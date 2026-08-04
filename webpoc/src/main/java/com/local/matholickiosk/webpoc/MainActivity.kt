@@ -134,6 +134,7 @@ class MainActivity : Activity() {
     private var pendingStudentRevealPath: String? = null
     private var studentHelpContext = StudentHelpContext.NONE
     private var studentLiveHelpVisible = false
+    private var studentLiveHelpControlStates: Map<View, Boolean>? = null
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
@@ -1336,9 +1337,13 @@ class MainActivity : Activity() {
                 val nextHelpContext =
                     StudentHelpContext.fromContract(result.optString("helpContext"))
                 val helpContextChanged = nextHelpContext != studentHelpContext
+                val liveHelpWasVisible = studentLiveHelpVisible
                 updateStudentHelpContext(nextHelpContext)
                 studentLiveHelpVisible =
                     !helpContextChanged && result.optBoolean("liveHelpOpen", false)
+                if (liveHelpWasVisible && !studentLiveHelpVisible) {
+                    setStudentLiveHelpNativeControlsBlocked(blocked = false)
+                }
                 updateStudentChrome(path)
                 if (studentContentRevealPending) {
                     if (
@@ -1955,6 +1960,10 @@ class MainActivity : Activity() {
         diagnosticButton.isSelected = showNavigation && diagnosticSelected
         workbookButton.isEnabled = showNavigation && !workbookSelected
         diagnosticButton.isEnabled = showNavigation && !diagnosticSelected
+        if (studentLiveHelpVisible) {
+            workbookButton.isEnabled = false
+            diagnosticButton.isEnabled = false
+        }
         workbookButton.alpha = 1f
         diagnosticButton.alpha = 1f
         val layoutParams = webView.layoutParams as FrameLayout.LayoutParams
@@ -2016,11 +2025,15 @@ class MainActivity : Activity() {
             return
         }
         val requestedContext = studentHelpContext
+        setStudentLiveHelpNativeControlsBlocked(blocked = true)
         evaluate(WebDomScripts.showStudentHelp(requestedContext.name)) { result ->
             if (
                 state != WebPocState.ACTIVE ||
                 studentHelpContext != requestedContext
-            ) return@evaluate
+            ) {
+                setStudentLiveHelpNativeControlsBlocked(blocked = false)
+                return@evaluate
+            }
             if (
                 result?.optString("version") == WebDomScripts.CONTRACT_VERSION &&
                 result.optBoolean("ok") &&
@@ -2028,10 +2041,11 @@ class MainActivity : Activity() {
             ) {
                 studentLiveHelpVisible = true
                 studentHelpPanel.visibility = View.GONE
-                setStudentHelpBackgroundAccessibility(hidden = false)
+                setStudentLiveHelpNativeControlsBlocked(blocked = true)
                 scheduleInactivityWarning()
                 hideSystemNavigation()
             } else {
+                setStudentLiveHelpNativeControlsBlocked(blocked = false)
                 showStudentHelpCard(copy)
             }
         }
@@ -2062,8 +2076,37 @@ class MainActivity : Activity() {
         }
         studentLiveHelpVisible = false
         studentHelpPanel.visibility = View.GONE
+        setStudentLiveHelpNativeControlsBlocked(blocked = false)
         setStudentHelpBackgroundAccessibility(hidden = false)
         hideSystemNavigation()
+    }
+
+    private fun setStudentLiveHelpNativeControlsBlocked(blocked: Boolean) {
+        val controls = listOf(
+            workbookButton,
+            diagnosticButton,
+            studentHelpButton,
+            finishButton,
+        )
+        if (blocked) {
+            if (studentLiveHelpControlStates == null) {
+                studentLiveHelpControlStates = controls.associateWith { it.isEnabled }
+            }
+            controls.forEach { it.isEnabled = false }
+            studentHeaderControls.importantForAccessibility =
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            studentNavBar.importantForAccessibility =
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            finishButton.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            return
+        }
+        studentLiveHelpControlStates?.forEach { (control, wasEnabled) ->
+            control.isEnabled = wasEnabled
+        }
+        studentLiveHelpControlStates = null
+        studentHeaderControls.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        studentNavBar.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        finishButton.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
     }
 
     private fun setStudentHelpBackgroundAccessibility(hidden: Boolean) {
