@@ -385,22 +385,42 @@
         </ScrollView>
     </FrameLayout>
 
-    <TextView
-        android:id="@+id/student_name_badge"
+    <LinearLayout
+        android:id="@+id/student_header_controls"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="10dp"
-        android:background="#F2102A43"
-        android:elevation="16dp"
-        android:maxWidth="280dp"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="8dp"
-        android:textColor="#FFFFFF"
-        android:textSize="17sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:layout_marginTop="6dp"
+        android:elevation="20dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/student_name_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#F2102A43"
+            android:maxWidth="280dp"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/student_help_button"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/student_help_button_background"
+            android:contentDescription="현재 화면 도움말"
+            android:filterTouchesWhenObscured="true"
+            android:padding="10dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_student_help" />
+    </LinearLayout>
 
     <FrameLayout
         android:id="@+id/idle_warning_panel"
@@ -482,6 +502,101 @@
                 android:text="인터넷 연결 복구를 기다리는 중입니다\n답안은 그대로 유지됩니다"
                 android:textColor="#FFFFFF"
                 android:textSize="24sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/student_help_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6102A43"
+        android:clickable="true"
+        android:focusable="true"
+        android:importantForAccessibility="yes"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="860dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/student_help_card_background"
+            android:elevation="24dp"
+            android:orientation="vertical"
+            android:padding="36dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/student_help_eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/student_help_eyebrow_background"
+                    android:paddingHorizontal="15dp"
+                    android:paddingVertical="7dp"
+                    android:textColor="#FF0B5CAD"
+                    android:textSize="17sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/student_help_close_button"
+                    android:layout_width="128dp"
+                    android:layout_height="52dp"
+                    android:backgroundTint="#FFE7EDF4"
+                    android:contentDescription="도움말 닫기"
+                    android:filterTouchesWhenObscured="true"
+                    android:text="닫기"
+                    android:textColor="#FF102A43"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/student_help_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:textColor="#FF102A43"
+                android:textSize="32sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/student_help_lead"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="3dp"
+                android:textColor="#FF486581"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/student_help_steps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:lineSpacingExtra="8dp"
+                android:textColor="#FF102A43"
+                android:textSize="21sp" />
+
+            <TextView
+                android:id="@+id/student_help_caution"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@drawable/student_help_caution_background"
+                android:lineSpacingExtra="3dp"
+                android:padding="18dp"
+                android:textColor="#FF7A4500"
+                android:textSize="19sp"
                 android:textStyle="bold" />
         </LinearLayout>
     </FrameLayout>

@@ -145,14 +145,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var pairPcButton: Button
     private lateinit var sendPcPdfButton: Button
     private lateinit var scannerPanel: FrameLayout
+    private lateinit var scannerCenterContent: LinearLayout
+    private lateinit var scannerActionControls: LinearLayout
     private lateinit var scannerInstruction: TextView
     private lateinit var scannerMessage: TextView
     private lateinit var cancelQrLoginButton: Button
     private lateinit var switchCameraButton: ImageButton
     private lateinit var sessionAdminButton: ImageButton
+    private lateinit var scannerHelpButton: ImageButton
+    private lateinit var scannerHelpPanel: FrameLayout
+    private lateinit var scannerHelpCloseButton: Button
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var automaticAuthenticationGeneration = 0
+    private var scannerHelpPausedAnalyzer = false
     private var enrolledAdminPinLength: Int? = null
     private val automaticAuthenticationRunnable = Runnable {
         if (
@@ -458,11 +464,16 @@ class MainActivity : ComponentActivity() {
         pairPcButton = findViewById(R.id.pair_pc_button)
         sendPcPdfButton = findViewById(R.id.send_pc_pdf_button)
         scannerPanel = findViewById(R.id.scanner_panel)
+        scannerCenterContent = findViewById(R.id.scanner_center_content)
+        scannerActionControls = findViewById(R.id.scanner_action_controls)
         scannerInstruction = findViewById(R.id.scanner_lens_instruction)
         scannerMessage = findViewById(R.id.scanner_message)
         cancelQrLoginButton = findViewById(R.id.cancel_qr_login_button)
         switchCameraButton = findViewById(R.id.switch_camera_button)
         sessionAdminButton = findViewById(R.id.session_admin_button)
+        scannerHelpButton = findViewById(R.id.scanner_help_button)
+        scannerHelpPanel = findViewById(R.id.scanner_help_panel)
+        scannerHelpCloseButton = findViewById(R.id.scanner_help_close_button)
     }
 
     private fun configureSensitiveViews() {
@@ -500,6 +511,8 @@ class MainActivity : ComponentActivity() {
             cancelQrLoginButton,
             switchCameraButton,
             sessionAdminButton,
+            scannerHelpButton,
+            scannerHelpCloseButton,
         ).forEach { it.filterTouchesWhenObscured = true }
         pinConfirmInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -565,6 +578,8 @@ class MainActivity : ComponentActivity() {
         recoverSessionButton.setOnClickListener { confirmOneButtonRecovery() }
         cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
+        scannerHelpButton.setOnClickListener { showScannerHelp() }
+        scannerHelpCloseButton.setOnClickListener { hideScannerHelp(resumeAnalyzer = true) }
         sessionAdminButton.setOnClickListener {
             if (pcPairingMode) {
                 returnToAdminAfterPcPairing("PC 페어링을 취소했습니다.")
@@ -626,6 +641,9 @@ class MainActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    if (scannerHelpPanel.visibility == View.VISIBLE) {
+                        hideScannerHelp(resumeAnalyzer = true)
+                    }
                     // The administrator can deliberately leave Lock Task to use Recents, but
                     // system Back must not discard the current admin form or reopen PIN entry.
                 }
@@ -3019,6 +3037,8 @@ class MainActivity : ComponentActivity() {
 
     private fun startPcPairingScanner() {
         pcPairingMode = true
+        hideScannerHelp(resumeAnalyzer = false)
+        scannerHelpButton.visibility = View.GONE
         appHeader.visibility = View.GONE
         authPanel.visibility = View.GONE
         adminPanel.visibility = View.GONE
@@ -3137,6 +3157,8 @@ class MainActivity : ComponentActivity() {
         remoteSupportWindowController.setSensitiveScreen(false)
         clearQrPreview()
         pcPairingMode = false
+        hideScannerHelp(resumeAnalyzer = false)
+        scannerHelpButton.visibility = View.VISIBLE
         setSessionControlMode(admin = true)
         updateCameraSwitchLabel()
         appHeader.visibility = View.GONE
@@ -3249,7 +3271,7 @@ class MainActivity : ComponentActivity() {
                 )
                     .also { qrAnalyzer = it }
                 analyzer.setFrontFacing(facing == CameraFacing.FRONT)
-                analyzer.setEnabled(true)
+                analyzer.setEnabled(scannerHelpPanel.visibility != View.VISIBLE)
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
@@ -3409,6 +3431,7 @@ class MainActivity : ComponentActivity() {
             when (decision) {
                 QrFrameDecision.Ignore -> qrAnalyzer?.setEnabled(true)
                 is QrFrameDecision.Reject -> {
+                    scannerHelpButton.visibility = View.GONE
                     val reason = when (decision.reason) {
                         QrFrameRejection.MULTIPLE_QR -> {
                             scannerMessage.text = "QR카드는 한 장만 보여주세요"
@@ -3468,6 +3491,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         val flowGeneration = studentFlowGeneration
+        hideScannerHelp(resumeAnalyzer = false)
+        scannerHelpButton.visibility = View.GONE
         qrGuidanceGeneration += 1
         scannerMessage.text = "확인되었습니다"
         statusText.text = KioskState.QR_VALIDATING.name
@@ -3698,11 +3723,13 @@ class MainActivity : ComponentActivity() {
     private fun resumeScannerAfterCooldown() {
         qrAcceptanceGeneration += 1
         cancelQrLoginButton.visibility = View.GONE
+        scannerHelpButton.visibility = View.GONE
         mainHandler.postDelayed({
             if (!scannerVisible || destroyed) return@postDelayed
             qrGuidanceGeneration += 1
             scannerMessage.text = ""
             statusText.text = KioskState.QR_READY.name
+            scannerHelpButton.visibility = View.VISIBLE
             qrAnalyzer?.setEnabled(true)
         }, SCAN_COOLDOWN_MS)
     }
@@ -3712,6 +3739,7 @@ class MainActivity : ComponentActivity() {
         qrAcceptanceGeneration += 1
         studentFlowGeneration += 1
         cancelQrLoginButton.visibility = View.GONE
+        scannerHelpButton.visibility = View.GONE
         activeStudentDisplayName = null
         scannerMessage.text = "로그인을 취소했습니다\n다른 QR 카드를 보여주세요"
         statusText.text = KioskState.QR_READY.name
@@ -3719,9 +3747,55 @@ class MainActivity : ComponentActivity() {
         mainHandler.postDelayed({
             if (!destroyed && scannerVisible) {
                 scannerMessage.text = ""
+                scannerHelpButton.visibility = View.VISIBLE
                 qrAnalyzer?.setEnabled(true)
             }
         }, 700L)
+    }
+
+    private fun showScannerHelp() {
+        if (
+            !scannerVisible ||
+            pcPairingMode ||
+            studentLaunchGate.isActive ||
+            statusText.text != KioskState.QR_READY.name
+        ) return
+        scannerHelpPausedAnalyzer = true
+        qrAnalyzer?.setEnabled(false)
+        qrGuidanceGeneration += 1
+        setScannerHelpBackgroundAccessibility(hidden = true)
+        scannerHelpPanel.visibility = View.VISIBLE
+        scannerHelpPanel.bringToFront()
+        scannerHelpPanel.requestFocus()
+    }
+
+    private fun hideScannerHelp(resumeAnalyzer: Boolean) {
+        if (!::scannerHelpPanel.isInitialized) return
+        val shouldResume = resumeAnalyzer &&
+            scannerHelpPausedAnalyzer &&
+            scannerVisible &&
+            !pcPairingMode &&
+            !studentLaunchGate.isActive &&
+            statusText.text == KioskState.QR_READY.name
+        scannerHelpPausedAnalyzer = false
+        scannerHelpPanel.visibility = View.GONE
+        setScannerHelpBackgroundAccessibility(hidden = false)
+        if (shouldResume) qrAnalyzer?.setEnabled(true)
+    }
+
+    private fun setScannerHelpBackgroundAccessibility(hidden: Boolean) {
+        val groupImportance = if (hidden) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        }
+        scannerCenterContent.importantForAccessibility = groupImportance
+        scannerActionControls.importantForAccessibility = groupImportance
+        scannerHelpButton.importantForAccessibility = if (hidden) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        }
     }
 
     private fun requestSessionAdminAuthentication() {

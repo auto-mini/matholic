@@ -43,6 +43,7 @@ import android.webkit.WebViewRenderProcessClient
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -84,7 +85,16 @@ class MainActivity : Activity() {
     private lateinit var wrongAnswerSummary: TextView
     private lateinit var resultContinueButton: Button
     private lateinit var resultConfirmButton: Button
+    private lateinit var studentHeaderControls: LinearLayout
     private lateinit var studentNameBadge: TextView
+    private lateinit var studentHelpButton: ImageButton
+    private lateinit var studentHelpPanel: FrameLayout
+    private lateinit var studentHelpEyebrow: TextView
+    private lateinit var studentHelpTitle: TextView
+    private lateinit var studentHelpLead: TextView
+    private lateinit var studentHelpSteps: TextView
+    private lateinit var studentHelpCaution: TextView
+    private lateinit var studentHelpCloseButton: Button
     private lateinit var idleWarningPanel: FrameLayout
     private lateinit var idleContinueButton: Button
     private lateinit var networkPausePanel: FrameLayout
@@ -122,6 +132,7 @@ class MainActivity : Activity() {
     private var studentContentRevealPending = false
     private var studentContentRevealPasses = 0
     private var pendingStudentRevealPath: String? = null
+    private var studentHelpContext = StudentHelpContext.NONE
     private var lastAllowedStudentUrl = WebSecurityPolicy.WORKBOOK_URL
     private var activeJavaScriptDialog: AlertDialog? = null
     private var activeJavaScriptDialogResult: JsResult? = null
@@ -387,7 +398,16 @@ class MainActivity : Activity() {
         wrongAnswerSummary = findViewById(R.id.wrong_answer_summary)
         resultContinueButton = findViewById(R.id.result_continue_button)
         resultConfirmButton = findViewById(R.id.result_confirm_button)
+        studentHeaderControls = findViewById(R.id.student_header_controls)
         studentNameBadge = findViewById(R.id.student_name_badge)
+        studentHelpButton = findViewById(R.id.student_help_button)
+        studentHelpPanel = findViewById(R.id.student_help_panel)
+        studentHelpEyebrow = findViewById(R.id.student_help_eyebrow)
+        studentHelpTitle = findViewById(R.id.student_help_title)
+        studentHelpLead = findViewById(R.id.student_help_lead)
+        studentHelpSteps = findViewById(R.id.student_help_steps)
+        studentHelpCaution = findViewById(R.id.student_help_caution)
+        studentHelpCloseButton = findViewById(R.id.student_help_close_button)
         idleWarningPanel = findViewById(R.id.idle_warning_panel)
         idleContinueButton = findViewById(R.id.idle_continue_button)
         networkPausePanel = findViewById(R.id.network_pause_panel)
@@ -418,6 +438,8 @@ class MainActivity : Activity() {
             diagnosticButton,
             resultContinueButton,
             resultConfirmButton,
+            studentHelpButton,
+            studentHelpCloseButton,
             idleContinueButton,
             webView,
         ).forEach {
@@ -847,6 +869,8 @@ class MainActivity : Activity() {
                 beginLogout()
             }
         }
+        studentHelpButton.setOnClickListener { showStudentHelp() }
+        studentHelpCloseButton.setOnClickListener { hideStudentHelp() }
         idleContinueButton.setOnClickListener {
             idleWarningPanel.visibility = View.GONE
             PrivateDiagnosticLog.event(this, "IDLE_CONTINUE")
@@ -878,6 +902,10 @@ class MainActivity : Activity() {
     }
 
     private fun consumeSystemBack() {
+        if (studentHelpPanel.visibility == View.VISIBLE) {
+            hideStudentHelp()
+            return
+        }
         hideSystemNavigation()
     }
 
@@ -1304,6 +1332,9 @@ class MainActivity : Activity() {
                     return@evaluate
                 }
                 val path = result.optString("path")
+                updateStudentHelpContext(
+                    StudentHelpContext.fromContract(result.optString("helpContext")),
+                )
                 updateStudentChrome(path)
                 if (studentContentRevealPending) {
                     if (
@@ -1432,7 +1463,9 @@ class MainActivity : Activity() {
         finishButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
         resultSummaryPanel.visibility = View.VISIBLE
+        updateStudentHelpContext(StudentHelpContext.RESULT)
         updateStudentNameBadge()
+        showStudentHeaderControls()
         hideSystemNavigation()
     }
 
@@ -1791,7 +1824,11 @@ class MainActivity : Activity() {
         finishButton.visibility = View.VISIBLE
         gate3AbortButton.visibility = View.GONE
         statusBadge.visibility = View.GONE
+        updateStudentHelpContext(
+            StudentHelpContext.fromPath(WebSecurityPolicy.pathOf(url)),
+        )
         updateStudentNameBadge()
+        showStudentHeaderControls()
         updateStudentChrome(WebSecurityPolicy.pathOf(url))
         hideSystemNavigation()
     }
@@ -1813,7 +1850,7 @@ class MainActivity : Activity() {
         recoveryButton.visibility = View.GONE
         gate3AbortButton.visibility = if (gate3Session != null) View.VISIBLE else View.GONE
         blockerMessage.text = message
-        updateStudentNameBadge()
+        hideStudentHeaderControls()
     }
 
     private fun prepareStudentContentReveal(targetPath: String?, message: String) {
@@ -1831,7 +1868,7 @@ class MainActivity : Activity() {
         recoveryButton.visibility = View.GONE
         gate3AbortButton.visibility = View.GONE
         blockerMessage.text = message
-        updateStudentNameBadge()
+        hideStudentHeaderControls()
         scheduleTimeout(PAGE_TIMEOUT_MS, "STUDENT_PAGE_TIMEOUT")
     }
 
@@ -1930,6 +1967,84 @@ class MainActivity : Activity() {
         studentNameBadge.visibility = if (displayName.isEmpty()) View.GONE else View.VISIBLE
     }
 
+    private fun updateStudentHelpContext(context: StudentHelpContext) {
+        studentHelpContext = context
+        val copy = StudentHelpContent.forContext(context)
+        studentHelpButton.visibility = if (copy == null) View.GONE else View.VISIBLE
+        if (copy == null) {
+            hideStudentHelp()
+        } else if (studentHelpPanel.visibility == View.VISIBLE) {
+            bindStudentHelpCopy(copy)
+        }
+    }
+
+    private fun showStudentHeaderControls() {
+        studentHeaderControls.visibility = if (
+            state == WebPocState.ACTIVE &&
+            (studentNameBadge.visibility == View.VISIBLE ||
+                studentHelpButton.visibility == View.VISIBLE)
+        ) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
+    }
+
+    private fun hideStudentHeaderControls() {
+        hideStudentHelp()
+        studentHeaderControls.visibility = View.GONE
+    }
+
+    private fun showStudentHelp() {
+        val copy = StudentHelpContent.forContext(studentHelpContext) ?: return
+        if (
+            state != WebPocState.ACTIVE ||
+            studentHeaderControls.visibility != View.VISIBLE ||
+            blocker.visibility == View.VISIBLE ||
+            idleWarningPanel.visibility == View.VISIBLE ||
+            networkPausePanel.visibility == View.VISIBLE
+        ) return
+        bindStudentHelpCopy(copy)
+        setStudentHelpBackgroundAccessibility(hidden = true)
+        studentHelpPanel.visibility = View.VISIBLE
+        studentHelpPanel.bringToFront()
+        studentHelpPanel.requestFocus()
+        scheduleInactivityWarning()
+        hideSystemNavigation()
+    }
+
+    private fun bindStudentHelpCopy(copy: StudentHelpCopy) {
+        studentHelpEyebrow.text = copy.eyebrow
+        studentHelpTitle.text = copy.title
+        studentHelpLead.text = copy.lead
+        studentHelpSteps.text = copy.steps
+        studentHelpCaution.text = copy.caution
+    }
+
+    private fun hideStudentHelp() {
+        if (!::studentHelpPanel.isInitialized) return
+        studentHelpPanel.visibility = View.GONE
+        setStudentHelpBackgroundAccessibility(hidden = false)
+        hideSystemNavigation()
+    }
+
+    private fun setStudentHelpBackgroundAccessibility(hidden: Boolean) {
+        val importance = if (hidden) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        }
+        webViewReference?.importantForAccessibility = importance
+        studentHeaderControls.importantForAccessibility = importance
+        studentNavBar.importantForAccessibility = importance
+        finishButton.importantForAccessibility = if (hidden) {
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        } else {
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        }
+        resultSummaryPanel.importantForAccessibility = importance
+    }
+
     private fun hideStudentExperienceLayers() {
         activeExperienceGeneration += 1
         resultSummaryDisplayed = false
@@ -1937,6 +2052,9 @@ class MainActivity : Activity() {
         studentContentRevealPending = false
         studentContentRevealPasses = 0
         pendingStudentRevealPath = null
+        studentHelpContext = StudentHelpContext.NONE
+        studentHelpButton.visibility = View.GONE
+        hideStudentHeaderControls()
         studentNameBadge.visibility = View.GONE
         studentNavBar.visibility = View.GONE
         resultSummaryPanel.visibility = View.GONE
@@ -2325,7 +2443,7 @@ class MainActivity : Activity() {
         if (!uiInitialized || webViewReference == null) return
         if (paused) {
             finishButton.visibility = View.GONE
-            studentNameBadge.visibility = View.GONE
+            hideStudentHeaderControls()
             studentNavBar.visibility = View.GONE
             networkPausePanel.visibility = View.VISIBLE
             networkPausePanel.bringToFront()
@@ -2348,6 +2466,7 @@ class MainActivity : Activity() {
             if (state == WebPocState.ACTIVE) {
                 finishButton.visibility = View.VISIBLE
                 updateStudentNameBadge()
+                showStudentHeaderControls()
                 updateStudentChrome(WebSecurityPolicy.pathOf(webView.url))
             }
             webView.isFocusable = true
@@ -2371,6 +2490,7 @@ class MainActivity : Activity() {
                 generation == inactivityGeneration &&
                 networkPausePanel.visibility != View.VISIBLE
             ) {
+                hideStudentHelp()
                 idleWarningPanel.visibility = View.VISIBLE
                 PrivateDiagnosticLog.event(this, "IDLE_WARNING")
             }

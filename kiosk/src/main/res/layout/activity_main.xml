@@ -534,6 +534,7 @@
                 </FrameLayout>
 
                 <LinearLayout
+                    android:id="@+id/scanner_action_controls"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="bottom|end"
@@ -564,6 +565,114 @@
                         android:src="@drawable/ic_admin_panel_settings"
                         app:tint="#FFFFFF" />
                 </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/scanner_help_button"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:layout_gravity="top|start"
+                    android:layout_margin="20dp"
+                    android:background="@drawable/student_help_button_background"
+                    android:contentDescription="QR 카드 화면 도움말"
+                    android:filterTouchesWhenObscured="true"
+                    android:padding="11dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/ic_student_help" />
+
+                <FrameLayout
+                    android:id="@+id/scanner_help_panel"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#E6102A43"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:importantForAccessibility="yes"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="860dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:background="@drawable/student_help_card_background"
+                        android:elevation="24dp"
+                        android:orientation="vertical"
+                        android:padding="36dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/student_help_eyebrow_background"
+                                android:paddingHorizontal="15dp"
+                                android:paddingVertical="7dp"
+                                android:text="QR 카드 인식"
+                                android:textColor="#FF0B5CAD"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
+                            <View
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1" />
+
+                            <Button
+                                android:id="@+id/scanner_help_close_button"
+                                android:layout_width="128dp"
+                                android:layout_height="52dp"
+                                android:backgroundTint="#FFE7EDF4"
+                                android:contentDescription="도움말 닫기"
+                                android:filterTouchesWhenObscured="true"
+                                android:text="닫기"
+                                android:textColor="#FF102A43"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="20dp"
+                            android:text="QR 카드로 내 이름을 확인하는 화면"
+                            android:textColor="#FF102A43"
+                            android:textSize="32sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:lineSpacingExtra="3dp"
+                            android:text="내 QR 카드를 카메라 렌즈에 보여주면 학습 화면이 자동으로 열립니다."
+                            android:textColor="#FF486581"
+                            android:textSize="20sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="24dp"
+                            android:lineSpacingExtra="8dp"
+                            android:text="1. 카드 앞면의 QR이 카메라를 향하게 듭니다.&#10;2. 렌즈에서 약 10~20cm 떨어진 곳에 카드를 놓습니다.&#10;3. 화면 안내에 따라 좌우·위아래·거리를 조금씩 조절합니다.&#10;4. 내 이름이 나오면 카드를 내리고 잠시 기다립니다."
+                            android:textColor="#FF102A43"
+                            android:textSize="21sp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="24dp"
+                            android:background="@drawable/student_help_caution_background"
+                            android:lineSpacingExtra="3dp"
+                            android:padding="18dp"
+                            android:text="빛이 반사되면 카드를 조금 기울이세요. 다른 이름이 나오거나 계속 인식되지 않으면 선생님을 불러주세요."
+                            android:textColor="#FF7A4500"
+                            android:textSize="19sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </FrameLayout>
             </FrameLayout>
         </FrameLayout>
     </LinearLayout>

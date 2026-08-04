@@ -4923,6 +4923,18 @@ object WebDomScripts {
           ).some(element =>
             visible(element) && normalize(element.textContent).includes('종합분석')
           );
+          const reviewHelpOpen = isLearning && Array.from(
+            document.querySelectorAll(
+              '.ant-modal-title,.ant-drawer-title,' +
+              'h1,h2,h3,h4,h5,h6,[role="heading"]'
+            )
+          ).some(element =>
+            visible(element) && normalize(element.textContent) === '전체답안'
+          );
+          const helpContext = isWorkbook ? 'WORKBOOK' :
+            isDiagnostic ? 'DIAGNOSTIC' :
+            reviewHelpOpen ? 'REVIEW' :
+            isLearning ? 'PROBLEM' : 'NONE';
           const contentReady = !isLearning ||
             enhancedButtons > 0 ||
             subjectiveTouchTargets > 0 ||
@@ -4930,6 +4942,7 @@ object WebDomScripts {
             analysisReady;
           return JSON.stringify({
             version, ok: true, path,
+            helpContext,
             listPage: isWorkbook || isDiagnostic,
             learningPage: isLearning, contentReady,
             enhancedButtons, hiddenChrome, hiddenControls, mathModeSelections,
