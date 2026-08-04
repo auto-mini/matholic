@@ -1,11 +1,16 @@
 package com.local.matholickiosk.kiosk
 
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Rect
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
@@ -111,35 +116,51 @@ class MainActivityInstrumentedTest {
 
     @Test
     fun qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation() {
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            scenario.onActivity { activity ->
-                activity.findViewById<View>(R.id.scanner_panel).visibility = View.VISIBLE
-                activity.findViewById<View>(R.id.scanner_help_panel).visibility = View.VISIBLE
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val deviceAContext = baseContext.createConfigurationContext(
+            Configuration(baseContext.resources.configuration).apply {
+                densityDpi = 240
+                fontScale = 1.1f
+                orientation = Configuration.ORIENTATION_LANDSCAPE
+                screenWidthDp = 1_333
+                screenHeightDp = 752
+                smallestScreenWidthDp = 800
+            },
+        )
+
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val root = LayoutInflater.from(deviceAContext)
+                .inflate(R.layout.activity_main, null, false)
+            root.findViewById<View>(R.id.app_header).visibility = View.GONE
+            root.findViewById<View>(R.id.auth_panel).visibility = View.GONE
+            root.findViewById<View>(R.id.admin_panel).visibility = View.GONE
+            root.findViewById<View>(R.id.scanner_panel).visibility = View.VISIBLE
+            val panel = root.findViewById<ViewGroup>(R.id.scanner_help_panel).apply {
+                visibility = View.VISIBLE
             }
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.scanner_help_caution).height > 0 &&
-                    activity.findViewById<View>(R.id.scanner_help_simulation).width > 0
+            root.measure(
+                View.MeasureSpec.makeMeasureSpec(2_000, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(1_128, View.MeasureSpec.EXACTLY),
+            )
+            root.layout(0, 0, root.measuredWidth, root.measuredHeight)
+
+            val caution = root.findViewById<View>(R.id.scanner_help_caution)
+            val cautionBounds = Rect(0, 0, caution.width, caution.height).also {
+                panel.offsetDescendantRectToMyCoords(caution, it)
             }
-            scenario.onActivity { activity ->
-                val panel = activity.findViewById<View>(R.id.scanner_help_panel)
-                val caution = activity.findViewById<View>(R.id.scanner_help_caution)
-                val simulation = activity.findViewById<android.widget.ImageView>(
-                    R.id.scanner_help_simulation,
-                )
-                val panelLocation = IntArray(2).also(panel::getLocationOnScreen)
-                val cautionLocation = IntArray(2).also(caution::getLocationOnScreen)
-                assertTrue(simulation.drawable != null)
-                assertTrue(simulation.contentDescription.contains("QR 명찰"))
-                assertTrue(
-                    cautionLocation[1] + caution.height <=
-                        panelLocation[1] + panel.height,
-                )
-                assertEquals(
-                    13f * activity.resources.displayMetrics.density,
-                    activity.findViewById<View>(R.id.scanner_lens_pointer).translationY,
-                    0.6f,
-                )
-            }
+            val simulation = root.findViewById<android.widget.ImageView>(
+                R.id.scanner_help_simulation,
+            )
+            assertTrue(caution.width > 0 && caution.height > 0)
+            assertTrue(simulation.width > 0 && simulation.height > 0)
+            assertTrue(simulation.drawable != null)
+            assertTrue(simulation.contentDescription.contains("QR 명찰"))
+            assertTrue(cautionBounds.bottom <= panel.height)
+            assertEquals(
+                13f * deviceAContext.resources.displayMetrics.density,
+                root.findViewById<View>(R.id.scanner_lens_pointer).translationY,
+                0.6f,
+            )
         }
     }
 
