@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-04.3"
+    const val CONTRACT_VERSION = "web-2026-08-04.4"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -5310,18 +5310,12 @@ object WebDomScripts {
                   }
                 }
               } else if (context === 'REVIEW') {
-                const reviewClose = findControl(['닫기']);
                 const reviewSubmit = findControl([
                   '답안 제출', '답안제출', '완료하기'
                 ]);
-                const reviewFooter = reviewClose?.closest?.(
-                  '.ant-modal-footer,[class*="footer"]'
-                ) || reviewSubmit?.closest?.(
-                  '.ant-modal-footer,[class*="footer"]'
-                ) || reviewClose?.parentElement || reviewSubmit?.parentElement;
                 add(
-                  reviewFooter,
-                  '답을 고치려면 ‘닫기’, 확인을 마쳤으면 ‘답안 제출’을 누르세요.',
+                  reviewSubmit,
+                  '확인을 마쳤을 때만 누르세요. 누르면 실제 채점이 시작됩니다.',
                   'above'
                 );
               } else {

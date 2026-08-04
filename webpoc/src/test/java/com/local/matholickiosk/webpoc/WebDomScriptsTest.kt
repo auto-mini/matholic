@@ -239,8 +239,9 @@ class WebDomScriptsTest {
         assertTrue(subjective.contains("matholicKioskKeypadActive"))
         assertTrue(subjective.contains("document.activeElement?.blur?.()"))
         val review = WebDomScripts.showStudentHelp("REVIEW")
-        assertTrue(review.contains("reviewFooter"))
-        assertTrue(review.contains("답을 고치려면 ‘닫기’"))
+        assertTrue(review.contains("reviewSubmit"))
+        assertFalse(review.contains("reviewFooter"))
+        assertTrue(review.contains("누르면 실제 채점이 시작됩니다"))
         assertTrue(WebDomScripts.closeStudentHelp.contains("controller?.close?.()"))
     }
 }
