@@ -2,17 +2,17 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-04 19:07:16 +09:00
+- `last_updated`: 2026-08-04 19:09:40 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
-- 현재 HEAD / upstream: `f4d380537d912729b8fa0a00254b165280972f39` /
+- 현재 제품·운영 문서 HEAD / upstream: `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `f4d380537d912729b8fa0a00254b165280972f39`
+- 마지막 push 성공 commit: `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 현재 작업 중: `SOL-0001` — release 운영 문서의 현재 버전 기준선 불일치
+- 현재 작업 중: `SOL-0002` — Kiosk↔Web 세션 결과의 중복·지연 상태 전이 재감사
 - 다음 우선 큐:
   1. Kiosk↔Web launch/result의 session ID 결합, 중복 완료·늦은 결과 상태 전이
      독립 재감사
@@ -22,9 +22,10 @@
 
 ### 열린 finding과 제약
 
-- 열린 P0/P1/P2: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
+- 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현재 검토 P3/P4: `SOL-0001` 1건.
+- 현재 검토 P2 후보: `SOL-0002` 1건. 아직 결함으로 확정하지 않았다.
+- 완료 P3: `SOL-0001` 1건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
   - 비민감 화면 확인을 위해 원격 지원 Start→Capture를 시도했으나 태블릿이
@@ -89,7 +90,7 @@
 - 영역: 빌드·릴리스·운영 문서
 - 심각도: P3
 - 신뢰도: 높음
-- 상태: 확정
+- 상태: 현장검증 완료
 - 사용자 영향: 운영자가 `docs/RELEASE_OPERATIONS.md`만 따르면 현재 A와 보관
   artifact를 RC67/RC125로 오인해 설치·검증·롤백 대상을 잘못 선택할 수 있다.
 - 재현 조건: `docs/RELEASE_OPERATIONS.md`의 `현재 상태`를 현재 source, artifact,
@@ -111,19 +112,39 @@
   기록해 모든 문서가 잘못된 것은 아니다.
 - 원인·결정: RC69/RC132 배포 뒤 운영 문서 상단이 함께 갱신되지 않은 문서 drift로
   판단한다. 현재 사실만 최소 교정하고 과거 release 이력은 바꾸지 않는다.
-- 변경 파일: 아직 없음.
-- 관련 commit: 아직 없음.
+- 변경 파일: `docs/RELEASE_OPERATIONS.md`.
+- 관련 commit: `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545`.
 - 실행한 검증:
   - source·release script·checksum의 버전 문자열 대조
   - A package version/UID/firstInstallTime, Device Owner, HOME, Lock Task 확인
   - 설치 APK와 artifact signer SHA-256 대조
 - 수행하지 않은 검증: 새 build·APK 설치·실제 화면 조작은 이 문서 drift 확정에
   필요하지 않아 수행하지 않았다.
-- rollback: 구현 commit 생성 뒤 `git revert <commit>`과 문서 문자열 재대조.
-  A 설치본에는 영향을 주지 않는다.
+- rollback: `git revert b5b6fe4ec2a2506af7002dabf5204f7de2cc7545` 후
+  source·artifact·A 버전과 문서 문자열을 다시 대조한다. A 설치본에는 영향을
+  주지 않는다.
+
+### SOL-0002 — Kiosk↔Web 세션 결과의 중복·지연 상태 전이 재감사
+
+- 영역: 데이터·세션 상태·프로세스 수명주기
+- 심각도: P2 후보
+- 신뢰도: 낮음
+- 상태: 후보
+- 사용자 영향 후보: 이전 Web launch의 늦은 결과나 중복 완료 callback이 새
+  수업 또는 이미 종료된 session에 적용되면 학생·과제 연결, QR 재개 상태와
+  종료 결과가 불일치할 수 있다.
+- 현재 근거: 없음. 이 항목은 위험 우선순위에 따라 먼저 검토할 범위이며 과거
+  수정 이력만으로 결함을 주장하지 않는다.
+- 재현·판정 계획: 현재 `MainActivity`의 Web launch gate, session ID snapshot,
+  Activity result callback, repository 상태 전이와 관련 시험을 함께 대조하고,
+  가능한 경합을 fixture로 먼저 재현한다.
+- 수행하지 않은 검증: 아직 source 재감사와 시험을 시작하지 않았다.
 
 ## 최근 변경·검증·전달
 
-- 아직 Sol 구현 commit 없음.
-- 원격 branch는 시작 HEAD까지 동기화돼 있다.
+- 누적 보고서 기준선 commit:
+  `e24a7d5cb9b73305feb7c82d226346e63b986e12`.
+- `SOL-0001` 운영 문서 교정 commit:
+  `b5b6fe4ec2a2506af7002dabf5204f7de2cc7545`.
+- 두 commit 모두 전용 원격 branch push 성공.
 - rollback 수행 없음.
