@@ -2,18 +2,18 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-05 00:11:18 +09:00
+- `last_updated`: 2026-08-05 01:04:24 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `d865bbdf8727c396ea339586504912021f5ed81d` /
+  `29ecdccfca939a7edc0d6f74824611804122e7b2` /
   `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `d865bbdf8727c396ea339586504912021f5ed81d`
+- 마지막 push 성공 commit: `29ecdccfca939a7edc0d6f74824611804122e7b2`
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 확인: 2026-08-04 23:57 +09:00. 승인 ADB device는
+- 실제 A 마지막 확인: 2026-08-05 00:51 +09:00. 승인 ADB device는
   serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc71`/code 76, UID 10288, first install
     `2026-07-24 12:52:28`, last update `2026-08-04 21:01:14`.
@@ -25,17 +25,20 @@
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
-  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 화면은 정확히 `관리자 인증`,
-    `ADMIN_IDLE`, `보안 적용`이며 PIN 입력란은 값 대신 `관리자 PIN` hint 상태다.
-  - 시험용 반 `SOL-TEST-0804-2105`는 목록 위·아래 끝을 안정화해 확인한 전체
-    13개 반에 없고, 원격 지원은 `INACTIVE`다. 로컬·A 임시 캡처도 없다.
+  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 화면 껐다 켜기 lifecycle 뒤
+    관리자 화면이 다시 잠겨 `관리자 인증` 상태다.
+  - 시험용 반 `SOL-TEST-0805-0023`은 전체 반 목록 끝까지 확인해 존재하지 않고,
+    원격 지원은 `INACTIVE`다. 시험 중 답안은 한 글자도 저장·제출하지 않았다.
   - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 실제 운영 PC 마지막 확인: 2026-08-05 00:11 +09:00. 설치 실행 파일은 보관
+- 실제 운영 PC 마지막 확인: 2026-08-05 01:03 +09:00. 설치 실행 파일은 보관
   0.1.6 artifact와 같은 22,785,740 bytes·SHA-256
   `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`이다.
   PyInstaller process 2개, `0.0.0.0:48129` listener 1개와 listener owner의 정확한
   설치 path, Startup shortcut target·`--background`, 기존 Private TCP 48129
   방화벽 경계를 확인했다. 별도 artifact process와 smoke PDF 잔존은 각각 0개다.
+  32×5MiB 동시 전송 32/32 내용 검증, 32개 partial connection과 33번째 즉시
+  거부, 실제 Wi-Fi disconnect/reconnect, DHCP release/renew, 실제 Wi-Fi와 가상
+  interface 두 주소의 listener 도달까지 통과했다.
 - 현재 작업 중: 없음. 사용자의 후속 지시로 SOL-0008의 PC 수신기 0.1.6 운영
   설치까지 완료했으며, 중단된 연속 Goal은 재개하지 않았다.
 - 다음 우선 큐: 없음. 사용자가 현재 작업까지만 완결한 뒤 Goal을 중단하라고
@@ -45,27 +48,29 @@
 
 - 열린 P0/P1: 없음. 과거 보고서의 후보는 현재 source와 독립 재검증 전에는
   열린 결함으로 승격하지 않는다.
-- 현장검증 완료 P2: `SOL-0005`, `SOL-0006` 2건.
-- 자동검증 완료 P2: `SOL-0008` 1건. 0.1.6을 운영 PC에 설치하고 인증 smoke까지
-  통과했지만 실제 네트워크 전이는 수행하지 않아 상태를 현장검증 완료로 확대하지
-  않는다. 열린 P2는 없다.
+- 현장검증 완료 P2: `SOL-0003`, `SOL-0005`, `SOL-0006` 3건.
+- 자동검증 완료 P2: `SOL-0008` 1건. 0.1.6 운영 설치, 실제 Wi-Fi·DHCP 전이와
+  다중 interface listener 도달은 통과했지만 Windows 재부팅 자동실행이 남아 있어
+  아직 상태를 현장검증 완료로 확대하지 않는다. 열린 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
 - 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
-- 이미 수정됨: `SOL-0003`, `SOL-0004` 2건.
+- 이미 수정됨: `SOL-0004` 1건.
 - 사용자 판단 대기: 없음.
 - 현재 제약:
-  - Kiosk `MainActivityInstrumentedTest`는 SOL-0007 정정 뒤 전체 16/16 PASS다.
-    도움말 layout 회귀는 지원 A의 정확한 2000×1128·240dpi·font scale 1.1을
-    결정적으로 측정한다. Pixel 2형 420dpi AVD나 다른 크기의 제품 호환성을
-    검증한 것으로 확대하지 않는다.
+  - Kiosk `MainActivityInstrumentedTest`는 기본 AVD, 2000×1200/240dpi·font
+    scale 1.3, 같은 해상도·font scale 0.85·180도 반전에서 각각 16/16, 총
+    48/48 PASS다. 지원 A와 임의의 모든 Android 화면 호환성으로 확대하지 않는다.
   - 시험 QR은 공식 PDF를 허용된 원격 제출 도구로 전달했다. 카메라 활성·중단·
     재연결은 실제 A에서 확인했지만 인쇄 카드의 광학 인식, 조명·거리·반사는
     시험하지 않았다.
-  - PC 수신기 0.1.6의 LAN 부재→복구와 주소 변경은 unit test로 전이를 검증했다.
-    실제 Wi-Fi 단절·재연결, DHCP 주소 변경, Windows 재로그인·재부팅과
-    다중 NIC·VPN의 올바른 주소 선택은 수행하지 않았다. 현재 운영 설치본은
-    검증 산출물과 같은 0.1.6이다.
+  - PC 수신기 0.1.6은 실제 Wi-Fi 단절·재연결, DHCP 주소 반납·재할당과 실제
+    Wi-Fi+가상 interface 두 주소의 listener 도달을 통과했다. 활성 VPN adapter가
+    없어 VPN 경유 주소 선택은 수행하지 않았고 Windows 재부팅 자동실행은 아직
+    남아 있다. 현재 운영 설치본은 검증 산출물과 같은 0.1.6이다.
+  - A에는 실제 외장 키보드가 없고 접근성 서비스가 활성화돼 있지 않아 이 두
+    입력원은 직접 검증하지 않았다. 기본 Samsung IME·Matholic 키패드·ADB text와
+    key event의 네트워크 pause 차단은 실제 A에서 통과했다.
   - 설치 APK signer 대조용으로 만든 로컬 임시 디렉터리
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
@@ -201,7 +206,7 @@
 - 영역: 답안 무결성·offline 복구·입력 경계
 - 심각도: P2 후보
 - 신뢰도: 높음
-- 상태: 이미 수정됨
+- 상태: 현장검증 완료
 - 사용자 영향 후보: 네트워크 단절 overlay가 보이는 동안 이미 focus된 Web
   수식 입력기나 IME·hardware key가 답안을 바꾸면 사용자는 차단 화면 뒤의
   변경을 인지하지 못할 수 있다.
@@ -214,8 +219,18 @@
   - 네트워크 복귀 때 현재 URL 정책으로 학생 chrome을 다시 계산하며, ACTIVE가
     아닌 상태에서는 pause 보호를 해제하고 blocker/terminal UI가 WebView를
     별도로 숨긴다.
-- 반대 근거: 실제 제조사 IME의 이미 대기 중인 composition commit, hardware
-  keyboard와 접근성 service 입력을 이번 주기에 A에서 직접 주입하지 않았다.
+- 동적 근거:
+  - 승인 A에서 정확히 `테스트` 계정만 포함한 일회성 반을 만들고 최신 QR을
+    발급·지정 PC 전송한 뒤 공식 PDF 원격 제출 경로로 로그인했다.
+  - 답안 현황 `0/25`인 미제출 과제의 빈 2번 주관식에 focus를 둔 상태에서
+    A Wi-Fi를 실제로 껐다. 불투명한 인터넷 복구 대기 화면이 나타난 뒤 ADB text,
+    key event, 가려진 Matholic 키패드 좌표 tap, Enter와 Delete를 주입했다.
+  - Wi-Fi 복구 뒤 3초 안에 같은 문항으로 돌아왔고 주관식 값은 빈 상태, 답안
+    현황은 `0/25`였다. 기본 입력기는 Samsung IME였고 pause 전 입력기 활성과
+    Matholic 수식 키패드 표시를 확인했다.
+- 반대 근거·제약: 실제 외장 keyboard가 연결돼 있지 않고 접근성 service도
+  활성화돼 있지 않아 이 두 입력원은 직접 주입하지 않았다. 시험 편의를 위해
+  접근성 보안 설정을 변경하지 않았다.
 - 판정: 과거 단순 panel만으로 입력 차단이 불충분했던 경계는
   `d2f69ccfe9b77613da9d4a3ae061750ebb37dd13`에서 이미 교정됐고 현재 source에도
   유지된다. 새 결함 증거가 없어 추가 변경하지 않는다.
@@ -226,9 +241,10 @@
   - 결과: BUILD SUCCESSFUL, 30 tasks 중 1 executed·29 up-to-date.
   - `NetworkFailureReasonTest` 1/1 PASS; failures/errors/skipped 0.
   - `NetworkPauseLayoutInstrumentedTest`를 포함한 AndroidTest Kotlin compile PASS.
-- 수행하지 않은 검증: A의 Wi-Fi·보안 설정과 진행 상태를 변경하지 않았고 실제
-  network disconnect·IME·hardware key·접근성 fault injection은 수행하지 않았다.
-  따라서 실제 현장 입력 차단 PASS로 확대하지 않는다.
+- 현장 정리: 답안을 한 글자도 저장·제출하지 않은 채 정상 `채점 끝내기`, Kiosk
+  수업 안전 종료를 수행했다. 일회성 반을 삭제하고 전체 반 목록에서 부재를
+  확인했으며 관리자 인증 잠금, Lock Task `LOCKED`, 원격 지원 `INACTIVE`로
+  복원했다.
 - 변경 파일·commit·rollback: 이번 source 변경 없음. 기존 교정 rollback은
   `git revert d2f69ccfe9b77613da9d4a3ae061750ebb37dd13`이지만 입력 무결성 보호를
   제거하므로 현재 rollback 사유가 없다.
@@ -262,11 +278,15 @@
     동안 두 번째 연결이 즉시 닫혔고, 첫 연결 종료 뒤 slot이 다시 1로 복구됐다.
   - 크기 2의 event queue에 3개 event를 넣었을 때 `two`, `three`만 남아 bounded
     최신 이벤트 정책을 확인했다.
-- 반대 근거·제약: 32개의 실제 5MB 암호화 frame을 동시에 보내는 부하시험,
-  저사양 운영 PC의 peak RSS 측정, Windows 로그오프·종료 중 실제 전송은 이번
-  주기에 수행하지 않았다. daemon request handler를 종료 시 개별 join하지 않는
-  설계는 확인했지만 bounded process 종료 경계이며 현재 사용자 영향이나 데이터
-  오적용 증거는 없다.
+  - 운영 설치본 0.1.6에 실제 5MiB PDF 32개를 동시에 보냈고 32/32 인증 ACK와
+    수신 파일 전체 내용 hash 일치를 확인했다. 총 1.125초, 단일 요청 최대
+    0.890초, RSS 59.3→59.6MiB였으며 시험 파일 잔존은 0개다.
+  - partial connection 32개가 slot을 점유한 상태에서 33번째 연결이 즉시
+    닫혔다. 32개를 닫은 뒤 listener 1개와 설치본 smoke exit 0을 확인했다.
+- 반대 근거·제약: Windows 로그오프·종료 순간의 실제 전송과 더 저사양 PC의
+  장시간 peak RSS는 수행하지 않았다. daemon request handler를 종료 시 개별
+  join하지 않는 설계는 bounded process 종료 경계이며 현재 사용자 영향이나
+  데이터 오적용 증거는 없다.
 - 판정: 과거 무제한 연결·queue·read 후보는
   `47b76ec1d78b1bf3f96c9bab071762de040e3ac2`에서 이미 교정됐고 현재 source와
   동적 probe에 유지된다. 추가 resource-limit 변경은 근거가 없어 하지 않는다.
@@ -275,8 +295,10 @@
   - 결과: `17 passed in 1.35s`.
   - `python -` loopback probe로 cumulative deadline, admission semaphore,
     event queue eviction을 검증; 세 항목 모두 PASS.
-- 수행하지 않은 검증: 실제 운영 PC 부하·Windows 종료, 실제 A→PC 동시 PDF
-  전송은 수행하지 않았으며 그 조건의 PASS로 확대하지 않는다.
+- 수행하지 않은 검증: Windows 종료 순간의 실제 전송과 실제 A 여러 대의 동시
+  PDF 전송은 수행하지 않았다. 운영 PC의 loopback 인증 전송으로 서버·암호화·
+  저장·ACK·32 connection limit을 검증한 것이며 복수 물리 A의 무선 부하로
+  확대하지 않는다.
 - 변경 파일·commit·rollback: 이번 source 변경 없음. 기존 교정 rollback은
   `git revert 47b76ec1d78b1bf3f96c9bab071762de040e3ac2`이지만 PDF idempotency와
   resource 보호를 함께 제거하므로 현재 rollback 사유가 없다.
@@ -555,6 +577,10 @@
     `BUILD SUCCESSFUL in 36s`.
   - `MainActivityInstrumentedTest` 전체 16/16 PASS, failures/errors/skipped 0,
     `BUILD SUCCESSFUL in 1m 43s`; 결과 XML 실행 시간 85.213초.
+  - 후속 현장검증에서 기본 1080×1920/420dpi, A 대응 2000×1200/240dpi·font
+    scale 1.3, 같은 해상도·font scale 0.85·180도 반전 가로 방향의 세 조건으로
+    전체 16개를 각각 재실행해 총 48/48 PASS했다. 각 실행은 물리 A가 아닌
+    `emulator-5554`로 고정했고 AVD 설정을 복원한 뒤 종료했다.
   - Kiosk JVM unit 87/87 PASS, failures/errors/skipped 0.
   - `:kiosk:lintDebug` PASS, unit과 함께 `BUILD SUCCESSFUL in 1m 18s`.
 - 기기·릴리스 검증:
@@ -676,13 +702,21 @@
     receiver ID·DPAPI secret 평문·port·표시명·수신 폴더 보존, Startup shortcut과
     기존 Private/Inbound/Allow/TCP 48129/설치 EXE 방화벽 경계, smoke PDF 잔존
     0개를 확인했다. 별도 artifact path process는 0개다.
+- 실제 운영 네트워크 전이:
+  - 별도 40초 자동 재연결 guard를 먼저 실행하고 PC Wi-Fi를 실제 disconnect했다.
+    1초 안에 단절을 확인했고 그동안 설치 수신기 process, listener 1개와
+    `--smoke-check` exit 0이 유지됐다. 같은 저장 profile로 reconnect한 뒤 Internet
+    연결은 1초 안에 복구됐고 listener와 smoke도 다시 통과했다.
+  - DHCP 활성 Wi-Fi에서 별도 복구 guard 뒤 `ipconfig /release "Wi-Fi"`를 실행해
+    non-link-local IPv4가 0개가 됨을 확인했다. `/renew`까지 둘 다 exit 0이었고
+    Internet·IPv4는 1초 안에 복구됐다. 이후 listener 1개와 smoke exit 0이었다.
+  - 실제 Wi-Fi 1개와 활성 가상 interface 1개의 IPv4로 TCP 48129에 각각 연결해
+    2/2 도달을 확인했다. 활성 default IPv4 route는 1개였다.
 - 남은 미검증:
-  - 실제 Wi-Fi를 끊었다 연결하거나 DHCP 주소를 강제로 바꾸지 않았다. LAN
-    부재→복구·주소 변경 전이는 unit test에서 resolver 결과를 제어해 검증했다.
-  - Windows 재로그인·재부팅, GUI의 QR을 실제 A 카메라로 다시 촬영, 다중
-    NIC·VPN에서 원하는 adapter 선택은 이번 cycle에 수행하지 않았다. 서버가
-    `0.0.0.0` listener를 연 사실과 현재 LAN에서 package가 실행된 사실을 물리
-    네트워크 전이 PASS로 확대하지 않는다.
+  - 활성 VPN adapter가 0개라 VPN 경유 adapter 선택은 수행할 수 없었다.
+  - 이 기록 시점에는 Windows 재로그인·재부팅 후 Startup 자동실행과 GUI QR의
+    실제 A 카메라 재촬영이 남아 있다. QR PDF의 공식 원격 제출은 성공했지만
+    PC GUI QR 광학 촬영으로 확대하지 않는다.
 - rollback:
   - 코드: `git revert a7ac871573c31ec81c212087734bfd5815546367` 후 receiver
     pytest 22개, compileall, package build와 packaged smoke를 다시 실행한다.
