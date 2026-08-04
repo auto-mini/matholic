@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-04.4"
+    const val CONTRACT_VERSION = "web-2026-08-04.5"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -5094,6 +5094,24 @@ object WebDomScripts {
           ).some(element =>
             visible(element) && normalize(element.textContent) === '전체답안'
           );
+          const problemMapHelpOpen = isLearning && !!document.querySelector(
+            '.matholic-kiosk-problem-map[data-open="true"]'
+          );
+          const gradingHelpBlocked = isLearning && (
+            Array.from(document.querySelectorAll(
+              '[aria-busy="true"],.ant-spin-spinning,.ant-spin-show-text'
+            )).some(visible) ||
+            Array.from(document.querySelectorAll(
+              'h1,h2,h3,h4,h5,h6,p,span,div,[role="status"],[role="alert"]'
+            )).some(element => {
+              if (!visible(element)) return false;
+              const text = normalize(element.textContent).replace(/\s+/g, '');
+              return text === '채점중' ||
+                text === '채점중입니다' ||
+                text === '답안을채점중입니다' ||
+                text === '채점결과를불러오는중입니다';
+            })
+          );
           const subjectiveHelpReady = isLearning && Array.from(
             document.querySelectorAll(
               '.mq-editable-field,' +
@@ -5109,7 +5127,9 @@ object WebDomScripts {
           ).some(visible);
           const helpContext = isWorkbook ? 'WORKBOOK' :
             isDiagnostic ? 'DIAGNOSTIC' :
+            gradingHelpBlocked ? 'NONE' :
             reviewHelpOpen ? 'REVIEW' :
+            problemMapHelpOpen ? 'PROBLEM_MAP' :
             subjectiveHelpReady ? 'PROBLEM_SUBJECTIVE' :
             objectiveHelpReady ? 'PROBLEM_OBJECTIVE' :
             isLearning ? 'PROBLEM' : 'NONE';
@@ -5168,6 +5188,7 @@ object WebDomScripts {
                 "PROBLEM",
                 "PROBLEM_OBJECTIVE",
                 "PROBLEM_SUBJECTIVE",
+                "PROBLEM_MAP",
                 "REVIEW",
             ),
         )
@@ -5213,6 +5234,14 @@ object WebDomScripts {
                   normalize(control.textContent).replace(/\s+/g, '')
                 )) || null;
               };
+              const findControls = labels => {
+                const compact = new Set(
+                  labels.map(label => normalize(label).replace(/\s+/g, ''))
+                );
+                return controls().filter(control => compact.has(
+                  normalize(control.textContent).replace(/\s+/g, '')
+                ));
+              };
               const findExactText = labels => {
                 const wanted = new Set(labels.map(normalize));
                 return Array.from(document.querySelectorAll('body *'))
@@ -5250,7 +5279,12 @@ object WebDomScripts {
                 PROBLEM_SUBJECTIVE: {
                   eyebrow: '주관식 문제',
                   title: '답 입력칸을 누르고 수식 키패드를 사용하세요',
-                  lead: '키패드는 ‘답안 현황’ 바로 아래에 열립니다. 문제가 분수·소수 형식을 지정하면 그 형식대로 입력합니다.'
+                  lead: '키패드는 답 입력칸 아래쪽에 열리며 빨간 ‘채점 끝내기’를 가리지 않습니다. 문제가 분수·소수 형식을 지정하면 그 형식대로 입력합니다.'
+                },
+                PROBLEM_MAP: {
+                  eyebrow: '답안 현황',
+                  title: '입력한 답과 빠진 문제를 확인하세요',
+                  lead: '현황판 안의 문제 번호를 누르면 해당 문제로 이동합니다. 현황판 밖을 누르면 뒤 버튼을 누르지 않고 현황판만 닫힙니다.'
                 },
                 REVIEW: {
                   eyebrow: '전체답안 확인',
@@ -5293,30 +5327,47 @@ object WebDomScripts {
                   );
                   if (context === 'WORKBOOK') {
                     copy.title = '지금 채점할 학습지가 없습니다';
-                    copy.lead = '이 안내가 보이면 더 누르지 말고 선생님에게 알려주세요.';
+                    copy.lead = '화면 위쪽의 ‘진단평가’를 눌러 응시할 평가가 있는지 확인하세요.';
                     add(
                       emptyState,
-                      '현재 목록이 비어 있습니다. 선생님에게 학습지를 확인해 달라고 하세요.',
+                      '학습지가 없으면 화면 위쪽 ‘진단평가’로 이동하세요.',
                       'below'
                     );
                   } else {
                     copy.title = '지금 응시할 진단평가가 없습니다';
-                    copy.lead = '이 안내가 보이면 더 누르지 말고 선생님에게 알려주세요.';
+                    copy.lead = '화면 위쪽의 ‘학습지’를 눌러 채점할 학습지가 있는지 확인하세요.';
                     add(
                       emptyState,
-                      '현재 목록이 비어 있습니다. 선생님에게 진단평가를 확인해 달라고 하세요.',
+                      '진단평가가 없으면 화면 위쪽 ‘학습지’로 이동하세요.',
                       'below'
                     );
                   }
                 }
               } else if (context === 'REVIEW') {
-                const reviewSubmit = findControl([
+                const reviewRoot = Array.from(document.querySelectorAll(
+                  '.ant-modal-content,.ant-drawer-content,[role="dialog"]'
+                )).filter(visible).find(container =>
+                  normalize(container.textContent).includes('전체답안')
+                ) || null;
+                const reviewSubmits = findControls([
                   '답안 제출', '답안제출', '완료하기'
-                ]);
+                ]).filter(control => !reviewRoot || reviewRoot.contains(control));
+                const reviewSubmit = reviewSubmits.sort((left, right) =>
+                  right.getBoundingClientRect().bottom -
+                    left.getBoundingClientRect().bottom
+                )[0] || null;
                 add(
                   reviewSubmit,
                   '확인을 마쳤을 때만 누르세요. 누르면 실제 채점이 시작됩니다.',
                   'above'
+                );
+              } else if (context === 'PROBLEM_MAP') {
+                add(
+                  firstVisible(
+                    '.matholic-kiosk-problem-map[data-open="true"]'
+                  ),
+                  '색과 문제 번호를 확인하고, 이동할 번호를 누르세요.',
+                  'left'
                 );
               } else {
                 if (context === 'PROBLEM_SUBJECTIVE') {

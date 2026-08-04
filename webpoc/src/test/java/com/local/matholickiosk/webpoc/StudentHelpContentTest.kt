@@ -29,6 +29,10 @@ class StudentHelpContentTest {
             StudentHelpContext.PROBLEM_SUBJECTIVE,
             StudentHelpContext.fromContract("PROBLEM_SUBJECTIVE"),
         )
+        assertEquals(
+            StudentHelpContext.PROBLEM_MAP,
+            StudentHelpContext.fromContract("PROBLEM_MAP"),
+        )
         assertEquals(StudentHelpContext.NONE, StudentHelpContext.fromContract("unexpected"))
         assertEquals(StudentHelpContext.NONE, StudentHelpContext.fromContract(null))
     }
@@ -52,5 +56,13 @@ class StudentHelpContentTest {
         val diagnostic = StudentHelpContent.forContext(StudentHelpContext.DIAGNOSTIC)!!
         assertFalse(workbook.steps.contains("선택됐는지 확인"))
         assertFalse(diagnostic.steps.contains("선택됐는지 확인"))
+    }
+
+    @Test
+    fun `problem map help is scoped to the open map`() {
+        val map = StudentHelpContent.forContext(StudentHelpContext.PROBLEM_MAP)!!
+        assertTrue(map.title.contains("빠진 문제"))
+        assertTrue(map.steps.contains("현황판 밖"))
+        assertFalse(map.steps.contains("모름을 누릅니다"))
     }
 }

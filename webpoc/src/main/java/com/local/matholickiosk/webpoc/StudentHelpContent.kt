@@ -7,6 +7,7 @@ internal enum class StudentHelpContext {
     PROBLEM,
     PROBLEM_OBJECTIVE,
     PROBLEM_SUBJECTIVE,
+    PROBLEM_MAP,
     REVIEW,
     RESULT,
     ;
@@ -81,6 +82,15 @@ internal object StudentHelpContent {
                 "2. 문제가 분수나 소수 형식을 지정하면 그 형식에 맞춥니다.\n" +
                 "3. ‘다음 문제’로 이동하고 ‘답안 현황’에서 빠진 답을 확인합니다.",
             caution = "키오스크는 입력값을 바꾸지 않고 매쓰홀릭 채점 서버에 전달합니다.",
+        )
+        StudentHelpContext.PROBLEM_MAP -> StudentHelpCopy(
+            eyebrow = "답안 현황",
+            title = "입력한 답과 빠진 문제를 확인하는 화면",
+            lead = "답안 현황이 열려 있을 때는 현황판 안의 문제 번호만 안내합니다.",
+            steps = "1. 답변·모름·현재 문제 표시를 확인합니다.\n" +
+                "2. 이동할 문제 번호를 누르면 해당 문제로 이동합니다.\n" +
+                "3. 현황판 밖을 누르면 현황판만 닫히며, 뒤의 버튼은 눌리지 않습니다.",
+            caution = "답안 현황은 확인과 이동용입니다. 실제 제출은 오른쪽 위 ‘답안제출’에서 시작합니다.",
         )
         StudentHelpContext.REVIEW -> StudentHelpCopy(
             eyebrow = "전체답안 확인",

@@ -841,6 +841,131 @@ class DomContractInstrumentedTest {
     }
 
     @Test
+    fun testOpenProblemMapHelpTargetsOnlyTheMap() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div class="matholic-kiosk-current-problem-badge"
+                     style="position:fixed;left:20px;top:80px;width:90px;height:52px">3번</div>
+                <div class="ant-radio-group" style="margin:180px 0 0 380px">
+                  <label><input type="radio" name="answer" value="1">1</label>
+                  <label><input type="radio" name="answer" value="2">2</label>
+                </div>
+                <button>모름</button>
+                <section class="matholic-kiosk-problem-map" data-open="true"
+                         style="position:fixed;left:720px;top:140px;width:360px;height:280px">
+                  <button>답안 현황</button>
+                  <div class="matholic-kiosk-problem-map-grid"><button>1</button></div>
+                </section>
+                <button data-matholic-kiosk-problem-direction="next">다음 문제</button>
+                <button>답안제출</button>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val contract = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertEquals("PROBLEM_MAP", contract.getString("helpContext"))
+            val opened = evaluate(webView, WebDomScripts.showStudentHelp("PROBLEM_MAP"))
+            assertTrue(opened.getBoolean("opened"))
+            assertEquals(1, opened.getInt("targetCount"))
+            Thread.sleep(100)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('matholic-kiosk-live-help');
+                  const boxes = Array.from(root.children).filter(element =>
+                    element.tagName === 'DIV' && element.style.borderWidth === '4px'
+                  );
+                  const box = boxes[0].getBoundingClientRect();
+                  const map = document.querySelector(
+                    '.matholic-kiosk-problem-map[data-open="true"]'
+                  ).getBoundingClientRect();
+                  return JSON.stringify({
+                    boxCount: boxes.length,
+                    tracksMap: Math.abs(box.left - (map.left - 6)) < 1 &&
+                      Math.abs(box.top - (map.top - 6)) < 1,
+                    text: root.textContent
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertEquals(1, proof.getInt("boxCount"))
+            assertTrue(proof.getBoolean("tracksMap"))
+            assertFalse(proof.getString("text").contains("모름을 누르세요"))
+        }
+    }
+
+    @Test
+    fun testReviewHelpTargetsTheBottomSubmitInsideTheReviewDialog() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <button id="first-submit" style="position:fixed;right:20px;top:30px;width:190px;height:60px">
+                답안제출
+              </button>
+              <section class="ant-modal-content" role="dialog"
+                       style="position:fixed;left:300px;top:100px;width:700px;height:600px">
+                <h2>전체답안</h2>
+                <button id="close">닫기</button>
+                <button id="final-submit"
+                        style="position:absolute;left:260px;bottom:20px;width:190px;height:60px">
+                  답안 제출
+                </button>
+              </section>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val opened = evaluate(webView, WebDomScripts.showStudentHelp("REVIEW"))
+            assertTrue(opened.getBoolean("opened"))
+            assertEquals(1, opened.getInt("targetCount"))
+            Thread.sleep(100)
+            val proof = evaluate(
+                webView,
+                """
+                (() => {
+                  const root = document.getElementById('matholic-kiosk-live-help');
+                  const box = Array.from(root.children).find(element =>
+                    element.tagName === 'DIV' && element.style.borderWidth === '4px'
+                  ).getBoundingClientRect();
+                  const first = document.getElementById('first-submit').getBoundingClientRect();
+                  const final = document.getElementById('final-submit').getBoundingClientRect();
+                  return JSON.stringify({
+                    tracksFinal: Math.abs(box.left - (final.left - 6)) < 1 &&
+                      Math.abs(box.top - (final.top - 6)) < 1,
+                    tracksFirst: Math.abs(box.left - (first.left - 6)) < 1 &&
+                      Math.abs(box.top - (first.top - 6)) < 1
+                  });
+                })()
+                """.trimIndent(),
+            )
+            assertTrue(proof.getBoolean("tracksFinal"))
+            assertFalse(proof.getBoolean("tracksFirst"))
+        }
+    }
+
+    @Test
+    fun testHelpIsUnavailableWhileAnswerGradingIsInProgress() {
+        withFixture(
+            "https://im.matholic.com/learningV2/answer/virtual",
+            """
+            <!doctype html><html><head></head><body>
+              <main>
+                <div class="ant-spin ant-spin-spinning" aria-busy="true">채점 중입니다</div>
+                <div class="ant-radio-group"><input type="radio" name="answer"></div>
+              </main>
+            </body></html>
+            """.trimIndent(),
+        ) { webView ->
+            val result = evaluate(webView, WebDomScripts.applyStudentExperience)
+            assertEquals("NONE", result.getString("helpContext"))
+        }
+    }
+
+    @Test
     fun testSubjectiveHelpTargetsAnswerEditorAndUsesFormatSpecificGuidance() {
         withFixture(
             "https://im.matholic.com/learningV2/answer/virtual",
