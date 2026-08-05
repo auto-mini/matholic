@@ -2338,7 +2338,7 @@ class DomContractInstrumentedTest {
                 """
                 (() => {
                   const editor = document.getElementById('math-editor');
-                  let latex = '';
+                  let latex = '6--';
                   editor.innerHTML =
                     '<span class="mq-textarea"><textarea></textarea></span>' +
                     '<span class="mq-root-block"></span>';
@@ -3491,6 +3491,17 @@ class DomContractInstrumentedTest {
                    ));
                    const hiddenBeforeDirectInput =
                      getComputedStyle(navigation).display === 'none';
+                   const restoredMalformedAnswer = editor.fieldApi.latex();
+                   editor.fieldApi.latex('-6');
+                   editor.dispatchEvent(new Event('input', { bubbles: true }));
+                   const validNegativeAnswer = editor.fieldApi.latex();
+                   editor.fieldApi.latex('7--');
+                   editor.dispatchEvent(new Event('input', { bubbles: true }));
+                   const guardedMalformedAnswer = editor.fieldApi.latex();
+                   const repairCount = Number(
+                     editor.dataset.matholicKioskAnswerRepairCount || 0
+                   );
+                   editor.fieldApi.latex('');
                    document.getElementById('math-editor').dispatchEvent(
                      new Event('focusin', { bubbles: true })
                    );
@@ -3669,8 +3680,12 @@ class DomContractInstrumentedTest {
                      navCount: document.querySelectorAll(
                        '.matholic-kiosk-math-nav'
                      ).length,
-                     hiddenBeforeDirectInput,
-                     hiddenAfterProgrammaticFocus,
+                      hiddenBeforeDirectInput,
+                      restoredMalformedAnswer,
+                      validNegativeAnswer,
+                      guardedMalformedAnswer,
+                      repairCount,
+                      hiddenAfterProgrammaticFocus,
                      visibleWhileDirectlyEditing,
                      clearArmed,
                      answerBeforeClear,
@@ -3730,6 +3745,10 @@ class DomContractInstrumentedTest {
             assertEquals("Down", proof.getJSONArray("keys").getString(2))
             assertEquals("Right", proof.getJSONArray("keys").getString(3))
             assertTrue(proof.getBoolean("hiddenBeforeDirectInput"))
+            assertEquals("6", proof.getString("restoredMalformedAnswer"))
+            assertEquals("-6", proof.getString("validNegativeAnswer"))
+            assertEquals("7", proof.getString("guardedMalformedAnswer"))
+            assertEquals(2, proof.getInt("repairCount"))
             assertTrue(proof.getBoolean("hiddenAfterProgrammaticFocus"))
             assertTrue(proof.getBoolean("visibleWhileDirectlyEditing"))
             assertFalse(proof.getBoolean("clearArmed"))

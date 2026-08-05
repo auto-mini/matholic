@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-05.1"
+    const val CONTRACT_VERSION = "web-2026-08-05.2"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -4183,6 +4183,58 @@ object WebDomScripts {
                 });
                 return true;
               };
+              const sanitizeTrailingDuplicateSigns = (editor, field) => {
+                if (
+                  !editor ||
+                  !field ||
+                  typeof field.latex !== 'function' ||
+                  editor.dataset.matholicKioskAnswerSanitizing === 'true'
+                ) return false;
+                let before = '';
+                try { before = String(field.latex() ?? ''); } catch (_) {
+                  return false;
+                }
+                const after = before.replace(/-{2,}${'$'}/, '');
+                if (after === before) return false;
+                editor.dataset.matholicKioskAnswerSanitizing = 'true';
+                try {
+                  field.latex(after);
+                  editor.dataset.matholicKioskAnswerRepairCount = String(
+                    Number(editor.dataset.matholicKioskAnswerRepairCount || 0) + 1
+                  );
+                  editor.dispatchEvent(new Event('input', { bubbles: true }));
+                  editor.dispatchEvent(new Event('change', { bubbles: true }));
+                  return true;
+                } catch (_) {
+                  return false;
+                } finally {
+                  delete editor.dataset.matholicKioskAnswerSanitizing;
+                }
+              };
+              const bindMathAnswerGuard = (editor, field) => {
+                if (!editor || !field) return;
+                if (
+                  editor.dataset.matholicKioskAnswerGuardVersion === version
+                ) return;
+                if (editor.matholicKioskAnswerGuardHandler) {
+                  editor.removeEventListener(
+                    'input',
+                    editor.matholicKioskAnswerGuardHandler
+                  );
+                }
+                const handler = () => {
+                  if (
+                    editor.dataset.matholicKioskAnswerSanitizing === 'true'
+                  ) return;
+                  const factory = window.MathQuill?.getInterface?.(2);
+                  const liveField = typeof factory === 'function' ?
+                    factory(editor) : field;
+                  sanitizeTrailingDuplicateSigns(editor, liveField);
+                };
+                editor.addEventListener('input', handler);
+                editor.matholicKioskAnswerGuardHandler = handler;
+                editor.dataset.matholicKioskAnswerGuardVersion = version;
+              };
               const ensureMathNavigation = scope => {
                 const editor = scope?.querySelector('.mq-editable-field');
                 if (!editor) return false;
@@ -4585,9 +4637,6 @@ object WebDomScripts {
                   textarea.setAttribute('autocapitalize', 'none');
                   textarea.setAttribute('spellcheck', 'false');
                 }
-                if (editor.dataset.matholicKioskMathStabilized === 'true') {
-                  return true;
-                }
                 try {
                   const factory = window.MathQuill?.getInterface?.(2);
                   const field = typeof factory === 'function' ?
@@ -4598,6 +4647,11 @@ object WebDomScripts {
                     typeof field.write !== 'function' ||
                     typeof field.keystroke !== 'function'
                   ) return false;
+                  bindMathAnswerGuard(editor, field);
+                  sanitizeTrailingDuplicateSigns(editor, field);
+                  if (editor.dataset.matholicKioskMathStabilized === 'true') {
+                    return true;
+                  }
                   const originalLatex = field.latex();
                   field.write('0');
                   field.keystroke('Backspace');
