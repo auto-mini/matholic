@@ -917,6 +917,73 @@ class RecoveryInstrumentedTest {
         }
     }
 
+    @Test
+    fun inactivityWarningExplainsDeadlineAndExpiresThroughSafeLogout() {
+        writeState(WebPocState.LOCKED)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onUiInitialized { activity ->
+                val stateField = MainActivity::class.java.getDeclaredField("state").apply {
+                    isAccessible = true
+                    set(activity, WebPocState.ACTIVE)
+                }
+                val generationField = MainActivity::class.java.getDeclaredField(
+                    "inactivityGeneration",
+                ).apply {
+                    isAccessible = true
+                    setInt(activity, 42)
+                }
+                val showWarning = MainActivity::class.java.getDeclaredMethod(
+                    "showInactivityWarning",
+                    Int::class.javaPrimitiveType,
+                ).apply { isAccessible = true }
+                activity.findViewById<View>(R.id.network_pause_panel).visibility = View.GONE
+                showWarning.invoke(activity, 42)
+
+                assertEquals(
+                    "5분 동안 입력이 없었습니다",
+                    activity.findViewById<android.widget.TextView>(
+                        R.id.idle_warning_title,
+                    ).text.toString(),
+                )
+                assertTrue(
+                    activity.findViewById<android.widget.TextView>(
+                        R.id.idle_warning_message,
+                    ).text.contains("1분 안에"),
+                )
+                assertTrue(
+                    activity.findViewById<android.widget.TextView>(
+                        R.id.idle_warning_message,
+                    ).text.contains("QR 화면으로 돌아갑니다"),
+                )
+                assertEquals(
+                    View.VISIBLE,
+                    activity.findViewById<View>(R.id.idle_warning_panel).visibility,
+                )
+
+                activity.findViewById<Button>(R.id.idle_continue_button).performClick()
+                assertEquals(WebPocState.ACTIVE, stateField.get(activity))
+                assertEquals(
+                    View.GONE,
+                    activity.findViewById<View>(R.id.idle_warning_panel).visibility,
+                )
+                val resumedGeneration = generationField.getInt(activity)
+                assertTrue(resumedGeneration > 42)
+                showWarning.invoke(activity, resumedGeneration)
+
+                MainActivity::class.java.getDeclaredMethod(
+                    "expireInactivityWarning",
+                    Int::class.javaPrimitiveType,
+                ).apply { isAccessible = true }.invoke(activity, resumedGeneration)
+
+                assertEquals(WebPocState.LOGOUT_NAVIGATE, stateField.get(activity))
+                assertEquals(
+                    View.GONE,
+                    activity.findViewById<View>(R.id.idle_warning_panel).visibility,
+                )
+            }
+        }
+    }
+
     private fun preferences() = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private fun assertInterruptedGate3SensitiveState(interruptedState: WebPocState) {

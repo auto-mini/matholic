@@ -2612,11 +2612,39 @@ class MainActivity : Activity() {
                 generation == inactivityGeneration &&
                 networkPausePanel.visibility != View.VISIBLE
             ) {
-                hideStudentHelp()
-                idleWarningPanel.visibility = View.VISIBLE
-                PrivateDiagnosticLog.event(this, "IDLE_WARNING")
+                showInactivityWarning(generation)
             }
         }, INACTIVITY_WARNING_MS)
+    }
+
+    private fun showInactivityWarning(generation: Int) {
+        if (
+            destroyed ||
+            state != WebPocState.ACTIVE ||
+            generation != inactivityGeneration ||
+            networkPausePanel.visibility == View.VISIBLE
+        ) return
+        hideStudentHelp()
+        idleWarningPanel.visibility = View.VISIBLE
+        idleWarningPanel.bringToFront()
+        PrivateDiagnosticLog.event(this, "IDLE_WARNING")
+        handler.postDelayed(
+            { expireInactivityWarning(generation) },
+            INACTIVITY_WARNING_GRACE_MS,
+        )
+    }
+
+    private fun expireInactivityWarning(generation: Int) {
+        if (
+            destroyed ||
+            state != WebPocState.ACTIVE ||
+            generation != inactivityGeneration ||
+            idleWarningPanel.visibility != View.VISIBLE ||
+            networkPausePanel.visibility == View.VISIBLE
+        ) return
+        idleWarningPanel.visibility = View.GONE
+        PrivateDiagnosticLog.event(this, "IDLE_AUTO_END")
+        beginLogout()
     }
 
     private fun cancelInactivityWarning() {
@@ -2842,7 +2870,8 @@ class MainActivity : Activity() {
         const val GATE3_ACTIVE_DWELL_MS = 750L
         const val GATE3_INTER_CYCLE_DELAY_MS = 5_000L
         const val STUDENT_EXPERIENCE_POLL_MS = 500L
-        const val INACTIVITY_WARNING_MS = 10 * 60 * 1_000L
+        const val INACTIVITY_WARNING_MS = 5 * 60 * 1_000L
+        const val INACTIVITY_WARNING_GRACE_MS = 60 * 1_000L
         const val NETWORK_FALLBACK_INTERVAL_MS = 2_000L
         const val STUDENT_SESSION_BRIGHTNESS = 0.8f
         const val STUDENT_REVEAL_STABLE_PASSES = 2
