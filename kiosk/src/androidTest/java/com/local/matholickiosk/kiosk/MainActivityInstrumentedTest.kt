@@ -157,7 +157,7 @@ class MainActivityInstrumentedTest {
             assertTrue(simulation.contentDescription.contains("QR 명찰"))
             assertTrue(cautionBounds.bottom <= panel.height)
             assertEquals(
-                13f * deviceAContext.resources.displayMetrics.density,
+                11f * deviceAContext.resources.displayMetrics.density,
                 root.findViewById<View>(R.id.scanner_lens_pointer).translationY,
                 0.6f,
             )

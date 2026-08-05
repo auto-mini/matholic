@@ -495,7 +495,7 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_vertical|start"
                         android:layout_margin="24dp"
-                        android:translationY="13dp"
+                        android:translationY="11dp"
                         android:background="@drawable/scanner_lens_pointer_background"
                         android:contentDescription="왼쪽 전면 카메라 렌즈 위치"
                         android:gravity="center"
