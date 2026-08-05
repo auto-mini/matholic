@@ -935,7 +935,7 @@ object WebDomScripts {
             .matholic-kiosk-current-problem-badge {
               position: fixed !important;
               top: 78px !important;
-              left: 20px !important;
+              left: 96px !important;
               z-index: 2147482300 !important;
               display: grid !important;
               place-items: center !important;

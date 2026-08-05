@@ -169,6 +169,7 @@ class WebDomScriptsTest {
         assertTrue(script.contains("chooseProblemOption(attempt + 1)"))
         assertTrue(script.contains("scheduleProblemNavigation(150)"))
         assertTrue(script.contains("matholic-kiosk-current-problem-badge"))
+        assertTrue(script.contains("left: 96px !important"))
         assertTrue(script.contains("matholicKioskPressed"))
         assertTrue(script.contains("--matholic-kiosk-keypad-top"))
         assertTrue(script.contains("editorRect ? editorRect.bottom + 16"))
