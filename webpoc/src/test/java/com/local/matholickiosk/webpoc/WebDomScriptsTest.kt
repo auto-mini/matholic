@@ -242,6 +242,8 @@ class WebDomScriptsTest {
         }
         assertTrue(objective.contains("객관식 문제"))
         assertTrue(objective.contains(".ant-radio-group"))
+        assertTrue(objective.contains("문제 속 보기 번호를 직접 눌러도 선택됩니다."))
+        assertTrue(objective.contains("오른쪽 번호 선택지에서 정답 번호를 눌러도 같은 답이 선택됩니다."))
         assertTrue(subjective.contains("주관식 문제"))
         assertTrue(subjective.contains(".mq-editable-field"))
         assertTrue(subjective.contains("분수·소수 형식을 지정"))

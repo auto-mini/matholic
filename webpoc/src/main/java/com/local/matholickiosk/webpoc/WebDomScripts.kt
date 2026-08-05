@@ -5480,11 +5480,14 @@ object WebDomScripts {
                 );
                 if (context === 'PROBLEM_OBJECTIVE') {
                   add(
-                    firstVisible(
-                      '.ant-radio-group,[role="radiogroup"],' +
-                      '.matholic-kiosk-objective-choice-overlay'
-                    ) || firstVisible('input[type="radio"]')?.closest('div'),
-                    '정답이라고 생각하는 보기 하나를 누르세요.',
+                    firstVisible('.matholic-kiosk-objective-choice-overlay'),
+                    '문제 속 보기 번호를 직접 눌러도 선택됩니다.',
+                    'right'
+                  );
+                  add(
+                    firstVisible('.ant-radio-group,[role="radiogroup"]') ||
+                      firstVisible('input[type="radio"]')?.closest('div'),
+                    '오른쪽 번호 선택지에서 정답 번호를 눌러도 같은 답이 선택됩니다.',
                     'left'
                   );
                 } else {

@@ -847,6 +847,8 @@ class DomContractInstrumentedTest {
               <main>
                 <div class="matholic-kiosk-current-problem-badge"
                      style="position:fixed;left:20px;top:80px;width:90px;height:52px">3번</div>
+                <div class="matholic-kiosk-objective-choice-overlay" id="problem-choices"
+                     style="position:fixed;left:80px;top:180px;width:240px;height:160px"></div>
                 <div class="ant-radio-group" id="choices" style="margin:180px 0 0 380px">
                   <label><input type="radio" name="answer" value="1">1</label>
                   <label><input type="radio" name="answer" value="2">2</label>
@@ -865,7 +867,7 @@ class DomContractInstrumentedTest {
             val opened = evaluate(webView, WebDomScripts.showStudentHelp("PROBLEM_OBJECTIVE"))
             assertTrue(opened.getBoolean("ok"))
             assertTrue(opened.getBoolean("opened"))
-            assertTrue(opened.getInt("targetCount") >= 4)
+            assertTrue(opened.getInt("targetCount") >= 7)
             Thread.sleep(100)
             val proof = evaluate(
                 webView,
@@ -889,6 +891,12 @@ class DomContractInstrumentedTest {
                     exists: !!root,
                     modal: root?.getAttribute('aria-modal'),
                     boxCount: boxes.length,
+                    explainsProblemChoices: root?.textContent.includes(
+                      '문제 속 보기 번호를 직접 눌러도 선택됩니다.'
+                    ),
+                    explainsRightChoices: root?.textContent.includes(
+                      '오른쪽 번호 선택지에서 정답 번호를 눌러도 같은 답이 선택됩니다.'
+                    ),
                     firstTracksBadge: !!firstBox &&
                       Math.abs(firstBox.left - (badge.left - 6)) < 1,
                     selected: document.querySelector('input:checked')?.value || ''
@@ -898,7 +906,9 @@ class DomContractInstrumentedTest {
             )
             assertTrue(proof.getBoolean("exists"))
             assertEquals("true", proof.getString("modal"))
-            assertTrue(proof.getInt("boxCount") >= 4)
+            assertTrue(proof.getInt("boxCount") >= 7)
+            assertTrue(proof.getBoolean("explainsProblemChoices"))
+            assertTrue(proof.getBoolean("explainsRightChoices"))
             assertTrue(proof.getBoolean("firstTracksBadge"))
             assertEquals("", proof.getString("selected"))
             assertTrue(evaluate(webView, WebDomScripts.closeStudentHelp).getBoolean("closed"))
