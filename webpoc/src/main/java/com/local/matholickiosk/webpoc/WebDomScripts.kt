@@ -3,7 +3,7 @@ package com.local.matholickiosk.webpoc
 import org.json.JSONObject
 
 object WebDomScripts {
-    const val CONTRACT_VERSION = "web-2026-08-04.6"
+    const val CONTRACT_VERSION = "web-2026-08-05.1"
 
     val sanitizeLoginAndFingerprint: String =
         """
@@ -958,11 +958,15 @@ object WebDomScripts {
               border-color: #fbbf24 !important;
               background: #0d47a1 !important;
             }
+            button:active,
+            [role="button"]:active,
+            a[href]:active,
             [data-matholic-kiosk-pressed="true"] {
               transform: scale(0.94) !important;
               filter: brightness(0.82) saturate(1.12) !important;
               box-shadow: 0 0 0 4px #fbbf24 !important;
               transition: none !important;
+              will-change: transform, filter !important;
             }
             [data-matholic-kiosk-problem-navigation="true"] {
               display: grid !important;
@@ -2560,7 +2564,7 @@ object WebDomScripts {
                 control.matholicKioskPressedTimer = setTimeout(() => {
                   delete control.dataset.matholicKioskPressed;
                   control.matholicKioskPressedTimer = 0;
-                }, 180);
+                }, 600);
               };
               document.addEventListener('pointerdown', handler, true);
               window.__matholicKioskTouchFeedback = { version, handler };
@@ -2598,6 +2602,20 @@ object WebDomScripts {
               window.__matholicKioskOfficialProblemTransitionGuard;
             if (priorOfficialProblemTransitionGuard?.version !== version) {
               if (priorOfficialProblemTransitionGuard) {
+                if (priorOfficialProblemTransitionGuard.pointerDown) {
+                  document.removeEventListener(
+                    'pointerdown',
+                    priorOfficialProblemTransitionGuard.pointerDown,
+                    true
+                  );
+                }
+                if (priorOfficialProblemTransitionGuard.pointerCancel) {
+                  document.removeEventListener(
+                    'pointercancel',
+                    priorOfficialProblemTransitionGuard.pointerCancel,
+                    true
+                  );
+                }
                 document.removeEventListener(
                   'click',
                   priorOfficialProblemTransitionGuard.capture,
@@ -2609,18 +2627,79 @@ object WebDomScripts {
                   false
                 );
               }
-              const pendingOfficialTransition = { button: null, target: 0 };
+              const pendingOfficialTransition = {
+                button: null,
+                target: 0,
+                previewTimer: 0
+              };
+              const resetOfficialPreview = () => {
+                clearTimeout(pendingOfficialTransition.previewTimer || 0);
+                pendingOfficialTransition.previewTimer = 0;
+                pendingOfficialTransition.button = null;
+                pendingOfficialTransition.target = 0;
+                if (
+                  document.documentElement.dataset
+                    .matholicKioskProblemMapTransition !== 'true'
+                ) {
+                  updateProblemNumberLabel(
+                    readCurrentProblemNumber(),
+                    totalProblems
+                  );
+                }
+              };
+              const targetForOfficialButton = button => {
+                if (
+                  !button ||
+                  button.disabled ||
+                  button.getAttribute('aria-disabled') === 'true'
+                ) return 0;
+                const current = readCurrentProblemNumber();
+                const target =
+                  button.dataset.matholicKioskProblemDirection === 'next' ?
+                    current + 1 : current - 1;
+                return Number.isInteger(target) &&
+                  target >= 1 && target <= totalProblems ? target : 0;
+              };
+              const pointerDown = event => {
+                if (window.__matholicKioskProblemMapInternalClick === true) return;
+                const button = event.target?.closest?.(
+                  '[data-matholic-kiosk-problem-direction]'
+                );
+                const target = targetForOfficialButton(button);
+                if (!target) return;
+                clearTimeout(pendingOfficialTransition.previewTimer || 0);
+                pendingOfficialTransition.button = button;
+                pendingOfficialTransition.target = target;
+                updateProblemNumberLabel(
+                  readCurrentProblemNumber(),
+                  totalProblems,
+                  target
+                );
+                pendingOfficialTransition.previewTimer = setTimeout(
+                  resetOfficialPreview,
+                  1_200
+                );
+              };
+              const pointerCancel = event => {
+                const button = event.target?.closest?.(
+                  '[data-matholic-kiosk-problem-direction]'
+                );
+                if (button === pendingOfficialTransition.button) {
+                  resetOfficialPreview();
+                }
+              };
               const capture = event => {
                 if (window.__matholicKioskProblemMapInternalClick === true) return;
                 const button = event.target?.closest?.(
                   '[data-matholic-kiosk-problem-direction]'
                 );
                 if (!button) return;
-                const current = readCurrentProblemNumber();
+                const target = targetForOfficialButton(button);
+                if (!target) return;
+                clearTimeout(pendingOfficialTransition.previewTimer || 0);
                 pendingOfficialTransition.button = button;
-                pendingOfficialTransition.target =
-                  button.dataset.matholicKioskProblemDirection === 'next' ?
-                    current + 1 : current - 1;
+                pendingOfficialTransition.target = target;
+                startProblemMapTransition(target);
               };
               const bubble = event => {
                 if (window.__matholicKioskProblemMapInternalClick === true) return;
@@ -2634,15 +2713,17 @@ object WebDomScripts {
                   pendingOfficialTransition.target < 1 ||
                   pendingOfficialTransition.target > totalProblems
                 ) return;
-                const target = pendingOfficialTransition.target;
                 pendingOfficialTransition.button = null;
                 pendingOfficialTransition.target = 0;
-                startProblemMapTransition(target);
               };
+              document.addEventListener('pointerdown', pointerDown, true);
+              document.addEventListener('pointercancel', pointerCancel, true);
               document.addEventListener('click', capture, true);
               document.addEventListener('click', bubble, false);
               window.__matholicKioskOfficialProblemTransitionGuard = {
                 version,
+                pointerDown,
+                pointerCancel,
                 capture,
                 bubble
               };
@@ -2709,7 +2790,7 @@ object WebDomScripts {
               ) {
                 problemNavigationController.staleChecks += 1;
                 if (problemNavigationController.staleChecks <= 6) {
-                  scheduleProblemNavigation(80);
+                  scheduleProblemNavigation(50);
                   return;
                 }
               } else {
@@ -2733,7 +2814,7 @@ object WebDomScripts {
               problemNavigationController.staleChecks = 0;
               problemNavigationController.attempts += 1;
               runProblemMapInternalClick(() => directionButton.click());
-              scheduleProblemNavigation(100);
+              scheduleProblemNavigation(60);
             };
             const navigateToProblem = number => {
               if (
@@ -2768,7 +2849,7 @@ object WebDomScripts {
                 number
               );
               if (selectProblemDirectly(number)) {
-                scheduleProblemNavigation(150);
+                scheduleProblemNavigation(60);
                 return;
               }
               continueProblemNavigation();

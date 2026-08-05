@@ -1132,7 +1132,25 @@ class DomContractInstrumentedTest {
             """.trimIndent(),
         ) { webView ->
             assertTrue(evaluate(webView, WebDomScripts.applyStudentExperience).getBoolean("ok"))
-            evaluate(webView, "document.getElementById('next').click(); JSON.stringify({clicked:true})")
+            val immediate = evaluate(
+                webView,
+                """
+                (() => {
+                  const next = document.getElementById('next');
+                  next.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true, cancelable: true, pointerId: 1
+                  }));
+                  const preview = document.querySelector(
+                    '.matholic-kiosk-current-problem-badge'
+                  )?.textContent || '';
+                  const pressed = next.dataset.matholicKioskPressed === 'true';
+                  next.click();
+                  return JSON.stringify({preview, pressed});
+                })()
+                """.trimIndent(),
+            )
+            assertEquals("6번", immediate.getString("preview"))
+            assertTrue(immediate.getBoolean("pressed"))
             Thread.sleep(200)
             val during = evaluate(
                 webView,
