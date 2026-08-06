@@ -68,6 +68,7 @@ import com.local.matholickiosk.kiosk.domain.DiscardableSensitiveTask
 import com.local.matholickiosk.kiosk.domain.FixedClassSlots
 import com.local.matholickiosk.kiosk.domain.KioskState
 import com.local.matholickiosk.kiosk.domain.LatestValueDispatcher
+import com.local.matholickiosk.kiosk.domain.PcGradingCompletionMessage
 import com.local.matholickiosk.kiosk.domain.RefreshableSelectionState
 import com.local.matholickiosk.kiosk.domain.SensitiveHandoffTask
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
@@ -273,10 +274,21 @@ class MainActivity : ComponentActivity() {
             ?.getStringExtra(CredentialBridgeContract.EXTRA_FAILURE_REASON)
             ?.take(80)
             ?: "WEB_SESSION_FAILED"
+        val pcCompletionMessage = if (result.resultCode == Activity.RESULT_OK) {
+            PcGradingCompletionMessage.fromWire(
+                outcome = result.data
+                    ?.getStringExtra(CredentialBridgeContract.EXTRA_GRADING_RESULT),
+                wrongProblemNumbers = result.data
+                    ?.getIntArrayExtra(CredentialBridgeContract.EXTRA_WRONG_PROBLEM_NUMBERS),
+            )
+        } else {
+            null
+        }
         persistWebSessionResult(
             passed = result.resultCode == Activity.RESULT_OK,
             failureReason = failureReason,
             expectedSessionId = expectedSessionId,
+            pcCompletionMessage = pcCompletionMessage,
         )
     }
 
@@ -284,6 +296,7 @@ class MainActivity : ComponentActivity() {
         passed: Boolean,
         failureReason: String,
         expectedSessionId: String,
+        pcCompletionMessage: String?,
     ) {
         diagnosticLog.record(
             if (passed) "WEB_SESSION_COMPLETE" else "WEB_SESSION_FAILED",
@@ -324,11 +337,13 @@ class MainActivity : ComponentActivity() {
                         currentSession = persisted.session
                         if (persisted.passed) {
                             provideFeedback(success = true)
-                            reportPcStatus(
-                                state = "채점 완료",
-                                studentName = activeStudentDisplayName,
-                                notify = true,
-                            )
+                            pcCompletionMessage?.let { message ->
+                                reportPcStatus(
+                                    state = message,
+                                    studentName = activeStudentDisplayName,
+                                    notify = true,
+                                )
+                            }
                             activeStudentDisplayName = null
                             showScanner()
                         } else {

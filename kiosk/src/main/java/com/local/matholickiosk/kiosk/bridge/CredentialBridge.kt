@@ -38,6 +38,12 @@ object CredentialBridgeContract {
     const val COLUMN_USERNAME = "username"
     const val COLUMN_PASSWORD = "password"
     const val EXTRA_FAILURE_REASON = "failure_reason"
+    const val EXTRA_GRADING_RESULT =
+        "com.local.matholickiosk.extra.GRADING_RESULT"
+    const val EXTRA_WRONG_PROBLEM_NUMBERS =
+        "com.local.matholickiosk.extra.WRONG_PROBLEM_NUMBERS"
+    const val GRADING_RESULT_COMPLETE = "complete"
+    const val GRADING_RESULT_DETAIL_UNAVAILABLE = "detail_unavailable"
 
     fun uri(id: String): Uri = Uri.Builder()
         .scheme("content")

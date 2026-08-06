@@ -129,6 +129,7 @@ class MainActivity : Activity() {
     private var resultContinuationAllowed = false
     private var resultExtractionFailures = 0
     private var resultHydrationPolls = 0
+    private var pendingGradingCompletion: GradingCompletionResult? = null
     private var studentContentRevealPending = false
     private var studentContentRevealPasses = 0
     private var pendingStudentRevealPath: String? = null
@@ -317,6 +318,7 @@ class MainActivity : Activity() {
     private fun beginSecureKioskSession(launchIntent: Intent) {
         if (secureKioskSession || secureResultDelivered || adminRecoverySession) return
         secureKioskSession = true
+        pendingGradingCompletion = null
         if (!isTrustedKioskCaller()) {
             finishSecureKioskSessionWithFailure("SECURE_SESSION_CALLER")
             return
@@ -831,6 +833,7 @@ class MainActivity : Activity() {
         workbookButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
                 resultSummaryDisplayed = false
+                pendingGradingCompletion = null
                 navigateStudentSection(
                     StudentWebPolicy.WORKBOOK_PATH,
                     WebSecurityPolicy.WORKBOOK_URL,
@@ -840,6 +843,7 @@ class MainActivity : Activity() {
         diagnosticButton.setOnClickListener {
             if (state == WebPocState.ACTIVE) {
                 resultSummaryDisplayed = false
+                pendingGradingCompletion = null
                 navigateStudentSection(
                     StudentWebPolicy.DIAGNOSTIC_PATH,
                     WebSecurityPolicy.DIAGNOSTIC_URL,
@@ -854,6 +858,7 @@ class MainActivity : Activity() {
             ) {
                 resultSummaryDisplayed = false
                 resultContinuationAllowed = false
+                pendingGradingCompletion = null
                 resultContinueButton.isEnabled = false
                 pendingLockReason = null
                 navigateStudentSection(
@@ -1423,6 +1428,7 @@ class MainActivity : Activity() {
             },
             confirmLabel = "확인하고 채점 끝내기",
             allowContinuation = true,
+            completion = GradingCompletionResult.complete(wrongNumbers),
         )
     }
 
@@ -1451,6 +1457,7 @@ class MainActivity : Activity() {
                 "\n\n상태 코드: RESULT_INCOMPLETE",
             confirmLabel = "선생님 확인 후 채점 끝내기",
             allowContinuation = false,
+            completion = GradingCompletionResult.unavailable(),
         )
     }
 
@@ -1458,10 +1465,12 @@ class MainActivity : Activity() {
         message: String,
         confirmLabel: String,
         allowContinuation: Boolean,
+        completion: GradingCompletionResult,
     ) {
         if (state != WebPocState.ACTIVE || resultSummaryDisplayed) return
         resultSummaryDisplayed = true
         resultContinuationAllowed = allowContinuation
+        pendingGradingCompletion = completion
         activeExperienceGeneration += 1
         wrongAnswerSummary.text = message
         resultContinueButton.isEnabled = allowContinuation
@@ -1504,6 +1513,7 @@ class MainActivity : Activity() {
             .setPositiveButton("채점 끝내기") { _, _ ->
                 if (state == WebPocState.ACTIVE) {
                     pendingLockReason = null
+                    pendingGradingCompletion = null
                     beginLogout()
                 }
             }
@@ -1656,11 +1666,23 @@ class MainActivity : Activity() {
 
     private fun finishSecureKioskSession() {
         if (!secureKioskSession || secureResultDelivered) return
+        val resultData = pendingGradingCompletion?.let { completion ->
+            Intent()
+                .putExtra(EXTRA_GRADING_RESULT, completion.outcome.wireValue)
+                .putExtra(
+                    EXTRA_WRONG_PROBLEM_NUMBERS,
+                    completion.wrongProblemNumbers.toIntArray(),
+                )
+        }
         wipeRuntimeSecrets()
         transition(WebPocState.IDLE)
         secureResultDelivered = true
         secureKioskSession = false
-        setResult(Activity.RESULT_OK)
+        if (resultData == null) {
+            setResult(Activity.RESULT_OK)
+        } else {
+            setResult(Activity.RESULT_OK, resultData)
+        }
         finish()
     }
 
@@ -2644,6 +2666,7 @@ class MainActivity : Activity() {
         ) return
         idleWarningPanel.visibility = View.GONE
         PrivateDiagnosticLog.event(this, "IDLE_AUTO_END")
+        pendingGradingCompletion = null
         beginLogout()
     }
 
@@ -2719,6 +2742,7 @@ class MainActivity : Activity() {
 
     private fun wipeRuntimeSecrets() {
         wipeAttemptSecrets()
+        pendingGradingCompletion = null
         gate3Session?.wipe()
         gate3Session = null
     }
@@ -2838,6 +2862,10 @@ class MainActivity : Activity() {
         const val COLUMN_USERNAME = "username"
         const val COLUMN_PASSWORD = "password"
         const val EXTRA_FAILURE_REASON = "failure_reason"
+        const val EXTRA_GRADING_RESULT =
+            "com.local.matholickiosk.extra.GRADING_RESULT"
+        const val EXTRA_WRONG_PROBLEM_NUMBERS =
+            "com.local.matholickiosk.extra.WRONG_PROBLEM_NUMBERS"
         const val MAX_BRIDGE_REASON_LENGTH = 80
         const val PREFERENCES_NAME = "web_poc_state"
         const val KEY_STATE = "state"
