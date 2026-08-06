@@ -750,6 +750,63 @@ class StudentRepository(
         }
     }
 
+    fun listTemporaryStudentCandidatesForActiveSession(
+        expectedSessionId: String,
+    ): List<ValidatedStudent> {
+        val session = database.sessionDao().get()
+        require(
+            session?.sessionId == expectedSessionId &&
+                session.classId != null &&
+                session.state == KioskState.QR_READY.name
+        ) {
+            "보강 학생을 추가할 수 있는 수업 상태가 아닙니다."
+        }
+        val alreadyEligible = database.studentDao().listEligibleForSession(
+            classId = session.classId,
+            sessionId = expectedSessionId,
+        ).mapTo(mutableSetOf(), StudentEntity::studentId)
+        return database.studentDao().listAllActive()
+            .filterNot { it.studentId in alreadyEligible }
+            .map { ValidatedStudent(it.studentId, it.displayNameExact) }
+    }
+
+    fun switchSessionClass(
+        expectedSessionId: String,
+        targetClassId: String,
+    ): ActiveSessionEntity = database.runInTransaction<ActiveSessionEntity> {
+        val current = requireNotNull(database.sessionDao().get()) { "No active session" }
+        val currentSessionId = requireNotNull(current.sessionId) { "진행 중인 수업이 없습니다." }
+        require(currentSessionId == expectedSessionId) { "Session mismatch" }
+        require(current.state == KioskState.QR_READY.name && current.currentStudentId == null) {
+            "학생 채점이 끝난 QR 대기 상태에서만 반을 변경할 수 있습니다."
+        }
+        require(current.classId != targetClassId) { "이미 현재 수업으로 선택된 반입니다." }
+        require(database.classDao().findActiveById(targetClassId) != null) {
+            "Active class not found"
+        }
+        require(database.studentDao().listActiveForClass(targetClassId).isNotEmpty()) {
+            "선택한 반에 활성 소속 학생이 없습니다. 먼저 관리자 화면에서 소속을 설정하세요."
+        }
+
+        val now = nowEpochMs()
+        val replacement = ActiveSessionEntity(
+            sessionId = UUID.randomUUID().toString(),
+            classId = targetClassId,
+            startedAtEpochMs = now,
+            state = KioskState.QR_READY.name,
+            currentStudentId = null,
+            automationStep = null,
+            lockedReason = null,
+            previousCheckpoint = current.state,
+            updatedAtEpochMs = now,
+        )
+        database.sessionDao().clearTemporaryStudents(currentSessionId)
+        database.sessionDao().save(replacement)
+        audit("SESSION_ENDED", "CLASS_SWITCH", null, currentSessionId)
+        audit("SESSION_STARTED", "CLASS_SWITCH", null, replacement.sessionId)
+        replacement
+    }
+
     fun validateForActiveSession(
         tokenHash: ByteArray,
         requiredDisplayNameExact: String? = null,

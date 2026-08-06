@@ -293,6 +293,86 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun classSwitchStartsANewSessionAndClearsPreviousTemporaryStudents() {
+        val classA = repository.createClass("가상반-전환-A")
+        val classB = repository.createClass("가상반-전환-B")
+        val memberA = repository.registerStudent(
+            "가상학생-A",
+            "switch-a".toCharArray(),
+            "switch-a-password".toCharArray(),
+        )
+        val memberB = repository.registerStudent(
+            "가상학생-B",
+            "switch-b".toCharArray(),
+            "switch-b-password".toCharArray(),
+        )
+        val temporary = repository.registerStudent(
+            "가상학생-보강",
+            "switch-temporary".toCharArray(),
+            "switch-temporary-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classA, setOf(memberA.studentId))
+        repository.replaceClassMemberships(classB, setOf(memberB.studentId))
+        val original = repository.startSession(classA, setOf(temporary.studentId))
+
+        assertEquals(
+            listOf(memberB.studentId),
+            repository.listTemporaryStudentCandidatesForActiveSession(
+                requireNotNull(original.sessionId),
+            ).map(ValidatedStudent::studentId),
+        )
+
+        val replacement = repository.switchSessionClass(
+            expectedSessionId = requireNotNull(original.sessionId),
+            targetClassId = classB,
+        )
+
+        assertTrue(replacement.sessionId != original.sessionId)
+        assertEquals(classB, replacement.classId)
+        assertEquals(KioskState.QR_READY.name, replacement.state)
+        assertNull(repository.validateForActiveSession(qrHash(temporary.issuedQr.payload)))
+        assertNotNull(repository.validateForActiveSession(qrHash(memberB.issuedQr.payload)))
+        assertEquals(
+            setOf(memberA.studentId, temporary.studentId),
+            repository.listTemporaryStudentCandidatesForActiveSession(
+                requireNotNull(replacement.sessionId),
+            ).mapTo(mutableSetOf(), ValidatedStudent::studentId),
+        )
+    }
+
+    @Test
+    fun rejectedClassSwitchLeavesTheCurrentSessionUntouched() {
+        val classA = repository.createClass("가상반-유지-A")
+        val emptyClass = repository.createClass("가상반-빈반")
+        val member = repository.registerStudent(
+            "가상학생-유지",
+            "switch-keep".toCharArray(),
+            "switch-keep-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classA, setOf(member.studentId))
+        val original = repository.startSession(classA)
+
+        assertTrue(
+            runCatching {
+                repository.switchSessionClass(
+                    expectedSessionId = requireNotNull(original.sessionId),
+                    targetClassId = emptyClass,
+                )
+            }.isFailure,
+        )
+        assertEquals(original, repository.currentSession())
+        assertTrue(
+            runCatching {
+                repository.switchSessionClass(
+                    expectedSessionId = "stale-session",
+                    targetClassId = emptyClass,
+                )
+            }.isFailure,
+        )
+        assertEquals(original, repository.currentSession())
+    }
+
+    @Test
     fun sessionLifecycleRejectsOverwriteAndDuplicateEnd() {
         val classA = repository.createClass("가상반-A")
         val classB = repository.createClass("가상반-B")

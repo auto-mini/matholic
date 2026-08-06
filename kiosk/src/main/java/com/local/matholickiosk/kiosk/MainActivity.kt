@@ -241,6 +241,7 @@ class MainActivity : ComponentActivity() {
     private val quickClassButtons = linkedMapOf<String, Button>()
     private var manualStudentSelectionOnly = false
     private var manualStudentSelectionFlowActive = false
+    private var sessionAdminActionFlowActive = false
     private var qrAcceptanceGeneration = 0
     private var studentFlowGeneration = 0
     private var activeStudentDisplayName: String? = null
@@ -3217,6 +3218,7 @@ class MainActivity : ComponentActivity() {
         scannerVisible = true
         studentLaunchGate.finish()
         manualStudentSelectionFlowActive = false
+        sessionAdminActionFlowActive = false
         studentFlowGeneration += 1
         qrAcceptanceGeneration += 1
         cancelQrLoginButton.visibility = View.GONE
@@ -4013,9 +4015,24 @@ class MainActivity : ComponentActivity() {
         qrAnalyzer?.setEnabled(false)
         AlertDialog.Builder(this)
             .setTitle("$className · 관리자 작업")
-            .setItems(arrayOf("학생 수동 선택", "관리자 화면 열기")) { _, which ->
+            .setItems(
+                arrayOf(
+                    "다음 수업 반으로 바로 변경",
+                    "현재 반에 보충 인원 추가 (이번 수업만)",
+                    "학생 수동 선택",
+                    "관리자 화면 열기",
+                ),
+            ) { _, which ->
                 when (which) {
                     0 -> {
+                        sessionAdminActionFlowActive = true
+                        showQuickClassSwitchDialog()
+                    }
+                    1 -> {
+                        sessionAdminActionFlowActive = true
+                        loadQuickTemporaryStudentChoices()
+                    }
+                    2 -> {
                         manualStudentSelectionFlowActive = true
                         val expectedSessionId = currentSession?.sessionId
                         if (expectedSessionId == null) {
@@ -4033,11 +4050,200 @@ class MainActivity : ComponentActivity() {
             }
             .setNegativeButton("취소", null)
             .setOnDismissListener {
-                if (scannerVisible && !manualStudentSelectionFlowActive) {
+                if (
+                    scannerVisible &&
+                    !manualStudentSelectionFlowActive &&
+                    !sessionAdminActionFlowActive
+                ) {
                     qrAnalyzer?.setEnabled(!manualStudentSelectionOnly)
                 }
             }
             .show()
+    }
+
+    private fun showQuickClassSwitchDialog() {
+        val expectedSessionId = currentSession?.sessionId
+        val currentClassId = currentSession?.classId
+        if (expectedSessionId == null || currentClassId == null || !scannerVisible) {
+            scannerMessage.text = "현재 수업을 확인하지 못했습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+        val targets = FixedClassSlots.names.mapNotNull { className ->
+            classes.firstOrNull { it.label == className }
+        }.filterNot { it.id == currentClassId }
+        if (targets.isEmpty()) {
+            scannerMessage.text = "변경할 수 있는 다른 고정 반이 없습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+
+        var selectionMade = false
+        AlertDialog.Builder(this)
+            .setTitle("다음 수업 반 선택")
+            .setMessage("선택한 반으로 QR 대기 화면을 바로 바꿉니다.")
+            .setItems(targets.map(Choice::label).toTypedArray()) { _, which ->
+                selectionMade = true
+                confirmQuickClassSwitch(expectedSessionId, targets[which])
+            }
+            .setNegativeButton("취소", null)
+            .setOnDismissListener {
+                if (!selectionMade) finishSessionAdminActionFlow()
+            }
+            .show()
+    }
+
+    private fun confirmQuickClassSwitch(expectedSessionId: String, target: Choice) {
+        var submitted = false
+        AlertDialog.Builder(this)
+            .setTitle("${target.label}으로 변경")
+            .setMessage(
+                "현재 수업을 끝내고 ${target.label} 수업을 시작합니다.\n" +
+                    "현재 수업의 임시 보충 명단은 함께 종료됩니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("반 변경") { _, _ ->
+                submitted = true
+                performQuickClassSwitch(expectedSessionId, target)
+            }
+            .setOnDismissListener {
+                if (!submitted) finishSessionAdminActionFlow()
+            }
+            .show()
+    }
+
+    private fun performQuickClassSwitch(expectedSessionId: String, target: Choice) {
+        scannerMessage.text = "${target.label} 수업으로 변경하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.switchSessionClass(expectedSessionId, target.id)
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { replacement ->
+                        currentSession = replacement
+                        pendingTemporaryStudentIds = emptySet()
+                        finishSessionAdminActionFlow(resumeAnalyzer = false)
+                        showScanner()
+                        scannerMessage.text = "${target.label} 수업으로 변경했습니다\nQR 카드를 보여주세요"
+                    },
+                    onFailure = {
+                        scannerMessage.text = it.message ?: "반을 변경하지 못했습니다"
+                        finishSessionAdminActionFlow()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun loadQuickTemporaryStudentChoices() {
+        val expectedSessionId = currentSession?.sessionId
+        val className = classes.firstOrNull { it.id == currentSession?.classId }?.label
+            ?: "현재 반"
+        if (expectedSessionId == null || !scannerVisible) {
+            scannerMessage.text = "현재 수업을 확인하지 못했습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+        scannerMessage.text = "추가할 보충 학생을 확인하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.listTemporaryStudentCandidatesForActiveSession(
+                    expectedSessionId,
+                )
+            }
+            runOnUiThread {
+                if (
+                    destroyed || !scannerVisible ||
+                    currentSession?.sessionId != expectedSessionId
+                ) return@runOnUiThread
+                result.fold(
+                    onSuccess = { candidates ->
+                        if (candidates.isEmpty()) {
+                            scannerMessage.text = "추가할 수 있는 다른 활성 학생이 없습니다"
+                            finishSessionAdminActionFlow()
+                        } else {
+                            showQuickTemporaryStudentDialog(
+                                className,
+                                expectedSessionId,
+                                candidates,
+                            )
+                        }
+                    },
+                    onFailure = {
+                        scannerMessage.text =
+                            it.message ?: "보충 학생 명단을 불러오지 못했습니다"
+                        finishSessionAdminActionFlow()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showQuickTemporaryStudentDialog(
+        className: String,
+        expectedSessionId: String,
+        candidates: List<ValidatedStudent>,
+    ) {
+        val chosen = mutableSetOf<String>()
+        var submitted = false
+        AlertDialog.Builder(this)
+            .setTitle("$className · 임시 보충 인원")
+            .setMessage("선택한 학생은 현재 수업에서만 QR 카드로 들어올 수 있습니다.")
+            .setMultiChoiceItems(
+                candidates.map(ValidatedStudent::displayNameExact).toTypedArray(),
+                BooleanArray(candidates.size),
+            ) { _, which, isChecked ->
+                val studentId = candidates[which].studentId
+                if (isChecked) chosen += studentId else chosen -= studentId
+            }
+            .setNegativeButton("취소", null)
+            .setPositiveButton("현재 수업에 추가") { _, _ ->
+                submitted = true
+                if (chosen.isEmpty()) {
+                    scannerMessage.text = "추가할 학생을 선택하세요"
+                    finishSessionAdminActionFlow()
+                } else {
+                    performQuickTemporaryStudentAdd(expectedSessionId, chosen)
+                }
+            }
+            .setOnDismissListener {
+                if (!submitted) finishSessionAdminActionFlow()
+            }
+            .show()
+    }
+
+    private fun performQuickTemporaryStudentAdd(
+        expectedSessionId: String,
+        studentIds: Set<String>,
+    ) {
+        scannerMessage.text = "보충 학생 ${studentIds.size}명을 추가하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.addTemporaryStudents(expectedSessionId, studentIds)
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                scannerMessage.text = result.fold(
+                    onSuccess = {
+                        "보충 학생 ${studentIds.size}명을 추가했습니다\n이제 QR 카드를 사용할 수 있습니다"
+                    },
+                    onFailure = { it.message ?: "보충 학생을 추가하지 못했습니다" },
+                )
+                finishSessionAdminActionFlow()
+            }
+        }
+    }
+
+    private fun finishSessionAdminActionFlow(resumeAnalyzer: Boolean = true) {
+        sessionAdminActionFlowActive = false
+        if (
+            resumeAnalyzer && scannerVisible &&
+            currentSession?.state == KioskState.QR_READY.name
+        ) {
+            qrAnalyzer?.setEnabled(!manualStudentSelectionOnly)
+        }
     }
 
     private fun loadManualStudentChoices(
