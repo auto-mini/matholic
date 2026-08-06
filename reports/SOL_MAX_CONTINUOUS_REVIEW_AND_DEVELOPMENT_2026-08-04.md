@@ -2,50 +2,49 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-05 05:58:13 +09:00
+- `last_updated`: 2026-08-06 16:06:32 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `2b766a176128700865afd8741a4f23fb3107fbda` /
-  `origin/codex/sol-continuous-development-20260804`
-- 마지막 push 성공 commit: `2b766a176128700865afd8741a4f23fb3107fbda`
+  `c21acd47855ecc069d655f6f2793448bf85ccf45` /
+  `57976980d263e574254b737b3ff71995804224fb`.
+- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 15다.
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 확인: 2026-08-05 00:51 +09:00. 승인 ADB device는
+- 실제 A 마지막 독립 확인: 2026-08-06 16:06 +09:00. 승인 ADB device는
   serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc71`/code 76, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-04 21:01:14`.
-  - Web POC `0.4.0-rc132`/code 149, UID 10293, first install
-    `2026-07-28 13:12:16`.
-  - 기존 설치본과 RC71 artifact signer SHA-256은
+  - Kiosk `0.6.0-rc77`/code 82, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-06 14:17:08`.
+  - Web POC `0.4.0-rc136`/code 153, UID 10293, first install
+    `2026-07-28 13:12:16`, last update `2026-08-06 13:42:38`.
+  - 설치본과 release artifact signer SHA-256은
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`로
     일치한다. 보존형 `adb install -r` 뒤 UID와 first install이 유지됐다.
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
-  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 화면 껐다 켜기 lifecycle 뒤
-    관리자 화면이 다시 잠겨 `관리자 인증` 상태다.
-  - 시험용 반 `SOL-TEST-0805-0023`은 전체 반 목록 끝까지 확인해 존재하지 않고,
-    원격 지원은 `INACTIVE`다. 시험 중 답안은 한 글자도 저장·제출하지 않았다.
-  - 현재 Kiosk process의 logcat에서 `FATAL EXCEPTION`과 Kiosk ANR는 각각 0건이다.
-- 실제 운영 PC 마지막 확인: 2026-08-05 05:58 +09:00. 설치 실행 파일은 보관
+  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 현재 목2 수업의 전면 카메라
+    QR 대기 화면이다.
+  - RC77 최종 확인에서는 보충 후보를 선택하지 않아 학생·반 소속을 변경하지
+    않았다. 앞선 시험용 임시 학생도 반 전환으로 정리됐다.
+- 실제 운영 PC 마지막 독립 확인: 2026-08-06 16:06 +09:00. 설치 실행 파일은 보관
   0.1.6 artifact와 같은 22,785,740 bytes·SHA-256
   `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`이다.
-  PyInstaller process 2개, `0.0.0.0:48129` listener 1개와 listener owner의 정확한
-  설치 path, Startup shortcut target·`--background`, 기존 Private TCP 48129
-  방화벽 경계를 확인했다. 별도 artifact process와 smoke PDF 잔존은 각각 0개다.
+  정식 설치 path의 PyInstaller process 2개와 `0.0.0.0:48129` listener 1개를
+  재확인했다. 기존 Startup·방화벽·부하·네트워크 복구 검증은 아래 SOL-0008
+  기록을 따른다.
   32×5MiB 동시 전송 32/32 내용 검증, 32개 partial connection과 33번째 즉시
   거부, 실제 Wi-Fi disconnect/reconnect, DHCP release/renew, 실제 Wi-Fi와 가상
   interface 두 주소의 listener 도달까지 통과했다.
   Windows를 실제 재부팅한 뒤 로그인 Startup 자동실행도 통과했다. 새 boot time,
   process 2개, listener 1개, hash·Startup target/argument·listener owner 일치,
   smoke exit 0과 현재 Wi-Fi Internet 연결을 확인했다.
-- 현재 작업 중: 없음. 사용자의 후속 지시로 SOL-0008의 PC 수신기 0.1.6 운영
-  설치까지 완료했으며, 중단된 연속 Goal은 재개하지 않았다.
-- 다음 우선 큐: 없음. 사용자가 현재 작업까지만 완결한 뒤 Goal을 중단하라고
-  명시했으므로 새 finding을 시작하지 않는다.
+- 현재 작업 중: 없음. RC77/RC136 후속 실기와 보고서 최신화까지 완료했다.
+  이 문서 커밋은 최종 전달 단계의 branch push 대상이다.
+- 다음 우선 큐: 기능 결함은 없다. 무입력 자동 로그아웃을 별도 Windows 운영
+  알림으로 추가할지는 사용자 제품 판단 항목이며, 현행 확정 동작은 무알림이다.
 
 ### 열린 finding과 제약
 
@@ -57,14 +56,14 @@
 - 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
 - 이미 수정됨: `SOL-0004` 1건.
-- 사용자 판단 대기: 없음.
+- 사용자 판단 대기: 무입력 자동 로그아웃을 별도 Windows 운영 알림으로
+  추가할지 여부. 현재 구현·문서는 무알림을 명시한다.
 - 현재 제약:
   - Kiosk `MainActivityInstrumentedTest`는 기본 AVD, 2000×1200/240dpi·font
     scale 1.3, 같은 해상도·font scale 0.85·180도 반전에서 각각 16/16, 총
     48/48 PASS다. 지원 A와 임의의 모든 Android 화면 호환성으로 확대하지 않는다.
-  - 시험 QR은 공식 PDF를 허용된 원격 제출 도구로 전달했다. 카메라 활성·중단·
-    재연결은 실제 A에서 확인했지만 인쇄 카드의 광학 인식, 조명·거리·반사는
-    시험하지 않았다.
+  - 절단용 PDF의 실제 흑백 출력·절단·코팅 전 카메라 인식은 사용자가 통과를
+    확인했다. 가능한 모든 조명·거리·반사 조건으로 확대하지 않는다.
   - PC 수신기 0.1.6은 실제 Wi-Fi 단절·재연결, DHCP 주소 반납·재할당, 실제
     Wi-Fi+가상 interface 두 주소의 listener 도달과 Windows 재부팅 뒤 Startup
     자동실행을 통과했다. 활성 VPN adapter가 없어 VPN 경유 주소 선택은 수행하지
@@ -76,6 +75,30 @@
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
     두 개만 있으며 저장소 밖이다. 정책을 우회해 삭제하지 않았다.
+
+## 2026-08-06 후속 배포·현장 확인
+
+- 학생 로그인 PC 알림 1회, 실제 채점 결과의 오답 개수·문제번호 PC 알림,
+  도움말 같은 `?` 버튼 재터치 닫기, QR 대기 PIN 반 전환과 현재 수업 한정 보충
+  학생 추가를 구현하고 각각 커밋·릴리스 빌드했다.
+- RC75 실제 A 실기에서 반·보충 선택 대화상자의 목록이 가려지는 문제를 발견해
+  RC76에서 교정했다. 이어 보충 후보 조회 문구가 취소 뒤 남는 문제를 RC77에서
+  교정했다. Kiosk 94개·Web 67개 단위시험, release lint, signed APK와 동일 signer
+  검증을 포함한 158개 Gradle 작업을 통과했다.
+- RC77/RC136을 A에 보존 설치했고 UID, firstInstallTime, Kiosk DB, Device Owner,
+  전용 HOME과 Lock Task를 유지했다. 11개 전환 대상 반, 13개 보충 후보,
+  목2→금1→목2 전환과 임시 보충 명단 정리를 실제 A에서 확인했다.
+- 사용자는 실제 운영에서 학생 로그인 Windows 알림 1회와 채점 상세 결과 알림이
+  정상임을 확인했다. 이는 사용자 현장 확인이며 Codex의 독립 Windows UI 캡처로
+  확대하지 않는다.
+- 사용자는 무입력 자동 종료 때 별도 로그아웃 Windows 알림이 없음을 확인했다.
+  Web은 이 경로에서 채점 결과를 명시적으로 비우고 공식 로그아웃하며, Kiosk는
+  결과 메시지가 있을 때만 완료 알림을 요청한다. 따라서 현행 제품 결정과
+  일치하는 의도된 동작이다.
+- Kiosk RC77 APK는 36,704,813 bytes, SHA-256
+  `F053929FD768C6D3F082DEF5D0C3F8A5110093ACD944AB26FA81F8EA27E551AE`이고,
+  Web RC136 APK는 3,393,442 bytes, SHA-256
+  `616914ABEE78052B7DE27C5600084080E477A69660DD33E51E12E72BFCE30491`이다.
 
 ## 시작 기준선 — 2026-08-04 19:07 +09:00
 
