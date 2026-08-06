@@ -876,7 +876,13 @@ class MainActivity : Activity() {
                 beginLogout()
             }
         }
-        studentHelpButton.setOnClickListener { showStudentHelp() }
+        studentHelpButton.setOnClickListener {
+            if (studentLiveHelpVisible || studentHelpPanel.visibility == View.VISIBLE) {
+                hideStudentHelp()
+            } else {
+                showStudentHelp()
+            }
+        }
         studentHelpCloseButton.setOnClickListener { hideStudentHelp() }
         idleContinueButton.setOnClickListener {
             idleWarningPanel.visibility = View.GONE
@@ -2105,6 +2111,7 @@ class MainActivity : Activity() {
                 studentLiveHelpVisible = true
                 studentHelpPanel.visibility = View.GONE
                 setStudentLiveHelpNativeControlsBlocked(blocked = true)
+                studentHelpButton.contentDescription = "현재 화면 도움말 닫기"
                 scheduleInactivityWarning()
                 hideSystemNavigation()
             } else {
@@ -2119,6 +2126,8 @@ class MainActivity : Activity() {
         setStudentHelpBackgroundAccessibility(hidden = true)
         studentHelpPanel.visibility = View.VISIBLE
         studentHelpPanel.bringToFront()
+        studentHeaderControls.bringToFront()
+        studentHelpButton.contentDescription = "현재 화면 도움말 닫기"
         studentHelpPanel.requestFocus()
         scheduleInactivityWarning()
         hideSystemNavigation()
@@ -2139,6 +2148,7 @@ class MainActivity : Activity() {
         }
         studentLiveHelpVisible = false
         studentHelpPanel.visibility = View.GONE
+        studentHelpButton.contentDescription = "현재 화면 도움말"
         setStudentLiveHelpNativeControlsBlocked(blocked = false)
         setStudentHelpBackgroundAccessibility(hidden = false)
         hideSystemNavigation()
@@ -2148,7 +2158,6 @@ class MainActivity : Activity() {
         val controls = listOf(
             workbookButton,
             diagnosticButton,
-            studentHelpButton,
             finishButton,
         )
         if (blocked) {
@@ -2157,7 +2166,7 @@ class MainActivity : Activity() {
             }
             controls.forEach { it.isEnabled = false }
             studentHeaderControls.importantForAccessibility =
-                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
             studentNavBar.importantForAccessibility =
                 View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             finishButton.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -2179,7 +2188,8 @@ class MainActivity : Activity() {
             View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         }
         webViewReference?.importantForAccessibility = importance
-        studentHeaderControls.importantForAccessibility = importance
+        studentHeaderControls.importantForAccessibility =
+            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         studentNavBar.importantForAccessibility = importance
         finishButton.importantForAccessibility = if (hidden) {
             View.IMPORTANT_FOR_ACCESSIBILITY_NO

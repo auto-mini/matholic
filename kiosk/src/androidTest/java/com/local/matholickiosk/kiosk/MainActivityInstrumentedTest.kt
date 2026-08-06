@@ -260,6 +260,18 @@ class MainActivityInstrumentedTest {
                             .contentDescription
                             .toString(),
                     )
+                    val helpButton = activity.findViewById<View>(R.id.scanner_help_button)
+                    val helpPanel = activity.findViewById<View>(R.id.scanner_help_panel)
+                    helpButton.performClick()
+                    assertEquals(View.VISIBLE, helpPanel.visibility)
+                    assertEquals("QR 카드 화면 도움말 닫기", helpButton.contentDescription)
+                    assertTrue(
+                        (helpButton.parent as ViewGroup).indexOfChild(helpButton) >
+                            (helpPanel.parent as ViewGroup).indexOfChild(helpPanel),
+                    )
+                    helpButton.performClick()
+                    assertEquals(View.GONE, helpPanel.visibility)
+                    assertEquals("QR 카드 화면 도움말", helpButton.contentDescription)
                     showAuthenticationMethod.invoke(activity, false)
                     assertEquals(
                         View.VISIBLE,

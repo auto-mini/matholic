@@ -621,7 +621,13 @@ class MainActivity : ComponentActivity() {
         recoverSessionButton.setOnClickListener { confirmOneButtonRecovery() }
         cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
-        scannerHelpButton.setOnClickListener { showScannerHelp() }
+        scannerHelpButton.setOnClickListener {
+            if (scannerHelpPanel.visibility == View.VISIBLE) {
+                hideScannerHelp(resumeAnalyzer = true)
+            } else {
+                showScannerHelp()
+            }
+        }
         scannerHelpCloseButton.setOnClickListener { hideScannerHelp(resumeAnalyzer = true) }
         sessionAdminButton.setOnClickListener {
             if (pcPairingMode) {
@@ -3853,6 +3859,8 @@ class MainActivity : ComponentActivity() {
         setScannerHelpBackgroundAccessibility(hidden = true)
         scannerHelpPanel.visibility = View.VISIBLE
         scannerHelpPanel.bringToFront()
+        scannerHelpButton.bringToFront()
+        scannerHelpButton.contentDescription = "QR 카드 화면 도움말 닫기"
         scannerHelpPanel.requestFocus()
     }
 
@@ -3866,6 +3874,7 @@ class MainActivity : ComponentActivity() {
             statusText.text == KioskState.QR_READY.name
         scannerHelpPausedAnalyzer = false
         scannerHelpPanel.visibility = View.GONE
+        scannerHelpButton.contentDescription = "QR 카드 화면 도움말"
         setScannerHelpBackgroundAccessibility(hidden = false)
         if (shouldResume) qrAnalyzer?.setEnabled(true)
     }
@@ -3878,11 +3887,7 @@ class MainActivity : ComponentActivity() {
         }
         scannerCenterContent.importantForAccessibility = groupImportance
         scannerActionControls.importantForAccessibility = groupImportance
-        scannerHelpButton.importantForAccessibility = if (hidden) {
-            View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        } else {
-            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-        }
+        scannerHelpButton.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
     }
 
     private fun requestSessionAdminAuthentication() {
