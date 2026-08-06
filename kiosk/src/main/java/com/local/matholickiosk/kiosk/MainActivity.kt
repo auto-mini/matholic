@@ -4163,6 +4163,7 @@ class MainActivity : ComponentActivity() {
                             scannerMessage.text = "추가할 수 있는 다른 활성 학생이 없습니다"
                             finishSessionAdminActionFlow()
                         } else {
+                            scannerMessage.text = ""
                             showQuickTemporaryStudentDialog(
                                 className,
                                 expectedSessionId,
