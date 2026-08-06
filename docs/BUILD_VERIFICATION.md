@@ -1,5 +1,54 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC73 학생 로그인 PC 알림 1회 교정 — 2026-08-06
+
+### 원인과 교정
+
+- 학생 QR 검증 직후의 `학생 확인`과 뒤따르는 `로그인 중` 상태가 모두
+  `notify=false`여서 PC 수신기는 상태판만 갱신하고 Windows 알림을 만들지
+  않았다.
+- `학생 확인`에만 `notify=true`, `로그인 중`에는 `notify=false`를 반환하는
+  명시적 로그인 알림 정책을 추가했다. 알림에는 기존 개인정보 방침대로 학생
+  이름을 넣지 않고 상태 문구 `학생 확인`만 사용한다.
+- PC 상태 전달기는 일반 상태는 최신값 하나로 합치되 `notify=true` 상태는
+  별도 FIFO에 보존한다. 따라서 직후의 `로그인 중` 상태가 아직 전송되지 않은
+  로그인 알림을 덮어쓸 수 없다.
+
+### 자동·릴리스 검증
+
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug
+  :kiosk:compileDebugAndroidTestKotlin`을 통과했다. Kiosk 단위시험은 89개,
+  실패·오류·건너뜀은 0개다.
+- 정책 시험은 QR 검증→로그인 진행 두 단계에서 알림 대상이 정확히 1개인지
+  확인한다. 전달기 시험은 앞선 작업이 막힌 동안 일반 상태→알림 상태→최신
+  일반 상태를 제출해 알림 상태가 유실되지 않고 먼저 전달되는지 확인한다.
+- `scripts/build-release.ps1`의 Kiosk/Web 단위시험, release lint, signed
+  assemble, non-debuggable·동일 signer 검증을 통과했다.
+- Kiosk `0.6.0-rc73`/code 78, 36,688,429 bytes:
+  `C27D88DD392365D742C4779A7FFD4D349F20F20106175BC31F86E4F2A1C1EF50`.
+- Web `0.4.0-rc134`/code 151, 3,388,642 bytes:
+  `5460D9EBF6A0A791C274AE4629A22D07E3BDC7FA7C8ACC14028035954CFF6E5C`.
+- release signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+
+### PC 확인과 실기 제한
+
+- 운영 PC 수신기 0.1.6의 두 프로세스와 `0.0.0.0:48129` listener를 확인했다.
+  설치 설정의 비밀값을 출력하지 않고 같은 암호화·인증 프로토콜로
+  `학생 확인/notify=true` 1건과 후속 `로그인 중/notify=false`를 보냈으며
+  두 요청 모두 수신기가 수락했다.
+- Windows UI 자동화 런타임이 창 목록 읽기 이후 캡처·키 입력에서 내부 오류를
+  냈고, 대체 화면 캡처 중 사용자가 다른 창을 조작한 흔적이 있어 UI 제어를
+  중단했다. 따라서 Windows 팝업의 육안 확인은 완료로 판정하지 않는다.
+- A `R54TB029FHZ`는 이번 검증 시점의 ADB 기기 목록에 없었다. RC73 설치,
+  실제 학생 QR 로그인과 팝업 1회 육안 확인은 수행하지 못했다. 현재 A 설치본은
+  계속 Kiosk RC72/Web RC134이며, RC73 설치 완료로 기록하지 않는다.
+
+### 커밋·복구점
+
+- `f7cc15a` 학생 로그인 PC 알림 1회 정책·유실 방지·회귀시험
+- `6aa8eab` Kiosk RC73 release 복구점
+
 ## Kiosk RC72 / Web RC134 문제 조작·무입력 자동 종료 교정 — 2026-08-05
 
 ### 교정 범위

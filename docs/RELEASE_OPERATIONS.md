@@ -1,13 +1,14 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24, 갱신일: 2026-08-05 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-08-06 (Asia/Seoul)
 
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
 같은 signer의 Kiosk RC72·Web POC RC134가 보존형 설치돼 있다. Kiosk DB, Device
 Owner와 전용 HOME은 보존됐고 두 설치본의 해시는 보관 artifact와 일치해야 한다.
-현재 보관 검증 묶음은 Kiosk RC72, Web POC RC134와 PC 수신기 0.1.6이다.
+현재 보관 검증 묶음은 Kiosk RC73, Web POC RC134와 PC 수신기 0.1.6이다. RC73은
+A가 ADB에 연결되지 않은 상태라 아직 A에 설치하지 않았다.
 Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 `docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.6의 검증·설치 여부는
 `reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
@@ -15,7 +16,7 @@ Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 
 - 현재 A: Kiosk `0.6.0-rc72`/code 77, Web POC `0.4.0-rc134`/code 151
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc72`/code 77, Web POC `0.4.0-rc134`/code 151,
+  Kiosk `0.6.0-rc73`/code 78, Web POC `0.4.0-rc134`/code 151,
   PC 수신기 `0.1.6`
 - 현재 운영 PC 설치본: PC 수신기 `0.1.6`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
