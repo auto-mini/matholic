@@ -4080,8 +4080,7 @@ class MainActivity : ComponentActivity() {
 
         var selectionMade = false
         AlertDialog.Builder(this)
-            .setTitle("다음 수업 반 선택")
-            .setMessage("선택한 반으로 QR 대기 화면을 바로 바꿉니다.")
+            .setTitle("다음 수업 반 선택 · QR 대기로 바로 변경")
             .setItems(targets.map(Choice::label).toTypedArray()) { _, which ->
                 selectionMade = true
                 confirmQuickClassSwitch(expectedSessionId, targets[which])
@@ -4189,8 +4188,7 @@ class MainActivity : ComponentActivity() {
         val chosen = mutableSetOf<String>()
         var submitted = false
         AlertDialog.Builder(this)
-            .setTitle("$className · 임시 보충 인원")
-            .setMessage("선택한 학생은 현재 수업에서만 QR 카드로 들어올 수 있습니다.")
+            .setTitle("$className · 임시 보충 인원 (이번 수업만)")
             .setMultiChoiceItems(
                 candidates.map(ValidatedStudent::displayNameExact).toTypedArray(),
                 BooleanArray(candidates.size),
