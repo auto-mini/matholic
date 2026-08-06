@@ -37,4 +37,40 @@ class LatestValueDispatcherTest {
             dispatcher.close()
         }
     }
+
+    @Test
+    fun `preserves notification before the latest passive status`() {
+        val consumed = Collections.synchronizedList(mutableListOf<String>())
+        val firstStarted = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val latestConsumed = CountDownLatch(1)
+        val dispatcher = LatestValueDispatcher(
+            threadName = "preserved-value-test",
+            preserve = { value: String -> value.startsWith("notify:") },
+        ) { value ->
+            consumed += value
+            if (value == "first") {
+                firstStarted.countDown()
+                releaseFirst.await(2, TimeUnit.SECONDS)
+            }
+            if (value == "latest") latestConsumed.countDown()
+        }
+        try {
+            dispatcher.submit("first")
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
+            dispatcher.submit("stale")
+            dispatcher.submit("notify:student-verified")
+            dispatcher.submit("latest")
+            releaseFirst.countDown()
+            assertTrue(latestConsumed.await(2, TimeUnit.SECONDS))
+
+            assertEquals(
+                listOf("first", "notify:student-verified", "latest"),
+                consumed,
+            )
+        } finally {
+            releaseFirst.countDown()
+            dispatcher.close()
+        }
+    }
 }

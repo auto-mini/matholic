@@ -4,20 +4,26 @@ import java.util.concurrent.Executors
 
 internal class LatestValueDispatcher<T>(
     threadName: String,
+    private val preserve: (T) -> Boolean = { false },
     private val consume: (T) -> Unit,
 ) : AutoCloseable {
     private val lock = Any()
     private val executor = Executors.newSingleThreadExecutor { task ->
         Thread(task, threadName).apply { isDaemon = true }
     }
-    private var pending: T? = null
+    private val preserved = ArrayDeque<T>()
+    private var pendingLatest: T? = null
     private var drainScheduled = false
     private var closed = false
 
     fun submit(value: T) {
         val shouldSchedule = synchronized(lock) {
             if (closed) return
-            pending = value
+            if (preserve(value)) {
+                preserved.addLast(value)
+            } else {
+                pendingLatest = value
+            }
             if (drainScheduled) {
                 false
             } else {
@@ -31,7 +37,8 @@ internal class LatestValueDispatcher<T>(
         } catch (_: RuntimeException) {
             synchronized(lock) {
                 drainScheduled = false
-                pending = null
+                preserved.clear()
+                pendingLatest = null
             }
         }
     }
@@ -39,9 +46,13 @@ internal class LatestValueDispatcher<T>(
     private fun drain() {
         while (true) {
             val next = synchronized(lock) {
-                pending.also {
-                    pending = null
-                    if (it == null) drainScheduled = false
+                if (preserved.isNotEmpty()) {
+                    preserved.removeFirst()
+                } else {
+                    pendingLatest.also {
+                        pendingLatest = null
+                        if (it == null) drainScheduled = false
+                    }
                 }
             } ?: return
             runCatching { consume(next) }
@@ -51,7 +62,8 @@ internal class LatestValueDispatcher<T>(
     override fun close() {
         synchronized(lock) {
             closed = true
-            pending = null
+            preserved.clear()
+            pendingLatest = null
         }
         executor.shutdownNow()
     }

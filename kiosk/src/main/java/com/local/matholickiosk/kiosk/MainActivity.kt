@@ -74,6 +74,8 @@ import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
 import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
+import com.local.matholickiosk.kiosk.domain.StudentLoginPcNotificationPolicy
+import com.local.matholickiosk.kiosk.domain.StudentLoginPcStage
 import com.local.matholickiosk.kiosk.domain.ScannerCameraResumeAction
 import com.local.matholickiosk.kiosk.domain.ScannerCameraResumePolicy
 import com.local.matholickiosk.kiosk.print.BatchQrCard
@@ -420,7 +422,10 @@ class MainActivity : ComponentActivity() {
         )
         pcPairingStore = PcPairingStore(this)
         diagnosticLog = PrivateDiagnosticLog(this)
-        pcStatusDispatcher = LatestValueDispatcher("pc-status-latest") { status ->
+        pcStatusDispatcher = LatestValueDispatcher(
+            threadName = "pc-status-latest",
+            preserve = { status -> status.notify },
+        ) { status ->
             runCatching {
                 withReachablePairedPc { pairing ->
                     pcControlClient.sendStatus(
@@ -3581,7 +3586,9 @@ class MainActivity : ComponentActivity() {
                             reportPcStatus(
                                 state = "학생 확인",
                                 studentName = student.displayNameExact,
-                                notify = false,
+                                notify = StudentLoginPcNotificationPolicy.shouldNotify(
+                                    StudentLoginPcStage.QR_VERIFIED,
+                                ),
                             )
                             mainHandler.postDelayed({
                                 if (
@@ -3621,7 +3628,9 @@ class MainActivity : ComponentActivity() {
         reportPcStatus(
             state = "로그인 중",
             studentName = student.displayNameExact,
-            notify = false,
+            notify = StudentLoginPcNotificationPolicy.shouldNotify(
+                StudentLoginPcStage.LOGIN_IN_PROGRESS,
+            ),
         )
         statusText.text = KioskState.PRELOGIN_CHECK.name
         ioExecutor.execute {
