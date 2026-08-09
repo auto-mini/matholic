@@ -41,11 +41,12 @@
 - 실행 중인 설치본에 실제 인증 합성 PDF를 전송해 ACK·파일 내용 일치·정확한
   시험 파일 삭제를 확인했다. Startup shortcut target과 `--background` 인수도
   설치 경로와 일치한다.
-- 현재 Windows 세션은 관리자 권한이 아니어서 기존 광범위 방화벽 규칙 삭제가
-  `액세스가 거부되었습니다`로 실패했다. 정확한 Private/TCP 48129 규칙 1개는
-  유지되지만 설치본 Public/TCP·UDP 모든 포트 2개, 0.1.6 artifact와 build
-  실행 파일의 Private·Public/TCP·UDP 모든 포트 4개도 남아 있다. 스크립트
-  교정은 완료했으나 실제 규칙 정리는 관리자 권한 대기다.
+- 최초 비관리자 실행에서는 기존 광범위 방화벽 규칙 삭제가 `액세스가
+  거부되었습니다`로 실패했다. 이후 사용자 승인 UAC 관리자 실행으로 설치본
+  Public/TCP·UDP 모든 포트 2개, 0.1.6 artifact와 build 실행 파일의
+  Private·Public/TCP·UDP 모든 포트 4개를 제거했다. 네 경로를 독립 조회한 결과
+  설치본의 `Private`/TCP 48129/Allow 규칙 1개만 남았고 helper assertion과
+  `0.0.0.0:48129` listener를 함께 통과했다.
 - `adb devices -l`에 기기가 없어 RC79/RC137을 A에 설치하지 않았다. A는 계속
   Kiosk RC77/Web RC136이며, RC79 성공 안내 유지와 RC137 종료 경고는 실물
   확인 전이다.
