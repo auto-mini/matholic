@@ -1510,13 +1510,14 @@ class MainActivity : Activity() {
             activeJavaScriptDialog != null
         ) return
         val dialog = AlertDialog.Builder(this)
-            .setTitle("채점을 끝낼까요?")
+            .setTitle("주의: 답안을 입력하는 버튼이 아닙니다")
             .setMessage(
-                "아직 제출하지 않은 답은 채점되지 않습니다. " +
-                    "계속 풀려면 ‘계속 채점’을 누르세요.",
+                "답안을 입력하려면 이 창을 닫고 문제 화면의 ‘입력’ 버튼을 누르세요.\n\n" +
+                    "여기서 ‘채점 종료·로그아웃’을 누르면 현재 학생의 채점 종료 " +
+                    "절차가 바로 시작됩니다. 아직 ‘입력’하지 않은 답은 채점되지 않습니다.",
             )
-            .setNegativeButton("계속 채점", null)
-            .setPositiveButton("채점 끝내기") { _, _ ->
+            .setNegativeButton("문제로 돌아가기", null)
+            .setPositiveButton("채점 종료·로그아웃") { _, _ ->
                 if (state == WebPocState.ACTIVE) {
                     pendingLockReason = null
                     pendingGradingCompletion = null
@@ -1533,6 +1534,9 @@ class MainActivity : Activity() {
         finishConfirmationDialog = dialog
         try {
             dialog.show()
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(
+                android.graphics.Color.rgb(183, 28, 28),
+            )
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
                 if (finishConfirmationDialog === dialog) {
                     finishConfirmationDialog = null

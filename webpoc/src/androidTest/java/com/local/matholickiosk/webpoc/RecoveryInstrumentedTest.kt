@@ -898,16 +898,30 @@ class RecoveryInstrumentedTest {
                 val dialog = dialogField.get(activity) as android.app.AlertDialog
                 assertTrue(dialog.isShowing)
                 assertEquals(
-                    "채점 끝내기",
+                    "주의: 답안을 입력하는 버튼이 아닙니다",
+                    dialog.findViewById<android.widget.TextView>(
+                        activity.resources.getIdentifier("alertTitle", "id", "android"),
+                    )?.text.toString(),
+                )
+                assertEquals(
+                    "채점 종료·로그아웃",
                     dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).text.toString(),
                 )
                 assertEquals(
-                    "계속 채점",
+                    "문제로 돌아가기",
                     dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).text.toString(),
                 )
                 assertTrue(
                     dialog.findViewById<android.widget.TextView>(android.R.id.message)
-                        ?.text?.contains("아직 제출하지 않은 답") == true,
+                        ?.text?.contains("문제 화면의 ‘입력’ 버튼") == true,
+                )
+                assertTrue(
+                    dialog.findViewById<android.widget.TextView>(android.R.id.message)
+                        ?.text?.contains("채점 종료 절차가 바로 시작") == true,
+                )
+                assertEquals(
+                    android.graphics.Color.rgb(183, 28, 28),
+                    dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).currentTextColor,
                 )
 
                 dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
