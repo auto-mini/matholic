@@ -2,12 +2,12 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-09 11:33:51 +09:00
+- `last_updated`: 2026-08-09 11:40:34 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `221c6ec7455b58f064f0dff6958457134063c1e8` /
+  `4848f66bd390e1be3daaacb6e4897e5faedffeac` /
   `0b998944aa5de1e40f5161483e55b8dc802e6b68`.
-- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 9이다.
+- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 10이다.
 - 마지막 push 성공 commit은
   `0b998944aa5de1e40f5161483e55b8dc802e6b68`이다.
 - 최초 보존 기준선: `master`의
@@ -96,6 +96,9 @@
   계속 허용한다. 실질 QR 승인·거부가 시작되면 notice를 무효화한다.
 - 정식 release 158 tasks와 서명·non-debuggable 검증을 통과했다. A 미연결로
   RC79/RC137 설치와 실물 확인은 수행하지 않았다.
+- 전체 Android debug 단위시험 173개, Kiosk·Web debug lint와 계측시험 소스
+  컴파일 68 tasks를 추가로 통과했다. 설치 수신기에도 실제 인증 합성 PDF를
+  전송해 ACK·내용 일치·시험 파일 정리를 확인했다.
 - Kiosk RC79 APK SHA-256:
   `E45CC552105532024A83C8E535E1D73DAAA6273083164FDCEC9E74035A9CB0AD`.
 - Web RC137 APK SHA-256:

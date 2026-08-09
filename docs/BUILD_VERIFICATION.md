@@ -16,8 +16,9 @@
 
 ### 자동·릴리스 검증
 
-- Kiosk notice gate 신규 단위시험 3개, Kiosk 전체 debug 단위시험과 Android
-  계측시험 Kotlin 소스 컴파일: PASS.
+- 전체 debug 단위시험 173개(Kiosk 97, Web 67, Probe 8, POC 1): failure,
+  error, skip 없이 PASS. Kiosk notice gate 신규 시험 3개를 포함한다.
+- Kiosk·Web debug lint와 Android 계측시험 Kotlin 소스 컴파일 68 tasks: PASS.
 - `scripts/build-release.ps1`: 158 tasks PASS. Kiosk/Web 단위시험, release lint,
   signed assemble, version·non-debuggable·동일 signer 이중 검증을 포함한다.
 - PC 수신기: 23 pytest PASS, 독립 source smoke PASS, PyInstaller packaged smoke
@@ -37,6 +38,9 @@
   `%LOCALAPPDATA%\MatholicPdfReceiver\backup\MatholicPdfReceiver-before-0.1.7-20260809-111713.exe`
   로 백업했다. 0.1.7 artifact와 설치본 해시 일치, 설치본 독립 smoke exit 0,
   parent/child process와 `0.0.0.0:48129` listener 재기동을 확인했다.
+- 실행 중인 설치본에 실제 인증 합성 PDF를 전송해 ACK·파일 내용 일치·정확한
+  시험 파일 삭제를 확인했다. Startup shortcut target과 `--background` 인수도
+  설치 경로와 일치한다.
 - 현재 Windows 세션은 관리자 권한이 아니어서 기존 광범위 방화벽 규칙 삭제가
   `액세스가 거부되었습니다`로 실패했다. 정확한 Private/TCP 48129 규칙 1개는
   유지되지만 설치본 Public/TCP·UDP 모든 포트 2개, 0.1.6 artifact와 build
