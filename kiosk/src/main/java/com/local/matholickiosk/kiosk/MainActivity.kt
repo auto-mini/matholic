@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
     private var activeCameraFacing = CameraFacing.FRONT
     private var cameraBindGeneration = 0
     private var qrGuidanceGeneration = 0
-    private var scannerNoticeGeneration = 0
+    private val scannerNoticeGate = ScannerNoticeGate()
     private var destroyed = false
     private var pendingCredentialBridgeId: String? = null
     private var pendingWebSessionId: String? = null
@@ -3225,7 +3225,7 @@ class MainActivity : ComponentActivity() {
         cancelQrLoginButton.visibility = View.GONE
         activeStudentDisplayName = null
         qrGuidanceGeneration += 1
-        scannerNoticeGeneration += 1
+        scannerNoticeGate.invalidate()
         scannerMessage.text = ""
         statusText.text = KioskState.QR_READY.name
         reportPcStatus("QR 대기", null, notify = false)
@@ -3431,6 +3431,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 return@runOnUiThread
             }
+            if (scannerNoticeGate.suppressesPassiveGuidance()) return@runOnUiThread
             val message = when (guidance) {
                 QrFrameGuidance.MOVE_LEFT ->
                     "QR이 오른쪽에 있습니다\n카드를 왼쪽으로 옮겨주세요"
@@ -3473,6 +3474,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 return@runOnUiThread
             }
+            if (scannerNoticeGate.suppressesPassiveGuidance()) return@runOnUiThread
             if (quality == QrFrameQuality.GLARE) return@runOnUiThread
             val generation = ++qrGuidanceGeneration
             scannerMessage.text = when (quality) {
@@ -3514,6 +3516,7 @@ class MainActivity : ComponentActivity() {
             when (decision) {
                 QrFrameDecision.Ignore -> qrAnalyzer?.setEnabled(true)
                 is QrFrameDecision.Reject -> {
+                    scannerNoticeGate.invalidate()
                     scannerHelpButton.visibility = View.GONE
                     val reason = when (decision.reason) {
                         QrFrameRejection.MULTIPLE_QR -> {
@@ -3527,7 +3530,10 @@ class MainActivity : ComponentActivity() {
                     }
                     recordQrRejection(reason)
                 }
-                is QrFrameDecision.Accept -> validateQr(decision.tokenHash)
+                is QrFrameDecision.Accept -> {
+                    scannerNoticeGate.invalidate()
+                    validateQr(decision.tokenHash)
+                }
             }
         }
     }
@@ -4249,12 +4255,14 @@ class MainActivity : ComponentActivity() {
         message: String,
         durationMillis: Long = SCANNER_NOTICE_DURATION_MS,
     ) {
-        val generation = ++scannerNoticeGeneration
+        qrGuidanceGeneration += 1
+        val generation = scannerNoticeGate.begin()
         scannerMessage.text = message
         mainHandler.postDelayed({
+            val noticeIsCurrent = scannerNoticeGate.finish(generation)
             if (
                 !destroyed && scannerVisible &&
-                generation == scannerNoticeGeneration &&
+                noticeIsCurrent &&
                 scannerMessage.text.toString() == message
             ) {
                 scannerMessage.text = ""
