@@ -1,5 +1,52 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC79 / PC 수신기 0.1.7 최종 정밀검수 교정 — 2026-08-09
+
+### 교정 범위
+
+- QR 반 변경·보충 추가 성공 안내가 기존 거리·밝기 안내 타이머나 새 수동
+  안내에 덮이지 않도록 notice gate를 추가했다. 실제 QR 승인·거부가 발생하면
+  notice를 무효화해 다음 학생 처리를 막지 않는다.
+- PC 설치·제거 스크립트가 정확한 수신기 실행 파일 경로에 연결된 모든 기존
+  인바운드 규칙을 지우고 `Private`/TCP 48129 단일 규칙을 생성·검증하도록
+  보강했다.
+- PC 수신기를 0.1.7로 올리고 `cryptography 50.0.0`, `Pillow 12.3.0`으로
+  갱신했다. 패키지 smoke check는 기존 실행 수신기에 의존하지 않고 임시 설정과
+  임시 포트의 자체 서버를 직접 기동해 인증·저장·ACK·정리를 검증한다.
+
+### 자동·릴리스 검증
+
+- Kiosk notice gate 신규 단위시험 3개, Kiosk 전체 debug 단위시험과 Android
+  계측시험 Kotlin 소스 컴파일: PASS.
+- `scripts/build-release.ps1`: 158 tasks PASS. Kiosk/Web 단위시험, release lint,
+  signed assemble, version·non-debuggable·동일 signer 이중 검증을 포함한다.
+- PC 수신기: 23 pytest PASS, 독립 source smoke PASS, PyInstaller packaged smoke
+  PASS, `pip-audit pc_receiver` 알려진 취약점 0건.
+- Kiosk `0.6.0-rc79`/code 84, 36,704,813 bytes:
+  `E45CC552105532024A83C8E535E1D73DAAA6273083164FDCEC9E74035A9CB0AD`.
+- Web `0.4.0-rc137`/code 154, 3,393,698 bytes:
+  `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`.
+- PC 수신기 `0.1.7`, 23,185,198 bytes:
+  `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`.
+- APK signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+
+### 설치·운영 상태와 남은 실기
+
+- PC 0.1.6 설치본은
+  `%LOCALAPPDATA%\MatholicPdfReceiver\backup\MatholicPdfReceiver-before-0.1.7-20260809-111713.exe`
+  로 백업했다. 0.1.7 artifact와 설치본 해시 일치, 설치본 독립 smoke exit 0,
+  parent/child process와 `0.0.0.0:48129` listener 재기동을 확인했다.
+- 현재 Windows 세션은 관리자 권한이 아니어서 기존 광범위 방화벽 규칙 삭제가
+  `액세스가 거부되었습니다`로 실패했다. 정확한 Private/TCP 48129 규칙 1개는
+  유지되지만 설치본 Public/TCP·UDP 모든 포트 2개, 0.1.6 artifact와 build
+  실행 파일의 Private·Public/TCP·UDP 모든 포트 4개도 남아 있다. 스크립트
+  교정은 완료했으나 실제 규칙 정리는 관리자 권한 대기다.
+- `adb devices -l`에 기기가 없어 RC79/RC137을 A에 설치하지 않았다. A는 계속
+  Kiosk RC77/Web RC136이며, RC79 성공 안내 유지와 RC137 종료 경고는 실물
+  확인 전이다.
+- 복구점: `03e1c2b`, `4b5a7e0`, `4061920`, `dd25a7e`, `221c6ec`.
+
 ## Kiosk RC78 / Web RC137 QR 안내·채점 종료 경고 — 2026-08-09
 
 ### 교정 범위

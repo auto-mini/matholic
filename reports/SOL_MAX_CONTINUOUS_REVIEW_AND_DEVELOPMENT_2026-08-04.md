@@ -2,12 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-09 10:28:30 +09:00
+- `last_updated`: 2026-08-09 11:33:51 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `f1d3f6e995647d0e7aec0f9b7d8720128795df51` /
+  `221c6ec7455b58f064f0dff6958457134063c1e8` /
   `0b998944aa5de1e40f5161483e55b8dc802e6b68`.
-- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 3이다.
+- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 9이다.
+- 마지막 push 성공 commit은
+  `0b998944aa5de1e40f5161483e55b8dc802e6b68`이다.
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
@@ -29,9 +31,9 @@
     QR 대기 화면이다.
   - RC77 최종 확인에서는 보충 후보를 선택하지 않아 학생·반 소속을 변경하지
     않았다. 앞선 시험용 임시 학생도 반 전환으로 정리됐다.
-- 실제 운영 PC 마지막 독립 확인: 2026-08-06 16:06 +09:00. 설치 실행 파일은 보관
-  0.1.6 artifact와 같은 22,785,740 bytes·SHA-256
-  `1BAF483BEBE2FD8FFD968A425CBED8B784B074FEE796F0EE4AEF5F973EE3718F`이다.
+- 실제 운영 PC 마지막 독립 확인: 2026-08-09 11:20 +09:00. 설치 실행 파일은 보관
+  0.1.7 artifact와 같은 23,185,198 bytes·SHA-256
+  `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`이다.
   정식 설치 path의 PyInstaller process 2개와 `0.0.0.0:48129` listener 1개를
   재확인했다. 기존 Startup·방화벽·부하·네트워크 복구 검증은 아래 SOL-0008
   기록을 따른다.
@@ -41,11 +43,12 @@
   Windows를 실제 재부팅한 뒤 로그인 Startup 자동실행도 통과했다. 새 boot time,
   process 2개, listener 1개, hash·Startup target/argument·listener owner 일치,
   smoke exit 0과 현재 Wi-Fi Internet 연결을 확인했다.
-- 현재 작업 중: Kiosk RC78/Web RC137 구현·자동·릴리스 검증과 문서화는
-  완료했다. A 미연결로 설치·실물 확인은 수행하지 않았다.
-- 다음 우선 큐: A 보존 설치 뒤 QR 성공 안내가 3초 후 사라지는지와 강화된
-  채점 종료 확인창을 실물 확인한다. 무입력 자동 로그아웃을 별도 Windows 운영
-  알림으로 추가할지는 별도 사용자 제품 판단 항목이다.
+- 현재 작업 중: Kiosk RC79/Web RC137과 PC 수신기 0.1.7 구현·자동·릴리스
+  검증은 완료했다. PC 0.1.7은 운영 설치했지만 A 미연결로 Android 설치·실물
+  확인은 수행하지 않았다.
+- 다음 우선 큐: 관리자 권한으로 PC의 광범위 방화벽 규칙을 정리하고, A 연결 뒤
+  RC79/RC137을 보존 설치해 QR 성공 안내 유지·3초 소멸과 강화된 채점 종료
+  확인창을 실물 확인한다.
 
 ### 열린 finding과 제약
 
@@ -54,21 +57,23 @@
 - 현장검증 완료 P2: `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008` 4건.
 - 열린 P2와 자동검증에만 머문 P2는 없다.
 - 완료 P3: `SOL-0001` 1건.
+- 열린 운영 P3: 교정 스크립트는 완료했지만 관리자 권한이 없어 현재 PC에서
+  삭제하지 못한 Matholic 수신기 광범위 방화벽 규칙 6개.
 - 자동검증 완료 P4: `SOL-0007` 1건.
 - 기각: `SOL-0002` 1건.
 - 이미 수정됨: `SOL-0004` 1건.
-- 사용자 판단 대기: 무입력 자동 로그아웃을 별도 Windows 운영 알림으로
-  추가할지 여부. 현재 구현·문서는 무알림을 명시한다.
+- 무입력 자동 로그아웃은 별도 Windows 운영 알림 없이 QR로 복귀하는 현재
+  정책으로 확정해 열린 finding으로 세지 않는다.
 - 현재 제약:
   - Kiosk `MainActivityInstrumentedTest`는 기본 AVD, 2000×1200/240dpi·font
     scale 1.3, 같은 해상도·font scale 0.85·180도 반전에서 각각 16/16, 총
     48/48 PASS다. 지원 A와 임의의 모든 Android 화면 호환성으로 확대하지 않는다.
   - 절단용 PDF의 실제 흑백 출력·절단·코팅 전 카메라 인식은 사용자가 통과를
     확인했다. 가능한 모든 조명·거리·반사 조건으로 확대하지 않는다.
-  - PC 수신기 0.1.6은 실제 Wi-Fi 단절·재연결, DHCP 주소 반납·재할당, 실제
-    Wi-Fi+가상 interface 두 주소의 listener 도달과 Windows 재부팅 뒤 Startup
+  - PC 수신기 0.1.7은 0.1.6의 실제 Wi-Fi 단절·재연결, DHCP 주소 반납·재할당,
+    실제 Wi-Fi+가상 interface 두 주소의 listener 도달과 Windows 재부팅 뒤 Startup
     자동실행을 통과했다. 활성 VPN adapter가 없어 VPN 경유 주소 선택은 수행하지
-    않았다. 현재 운영 설치본은 검증 산출물과 같은 0.1.6이다.
+    않았다. 현재 운영 설치본은 검증 산출물과 같은 0.1.7이다.
   - A에는 실제 외장 키보드가 없고 접근성 서비스가 활성화돼 있지 않아 이 두
     입력원은 직접 검증하지 않았다. 기본 Samsung IME·Matholic 키패드·ADB text와
     key event의 네트워크 pause 차단은 실제 A에서 통과했다.
@@ -76,6 +81,26 @@
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
     두 개만 있으며 저장소 밖이다. 정책을 우회해 삭제하지 않았다.
+
+## 2026-08-09 최종 정밀검수 후 교정
+
+- 확인된 P0/P1/P2는 없다. PC 방화벽 운영 규칙 과다 개방과 보안 의존성 고정,
+  QR 성공 안내의 수동 안내 덮어쓰기 가능성을 교정했다.
+- 방화벽 스크립트는 정확한 실행 파일의 기존 인바운드 규칙 제거와 단일
+  Private/TCP 48129 검증을 포함한다. 현재 Windows 세션이 비관리자라 실제 기존
+  광범위 규칙 6개 삭제만 실패했으며 Public 네트워크 사용 금지 상태로 남긴다.
+- PC 수신기 0.1.7은 `cryptography 50.0.0`, `Pillow 12.3.0`, 23 pytest,
+  독립 packaged smoke, `pip-audit` 0건을 통과했다. 0.1.6을 백업하고 운영
+  설치했으며 artifact·설치본 해시 일치와 `0.0.0.0:48129`를 확인했다.
+- Kiosk RC79는 성공 안내 동안 거리·밝기 안내만 억제하고 실제 QR 판정은
+  계속 허용한다. 실질 QR 승인·거부가 시작되면 notice를 무효화한다.
+- 정식 release 158 tasks와 서명·non-debuggable 검증을 통과했다. A 미연결로
+  RC79/RC137 설치와 실물 확인은 수행하지 않았다.
+- Kiosk RC79 APK SHA-256:
+  `E45CC552105532024A83C8E535E1D73DAAA6273083164FDCEC9E74035A9CB0AD`.
+- Web RC137 APK SHA-256:
+  `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`.
+- 구현·복구점: `03e1c2b`, `4b5a7e0`, `4061920`, `dd25a7e`, `221c6ec`.
 
 ## 2026-08-09 QR 안내·채점 종료 경고
 
