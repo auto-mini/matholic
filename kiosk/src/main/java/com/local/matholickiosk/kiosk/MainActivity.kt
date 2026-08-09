@@ -227,6 +227,7 @@ class MainActivity : ComponentActivity() {
     private var activeCameraFacing = CameraFacing.FRONT
     private var cameraBindGeneration = 0
     private var qrGuidanceGeneration = 0
+    private var scannerNoticeGeneration = 0
     private var destroyed = false
     private var pendingCredentialBridgeId: String? = null
     private var pendingWebSessionId: String? = null
@@ -3224,6 +3225,7 @@ class MainActivity : ComponentActivity() {
         cancelQrLoginButton.visibility = View.GONE
         activeStudentDisplayName = null
         qrGuidanceGeneration += 1
+        scannerNoticeGeneration += 1
         scannerMessage.text = ""
         statusText.text = KioskState.QR_READY.name
         reportPcStatus("QR 대기", null, notify = false)
@@ -4125,7 +4127,9 @@ class MainActivity : ComponentActivity() {
                         pendingTemporaryStudentIds = emptySet()
                         finishSessionAdminActionFlow(resumeAnalyzer = false)
                         showScanner()
-                        scannerMessage.text = "${target.label} 수업으로 변경했습니다\nQR 카드를 보여주세요"
+                        showTransientScannerMessage(
+                            "${target.label} 수업으로 변경했습니다\nQR 카드를 보여주세요",
+                        )
                     },
                     onFailure = {
                         scannerMessage.text = it.message ?: "반을 변경하지 못했습니다"
@@ -4224,15 +4228,38 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 if (destroyed) return@runOnUiThread
-                scannerMessage.text = result.fold(
+                result.fold(
                     onSuccess = {
-                        "보충 학생 ${studentIds.size}명을 추가했습니다\n이제 QR 카드를 사용할 수 있습니다"
+                        showTransientScannerMessage(
+                            "보충 학생 ${studentIds.size}명을 추가했습니다\n" +
+                                "이제 QR 카드를 사용할 수 있습니다",
+                        )
                     },
-                    onFailure = { it.message ?: "보충 학생을 추가하지 못했습니다" },
+                    onFailure = {
+                        scannerMessage.text =
+                            it.message ?: "보충 학생을 추가하지 못했습니다"
+                    },
                 )
                 finishSessionAdminActionFlow()
             }
         }
+    }
+
+    private fun showTransientScannerMessage(
+        message: String,
+        durationMillis: Long = SCANNER_NOTICE_DURATION_MS,
+    ) {
+        val generation = ++scannerNoticeGeneration
+        scannerMessage.text = message
+        mainHandler.postDelayed({
+            if (
+                !destroyed && scannerVisible &&
+                generation == scannerNoticeGeneration &&
+                scannerMessage.text.toString() == message
+            ) {
+                scannerMessage.text = ""
+            }
+        }, durationMillis)
     }
 
     private fun finishSessionAdminActionFlow(resumeAnalyzer: Boolean = true) {
@@ -4606,6 +4633,7 @@ class MainActivity : ComponentActivity() {
         private const val SCAN_COOLDOWN_MS = 2_000L
         private const val QR_GUIDANCE_STALE_MS = 900L
         private const val QR_ACCEPTED_DISPLAY_MS = 2_000L
+        private const val SCANNER_NOTICE_DURATION_MS = 3_000L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
         private const val ADMIN_UNDO_WINDOW_MS = 30_000L
