@@ -2,12 +2,12 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-06 16:06:32 +09:00
+- `last_updated`: 2026-08-09 10:28:30 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `c21acd47855ecc069d655f6f2793448bf85ccf45` /
-  `57976980d263e574254b737b3ff71995804224fb`.
-- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 15다.
+  `f1d3f6e995647d0e7aec0f9b7d8720128795df51` /
+  `0b998944aa5de1e40f5161483e55b8dc802e6b68`.
+- 마지막 확인 upstream은 현재 branch tip의 조상이며 behind 0, ahead 3이다.
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
@@ -41,10 +41,11 @@
   Windows를 실제 재부팅한 뒤 로그인 Startup 자동실행도 통과했다. 새 boot time,
   process 2개, listener 1개, hash·Startup target/argument·listener owner 일치,
   smoke exit 0과 현재 Wi-Fi Internet 연결을 확인했다.
-- 현재 작업 중: 없음. RC77/RC136 후속 실기와 보고서 최신화까지 완료했다.
-  이 문서 커밋은 최종 전달 단계의 branch push 대상이다.
-- 다음 우선 큐: 기능 결함은 없다. 무입력 자동 로그아웃을 별도 Windows 운영
-  알림으로 추가할지는 사용자 제품 판단 항목이며, 현행 확정 동작은 무알림이다.
+- 현재 작업 중: Kiosk RC78/Web RC137 구현·자동·릴리스 검증과 문서화는
+  완료했다. A 미연결로 설치·실물 확인은 수행하지 않았다.
+- 다음 우선 큐: A 보존 설치 뒤 QR 성공 안내가 3초 후 사라지는지와 강화된
+  채점 종료 확인창을 실물 확인한다. 무입력 자동 로그아웃을 별도 Windows 운영
+  알림으로 추가할지는 별도 사용자 제품 판단 항목이다.
 
 ### 열린 finding과 제약
 
@@ -75,6 +76,21 @@
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
     두 개만 있으며 저장소 밖이다. 정책을 우회해 삭제하지 않았다.
+
+## 2026-08-09 QR 안내·채점 종료 경고
+
+- Kiosk RC78은 반 변경·보충 학생 추가 성공 안내를 3초 뒤 자동으로 지우며,
+  세대·현재 문구 검사를 통해 이전 타이머가 새 안내를 지우지 못하게 한다.
+- Web RC137은 `채점 끝내기` 첫 터치에서 답안 입력 버튼이 아님을 제목으로
+  경고하고, 문제 화면의 `입력` 버튼 안내와 빨간 `채점 종료·로그아웃` 버튼을
+  표시한다. 첫 터치만으로 종료하지 않는 기존 이중 확인 경계는 유지한다.
+- 대상 단위시험과 두 앱 계측시험 Kotlin 소스 컴파일, 158개 작업의 전체 릴리스
+  빌드·lint·서명·동일 signer 검증을 통과했다. A가 연결되지 않아 설치와 실물
+  확인은 수행하지 않았다.
+- Kiosk RC78 APK SHA-256:
+  `26E62C3BD50AB97868573F55A358657EA41439B9820AB0EA64C46922F0D2399D`.
+- Web RC137 APK SHA-256:
+  `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`.
 
 ## 2026-08-06 후속 배포·현장 확인
 
