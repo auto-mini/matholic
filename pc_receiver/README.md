@@ -15,6 +15,9 @@ A 태블릿과 물리적으로 한 번 페어링한 이 PC만 QR 카드 PDF를 �
   거부한다.
 - Windows 방화벽은 `Private` 프로필의 TCP 48129를 이 수신 실행 파일에만
   허용한다.
+- 설치·제거 시 이 수신 실행 파일에 대해 Windows가 자동 생성한 광범위한
+  인바운드 규칙도 제거한다. 설치 뒤에는 `Private`/TCP 48129 단일 규칙을
+  다시 검증한다.
 - 수신 파일은 `%USERPROFILE%\Downloads\Matholic QR Cards`에 저장한다.
 
 페어링 QR은 로그인 가능한 학생 QR과 마찬가지로 외부에 공유하면 안 된다.

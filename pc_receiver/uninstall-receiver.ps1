@@ -3,9 +3,12 @@ $installRoot = Join-Path $env:LOCALAPPDATA 'MatholicPdfReceiver'
 $startupFolder = [Environment]::GetFolderPath('Startup')
 $startupShortcut = Join-Path $startupFolder 'Matholic PDF Receiver.lnk'
 $firewallRuleName = 'Matholic PDF Receiver (Private)'
+$targetExecutable = Join-Path $installRoot 'app\MatholicPdfReceiver.exe'
+. (Join-Path $PSScriptRoot 'firewall-rules.ps1')
 
 Get-Process -Name 'MatholicPdfReceiver' -ErrorAction SilentlyContinue |
     Stop-Process -Force
+Remove-MatholicReceiverInboundFirewallRules -ExecutablePaths @($targetExecutable)
 Get-NetFirewallRule -DisplayName $firewallRuleName -ErrorAction SilentlyContinue |
     Remove-NetFirewallRule
 Remove-Item -LiteralPath $startupShortcut -Force -ErrorAction SilentlyContinue

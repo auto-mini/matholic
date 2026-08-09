@@ -10,6 +10,7 @@ $targetExecutable = Join-Path $installRoot 'MatholicPdfReceiver.exe'
 $startupFolder = [Environment]::GetFolderPath('Startup')
 $startupShortcut = Join-Path $startupFolder 'Matholic PDF Receiver.lnk'
 $firewallRuleName = 'Matholic PDF Receiver (Private)'
+. (Join-Path $PSScriptRoot 'firewall-rules.ps1')
 
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 Copy-Item -LiteralPath $resolvedExecutable -Destination $targetExecutable -Force
@@ -22,6 +23,10 @@ $shortcut.WorkingDirectory = $installRoot
 $shortcut.Description = '매쓰홀릭 키오스크 PDF 전용 수신기'
 $shortcut.Save()
 
+Remove-MatholicReceiverInboundFirewallRules -ExecutablePaths @(
+    $resolvedExecutable,
+    $targetExecutable
+)
 Get-NetFirewallRule -DisplayName $firewallRuleName -ErrorAction SilentlyContinue |
     Remove-NetFirewallRule
 New-NetFirewallRule `
@@ -32,5 +37,8 @@ New-NetFirewallRule `
     -Program $targetExecutable `
     -Protocol TCP `
     -LocalPort 48129 | Out-Null
+Assert-MatholicReceiverPrivateFirewallRule `
+    -DisplayName $firewallRuleName `
+    -ExecutablePath $targetExecutable
 
 Write-Output $targetExecutable
