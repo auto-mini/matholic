@@ -1,5 +1,38 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC79 / Web RC137 A 보존 설치·실기 완료 — 2026-08-11
+
+### 설치 무결성·정책 보존
+
+- 승인된 ADB 대상은 Samsung SM-P610 `R54TB029FHZ` 한 대였다. Web RC137 뒤
+  Kiosk RC79를 `adb install -r`로 보존 설치했다.
+- Kiosk는 UID 10288·first install `2026-07-24 12:52:28`, Web은 UID
+  10293·first install `2026-07-28 13:12:16`을 유지했다. Kiosk Device Owner,
+  preferred HOME, 두 앱 Lock Task allowlist와 `LOCKED` 상태도 유지했다.
+- 설치본을 A에서 다시 읽어 보관 artifact와 바이트 단위 SHA-256 일치를
+  확인했다. Kiosk는
+  `E45CC552105532024A83C8E535E1D73DAAA6273083164FDCEC9E74035A9CB0AD`, Web은
+  `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`이다.
+  두 설치본 signer도
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`로
+  일치했다.
+
+### 실기 결과와 최종 상태
+
+- 설치 재시작 때 남아 있던 Web 상태는 앱의 오류 상태 원버튼 복구로 안전
+  종료했다. 학생·반·QR은 삭제하지 않았고 이후 새 수업을 시작했다.
+- 실제 PIN 메뉴에서 `토2 → 월1 → 토2`를 왕복했다. 반 변경 성공 문구는 기존
+  QR 거리·밝기 안내에 덮이지 않고 약 3초 유지된 뒤 사라졌다.
+- 정확한 `테스트` 계정을 현재 수업 임시 보충으로 추가했다. 보충 1명 추가
+  성공 문구도 한 번 표시된 뒤 자동 소멸했고, 해당 QR로 Web RC137에 로그인했다.
+- `채점 끝내기` 첫 터치에서 답안 입력 버튼이 아니라는 강한 제목, 문제 화면의
+  `입력` 버튼 안내, 미입력 답안 미채점 경고와 파란 `문제로 돌아가기`/빨간
+  `채점 종료·로그아웃`을 확인했다. 복귀를 눌렀을 때 ACTIVE 화면이 유지됐다.
+- 시험 Web 로그인은 정상 로그아웃했고 반 왕복으로 임시 보충을 정리했다.
+  최종 A는 `토2` 전면 카메라 QR 대기, Kiosk top resumed, Lock Task `LOCKED`,
+  원격 점검 `INACTIVE`다. ADB forward/reverse는 없고 두 앱의 현재 프로세스와
+  exit history에 crash/ANR가 없다.
+
 ## Kiosk RC79 / PC 수신기 0.1.7 최종 정밀검수 교정 — 2026-08-09
 
 ### 교정 범위

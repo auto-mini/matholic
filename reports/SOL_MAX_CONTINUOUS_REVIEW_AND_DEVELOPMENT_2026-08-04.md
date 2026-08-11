@@ -2,36 +2,36 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-09 11:45:54 +09:00
+- `last_updated`: 2026-08-11 10:19:25 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `daf52d64ed664db70f6e2ec5546c399330f49603` /
-  `daf52d64ed664db70f6e2ec5546c399330f49603`.
+  `b9b91dd05e68105073d9aa7bfb92a33ff8d9ed9c` /
+  `b9b91dd05e68105073d9aa7bfb92a33ff8d9ed9c`.
 - 보고서 상태기록 직전 branch와 upstream은 behind 0, ahead 0이다.
 - 마지막 push 성공 commit은
-  `daf52d64ed664db70f6e2ec5546c399330f49603`이다. 이 상태기록 문서 commit은
+  `b9b91dd05e68105073d9aa7bfb92a33ff8d9ed9c`이다. 이 상태기록 문서 commit은
   위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking 상태를 따른다.
 - 최초 보존 기준선: `master`의
   `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
   24 commits ahead
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 독립 확인: 2026-08-06 16:06 +09:00. 승인 ADB device는
+- 실제 A 마지막 독립 확인: 2026-08-11 10:18 +09:00. 승인 ADB device는
   serial `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc77`/code 82, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-06 14:17:08`.
-  - Web POC `0.4.0-rc136`/code 153, UID 10293, first install
-    `2026-07-28 13:12:16`, last update `2026-08-06 13:42:38`.
+  - Kiosk `0.6.0-rc79`/code 84, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-11 10:02:13`.
+  - Web POC `0.4.0-rc137`/code 154, UID 10293, first install
+    `2026-07-28 13:12:16`, last update `2026-08-11 10:02:09`.
   - 설치본과 release artifact signer SHA-256은
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`로
     일치한다. 보존형 `adb install -r` 뒤 UID와 first install이 유지됐다.
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
-  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 현재 목2 수업의 전면 카메라
+  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 현재 토2 수업의 전면 카메라
     QR 대기 화면이다.
-  - RC77 최종 확인에서는 보충 후보를 선택하지 않아 학생·반 소속을 변경하지
-    않았다. 앞선 시험용 임시 학생도 반 전환으로 정리됐다.
+  - 반 전환·보충 추가 성공 안내의 유지·자동 소멸과 RC137 종료 경고를 실물
+    확인했다. 시험용 임시 학생은 정상 로그아웃 뒤 반 전환으로 정리됐다.
 - 실제 운영 PC 마지막 독립 확인: 2026-08-09 11:20 +09:00. 설치 실행 파일은 보관
   0.1.7 artifact와 같은 23,185,198 bytes·SHA-256
   `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`이다.
@@ -44,12 +44,9 @@
   Windows를 실제 재부팅한 뒤 로그인 Startup 자동실행도 통과했다. 새 boot time,
   process 2개, listener 1개, hash·Startup target/argument·listener owner 일치,
   smoke exit 0과 현재 Wi-Fi Internet 연결을 확인했다.
-- 현재 작업 중: Kiosk RC79/Web RC137과 PC 수신기 0.1.7 구현·자동·릴리스
-  검증은 완료했다. PC 0.1.7은 운영 설치했지만 A 미연결로 Android 설치·실물
-  확인은 수행하지 않았다.
-- 다음 우선 큐: A 연결 뒤 RC79/RC137을 보존 설치해 QR 성공 안내 유지·3초
-  소멸과 강화된 채점 종료
-  확인창을 실물 확인한다.
+- 현재 작업 완료: Kiosk RC79/Web RC137과 PC 수신기 0.1.7 구현·자동·릴리스
+  검증, 운영 설치와 A 실물 확인을 완료했다.
+- 다음 우선 큐: 새 재현 이슈나 운영 피드백이 생기기 전에는 필수 교정 없음.
 
 ### 열린 finding과 제약
 
@@ -82,6 +79,21 @@
     `%LOCALAPPDATA%\Temp\MatholicSolSignerCheck-019fcc38`의 삭제 명령이 실행
     정책에 의해 거부됐다. 내부에는 A에서 읽기 전용으로 가져온 현재 설치 APK
     두 개만 있으며 저장소 밖이다. 정책을 우회해 삭제하지 않았다.
+
+## 2026-08-11 RC79/RC137 A 배포·실기 완료
+
+- 승인 A 한 대에 Web RC137 뒤 Kiosk RC79를 `adb install -r`로 설치했다.
+  Kiosk/Web UID 10288/10293과 각 firstInstallTime, Kiosk DB, Device Owner,
+  preferred HOME과 Lock Task allowlist를 보존했다.
+- A에서 다시 읽은 설치 APK는 각 보관 artifact와 SHA-256이 정확히 일치했고
+  release signer도 동일했다. 최종 `verify-gate5-device-owner.ps1`은 RC79/code
+  84, Device Owner와 Lock Task `LOCKED`를 통과했다.
+- 실제 PIN 메뉴에서 반 전환과 임시 보충 성공 안내가 수동 QR 안내에 덮이지
+  않고 유지된 뒤 자동 소멸함을 확인했다. `테스트` 계정으로 Web RC137에 들어가
+  강화된 채점 종료 경고와 문제 화면 복귀를 확인했다.
+- 시험 로그인은 정상 종료했고 임시 보충은 반 왕복으로 정리했다. 최종 A는
+  `토2` QR 대기, Kiosk top resumed, Lock Task `LOCKED`, 원격 점검 `INACTIVE`다.
+  ADB forward/reverse와 두 앱 crash/ANR 이력은 없다.
 
 ## 2026-08-09 최종 정밀검수 후 교정
 
