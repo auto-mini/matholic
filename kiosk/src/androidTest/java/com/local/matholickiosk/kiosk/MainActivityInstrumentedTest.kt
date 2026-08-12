@@ -1,5 +1,6 @@
 package com.local.matholickiosk.kiosk
 
+import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Rect
@@ -40,6 +41,43 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MainActivityInstrumentedTest {
+    @Test
+    fun failedLockTaskEntryIsRenderedAsPolicyError() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        val devicePolicyManager = context.getSystemService(DevicePolicyManager::class.java)
+        assertFalse(
+            "This regression requires a non-Device-Owner test package",
+            devicePolicyManager.isDeviceOwnerApp(context.packageName),
+        )
+        database.clearAllTables()
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<android.widget.TextView>(R.id.device_mode_text)
+                            .text
+                            .toString() == "보안 정책 오류"
+                }
+                val policyFailedField = MainActivity::class.java
+                    .getDeclaredField("dedicatedDevicePolicyFailed")
+                    .apply { isAccessible = true }
+                scenario.onActivity { activity ->
+                    assertTrue(policyFailedField.getBoolean(activity))
+                    assertEquals(
+                        "보안 정책 오류",
+                        activity.findViewById<android.widget.TextView>(R.id.device_mode_text)
+                            .text
+                            .toString(),
+                    )
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
     @Test
     fun unresponsivePairedPcDoesNotDelayAdminAuthenticationAtStartup() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -131,9 +169,7 @@ class MainActivityInstrumentedTest {
             }
 
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -228,9 +264,7 @@ class MainActivityInstrumentedTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -331,9 +365,7 @@ class MainActivityInstrumentedTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -479,9 +511,7 @@ class MainActivityInstrumentedTest {
         AdminAuthRepository(database).enroll("654321".toCharArray())
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("654321")
@@ -502,9 +532,7 @@ class MainActivityInstrumentedTest {
         assertEquals(7, repository.enrolledPinLength())
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("765432")
@@ -624,9 +652,7 @@ class MainActivityInstrumentedTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -731,9 +757,7 @@ class MainActivityInstrumentedTest {
         AdminAuthRepository(database).enroll("654321".toCharArray())
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 assertTrue(
                     activity.window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0,
@@ -857,9 +881,7 @@ class MainActivityInstrumentedTest {
         ).hash
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("654321")
@@ -901,9 +923,7 @@ class MainActivityInstrumentedTest {
         )
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("654321")
@@ -1028,9 +1048,7 @@ class MainActivityInstrumentedTest {
         val commitWatcher = Executors.newSingleThreadExecutor()
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -1152,9 +1170,7 @@ class MainActivityInstrumentedTest {
         repository.createClass("가상반-소속-B")
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("654321")
@@ -1218,9 +1234,7 @@ class MainActivityInstrumentedTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -1295,9 +1309,7 @@ class MainActivityInstrumentedTest {
         repository.replaceClassMemberships(classId, setOf(registered.studentId))
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
 
             val activeSession = repository.startSession(classId)
             val persistMethod = MainActivity::class.java
@@ -1345,9 +1357,7 @@ class MainActivityInstrumentedTest {
         AdminAuthRepository(database).enroll("654321".toCharArray())
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
 
             val repositoryField = MainActivity::class.java
                 .getDeclaredField("studentRepository")
@@ -1412,9 +1422,7 @@ class MainActivityInstrumentedTest {
         repository.replaceClassMemberships(classId, setOf(registered.studentId))
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            waitUntil(scenario) { activity ->
-                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-            }
+            waitForAdminAuthentication(scenario)
             scenario.onActivity { activity ->
                 activity.findViewById<android.widget.EditText>(R.id.pin_input)
                     .setText("654321")
@@ -1506,9 +1514,7 @@ class MainActivityInstrumentedTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -1576,9 +1582,7 @@ class MainActivityInstrumentedTest {
 
         try {
             ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                waitUntil(scenario) { activity ->
-                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
-                }
+                waitForAdminAuthentication(scenario)
                 scenario.onActivity { activity ->
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
@@ -1657,6 +1661,17 @@ class MainActivityInstrumentedTest {
             }
         } finally {
             database.clearAllTables()
+        }
+    }
+
+    private fun waitForAdminAuthentication(scenario: ActivityScenario<MainActivity>) {
+        waitUntil(scenario) { activity ->
+            activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE &&
+                activity.findViewById<android.widget.TextView>(R.id.auth_title)
+                    .text
+                    .toString() == "관리자 인증" &&
+                activity.findViewById<View>(R.id.pin_input).visibility == View.VISIBLE &&
+                activity.findViewById<View>(R.id.pin_input).isEnabled
         }
     }
 
