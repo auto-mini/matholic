@@ -1,5 +1,58 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC85 비활성 신규용 카드 슬롯 자동 복구 — 2026-08-12
+
+### 구현 범위
+
+- RC84의 시작 준비는 재사용 슬롯 행이 하나도 없을 때만 4장을 만들었다. 과거
+  버전에서 재사용 슬롯 한 장이 비활성화된 DB에서는 활성 슬롯이 3장이어도
+  `allSlots.isEmpty()`가 거짓이어서 목표 4장으로 돌아오지 못했다.
+- 시작 시 활성 재사용 슬롯 수가 목표보다 적으면 비활성 재사용 슬롯을 먼저 같은
+  student ID·슬롯 라벨로 복구한다. 복구 슬롯에는 새 QR과 암호화된 빈 자격정보를
+  발급하고, 이전 반 소속과 배정 상태를 지우며 `needsPrint=true`로 표시한다.
+  비활성 슬롯만으로 부족한 수량은 충돌하지 않는 새 슬롯 라벨로 생성한다.
+- 새 QR 원문은 저장하지 않으므로 복구된 슬롯의 이전 QR·PDF·인쇄물은 재사용할 수
+  없다. 시작 알림과 지정 PC PDF 파일명은 실제 복구·생성된 카드 수와 라벨을
+  사용한다. 정상적인 신규카드1~4 묶음의 기존 파일명
+  `신규카드1-4 더미 QR.pdf`는 유지한다.
+
+### 자동·릴리스 검증
+
+- 수정 전 회귀시험 `ensureReusableCardSlotsRepairsInactiveLegacySlot`은 활성 슬롯
+  3장인 상태에서 복구 결과를 1장으로 기대했지만 실제 0장으로 실패했다. 수정 후
+  같은 focused instrumentation은 `OK (1 test)`로 통과했다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks로 통과했다.
+- Android 13 API 33 전용 에뮬레이터에서 최종 소스 전체 Kiosk 계측시험은
+  `Time: 86.062`, `OK (71 tests)`로 통과했다. 복구 시험은 같은 student ID·라벨,
+  새 QR hash, 활성·무료 상태, 빈 ID/PW, 반 소속 제거와 출력 필요 상태를 확인한다.
+- `scripts/build-release.ps1`은 158 tasks, Kiosk/Web JVM 시험, release lint,
+  signed assemble, version·non-debuggable·동일 signer 이중 검증을 통과했다.
+- RC85 release APK는 36,754,045 bytes이며 SHA-256은
+  `5E8F629715E04A3A6A6C56897D55BE5AD75B94DF5EA1E3B47663E7F8560397F7`다.
+  `versionName=0.6.0-rc85`, `versionCode=90`, v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`를
+  확인했다.
+
+### A 보존 설치·현장 확인
+
+- 승인 A `SM-P610`/`R54TB029FHZ` 한 대에 RC84/code 89에서 RC85/code 90으로
+  `adb install -r` 보존 설치했다. UID 10288, first install
+  `2026-07-24 12:52:28`, Device Owner, preferred HOME과 앱 데이터를 유지했고
+  last update는 `2026-08-12 23:52:00`이다.
+- A에서 다시 읽은 설치 APK는 artifact와 같은 36,754,045 bytes·SHA-256이며,
+  v2 signer도 위 release signer와 일치했다.
+- 설치 재시작의 `RECOVERY_REQUIRED`를 원버튼 안전 복구해 학생·반·QR을 삭제하지
+  않고 `ADMIN_IDLE`로 돌아왔다. 실제 메뉴는
+  `신규용 QR 카드 · 전체 4장 · 무료 4장 · 사용 중 0장`으로 표시됐다. 실제 학생
+  정보 입력·카드 배정·QR 변경은 하지 않았다.
+- A에는 비활성 재사용 슬롯이 없었으므로 이번 복구 분기를 고의로 만들지 않았다.
+  따라서 비활성 슬롯 자동 복구 자체는 위 회귀·전체 계측 결과이며 A 실물 통과로
+  확대하지 않는다.
+- 새 수업 사전점검 뒤 전면 카메라 QR 대기로 복원했다. 최종 Kiosk top resumed,
+  Lock Task `LOCKED`, 원격 점검 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash
+  buffer 일치 항목 없음이다.
+
 ## Kiosk RC84 신규용 재사용 QR 4장·QR 고정 경계 교정 — 2026-08-12
 
 ### 구현 범위

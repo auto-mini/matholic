@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-12 23:32:14 +09:00
+- `last_updated`: 2026-08-13 00:03:15 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `59c9181144ba8758a6710ff793dbcdac7a24a57b` /
-  `59c9181144ba8758a6710ff793dbcdac7a24a57b`; ahead/behind `0/0`.
+  `e7c558da18152795d11427d13d8d61b5323e1640` /
+  `e7c558da18152795d11427d13d8d61b5323e1640`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `59c9181144ba8758a6710ff793dbcdac7a24a57b`
-  (`feat(kiosk): add safe reusable QR cards (SOL-0009)`). 이 상태기록 문서
+  `e7c558da18152795d11427d13d8d61b5323e1640`
+  (`fix(kiosk): restore inactive reusable card slots (SOL-0012)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,13 +17,13 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 독립 확인: 2026-08-12 23:29 +09:00. 승인 ADB device는 serial
+- 실제 A 마지막 독립 확인: 2026-08-12 23:57 +09:00. 승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc84`/code 89, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-12 23:24:35`.
+  - Kiosk `0.6.0-rc85`/code 90, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-12 23:52:00`.
   - A에서 다시 읽은 설치 APK는 release artifact와 같은 36,754,045 bytes·
     SHA-256
-    `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`다.
+    `5E8F629715E04A3A6A6C56897D55BE5AD75B94DF5EA1E3B47663E7F8560397F7`다.
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
@@ -32,46 +32,92 @@
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
     지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash buffer 일치 항목 없음.
-  - RC84 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
+  - RC85 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
     안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
     새 수업을 시작해 QR 대기로 복원했다.
 - Web POC RC137과 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지
   않았다. Web RC137 artifact payload는 공식 release 빌드에서 기존 파일과 같은
   SHA-256으로 유지됐고, PC 설치본의 마지막 독립 현장 확인은 아래 SOL-0008을
   따른다.
-- 현재 작업 중 finding: `SOL-0011` 증거·운영 문서 체크포인트. 구현·설치까지는
-  끝났고 문서 commit/push만 남았다.
-- 다음 우선 큐: 재사용 슬롯이 일부만 남거나 비활성 슬롯이 존재할 때 목표 4장을
-  안전하게 보충하는 복구 경계를 독립 재검증한다. 확정 결함 전에는 DB나 A 데이터를
-  변경하지 않는다.
+- 현재 작업 중 finding: 없음. `SOL-0012` 구현·자동검증·RC85 설치·현장 상태
+  확인과 구현 push를 완료했고, 이 증거 문서 체크포인트 뒤 다음 후보를 선정한다.
+- 다음 우선 큐: 첫 신규용 카드 bootstrap에서 지정 PC가 도달 불가능할 때 PDF
+  전송 대기가 초기 관리자 화면 준비를 불필요하게 막는지 독립 재검증한다. 확정
+  결함 전에는 A·PC pairing이나 운영 데이터를 변경하지 않는다.
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서 후보는 현재 source와 독립 재검증 전에는 열린
   결함으로 승격하지 않는다.
 - 자동검증 완료 P2: `SOL-0009` 1건. QR 고정 불변조건은 전체 계측으로 확인했고
-  RC84를 A에 설치했지만 실제 운영 카드의 QR을 의도적으로 변경해 재현하지 않았다.
+  RC85까지 A에 설치했지만 실제 운영 카드의 QR을 의도적으로 변경해 재현하지 않았다.
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
-- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`.
+- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
-  데이터를 바꾸므로 이번 A 실기에서 수행하지 않았다. 메뉴 목록과 배정 폼 진입까지만
-  확인하고 입력 없이 취소했다.
-- 저장 미확인 슬롯이 0장이어서 RC84의 기존 QR 폐기·새 QR 전송 경고창은 A에서
+  데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
+  입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
+- 저장 미확인 슬롯이 0장이어서 RC85의 기존 QR 폐기·새 QR 전송 경고창은 A에서
   강제로 만들지 않았다. 최종 source compile, lint, release와 전체 계측은 통과했다.
-- 이번 RC84에서 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+- 현재 A에는 비활성 재사용 슬롯이 없어 SOL-0012 복구 분기를 고의로 만들지
+  않았다. 해당 분기는 수정 전 실패·수정 후 통과 focused 시험과 전체 71개
+  instrumentation으로 확인했으며 A 실물 통과로 확대하지 않는다.
+- 이번 RC85에서 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
 - 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
   오타로 compile 실패했다. 실제 `cardsNeedingPdf`로 고친 뒤 최종 소스 전체
   70/70을 다시 실행해 통과했다.
+- SOL-0012 회귀시험은 수정 전 활성 슬롯 3장 상태에서 기대 복구 1장·실제 0장으로
+  실패했다. 구현 뒤 focused `OK (1 test)`와 최종 전체 `OK (71 tests)`로 통과했다.
 - 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
   lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
-  A는 이미 Room v5·code 89이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  A는 이미 Room v5·code 90이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
   기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
-  migration을 마련하고, 같은 signer·code 90 이상의 복구 release를
+  migration을 마련하고, 같은 signer·code 91 이상의 복구 release를
   `adb install -r`로 설치해야 한다.
+- SOL-0012만 되돌리려면
+  `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 Kiosk unit, lint,
+  AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
+  code 90이므로 같은 signer·code 91 이상의 forward rollback을 사용하며 APK
+  삭제·data clear·downgrade를 하지 않는다. Room schema는 계속 v5다.
+
+## 2026-08-13 RC85 비활성 신규용 카드 슬롯 복구·A 설치
+
+- RC84 시작 준비는 재사용 슬롯 행이 하나도 없을 때만 4장을 만들었다. 과거
+  비활성 슬롯이 남아 활성 수가 3장인 DB에서는 목표 4장으로 돌아오지 않는
+  결함을 회귀시험으로 재현했다.
+- RC85는 활성 슬롯 부족분만 계산하고 비활성 슬롯을 먼저 같은 student ID·라벨,
+  새 QR·암호화된 빈 자격정보, 무료 상태로 복구한다. 이전 반 소속을 지우고 새
+  PDF가 필요함을 표시하며, 그래도 부족하면 충돌 없는 새 슬롯을 만든다.
+- 자동·릴리스 검증:
+  - 수정 전 focused 계측: 기대 1장, 실제 0장으로 실패.
+  - 수정 후 focused 계측: `OK (1 test)`.
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS.
+  - API 33 전용 AVD 최종 전체 instrumentation:
+    `Time: 86.062`, `OK (71 tests)`.
+  - `scripts/build-release.ps1`: 158 tasks, `BUILD SUCCESSFUL`; Kiosk/Web JVM,
+    release lint, signed assemble, version·non-debuggable·동일 signer 검증 PASS.
+- RC85 artifact:
+  `artifacts/matholic-kiosk-0.6.0-rc85-release.apk`, 36,754,045 bytes,
+  SHA-256
+  `5E8F629715E04A3A6A6C56897D55BE5AD75B94DF5EA1E3B47663E7F8560397F7`,
+  signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- A 실기:
+  - RC84/code 89에서 RC85/code 90으로 `adb install -r` 성공. UID 10288,
+    firstInstallTime, Device Owner, preferred HOME과 앱 데이터가 유지됐다.
+  - A에서 다시 읽은 설치 APK와 artifact의 byte count·SHA-256·v2 signer가
+    정확히 일치했다.
+  - `RECOVERY_REQUIRED`를 원버튼 안전 복구한 뒤 신규용 카드 메뉴의
+    `전체 4장 · 무료 4장 · 사용 중 0장`을 확인했다. A에는 비활성 슬롯이 없어
+    자동 복구 분기는 고의로 만들지 않았고 실제 계정·카드 상태도 변경하지 않았다.
+  - 새 수업을 시작해 전면 카메라 QR 대기, Kiosk top resumed, Lock Task
+    `LOCKED`로 복원했다. 원격 지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk
+    crash buffer 일치 항목 없음이다.
+- 구현·복구점:
+  `e7c558da18152795d11427d13d8d61b5323e1640`, 전용 origin branch push 성공.
 
 ## 2026-08-12 RC84 신규용 재사용 QR 카드 교정·A 설치
 
@@ -1046,6 +1092,57 @@
   전체 instrumentation 70/70, official release 158 tasks와 script parser PASS.
 - rollback: SOL-0009와 같은 commit revert·검증·forward device rollback을 따른다.
 
+### SOL-0012 — 비활성 재사용 슬롯이 있으면 목표 4장으로 복구되지 않음
+
+- 영역: Kiosk 시작 bootstrap·학생 저장소·신규용 카드 복구
+- 심각도: P3
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: 과거 버전에서 신규용 카드 슬롯 한 장이 비활성화된 DB는 앱을
+  재시작해도 활성 신규용 카드가 3장으로 남는다. 운영자는 4장이라고 안내된
+  카드 풀보다 적은 수만 배정할 수 있고, UI에 이를 복구하는 별도 경로가 없다.
+- 재현 조건(수정 전 RC84): 재사용 슬롯 4장을 준비한 뒤 한 슬롯을 과거 상태처럼
+  `isActive=false`, `reusableCardAssigned=true`로 만들고 startup
+  `ensureReusableCardSlots()`를 실행한다.
+- 기대 결과: 활성 슬롯 부족분 1장을 안전한 무료 슬롯으로 복구하고 새 QR PDF를
+  저장하도록 표시해 활성 슬롯을 목표 4장으로 만든다.
+- 실제 결과(수정 전): 활성 슬롯은 3장이지만 비활성 슬롯 행이 존재해
+  `allSlots.isEmpty()`가 거짓이었다. ensure 결과는 0장이고 활성 슬롯도 3장으로
+  유지됐다.
+- 정적·동적 근거:
+  - 수정 전 focused instrumentation은 기대 복구 1장·실제 0장으로 실패했다.
+  - 활성 슬롯 수로 부족분을 계산하고 비활성 슬롯을 먼저 같은 student ID·라벨로
+    복구한다. 새 QR·암호화된 빈 ID/PW를 발급하고 반 소속을 제거하며 활성·무료·
+    `needsPrint=true` 상태로 만든다. 남은 부족분만 새 슬롯으로 생성한다.
+  - 수정 후 focused `OK (1 test)`, 최종 API 33 전체 `OK (71 tests)`로 통과했다.
+    시험은 student ID·라벨 유지, QR hash 교체, 빈 자격정보, 소속 제거와 활성 4장을
+    모두 단언한다.
+- 반대 근거·미검증: 현재 A에는 이미 활성 무료 슬롯 4장이어서 비활성 슬롯을
+  고의로 만들거나 운영 QR을 폐기하지 않았다. RC85 설치·메뉴 4장·최종 QR 대기는
+  실물 확인했지만 자동 복구 분기 자체는 A 현장검증 완료로 확대하지 않는다.
+- 원인·결정: 슬롯 “행 존재”와 “활성 운영 풀 충족”을 같은 조건으로 취급한 것이
+  원인이다. 기존 비활성 슬롯 ID·라벨을 재사용해 불필요한 새 행을 피하되, 이전
+  자격정보·소속·QR은 복구하지 않고 새 무료 카드로 실패폐쇄한다. 이전 QR·PDF·
+  인쇄물은 무효이므로 실제 수량·라벨로 새 PDF를 전송한다.
+- 변경 파일: `StudentRepository.kt`, `RepositoryInstrumentedTest.kt`,
+  `MainActivity.kt`, Kiosk RC85 version/release scripts.
+- 관련 commit:
+  `e7c558da18152795d11427d13d8d61b5323e1640`; 전용 origin branch push 성공,
+  구현 push 직후 ahead/behind `0/0`.
+- 자동검증:
+  - focused 수정 전 실패와 수정 후 `OK (1 test)`.
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS.
+  - 전체 instrumentation `OK (71 tests)`, 86.062초.
+  - 공식 release 158 tasks와 signer·non-debuggable·version 검증 PASS.
+- A 현장 상태: RC85/code 90 보존 설치, UID·firstInstallTime·Device Owner·HOME·
+  data 유지, 설치 APK/artifact hash·signer 일치, 무료 4장 메뉴와 QR 대기·Lock Task
+  `LOCKED` 확인. 비활성 복구 분기는 수행하지 않음.
+- rollback: 코드
+  `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 위 unit/lint/전체
+  계측/release를 재실행한다. A는 code 90이므로 같은 signer·code 91+의 forward
+  rollback을 만들고 앱 삭제·data clear·downgrade를 하지 않는다. Room v5는
+  유지한다.
+
 ## 최근 변경·검증·전달
 
 - 누적 보고서 기준선 commit:
@@ -1077,6 +1174,10 @@
 - `SOL-0009`~`SOL-0011` 재사용 QR 카드 구현·QR 고정·관리 UI·RC84 release
   metadata commit:
   `59c9181144ba8758a6710ff793dbcdac7a24a57b`.
+- `SOL-0009`~`SOL-0011` RC84 자동·A 현장검증 증거 commit:
+  `b76fdf8043f34e9abb063d683db655fe6280d882`.
+- `SOL-0012` 비활성 재사용 슬롯 복구·회귀·RC85 release metadata commit:
+  `e7c558da18152795d11427d13d8d61b5323e1640`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

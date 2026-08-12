@@ -1,35 +1,37 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24, 갱신일: 2026-08-12 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-08-13 (Asia/Seoul)
 
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer의 Kiosk RC84·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
-Owner와 전용 HOME을 보존했고 RC84 설치본의 해시는 보관 artifact와 다시
-일치시켰다. 현재 보관 검증 묶음은 Kiosk RC84, Web POC RC137과 PC 수신기
+같은 signer의 Kiosk RC85·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
+Owner와 전용 HOME을 보존했고 RC85 설치본의 해시는 보관 artifact와 다시
+일치시켰다. 현재 보관 검증 묶음은 Kiosk RC85, Web POC RC137과 PC 수신기
 0.1.7이다.
 Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 `docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.7의 검증·설치 여부는
 `reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
   `SOL-0008`을 기준으로 한다.
 
-현재 소스 작업본의 Kiosk RC84는 최초 준비 시 신규카드1~4 더미 QR을 자동
+현재 소스 작업본의 Kiosk RC85는 최초 준비 시 신규카드1~4 더미 QR을 자동
 준비해 지정 PC로 전송한다. 더미의 아이디·비밀번호는 빈 값이며, 학생 배정은
 현재 수업 보강에 자동 추가하지 않는다. 재시작, 이름·CSV 갱신과 일반 QR
 재발급은 재사용 카드 QR을 바꾸지 않는다. 실제 QR 카드로 전환하면 새 일반
 학생 QR을 발급하고 기존 더미 슬롯을 빈 값으로 되돌린다. 저장 미확인 슬롯을
 수동 교체할 때는 기존 QR과 이전 인쇄물 무효화를 확인한 뒤 새 QR을 발급한다.
+과거 비활성 재사용 슬롯이 있으면 같은 라벨의 새 QR·빈 자격정보로 복구하고
+목표 4장을 보충한다. 복구 뒤에는 새 PDF를 저장·출력해야 한다.
 
-- 현재 A: Kiosk `0.6.0-rc84`/code 89, Web POC `0.4.0-rc137`/code 154
+- 현재 A: Kiosk `0.6.0-rc85`/code 90, Web POC `0.4.0-rc137`/code 154
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc84`/code 89, Web POC `0.4.0-rc137`/code 154,
+  Kiosk `0.6.0-rc85`/code 90, Web POC `0.4.0-rc137`/code 154,
   PC 수신기 `0.1.7`
 - 현재 운영 PC 설치본: PC 수신기 `0.1.7`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- Kiosk RC84 APK: 36,754,045 bytes,
-  `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`
-- 현재 A: release signer의 Kiosk RC84/Web POC RC137, 기존 Device Owner·전용
+- Kiosk RC85 APK: 36,754,045 bytes,
+  `5E8F629715E04A3A6A6C56897D55BE5AD75B94DF5EA1E3B47663E7F8560397F7`
+- 현재 A: release signer의 Kiosk RC85/Web POC RC137, 기존 Device Owner·전용
   HOME·Kiosk/Web UID·firstInstallTime·dataDir 유지, 전면 카메라 QR 대기·Lock Task
   `LOCKED`, 원격 점검 `INACTIVE`
 - Kiosk RC55는 Device Owner 정책으로 Web POC 제거를 차단한다.
