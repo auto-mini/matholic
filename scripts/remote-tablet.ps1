@@ -17,6 +17,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'remote-tablet-state.ps1')
+
 $adb = Join-Path $env:LOCALAPPDATA 'Android\Sdk\platform-tools\adb.exe'
 if (-not (Test-Path -LiteralPath $adb)) {
     throw "ADB not found: $adb"
@@ -37,7 +39,6 @@ function Set-RemoteSupport {
         [bool]$Enabled
     )
 
-    $enabledText = if ($Enabled) { 'true' } else { 'false' }
     $durationSeconds = $Minutes * 60
     $targets = @(
         @{
@@ -50,16 +51,55 @@ function Set-RemoteSupport {
         }
     )
 
-    foreach ($target in $targets) {
-        $output = & $adb -s $Serial shell am broadcast `
-            -a $target.Action `
-            -n $target.Component `
-            --ez enabled $enabledText `
-            --ei duration_seconds $durationSeconds 2>&1
-        if ($LASTEXITCODE -ne 0 -or ($output -join "`n") -notmatch 'result=-1') {
-            throw "Remote support command failed for $($target.Component): $($output -join ' ')"
+    Set-RemoteSupportTargets `
+        -Enabled $Enabled `
+        -Targets $targets `
+        -SendCommand {
+            param($target, $targetEnabled)
+
+            $enabledText = if ($targetEnabled) { 'true' } else { 'false' }
+            $output = & $adb -s $Serial shell am broadcast `
+                -a $target.Action `
+                -n $target.Component `
+                --ez enabled $enabledText `
+                --ei duration_seconds $durationSeconds 2>&1
+            if (
+                $LASTEXITCODE -ne 0 -or
+                ($output -join "`n") -notmatch '(?m)\bresult=-1(?:\s|$)'
+            ) {
+                throw "Command rejected: $($output -join ' ')"
+            }
         }
+}
+
+function Remove-LocalCapture {
+    if (Test-Path -LiteralPath $OutputPath) {
+        Remove-Item -LiteralPath $OutputPath -Force
     }
+}
+
+function Stop-RemoteSupportAfterFailure {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Management.Automation.ErrorRecord]$Failure
+    )
+
+    $cleanupFailures = [System.Collections.Generic.List[string]]::new()
+    try {
+        Set-RemoteSupport -Enabled $false
+    } catch {
+        $cleanupFailures.Add($_.Exception.Message)
+    }
+    try {
+        Remove-LocalCapture
+    } catch {
+        $cleanupFailures.Add($_.Exception.Message)
+    }
+    if ($cleanupFailures.Count -gt 0) {
+        throw "$($Failure.Exception.Message) Fail-closed cleanup also failed: " +
+            ($cleanupFailures -join '; ')
+    }
+    throw $Failure
 }
 
 function Capture-Screen {
@@ -94,21 +134,39 @@ function Capture-Screen {
 
 switch ($Action) {
     'Start' {
-        Set-RemoteSupport -Enabled $true
-        Start-Sleep -Milliseconds 500
-        $capture = Capture-Screen
-        Write-Output "REMOTE_SUPPORT=ACTIVE"
-        Write-Output "EXPIRES_IN_MINUTES=$Minutes"
-        Write-Output "SCREENSHOT=$($capture.FullName)"
+        try {
+            Set-RemoteSupport -Enabled $true
+            Start-Sleep -Milliseconds 500
+            $capture = Capture-Screen
+            Write-Output "REMOTE_SUPPORT=ACTIVE"
+            Write-Output "EXPIRES_IN_MINUTES=$Minutes"
+            Write-Output "SCREENSHOT=$($capture.FullName)"
+        } catch {
+            Stop-RemoteSupportAfterFailure -Failure $_
+        }
     }
     'Capture' {
-        $capture = Capture-Screen
-        Write-Output "SCREENSHOT=$($capture.FullName)"
+        try {
+            $capture = Capture-Screen
+            Write-Output "SCREENSHOT=$($capture.FullName)"
+        } catch {
+            Stop-RemoteSupportAfterFailure -Failure $_
+        }
     }
     'Stop' {
-        Set-RemoteSupport -Enabled $false
-        if (Test-Path -LiteralPath $OutputPath) {
-            Remove-Item -LiteralPath $OutputPath -Force
+        $stopFailures = [System.Collections.Generic.List[string]]::new()
+        try {
+            Set-RemoteSupport -Enabled $false
+        } catch {
+            $stopFailures.Add($_.Exception.Message)
+        }
+        try {
+            Remove-LocalCapture
+        } catch {
+            $stopFailures.Add($_.Exception.Message)
+        }
+        if ($stopFailures.Count -gt 0) {
+            throw "Remote support stop failed: $($stopFailures -join '; ')"
         }
         Write-Output 'REMOTE_SUPPORT=INACTIVE'
     }
