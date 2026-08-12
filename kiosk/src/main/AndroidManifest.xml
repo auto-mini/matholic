@@ -93,7 +93,7 @@
             android:permission="com.local.matholickiosk.permission.CREDENTIAL_BRIDGE" />
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".print.QrPdfFileProvider"
             android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true">

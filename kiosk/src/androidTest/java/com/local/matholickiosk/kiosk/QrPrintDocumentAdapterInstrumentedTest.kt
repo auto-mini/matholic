@@ -1,7 +1,9 @@
 package com.local.matholickiosk.kiosk
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -19,6 +21,7 @@ import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPrintCardRenderer
 import com.local.matholickiosk.kiosk.print.QrPrintPdfWriter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
+import com.local.matholickiosk.kiosk.print.QrPdfFileProvider
 import com.local.matholickiosk.kiosk.print.QrPdfShareIntentFactory
 import com.local.matholickiosk.kiosk.qr.QrImageRenderer
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
@@ -89,6 +92,72 @@ class QrPrintDocumentAdapterInstrumentedTest {
             while (export.exists() && System.currentTimeMillis() < deadline) {
                 Thread.sleep(25L)
             }
+            assertFalse(export.exists())
+        } finally {
+            export.delete()
+        }
+    }
+
+    @Test
+    fun startupCleanupReschedulesYoungOrphanForItsRemainingLifetime() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val exportDirectory = File(context.cacheDir, "qr_exports").apply { mkdirs() }
+        val export = File(exportDirectory, "synthetic-restarted-expiry-${System.nanoTime()}.pdf")
+        export.writeText("synthetic non-QR fixture")
+        val retentionMillis = 60L * 60L * 1_000L
+        val remainingLifetimeMillis = 1_500L
+        assertTrue(
+            export.setLastModified(
+                System.currentTimeMillis() - retentionMillis + remainingLifetimeMillis,
+            ),
+        )
+
+        try {
+            QrPdfExporter.cleanupExpired(context)
+
+            val deadline = System.currentTimeMillis() + 5_000L
+            while (export.exists() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(25L)
+            }
+            assertFalse(export.exists())
+        } finally {
+            export.delete()
+        }
+    }
+
+    @Test
+    fun qrFileProviderOwnsTheProcessRestartCleanupEntryPoint() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val provider = context.packageManager.resolveContentProvider(
+            "${context.packageName}.files",
+            PackageManager.ComponentInfoFlags.of(0L),
+        )
+
+        assertEquals(
+            "com.local.matholickiosk.kiosk.print.QrPdfFileProvider",
+            provider?.name,
+        )
+    }
+
+    @Test
+    fun qrFileProviderStartupDeletesAnExpiredOrphanBeforeServingUris() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val exportDirectory = File(context.cacheDir, "qr_exports").apply { mkdirs() }
+        val export = File(exportDirectory, "synthetic-provider-expiry-${System.nanoTime()}.pdf")
+        export.writeText("synthetic non-QR fixture")
+        assertTrue(
+            export.setLastModified(
+                System.currentTimeMillis() - 60L * 60L * 1_000L - 1_000L,
+            ),
+        )
+
+        try {
+            val providerInfo = context.packageManager.getProviderInfo(
+                ComponentName(context, QrPdfFileProvider::class.java),
+                PackageManager.ComponentInfoFlags.of(PackageManager.GET_META_DATA.toLong()),
+            )
+            QrPdfFileProvider().attachInfo(context, providerInfo)
+
             assertFalse(export.exists())
         } finally {
             export.delete()

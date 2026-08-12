@@ -98,10 +98,25 @@ object QrPdfExporter {
     }
 
     private fun cleanupExpired(directory: File) {
-        val cutoff = System.currentTimeMillis() - EXPORT_RETENTION_MS
+        val now = System.currentTimeMillis()
         directory.listFiles()
-            ?.filter { it.isFile && it.lastModified() < cutoff }
-            ?.forEach(File::delete)
+            ?.filter(File::isFile)
+            ?.forEach { export ->
+                val lastModified = export.lastModified()
+                val ageMillis = if (lastModified <= 0L) {
+                    EXPORT_RETENTION_MS
+                } else {
+                    (now - lastModified).coerceAtLeast(0L)
+                }
+                if (ageMillis >= EXPORT_RETENTION_MS) {
+                    export.delete()
+                } else {
+                    sharedFileCleanupHandler.postDelayed(
+                        { export.delete() },
+                        EXPORT_RETENTION_MS - ageMillis,
+                    )
+                }
+            }
     }
 
     internal fun releaseSensitiveBitmap(bitmap: Bitmap) {
