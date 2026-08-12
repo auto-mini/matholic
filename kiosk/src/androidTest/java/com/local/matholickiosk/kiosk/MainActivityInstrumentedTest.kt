@@ -313,6 +313,63 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun pendingRecoveryActionsSurviveActivityRecreation() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                val pendingRecoveryField = MainActivity::class.java
+                    .getDeclaredField("pendingRecoveryAction")
+                    .apply { isAccessible = true }
+                val startSessionType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingRecoveryAction\$StartSession",
+                )
+                val startSession = startSessionType
+                    .getDeclaredConstructor(String::class.java, Set::class.java)
+                    .apply { isAccessible = true }
+                    .newInstance(
+                        "synthetic-class",
+                        setOf("synthetic-temporary-a", "synthetic-temporary-b"),
+                    )
+                val endSessionType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingRecoveryAction\$EndSession",
+                )
+                val endSession = endSessionType
+                    .getDeclaredField("INSTANCE")
+                    .apply { isAccessible = true }
+                    .get(null)
+
+                scenario.onActivity { activity ->
+                    pendingRecoveryField.set(activity, startSession)
+                }
+                scenario.recreate()
+                scenario.onActivity { activity ->
+                    val restored = pendingRecoveryField.get(activity)
+                    assertEquals(startSessionType, restored.javaClass)
+                    assertEquals(
+                        "synthetic-class",
+                        startSessionType.getMethod("getClassId").invoke(restored),
+                    )
+                    assertEquals(
+                        setOf("synthetic-temporary-a", "synthetic-temporary-b"),
+                        startSessionType.getMethod("getTemporaryStudentIds").invoke(restored),
+                    )
+                    pendingRecoveryField.set(activity, endSession)
+                }
+
+                scenario.recreate()
+                scenario.onActivity { activity ->
+                    assertEquals(endSessionType, pendingRecoveryField.get(activity).javaClass)
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun correctAdminPinOpensAdminWithoutDoneOrSubmitTap() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
