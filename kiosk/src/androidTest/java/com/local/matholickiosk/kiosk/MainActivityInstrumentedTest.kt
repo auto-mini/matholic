@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.local.matholickiosk.kiosk.data.AdminAuthRepository
+import com.local.matholickiosk.kiosk.data.ActiveSessionEntity
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.domain.CameraFacing
@@ -84,9 +85,9 @@ class MainActivityInstrumentedTest {
                 }
                 waitUntil(scenario, timeoutMillis = 8_000) { activity ->
                     activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
-                        activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                        (activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
                             .adapter
-                            .count > 0
+                            ?.count ?: 0) > 0
                 }
             }
         } finally {
@@ -631,6 +632,138 @@ class MainActivityInstrumentedTest {
             }
         }
         database.clearAllTables()
+    }
+
+    @Test
+    fun sessionEndCommitKeepsIdleUiWhenSnapshotRefreshFails() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("가상반-종료새로고침실패")
+        val registered = repository.registerStudent(
+            displayNameExact = "가상학생-종료새로고침실패",
+            username = "synthetic-end-refresh-user".toCharArray(),
+            password = "synthetic-end-refresh-password".toCharArray(),
+        )
+        repository.replaceClassMemberships(classId, setOf(registered.studentId))
+
+        val endCommitted = CountDownLatch(1)
+        val commitWatcher = Executors.newSingleThreadExecutor()
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                    activity.findViewById<View>(R.id.auth_submit).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE
+                }
+
+                val activeSession = repository.startSession(classId)
+                val currentSessionField = MainActivity::class.java
+                    .getDeclaredField("currentSession")
+                    .apply { isAccessible = true }
+                val repositoryField = MainActivity::class.java
+                    .getDeclaredField("studentRepository")
+                    .apply { isAccessible = true }
+                val updateSessionControlsMethod = MainActivity::class.java
+                    .getDeclaredMethod(
+                        "updateSessionAdminControls",
+                        ActiveSessionEntity::class.java,
+                    )
+                    .apply { isAccessible = true }
+                val completeSessionEndMethod = MainActivity::class.java
+                    .getDeclaredMethod("completeSessionEnd")
+                    .apply { isAccessible = true }
+                lateinit var originalRepository: StudentRepository
+
+                commitWatcher.execute {
+                    val deadline = System.currentTimeMillis() + 5_000
+                    while (System.currentTimeMillis() < deadline) {
+                        if (database.sessionDao().get()?.sessionId == null) {
+                            endCommitted.countDown()
+                            return@execute
+                        }
+                        Thread.sleep(10)
+                    }
+                }
+
+                try {
+                    scenario.onActivity { activity ->
+                        originalRepository = repositoryField.get(activity) as StudentRepository
+                        currentSessionField.set(activity, activeSession)
+                        updateSessionControlsMethod.invoke(activity, activeSession)
+                        assertEquals(
+                            "현재 수업 안전 종료",
+                            activity.findViewById<android.widget.Button>(R.id.start_session_button)
+                                .text
+                                .toString(),
+                        )
+                        assertEquals(
+                            View.VISIBLE,
+                            activity.findViewById<View>(R.id.resume_session_button).visibility,
+                        )
+
+                        completeSessionEndMethod.invoke(activity)
+                        assertTrue(
+                            "Session end transaction did not commit",
+                            endCommitted.await(5, TimeUnit.SECONDS),
+                        )
+                        repositoryField.set(activity, null)
+                    }
+
+                    waitUntil(scenario, timeoutMillis = 5_000) { activity ->
+                        activity.findViewById<android.widget.TextView>(R.id.status_text)
+                            .text
+                            .toString() == "ADMIN_IDLE" &&
+                            activity.findViewById<android.widget.TextView>(R.id.admin_message)
+                                .text
+                                .toString()
+                                .contains("최신 목록을 불러오지 못했습니다")
+                    }
+                    scenario.onActivity { activity ->
+                        val projected = currentSessionField.get(activity) as ActiveSessionEntity
+                        assertNull(projected.sessionId)
+                        assertEquals(
+                            "선택한 반 수업 안전 시작",
+                            activity.findViewById<android.widget.Button>(R.id.start_session_button)
+                                .text
+                                .toString(),
+                        )
+                        assertEquals(
+                            View.GONE,
+                            activity.findViewById<View>(R.id.resume_session_button).visibility,
+                        )
+                        assertEquals(
+                            View.GONE,
+                            activity.findViewById<View>(R.id.recover_session_button).visibility,
+                        )
+                        assertEquals(
+                            View.GONE,
+                            activity.findViewById<View>(R.id.scanner_panel).visibility,
+                        )
+                    }
+                    assertNull(repository.currentSession()?.sessionId)
+                } finally {
+                    scenario.onActivity { activity ->
+                        repositoryField.set(activity, originalRepository)
+                    }
+                }
+            }
+        } finally {
+            commitWatcher.shutdownNow()
+            database.clearAllTables()
+        }
     }
 
     @Test
