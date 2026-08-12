@@ -1,5 +1,51 @@
 # 빌드·보안 검증 기록
 
+## Kiosk 활성 수업 membership·pending undo 경계 회귀 고정 — 2026-08-13
+
+### 현재 판정과 시험 범위
+
+- 과거 `LUNA-0025`는 수업 시작 전 남은 `RestoreMemberships` 실행취소나 관리자
+  재진입 직후 stale 반 구성 UI가 활성 수업의 반 소속과 QR·수동 선택 eligibility를
+  바꿀 수 있다고 제기했다. 현재 제품 source는 이미 commit
+  `d5589373fe6951451839c43ac75578ac22472b5b`에서 이 경계를 수정했다. 이번
+  SOL-0019의 판정은 P3·신뢰도 높음·`이미 수정됨`이며 제품 source는 바꾸지 않았다.
+- `launchWebSessionRecovery()`는 수업 시작·종료 action과 외부 Web launcher 경계를
+  설정하기 전에 `clearPendingAdminUndo()`로 이전 membership/name/class undo를
+  폐기한다. 모든 다른 관리자 데이터 작업도 `beginAdminDataOperation()` 성공 직후
+  같은 invalidation을 수행한다.
+- `StudentRepository.replaceClassMemberships()`는 transaction 첫 단계에서 active
+  session이 없음을 요구하므로 stale dialog나 반사 호출이 UI 차단을 우회해도 어떤
+  반의 membership도 변경하지 않는다. 기존
+  `activeSessionBlocksClassMembershipReplacement`는 거부 뒤 원래 member set이
+  유지됨을 확인한다.
+- 신규 `sessionRecoveryInvalidatesPendingMembershipUndoBeforeWebLaunch`는 합성
+  `RestoreMemberships` action을 실제 Activity undo UI에 등록한 뒤 StartSession Web
+  recovery를 호출한다. 외부 launcher는 등록 해제해 launch failure를 강제하고,
+  그 실패 경계에서도 pending action null, undo button `GONE`/disabled, Web gate
+  inactive와 정확한 실패 안내를 함께 확인한다. 실제 학생·반·QR·Web 계정은
+  사용하지 않았다.
+
+### 자동검증
+
+- 신규 Activity focused는 최초 1/1, Gradle 30초 PASS였고 기존 repository guard도
+  별도 1/1, 7초 PASS였다. 오류 안내 단언을 더한 뒤 두 시험을 함께 재실행해 2/2,
+  Gradle 17초로 통과했다.
+- 최종 API 33 전체 계측은 79/79, failure/error/skip 0, XML 102.953초, Gradle
+  `BUILD SUCCESSFUL in 1m 50s`다. XML에서 신규 Activity case는 4.756초, 기존
+  repository guard는 0.057초다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 1m 4s`다.
+  JVM XML은 99/99, failure/error/skip 0, 0.969초이고 lint와 두 APK 조립도
+  성공했다. 선행 AndroidTest assemble도 52 tasks, 1분 16초에 성공했다.
+- 변경은 `androidTest` 한 파일뿐이라 release artifact·version·signer와 A 설치본은
+  바뀌지 않았다. release build·A 재설치는 수행하지 않았다. 최종 읽기 전용 확인에서
+  A는 Kiosk RC89/code 94, top resumed Kiosk와 Lock Task `LOCKED`를 유지했고 시험용
+  API 33 AVD는 종료해 승인 물리 A만 남겼다.
+- 시험·복구점은 `7cf7833237de494dda97d971439a2aa788e71524`이며 전용 origin
+  branch에 push했다. rollback은 `git revert 7cf7833237de494dda97d971439a2aa788e71524`
+  뒤 위 focused·unit·lint·assemble·전체 계측을 다시 실행한다. 제품 source와 A
+  설치본은 바뀌지 않았으므로 기기 rollback은 필요 없다.
+
 ## Kiosk RC89 학생 CSV intake·수업 시작 공통 gate — 2026-08-13
 
 ### 수정 전 재현·구현 범위
@@ -88,7 +134,7 @@
 - 과거 `LUNA-0026`은 수업 종료 transaction이 `ADMIN_IDLE`을 commit한 뒤 관리자
   snapshot refresh가 실패하면 Activity의 이전 active session과 종료·재개 control,
   scanner가 남을 수 있다고 제기했다. 현재 source는 이미
-  `d5589373fe6951451839c43ac75578ac22472b5b7`에서 `endSession()`이 반환한
+  `d5589373fe6951451839c43ac75578ac22472b5b`에서 `endSession()`이 반환한
   `idleSession`을 `currentSession`과 session control에 먼저 투영한 뒤
   `refreshAdminData()`를 호출하도록 수정돼 있다. 이번 SOL-0017의 제품 판정은
   P4·신뢰도 높음·`이미 수정됨`이며 제품 source는 바꾸지 않았다.

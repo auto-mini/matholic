@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 03:49:10 +09:00
+- `last_updated`: 2026-08-13 04:05:44 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0` /
-  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`; ahead/behind `0/0`.
+  `7cf7833237de494dda97d971439a2aa788e71524` /
+  `7cf7833237de494dda97d971439a2aa788e71524`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`
-  (`fix(kiosk): serialize CSV intake with sessions (SOL-0018)`). 이 상태기록 문서
+  `7cf7833237de494dda97d971439a2aa788e71524`
+  (`test(kiosk): lock active-session membership boundary (SOL-0019)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -49,14 +49,14 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0018` 증거 체크포인트. 지정 PC 학생 CSV 가져오기가
-  네트워크·parse·미리보기 동안 공통 관리자 gate 밖에 남은 것을 수정했다. 수정 전
-  지연 PC 계측 실패, 수정 후 focused·unit/lint/assemble·전체 78/78, 공식 RC89 release,
-  구현 commit·push와 A 보존 설치·기본 흐름을 완료했다. 정확한 CSV A/운영 PC 분기는
-  실제 학생정보를 바꾸지 않기 위해 수행하지 않아 판정은 `자동검증 완료`다.
-- 다음 우선 큐: 과거 `LUNA-0025`의 활성 수업 중 반 소속 변경·pending undo 우회
-  후보를 현재 repository active-session guard, 즉시 UI fail-close와 계측으로 독립
-  재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0019` 증거 체크포인트. 과거 `LUNA-0025`의 활성 수업 중
+  membership undo 우회 후보는 현재 `d558937` source에서 이미 해결됐음을 확인했다.
+  기존 repository guard와 신규 Activity Web-launch 실패 계측, unit/lint/assemble,
+  최종 전체 79/79, test commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
+- 다음 우선 큐: 과거 `LUNA-0027`의 Activity 재생성 중 pending Web recovery
+  Start/EndSession action 보존 후보를 현재 saved-state 복원과 ActivityResult callback
+  연결로 독립 재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로
+  사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -71,7 +71,7 @@
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
   `SOL-0016`, `SOL-0018`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
-  `SOL-0017`.
+  `SOL-0017`, `SOL-0019`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -110,6 +110,11 @@
   전체 78개는 기존 빠른 반 geometry 시험의 spinner readiness race 한 건으로
   실패했고, 격리 1/1 통과 후 adapter·버튼 readiness를 보강해 focused 2/2와 최종
   78/78을 통과했다. A는 RC89 보존 설치와 기본 운영 흐름 통합 회귀까지만 확인했다.
+- SOL-0019는 제품 source가 이미 `d558937`에서 Web recovery 시작 전 pending undo
+  폐기와 transaction 내부 active-session membership 거부로 수정돼 있었다. 신규
+  Activity 계측은 외부 launcher 실패를 강제해도 undo가 먼저 사라지고 gate가
+  복구되는 순서를 확인했다. 기존 repository guard와 focused 2/2, 최종 전체 79/79를
+  통과했다. test-only 변경이라 release build·A 재설치는 수행하지 않았다.
 - 이번 RC89에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -165,6 +170,47 @@
   실행한다. A는 code 94이므로 되돌린 source에서 같은 signer·code 95 이상의
   forward rollback release를 만들어 `adb install -r`로 설치하며 APK 삭제·data
   clear·downgrade를 하지 않는다.
+- SOL-0019 시험 체크포인트를 되돌리려면
+  `git revert 7cf7833237de494dda97d971439a2aa788e71524` 후 Kiosk unit, lint,
+  AndroidTest assemble·관련 focused 두 건과 전체 계측을 다시 실행한다. 이 commit은
+  제품 source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 Kiosk 활성 수업 membership·pending undo 독립 재검증
+
+- `SOL-0019` — Kiosk session/반 소속/관리자 undo 경계, P3, 신뢰도 높음, 상태
+  `이미 수정됨`.
+- 사용자 영향 후보는 수업 시작 전 남은 `RestoreMemberships` undo나 관리자 재진입
+  직후 stale 반 구성 UI가 활성 수업 중 반 소속을 바꿔 QR·수동 선택 eligibility를
+  변경하는 것이었다. 과거 `LUNA-0025`는 2026-08-02 source를 근거로 한 후보다.
+- 현재 정적 근거: commit `d5589373fe6951451839c43ac75578ac22472b5b`부터
+  `launchWebSessionRecovery()`가 외부 Web launcher와 Start/EndSession action을
+  설정하기 전에 pending undo를 폐기한다. 다른 관리자 데이터 operation도 시작
+  직후 이전 undo를 지운다. `StudentRepository.replaceClassMemberships()`는 Room
+  transaction 안에서 active session 존재를 먼저 검사해 UI stale 상태나 직접 호출이
+  어떤 반의 membership도 바꾸지 못하게 한다.
+- 기존 repository 계측은 member 한 명으로 수업을 시작한 뒤 empty membership 교체가
+  실패하고 원래 set이 유지됨을 확인한다. 신규 Activity 계측은 합성 membership undo를
+  실제 undo button에 등록하고 합성 StartSession Web recovery를 제출한다. 외부 launcher
+  등록을 해제해 launch failure를 강제한 뒤에도 pending undo null, button
+  `GONE`/disabled, Web gate inactive와 정확한 실패 안내를 함께 확인했다. 실제 학생·
+  반·QR·Web 계정은 사용하지 않았다.
+- 자동검증: 신규 Activity focused 1/1·30초, 기존 repository guard 1/1·7초 PASS.
+  최종 관련 두 시험은 2/2·17초 PASS다. API 33 전체는 79/79,
+  failure/error/skip 0, XML 102.953초, Gradle 1분 50초 PASS이며 두 case는 각각
+  4.756초·0.057초다. unit/lint/debug·AndroidTest assemble은 84 tasks·1분 4초
+  PASS, JVM 99/99·failure/error/skip 0·0.969초다.
+- 반대 근거·제약: session launch가 시작되기 전에는 30초 undo가 정상 기능이고,
+  active session 중 stale dialog가 잠시 보일 가능성 자체를 UI 계측하지 않았다.
+  그러나 undo는 session boundary에서 폐기되고 repository가 최종 write invariant를
+  강제하므로 과거 후보의 eligibility 변경 결과는 현재 source에서 성립하지 않는다.
+  이 판정을 실제 운영 반 소속 변경 실기로 확대하지 않았다.
+- 변경은 `MainActivityInstrumentedTest.kt` 한 파일뿐이다. 시험·원격 복구점은
+  `7cf7833237de494dda97d971439a2aa788e71524`, 전용 origin branch push 성공. source·
+  version·release artifact는 바뀌지 않았고 A 재설치는 수행하지 않았다. A는 읽기 전용
+  확인에서 RC89/code 94, top resumed Kiosk와 Lock Task `LOCKED`를 유지했고 AVD는
+  종료했다.
+- rollback은 `git revert 7cf7833237de494dda97d971439a2aa788e71524` 후 관련
+  focused·unit·lint·assemble·전체 계측을 재실행한다. 기기 rollback은 필요 없다.
 
 ## 2026-08-13 RC89 학생 CSV intake·수업 시작 공통 gate
 
@@ -241,7 +287,7 @@
   어긋나는 것이었다. 과거 `LUNA-0026`은 2026-08-02 source를 근거로 한 후보였다.
 - 현재 정적 근거: `StudentRepository.endSession()`은 transaction에서 temporary row와
   active session을 정리하고 `ADMIN_IDLE` entity를 반환한다. `MainActivity`는
-  `d5589373fe6951451839c43ac75578ac22472b5b7`부터 그 반환값을
+  `d5589373fe6951451839c43ac75578ac22472b5b`부터 그 반환값을
   `currentSession`에 저장하고 session·roster control을 idle로 먼저 갱신한 뒤
   `refreshAdminData()`를 호출한다. 따라서 후속 read 실패 branch가 stale active
   session을 다시 그릴 근거가 없다.
