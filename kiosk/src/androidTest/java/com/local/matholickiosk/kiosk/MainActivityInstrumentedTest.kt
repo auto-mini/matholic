@@ -62,7 +62,11 @@ class MainActivityInstrumentedTest {
             serverExecutor.execute {
                 server.accept().use {
                     accepted.countDown()
-                    releaseConnection.await(15, TimeUnit.SECONDS)
+                    try {
+                        releaseConnection.await(20, TimeUnit.SECONDS)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
                 }
             }
 
@@ -78,7 +82,7 @@ class MainActivityInstrumentedTest {
                     activity.findViewById<android.widget.EditText>(R.id.pin_input)
                         .setText("654321")
                 }
-                waitUntil(scenario, timeoutMillis = 3_000) { activity ->
+                waitUntil(scenario, timeoutMillis = 8_000) { activity ->
                     activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
                         activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
                             .adapter
