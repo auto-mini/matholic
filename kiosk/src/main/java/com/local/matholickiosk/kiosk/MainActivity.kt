@@ -2469,10 +2469,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun fetchStudentCsvFromPc() {
-        if (adminDataOperationGate.isActive) {
-            adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
-            return
-        }
         if (currentSession?.sessionId != null) {
             adminMessage.text = "수업 중에는 학생 CSV를 가져올 수 없습니다."
             return
@@ -2481,22 +2477,21 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "먼저 지정 PC를 페어링하세요."
             return
         }
-        importStudentCsvButton.isEnabled = false
-        adminMessage.text = "지정 PC에서 암호화된 학생 CSV를 가져오는 중"
+        if (!beginAdminDataOperation("지정 PC에서 암호화된 학생 CSV를 가져오는 중")) return
         runCatching {
             pcControlExecutor.execute {
                 val download = try {
                     withReachablePairedPc(pcControlClient::fetchStudentCsv)
                 } catch (failure: Throwable) {
                     runOnUiThread {
-                        importStudentCsvButton.isEnabled = true
+                        finishAdminDataOperation()
                         adminMessage.text = failure.message ?: "PC에서 CSV를 가져오지 못했습니다."
                     }
                     return@execute
                 }
                 if (download == null) {
                     runOnUiThread {
-                        importStudentCsvButton.isEnabled = true
+                        finishAdminDataOperation()
                         adminMessage.text = "PC 도우미에서 먼저 학생 CSV를 선택하세요."
                     }
                     return@execute
@@ -2506,7 +2501,7 @@ class MainActivity : ComponentActivity() {
                 } catch (failure: Throwable) {
                     download.payload.fill(0)
                     runOnUiThread {
-                        importStudentCsvButton.isEnabled = true
+                        finishAdminDataOperation()
                         adminMessage.text = failure.message ?: "학생 CSV 형식을 확인하지 못했습니다."
                     }
                     return@execute
@@ -2518,7 +2513,6 @@ class MainActivity : ComponentActivity() {
                         studentRepository.previewStudentImport(parsed.rows)
                     }
                     mainHandler.post {
-                        importStudentCsvButton.isEnabled = true
                         if (destroyed) {
                             parsed.clearSensitiveData()
                             return@post
@@ -2529,6 +2523,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onFailure = {
                                 parsed.clearSensitiveData()
+                                finishAdminDataOperation()
                                 adminMessage.text =
                                     it.message ?: "학생 CSV 변경 내용을 확인하지 못했습니다."
                             },
@@ -2541,14 +2536,14 @@ class MainActivity : ComponentActivity() {
                     previewTask.discard()
                     runOnUiThread {
                         if (!destroyed) {
-                            importStudentCsvButton.isEnabled = true
+                            finishAdminDataOperation()
                             adminMessage.text = "학생 CSV 미리보기를 시작하지 못했습니다."
                         }
                     }
                 }
             }
         }.onFailure {
-            importStudentCsvButton.isEnabled = true
+            finishAdminDataOperation()
             adminMessage.text = "PC CSV 가져오기를 시작하지 못했습니다."
         }
     }
@@ -2577,16 +2572,16 @@ class MainActivity : ComponentActivity() {
             }
             .create()
         dialog.setOnDismissListener {
-            if (!applying) parsed.clearSensitiveData()
+            if (!applying) {
+                parsed.clearSensitiveData()
+                finishAdminDataOperation()
+            }
         }
         dialog.show()
     }
 
     private fun applyStudentCsv(deliveryId: String, parsed: ParsedStudentCsv) {
-        if (!beginAdminDataOperation("학생 CSV를 암호화해 적용하는 중")) {
-            parsed.clearSensitiveData()
-            return
-        }
+        adminMessage.text = "학생 CSV를 암호화해 적용하는 중"
         runCatching {
             executeSensitive(cleanup = parsed::clearSensitiveData) {
                 val result = runCatching {

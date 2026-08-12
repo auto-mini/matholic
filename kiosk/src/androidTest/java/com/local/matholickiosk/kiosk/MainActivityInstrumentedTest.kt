@@ -101,6 +101,125 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun studentCsvFetchHoldsAdminGateUntilThePcRequestFinishes() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        val pairingStore = PcPairingStore(context)
+        val accepted = CountDownLatch(1)
+        val releaseConnection = CountDownLatch(1)
+        val serverExecutor = Executors.newSingleThreadExecutor()
+        val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+        val pairing = PcReceiverPairing(
+            receiverId = ByteArray(16) { index -> (index + 32).toByte() },
+            secret = ByteArray(32) { index -> (index + 64).toByte() },
+            host = requireNotNull(InetAddress.getLoopbackAddress().hostAddress),
+            port = server.localPort,
+            displayName = "지연 CSV 시험 PC",
+        )
+        try {
+            database.clearAllTables()
+            AdminAuthRepository(database).enroll("654321".toCharArray())
+            serverExecutor.execute {
+                server.accept().use {
+                    accepted.countDown()
+                    try {
+                        releaseConnection.await(20, TimeUnit.SECONDS)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
+                }
+            }
+
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<View>(R.id.create_class_button).isEnabled
+                }
+
+                pairingStore.save(pairing)
+                val pairedPcDisplayNameField = MainActivity::class.java
+                    .getDeclaredField("pairedPcDisplayName")
+                    .apply { isAccessible = true }
+                val mutationGateField = MainActivity::class.java
+                    .getDeclaredField("adminDataOperationGate")
+                    .apply { isAccessible = true }
+                val webRecoveryGateField = MainActivity::class.java
+                    .getDeclaredField("webRecoveryGate")
+                    .apply { isAccessible = true }
+                val updateStudentControlsMethod = MainActivity::class.java
+                    .getDeclaredMethod("updateStudentManagementControls")
+                    .apply { isAccessible = true }
+                val fetchStudentCsvMethod = MainActivity::class.java
+                    .getDeclaredMethod("fetchStudentCsvFromPc")
+                    .apply { isAccessible = true }
+                val startOrEndSessionMethod = MainActivity::class.java
+                    .getDeclaredMethod("startOrEndSession")
+                    .apply { isAccessible = true }
+
+                scenario.onActivity { activity ->
+                    pairedPcDisplayNameField.set(activity, pairing.displayName)
+                    updateStudentControlsMethod.invoke(activity)
+                    assertTrue(
+                        activity.findViewById<View>(R.id.import_student_csv_button).isEnabled,
+                    )
+                    fetchStudentCsvMethod.invoke(activity)
+                }
+                assertTrue(
+                    "CSV fetch did not reach the delayed test PC",
+                    accepted.await(5, TimeUnit.SECONDS),
+                )
+                scenario.onActivity { activity ->
+                    val mutationGate = mutationGateField.get(activity) as SingleFlightGate
+                    assertTrue(
+                        "CSV fetch did not hold the common admin operation gate",
+                        mutationGate.isActive,
+                    )
+                    assertFalse(
+                        activity.findViewById<View>(R.id.register_student_button).isEnabled,
+                    )
+                    assertFalse(activity.findViewById<View>(R.id.create_class_button).isEnabled)
+                    assertFalse(activity.findViewById<View>(R.id.start_session_button).isEnabled)
+                    startOrEndSessionMethod.invoke(activity)
+                    assertFalse(
+                        (webRecoveryGateField.get(activity) as SingleFlightGate).isActive,
+                    )
+                    assertEquals(
+                        "다른 학생·반 작업이 끝날 때까지 기다리세요.",
+                        activity.findViewById<android.widget.TextView>(R.id.admin_message)
+                            .text
+                            .toString(),
+                    )
+                }
+
+                releaseConnection.countDown()
+                server.close()
+                waitUntil(scenario, timeoutMillis = 10_000) { activity ->
+                    !(mutationGateField.get(activity) as SingleFlightGate).isActive
+                }
+                scenario.onActivity { activity ->
+                    assertTrue(activity.findViewById<View>(R.id.register_student_button).isEnabled)
+                    assertTrue(activity.findViewById<View>(R.id.create_class_button).isEnabled)
+                    assertTrue(activity.findViewById<View>(R.id.start_session_button).isEnabled)
+                }
+            }
+        } finally {
+            releaseConnection.countDown()
+            runCatching { server.close() }
+            serverExecutor.shutdownNow()
+            pairing.clearSensitiveData()
+            pairingStore.clear()
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun correctAdminPinOpensAdminWithoutDoneOrSubmitTap() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
@@ -857,7 +976,11 @@ class MainActivityInstrumentedTest {
                 waitUntil(scenario) { activity ->
                     activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
                         activity.findViewById<android.widget.GridLayout>(R.id.quick_class_grid)
-                            .childCount == 12
+                            .childCount == 12 &&
+                        (activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                            .adapter
+                            ?.count ?: 0) == 12 &&
+                        quickClassButton(activity, "월1").isEnabled
                 }
 
                 lateinit var initialBounds: Map<String, android.graphics.Rect>
