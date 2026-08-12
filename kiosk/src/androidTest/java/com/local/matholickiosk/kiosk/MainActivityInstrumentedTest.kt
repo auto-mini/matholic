@@ -313,6 +313,108 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun creatingClassInvalidatesPendingNameUndoBeforeMutation() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val student = repository.registerStudent(
+            displayNameExact = "가상학생-현재이름",
+            username = "synthetic-undo-user".toCharArray(),
+            password = "synthetic-undo-password".toCharArray(),
+        )
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<View>(R.id.create_class_button).isEnabled
+                }
+
+                val undoType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingAdminUndo",
+                )
+                val restoreNameType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingAdminUndo\$RestoreStudentName",
+                )
+                val restoreName = restoreNameType
+                    .getDeclaredConstructor(String::class.java, String::class.java)
+                    .apply { isAccessible = true }
+                    .newInstance(student.studentId, "가상학생-이전이름")
+                val offerUndoMethod = MainActivity::class.java
+                    .getDeclaredMethod("offerAdminUndo", undoType)
+                    .apply { isAccessible = true }
+                val performUndoMethod = MainActivity::class.java
+                    .getDeclaredMethod("performPendingAdminUndo")
+                    .apply { isAccessible = true }
+                val pendingUndoField = MainActivity::class.java
+                    .getDeclaredField("pendingAdminUndo")
+                    .apply { isAccessible = true }
+                val mutationGateField = MainActivity::class.java
+                    .getDeclaredField("adminDataOperationGate")
+                    .apply { isAccessible = true }
+
+                scenario.onActivity { activity ->
+                    offerUndoMethod.invoke(activity, restoreName)
+                    val undoButton = activity.findViewById<View>(R.id.undo_admin_button)
+                    assertTrue(pendingUndoField.get(activity) != null)
+                    assertEquals(View.VISIBLE, undoButton.visibility)
+                    assertTrue(undoButton.isEnabled)
+
+                    activity.findViewById<android.widget.EditText>(R.id.class_name_input)
+                        .setText("가상반-실행취소무효화")
+                    activity.findViewById<View>(R.id.create_class_button).performClick()
+
+                    assertNull(pendingUndoField.get(activity))
+                    assertEquals(View.GONE, undoButton.visibility)
+                    assertFalse(undoButton.isEnabled)
+                    assertTrue(
+                        (mutationGateField.get(activity) as SingleFlightGate).isActive,
+                    )
+                }
+
+                waitUntil(scenario) { activity ->
+                    !(mutationGateField.get(activity) as SingleFlightGate).isActive &&
+                        activity.findViewById<android.widget.TextView>(R.id.admin_message)
+                            .text
+                            .toString() == "반을 생성했습니다."
+                }
+                scenario.onActivity { activity ->
+                    val undoButton = activity.findViewById<View>(R.id.undo_admin_button)
+                    assertNull(pendingUndoField.get(activity))
+                    assertEquals(View.GONE, undoButton.visibility)
+                    assertFalse(undoButton.isEnabled)
+                    performUndoMethod.invoke(activity)
+                    assertNull(pendingUndoField.get(activity))
+                }
+                assertEquals(
+                    "가상학생-현재이름",
+                    repository.listStudents()
+                        .single { it.studentId == student.studentId }
+                        .displayNameExact,
+                )
+                assertTrue(
+                    repository.listClasses().any { it.className == "가상반-실행취소무효화" },
+                )
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun pendingRecoveryActionsSurviveActivityRecreation() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
