@@ -3443,7 +3443,7 @@ class DomContractInstrumentedTest {
                   window.mathCommands = [];
                   window.cursorFocusCount = 0;
                   const editor = document.getElementById('math-editor');
-                  let latex = '';
+                  let latex = '6--';
                   let selected = false;
                   editor.fieldApi = {
                     latex: value => {
