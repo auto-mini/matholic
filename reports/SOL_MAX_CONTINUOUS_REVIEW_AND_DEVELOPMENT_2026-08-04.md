@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 02:53:48 +09:00
+- `last_updated`: 2026-08-13 03:10:18 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `850b6f31ad272c71175cb724d6d4058b9d295752` /
-  `850b6f31ad272c71175cb724d6d4058b9d295752`; ahead/behind `0/0`.
+  `57aa2f108d65e69a7645f75b623fed1274bdb661` /
+  `57aa2f108d65e69a7645f75b623fed1274bdb661`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `850b6f31ad272c71175cb724d6d4058b9d295752`
-  (`fix(receiver): drain active handlers on shutdown (SOL-0016)`). 이 상태기록 문서
+  `57aa2f108d65e69a7645f75b623fed1274bdb661`
+  (`test(kiosk): lock session-end idle projection (SOL-0017)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,7 +17,8 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 독립 확인: 2026-08-13 02:24 +09:00. 승인 ADB device는 serial
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 03:08 +09:00.
+  승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc88`/code 93, UID 10288, first install
     `2026-07-24 12:52:28`, last update `2026-08-13 02:17:50`.
@@ -35,8 +36,10 @@
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - 설치 package는 `com.local.matholickiosk.kiosk/.print.QrPdfFileProvider`를
-    등록한다. Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
-    지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash buffer 일치 항목 없음.
+    등록한다. 03:08 읽기 전용 재확인에서 Kiosk가 top resumed이고 Lock Task
+    `LOCKED`, test package와 ADB forward/reverse가 없다. 마지막 실제 화면 확인
+    02:24에는 전면 카메라 QR 대기였고 원격 지원 `INACTIVE`, Kiosk crash buffer
+    일치 항목 없음이었다.
   - RC88 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
     안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
     Web 사전점검을 거쳐 전면 카메라 QR 대기로 복원했다.
@@ -46,14 +49,14 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0016` 증거 체크포인트. active request socket 추적,
-  종료 시 socket close·최대 2초 handler drain, state cleanup 순서, 전체 27 pytest,
-  0.1.8 package·독립 smoke·운영 PC 보존 교체와 구현 push를 완료했다. 실제 운영
-  전송 중 tray Quit·Windows 로그오프는 강제하지 않아 상태는 `자동검증 완료`다.
-- 다음 우선 큐: Kiosk가 수업 종료 transaction을 commit한 뒤 관리자 snapshot
-  refresh가 실패해도 memory의 이전 active session·종료/재개 control·scanner를
-  재사용하지 않는지 현재 source와 fault injection으로 독립 재검증한다. 과거
-  `LUNA-0026`은 조사 자료일 뿐 현재 결함으로 선결하지 않는다.
+- 현재 작업 중 finding: `SOL-0017` 증거 체크포인트. 과거 `LUNA-0026`의 수업 종료
+  후 snapshot 실패 후보는 현재 `d5589373` source에서 이미 수정됐음을 확인했고,
+  실제 종료 commit 뒤 refresh만 실패시키는 계측, unit 99/99, lint·assemble,
+  최종 전체 77/77과 시험 commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
+- 다음 우선 큐: Web 사전점검 동안 캡처된 반·보강 선택이 뒤이은 관리자 mutation
+  뒤 오래된 상태로 수업 시작에 쓰이지 않는지 현재 common gate, action snapshot과
+  repository transaction을 독립 재검증한다. 과거 `LUNA-0035`는 조사 자료일 뿐
+  현재 결함으로 선결하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -67,7 +70,8 @@
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
   `SOL-0016`.
-- 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`.
+- 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
+  `SOL-0017`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -94,6 +98,12 @@
   회수와 state operation 50ms bounded fallback, app cleanup 순서를 loopback으로
   확인했다. Computer Use에는 background tray의 targetable window가 없어 Explorer
   좌표를 추측하지 않았고 앱·연결·파일 상태를 바꾸지 않았다.
+- SOL-0017은 제품 source가 이미 `d5589373`에서 idle session 선투영으로 수정돼
+  있었다. 신규 fault-injection은 종료 commit 뒤 snapshot refresh만 실패시켜 DB·
+  Activity·버튼·scanner의 idle 일치를 확인했다. 첫 전체 77개는 기존 무응답-PC
+  시험의 null adapter polling race 한 건으로 실패했고, 격리 1/1 통과로 비결정성을
+  확인한 뒤 null-safe readiness로 보강했다. 최종 focused 2/2와 전체 77/77은
+  통과했다. androidTest-only 변경이라 release build·A 재설치는 수행하지 않았다.
 - 이번 RC88에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -139,6 +149,39 @@
   의 SHA-256
   `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`를
   확인해 같은 설치 path에 복원하고, smoke·listener·자동시작·방화벽을 재확인한다.
+- SOL-0017 시험 체크포인트를 되돌리려면
+  `git revert 57aa2f108d65e69a7645f75b623fed1274bdb661` 후 Kiosk unit, lint,
+  AndroidTest assemble·focused 두 건과 전체 계측을 다시 실행한다. 이 commit은 제품
+  source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 Kiosk 수업 종료 idle projection 독립 재검증
+
+- `SOL-0017` — Kiosk session/UI, P4, 신뢰도 높음, 상태 `이미 수정됨`.
+- 사용자 영향 후보는 종료 transaction이 성공했는데 후속 관리자 snapshot 읽기만
+  실패할 때 이전 active session·종료/재개 control·scanner가 남아 DB idle과 화면이
+  어긋나는 것이었다. 과거 `LUNA-0026`은 2026-08-02 source를 근거로 한 후보였다.
+- 현재 정적 근거: `StudentRepository.endSession()`은 transaction에서 temporary row와
+  active session을 정리하고 `ADMIN_IDLE` entity를 반환한다. `MainActivity`는
+  `d5589373fe6951451839c43ac75578ac22472b5b7`부터 그 반환값을
+  `currentSession`에 저장하고 session·roster control을 idle로 먼저 갱신한 뒤
+  `refreshAdminData()`를 호출한다. 따라서 후속 read 실패 branch가 stale active
+  session을 다시 그릴 근거가 없다.
+- 동적 근거: 합성 반·학생 session을 시작하고 `completeSessionEnd()`를 호출한 뒤
+  별도 watcher가 DB의 `sessionId=null` commit을 확인했다. UI callback 전에 repository
+  접근만 fault-injection으로 실패시켜 snapshot 오류 안내를 만들었고, DB와 Activity
+  sessionId null, 시작 문구, resume/recover/scanner `GONE`을 함께 확인했다.
+- 신규 focused 1/1, 이후 관련 두 시험 focused 2/2를 통과했다. unit 99/99,
+  debug lint, debug·AndroidTest assemble도 성공했다. 첫 전체 계측은 기존
+  무응답-PC 시험이 adapter 초기화 전 null을 역참조해 1/77 실패했으나 해당 시험
+  격리 실행은 변경 전 1/1 통과해 시험 race임을 확인했다. polling을 null-safe하게
+  만든 뒤 최종 API 33 전체는 77/77, XML 83.474초, Gradle 1분 41초 PASS다.
+- 반대 근거·제약: 실제 A에서 session 종료 직후 DB snapshot read fault를 강제하지
+  않았다. 다만 동일 Activity·Room·UI 경로의 API 33 fault-injection이 정확한 순서를
+  검증했다. 제품 source·APK·version은 바꾸지 않았고 A 재설치는 하지 않았다. A는
+  읽기 전용 점검에서 RC88/code 93, UID·설치 시각, top resumed Kiosk와 Lock Task
+  `LOCKED`를 유지했으며 시험 AVD는 종료했다.
+- 시험 commit·원격 복구점:
+  `57aa2f108d65e69a7645f75b623fed1274bdb661`, 전용 origin branch push 성공.
 
 ## 2026-08-13 PC 수신기 0.1.8 active handler 종료 barrier·운영 설치
 

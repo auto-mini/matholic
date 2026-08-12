@@ -1,5 +1,49 @@
 # 빌드·보안 검증 기록
 
+## Kiosk 수업 종료 idle projection 회귀 고정 — 2026-08-13
+
+### 현재 판정과 시험 범위
+
+- 과거 `LUNA-0026`은 수업 종료 transaction이 `ADMIN_IDLE`을 commit한 뒤 관리자
+  snapshot refresh가 실패하면 Activity의 이전 active session과 종료·재개 control,
+  scanner가 남을 수 있다고 제기했다. 현재 source는 이미
+  `d5589373fe6951451839c43ac75578ac22472b5b7`에서 `endSession()`이 반환한
+  `idleSession`을 `currentSession`과 session control에 먼저 투영한 뒤
+  `refreshAdminData()`를 호출하도록 수정돼 있다. 이번 SOL-0017의 제품 판정은
+  P4·신뢰도 높음·`이미 수정됨`이며 제품 source는 바꾸지 않았다.
+- 신규 instrumentation은 합성 반·학생으로 실제 repository session을 시작하고,
+  `completeSessionEnd()`를 호출한 뒤 DB의 `sessionId=null` commit을 별도 watcher로
+  확인한다. UI callback 전에 Activity repository를 fault-injection으로 사용할 수
+  없게 만들어 후속 snapshot refresh만 실패시킨다.
+- 시험은 refresh 오류 안내가 표시된 뒤 DB와 Activity `currentSession`이 모두 idle,
+  시작 버튼이 `선택한 반 수업 안전 시작`, resume/recover/scanner가 모두 `GONE`임을
+  함께 단언한다. 종료 transaction 실패와 종료 뒤 refresh 실패를 혼동하지 않는다.
+
+### 자동검증과 중간 실패
+
+- 신규 focused 시험은 최초 1/1, Gradle `BUILD SUCCESSFUL in 1m`로 통과했다.
+  최종 XML에서도 해당 case는 4.801초다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 1m 3s`다.
+  JVM XML은 99/99, failure/error/skip 0이고 debug lint와 두 APK 조립도 성공했다.
+- 첫 전체 API 33 계측은 신규 시험을 포함한 77개 중 기존
+  `unresponsivePairedPcDoesNotDelayAdminAuthenticationAtStartup` 한 건이
+  `class_spinner.adapter` 준비 전 null을 바로 역참조해 NPE로 실패했다. 제품 crash가
+  아니라 polling condition의 timing race이며, 같은 시험 격리 실행은 변경 전 1/1
+  통과해 비결정성을 확인했다.
+- 기존 시험의 readiness poll만 `(adapter?.count ?: 0) > 0`으로 보강했다. 무응답 PC
+  시험과 신규 종료 시험은 함께 focused 2/2 통과했고, 최종 전체는 77/77,
+  failure/error/skip 0, XML 83.474초, Gradle `BUILD SUCCESSFUL in 1m 41s`다.
+- 변경은 `androidTest` 한 파일뿐이라 release artifact·version·signer와 운영 설치본은
+  바뀌지 않았다. release build나 A 재설치는 수행하지 않았다. 읽기 전용 확인에서 A는
+  Kiosk RC88/code 93, UID 10288, first/last install time, top resumed Kiosk와 Lock Task
+  `LOCKED`를 그대로 유지했고 test package·ADB forward/reverse가 없었다. 시험용 API 33
+  AVD는 종료해 승인 물리 A만 남겼다.
+- 시험·복구점은 `57aa2f108d65e69a7645f75b623fed1274bdb661`이며 전용 origin
+  branch에 push했다. rollback은 `git revert 57aa2f108d65e69a7645f75b623fed1274bdb661`
+  뒤 위 focused·unit·lint·assemble·전체 계측을 다시 실행한다. 제품 source와 A
+  설치본은 바뀌지 않았으므로 기기 rollback은 필요 없다.
+
 ## PC 수신기 0.1.8 active handler 종료 barrier — 2026-08-13
 
 ### 수정 전 재현·구현 범위
