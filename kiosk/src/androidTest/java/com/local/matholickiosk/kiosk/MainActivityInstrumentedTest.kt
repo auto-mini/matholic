@@ -22,6 +22,13 @@ import com.local.matholickiosk.kiosk.qr.QrImageAnalyzer
 import com.local.matholickiosk.kiosk.qr.QrParseResult
 import com.local.matholickiosk.kiosk.qr.QrTokenCodec
 import com.local.matholickiosk.kiosk.security.AndroidKeystoreCredentialCipher
+import com.local.matholickiosk.kiosk.transfer.PcPairingStore
+import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,6 +39,62 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MainActivityInstrumentedTest {
+    @Test
+    fun unresponsivePairedPcDoesNotDelayAdminAuthenticationAtStartup() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        val pairingStore = PcPairingStore(context)
+        val accepted = CountDownLatch(1)
+        val releaseConnection = CountDownLatch(1)
+        val serverExecutor = Executors.newSingleThreadExecutor()
+        val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
+        val pairing = PcReceiverPairing(
+            receiverId = ByteArray(16) { index -> index.toByte() },
+            secret = ByteArray(32) { index -> (index + 16).toByte() },
+            host = requireNotNull(InetAddress.getLoopbackAddress().hostAddress),
+            port = server.localPort,
+            displayName = "무응답 시험 PC",
+        )
+        try {
+            database.clearAllTables()
+            AdminAuthRepository(database).enroll("654321".toCharArray())
+            pairingStore.save(pairing)
+            serverExecutor.execute {
+                server.accept().use {
+                    accepted.countDown()
+                    releaseConnection.await(15, TimeUnit.SECONDS)
+                }
+            }
+
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                assertTrue("Startup PDF transfer did not reach the test PC", accepted.await(5, TimeUnit.SECONDS))
+                waitUntil(scenario, timeoutMillis = 2_000) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.auth_title)
+                        .text
+                        .toString() == "관리자 인증" &&
+                        activity.findViewById<View>(R.id.pin_input).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario, timeoutMillis = 3_000) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                            .adapter
+                            .count > 0
+                }
+            }
+        } finally {
+            releaseConnection.countDown()
+            server.close()
+            serverExecutor.shutdownNow()
+            pairing.clearSensitiveData()
+            pairingStore.clear()
+            database.clearAllTables()
+        }
+    }
+
     @Test
     fun correctAdminPinOpensAdminWithoutDoneOrSubmitTap() {
         val context = ApplicationProvider.getApplicationContext<Context>()

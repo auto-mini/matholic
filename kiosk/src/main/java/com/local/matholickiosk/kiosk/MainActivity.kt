@@ -715,6 +715,7 @@ class MainActivity : ComponentActivity() {
         showInitialStateLoading()
         ioExecutor.execute {
             var stage = "DATABASE_OPEN"
+            var preparedReusableCards = emptyList<BatchIssuedQr>()
             val result = runCatching {
                 database.openHelper.writableDatabase
                 stage = "AUDIT_MAINTENANCE"
@@ -725,23 +726,14 @@ class MainActivity : ComponentActivity() {
                 val pinLength = authRepository.enrolledPinLength()
                 stage = "SESSION_RECOVERY"
                 val recoveredState = studentRepository.applyRestartPolicy()
-                val preparedReusableCards = run {
+                preparedReusableCards = run {
                     stage = "REUSABLE_CARD_BOOTSTRAP"
                     studentRepository.ensureReusableCardSlots()
                 }
-                val reusableCardDelivery = deliverReusableQrCards(preparedReusableCards)
                 InitialStateSnapshot(
                     enrolled = enrolled,
                     pinLength = pinLength,
                     recoveredState = recoveredState,
-                    reusableCardBootstrapMessage = when {
-                        preparedReusableCards.isEmpty() -> null
-                        reusableCardDelivery.isSuccess ->
-                            "신규용 더미 QR ${preparedReusableCards.size}장을 지정 PC에 저장했습니다."
-                        else ->
-                            "신규용 더미 데이터 ${preparedReusableCards.size}장은 준비됐지만 " +
-                                "QR PDF 전송은 실패했습니다. 관리자 화면에서 다시 준비하세요."
-                    },
                 )
             }
             result.exceptionOrNull()?.let {
@@ -752,7 +744,6 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = { snapshot ->
                         enrolledAdminPinLength = snapshot.pinLength
-                        reusableCardBootstrapMessage = snapshot.reusableCardBootstrapMessage
                         statusText.text = snapshot.recoveredState.name
                         showAuthentication(enrollment = !snapshot.enrolled)
                     },
@@ -760,6 +751,32 @@ class MainActivity : ComponentActivity() {
                         showInitialStateFailure(stage)
                     },
                 )
+            }
+            if (result.isSuccess && preparedReusableCards.isNotEmpty() && !destroyed) {
+                val issued = preparedReusableCards
+                runCatching {
+                    pcControlExecutor.execute {
+                        val delivery = deliverReusableQrCards(issued)
+                        val message = if (delivery.isSuccess) {
+                            "신규용 더미 QR ${issued.size}장을 지정 PC에 저장했습니다."
+                        } else {
+                            "신규용 더미 데이터 ${issued.size}장은 준비됐지만 " +
+                                "QR PDF 전송은 실패했습니다. 관리자 화면에서 다시 준비하세요."
+                        }
+                        runOnUiThread {
+                            if (destroyed) return@runOnUiThread
+                            publishReusableCardBootstrapMessage(message)
+                        }
+                    }
+                }.onFailure {
+                    runOnUiThread {
+                        if (destroyed) return@runOnUiThread
+                        publishReusableCardBootstrapMessage(
+                            "신규용 더미 데이터 ${issued.size}장은 준비됐지만 " +
+                                "QR PDF 전송은 시작하지 못했습니다. 관리자 화면에서 다시 준비하세요.",
+                        )
+                    }
+                }
             }
         }
     }
@@ -1953,6 +1970,18 @@ class MainActivity : ComponentActivity() {
                     },
                 )
             }
+        }
+    }
+
+    private fun publishReusableCardBootstrapMessage(message: String) {
+        reusableCardBootstrapMessage = message
+        if (
+            adminPanel.visibility == View.VISIBLE &&
+            !adminDataOperationGate.isActive &&
+            !webRecoveryGate.isActive
+        ) {
+            reusableCardBootstrapMessage = null
+            refreshAdminData(message)
         }
     }
 
@@ -5132,7 +5161,6 @@ class MainActivity : ComponentActivity() {
         val enrolled: Boolean,
         val pinLength: Int?,
         val recoveredState: KioskState,
-        val reusableCardBootstrapMessage: String?,
     )
 
     private data class QrPreview(
