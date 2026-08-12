@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 05:59:27 +09:00
+- `last_updated`: 2026-08-13 06:14:57 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `658cbe20a1f9ac353f264bc6466d71c6916ae07e` /
-  `658cbe20a1f9ac353f264bc6466d71c6916ae07e`; ahead/behind `0/0`.
+  `f560353ae807bb39e9b29b47de2f894973808fcd` /
+  `f560353ae807bb39e9b29b47de2f894973808fcd`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `658cbe20a1f9ac353f264bc6466d71c6916ae07e`
-  (`fix(kiosk): secure sensitive dialog windows (SOL-0023)`). 이 상태기록 문서
+  `f560353ae807bb39e9b29b47de2f894973808fcd`
+  (`fix(tools): fail closed on remote support errors (SOL-0025)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,7 +17,7 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 05:53 +09:00.
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 06:14 +09:00.
   승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc90`/code 95, UID 10288, first install
@@ -35,9 +35,10 @@
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
-  - Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와 ADB
-    forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
-    `INACTIVE`/부재이며 Kiosk crash buffer와 exit-info의 crash/ANR은 0건이다.
+  - Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와 실제
+    ADB forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
+    `INACTIVE`/부재이며 직접 `screencap`은 exit 1로 다시 차단됐다. Kiosk crash
+    buffer와 exit-info의 crash/ANR 0건은 05:53의 마지막 독립 확인값이다.
   - RC90 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 정확한
     데이터 보존 확인창으로 현재 세션과 임시 명단만 안전 종료하고 `ADMIN_IDLE`, Web
     사전점검과 실제 전면 카메라 QR 대기로 복원했다. 비민감 QR 대기 캡처는 도움말·
@@ -49,17 +50,16 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0023`·`SOL-0024` 증거 체크포인트. 원격 지원 중
-  Activity는 민감 상태로 복원돼도 별도 Kiosk `AlertDialog` Window가 secure flag를
-  상속하지 않는 `LUNA-0020` 부분 잔존을 실제 A에서 확인해 공통 보안 표시 경로로
-  수정했다. 수정 전/후 계측, 전체 Kiosk/Web suite, RC90 release·보존 설치와 실제
-  Window flag 검증, 구현 commit·push를 완료했다. Web 전체시험이 드러낸 malformed
-  keypad fixture 한 줄 결함도 SOL-0024로 정정·검증·push했다.
-- 다음 우선 큐: 과거 `LUNA-0021`의 원격 지원 Kiosk/Web 저장 commit·ordered broadcast
-  ACK 실패가 양 앱의 capture 차단 상태를 어긋나게 할 수 있다는 후보를 현재
-  `RemoteSupportStore`, 두 receiver, Kiosk toggle rollback과 실제 broadcast 결과로
-  독립 재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지
-  않는다.
+- 현재 작업 중 finding: `SOL-0025` 증거 체크포인트. 과거 `LUNA-0021`의 앱 저장·
+  ordered broadcast ACK 문제는 `a2e4dd3`에서 이미 대부분 수정됐지만 운영
+  `remote-tablet.ps1`이 부분 활성화와 Start/Capture 실패 뒤 원격 지원을 남기는
+  잔존을 정적·실제 A에서 확인했다. 전 target rollback·계속 cleanup으로 수정하고
+  합성 fault test, 양 앱 정책 unit, 실제 A 실패·정상 경로, 구현 commit·push를
+  완료했다.
+- 다음 우선 큐: 과거 `LUNA-0023`의 QR renderer `BitMatrix`·720×720 pixel `IntArray`가
+  반환 Bitmap 정리와 별개로 zeroize되지 않는 후보를 현재 `QrImageRenderer`, 전체
+  호출 graph, 예외·batch 반복 시험과 실제 메모리 영향으로 독립 재검증한다. 과거
+  P3 후보를 현재 증거 없이 확정 결함으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -73,8 +73,9 @@
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
   `SOL-0016`, `SOL-0018`; 현장검증 완료 P3: `SOL-0023`.
-- 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
-  `SOL-0017`, `SOL-0019`, `SOL-0020`, `SOL-0021`, `SOL-0022`.
+- 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 현장검증 완료 P4: `SOL-0025`;
+  기각 `SOL-0002`; 이미 수정됨 `SOL-0004`, `SOL-0017`, `SOL-0019`, `SOL-0020`,
+  `SOL-0021`, `SOL-0022`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -154,6 +155,13 @@
   isolated 1/1과 첫 Web 전체 1/120이 expected `6`, actual empty로 실패했다. 목표
   fixture 한 줄을 고쳐 focused 1/1, DOM class 76/76, 최종 Web 전체 120/120을
   통과했다. 제품 source·release·A 설치본에는 영향이 없다.
+- SOL-0025는 `a2e4dd3` 이후 앱의 commit 확인·ordered ACK·Kiosk enable rollback은
+  이미 수정됐지만 운영 스크립트에 부분 잔존했다. 수정 전 RC90 secure dialog에서
+  Start screenshot 실패 뒤 원격 지원이 남아 수동 Stop이 필요했다. 전 target
+  rollback·비활성화 계속 시도와 Start/Capture fail-closed cleanup을 추가해 parser,
+  합성 4개 fault scenario, Kiosk/Web 정책 unit 각 3/3, 실제 A의 실패 후 자동 차단과
+  정상 Stop→Start→Stop을 통과했다. 실제 receiver/storage failure는 A에 주입하지
+  않았고 스크립트만 바뀌어 APK·설치본에는 영향이 없다.
 - 이번 RC90에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -236,6 +244,70 @@
   `git revert 7cd302891dbf7cf77db51dc25e949ed577389bd3` 후 해당 focused, 전체
   `DomContractInstrumentedTest`와 Web 전체 계측을 다시 실행한다. 제품 source·release·
   A 설치본은 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0025 운영 도구를 되돌리려면
+  `git revert f560353ae807bb39e9b29b47de2f894973808fcd` 후 세 PowerShell parser,
+  `scripts/test-remote-tablet-state.ps1`, 양 앱 `RemoteSupportPolicyTest`와 실제 A의
+  `Stop → Start → Stop`을 다시 실행한다. 제품 APK·version·A 설치본을 바꾸지 않았으므로
+  기기 rollback은 필요 없다.
+
+## 2026-08-13 원격 지원 도구 부분 활성화·실패 후 fail-closed
+
+- `SOL-0025` — 원격 지원 운영 도구·Kiosk/Web 상태 수렴, P4, 신뢰도 높음, 상태
+  `현장검증 완료`.
+- 사용자 영향·재현 조건: 승인 ADB로 원격 지원을 시작하는 동안 두 번째 앱 broadcast나
+  뒤이은 screenshot이 실패하면 기존 스크립트는 먼저 활성화된 앱을 되돌리지 않았다.
+  capture가 만료까지 허용될 수 있고 운영자가 별도 Stop을 기억해야 했다. 승인 ADB·
+  명시적 운영 명령·실패가 함께 필요하고 최대 만료가 있어 P4로 제한한다.
+- 과거 finding 정정·정적 근거: `LUNA-0021`이 지적한 `SharedPreferences.commit()` 결과
+  무시, unordered broadcast, ACK 부재는 현재 제품 source와 일치하지 않는다. commit
+  `a2e4dd39575e21869b2b796b60b5a64b29314dcb`부터 양 앱 store는 `commit()` false를
+  예외 처리하고, Kiosk/Web ADB receiver와 Web의 Kiosk receiver는
+  `RESULT_OK`/`RESULT_CANCELED`를 반환한다. Kiosk UI는 ordered broadcast 결과를 받고
+  Web enable 실패 시 local store를 disable한다. 이 범위는 `이미 수정됨`이다.
+- 부분 잔존 근거: 수정 전 `scripts/remote-tablet.ps1`의 enable/disable loop는 첫 실패에
+  throw했고 성공 target rollback이 없었다. Start/Capture도 `Capture-Screen` 오류를
+  정리하지 않았다. RC90 실제 A의 secure 관리자 PIN dialog에서 Start screenshot이
+  거부된 뒤 원격 지원이 남아 수동 Stop이 필요했다. PIN·민감 screenshot·UI dump는
+  사용하지 않았다.
+- 결정·구현:
+  - `remote-tablet-state.ps1`가 target 전이를 분리해 enable 일부 실패 시 모든 target에
+    disable을 시도하고, disable 일부 실패 시에도 남은 target을 계속 처리하며,
+    primary·rollback failure를 함께 보고한다.
+  - main script는 broadcast 성공을 exact `result=-1` token으로 판정한다.
+    Start/Capture failure는 양 앱 Stop과 로컬 캡처 삭제 뒤 원래 오류를 다시 던지고,
+    명시적 Stop도 원격·로컬 cleanup failure를 모은다.
+  - 합성 회귀는 실제 target과 같은 hashtable을 사용해 정상 enable, Web enable failure
+    후 전체 rollback, Kiosk disable failure 뒤 Web 계속 시도, rollback failure 보존을
+    검증한다.
+- 자동검증:
+  - 세 PowerShell 파일 parser 오류 0건, trailing whitespace 0건.
+  - `scripts/test-remote-tablet-state.ps1` 합성 4개 시나리오 PASS,
+    `REMOTE_TABLET_STATE_TESTS=PASS`.
+  - `:kiosk:testDebugUnitTest :webpoc:testDebugUnitTest`와
+    `--tests '*RemoteSupportPolicyTest'`: Gradle 19초 PASS. XML은 Kiosk
+    3/3·0.002초, Web 3/3·0.016초, failure/error/skip 모두 0.
+- 실제 A 동적 근거:
+  - 수정 후 같은 secure dialog에서 Start screenshot 실패를 다시 만들자 자동 cleanup이
+    양 target ACK와 로컬 캡처 삭제를 완료했다. dialog를 닫은 비민감 QR 대기에서
+    Capture가 exit 1로 거부돼 capture 예외가 남지 않았고 명시적 Stop도 성공했다.
+  - 최종 최신 script로 `Stop → Start -Minutes 15 → Stop`을 다시 실행했다. Start는
+    QR 대기 screenshot과 `REMOTE_SUPPORT=ACTIVE`를 반환했고 화면의 원격 점검 배지·
+    도움말·카메라 전환·관리자 제어는 잘림·겹침이 없었다. Stop 뒤 local/device capture
+    부재와 직접 screencap exit 1을 확인했다.
+  - 06:14 최종 A는 승인 `SM-P610` 한 대, Kiosk RC90/code 95·UID 10288·first install
+    보존, Device Owner/HOME 보존, Kiosk top, Lock Task `LOCKED`, 원격 지원
+    `INACTIVE`, test package·실제 ADB tunnel 0개다.
+- 반대 근거·제약: 실제 Android preferences write failure, receiver 누락·비정상 ACK를
+  A에서 주입하지 않았다. 해당 ordering은 합성 command failure로 검증했다. Kiosk UI의
+  Web disable ACK failure는 현재도 로컬 차단·사용자 안내 뒤 Web의 기존 만료시각에
+  의존하지만 무응답을 성공으로 표시하지 않고 bounded라 이번 script 수정과 분리했다.
+- 변경 파일은 `scripts/remote-tablet.ps1`, 신규 `scripts/remote-tablet-state.ps1`,
+  신규 `scripts/test-remote-tablet-state.ps1`이다. 구현·원격 복구점
+  `f560353ae807bb39e9b29b47de2f894973808fcd`, 전용 origin branch push 성공.
+  release artifact·version·signer·A 설치본은 바꾸지 않았고 A 재설치는 수행하지 않았다.
+- rollback은 `git revert f560353ae807bb39e9b29b47de2f894973808fcd` 후 parser,
+  합성 fault test, 양 앱 정책 unit과 실제 A Stop→Start→Stop을 재실행한다. 기기
+  rollback은 필요 없다.
 
 ## 2026-08-13 Web malformed keypad fixture 정정
 
@@ -2148,6 +2220,8 @@
   `7cd302891dbf7cf77db51dc25e949ed577389bd3`.
 - `SOL-0023` 민감 Dialog Window secure flag·양 앱 화면 전환 회귀·RC90 release
   metadata commit: `658cbe20a1f9ac353f264bc6466d71c6916ae07e`.
+- `SOL-0025` 원격 지원 target 수렴·실패 후 fail-closed 운영 도구 commit:
+  `f560353ae807bb39e9b29b47de2f894973808fcd`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

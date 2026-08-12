@@ -1,5 +1,66 @@
 # 빌드·보안 검증 기록
 
+## 원격 지원 도구 부분 활성화·실패 후 fail-closed — 2026-08-13
+
+### 현재 판정과 수정 전 재현
+
+- 과거 `LUNA-0021`이 제기한 앱 내부 저장·응답 문제는 현재 source에서는 대부분
+  이미 수정돼 있었다. commit `a2e4dd39575e21869b2b796b60b5a64b29314dcb`부터
+  Kiosk/Web `RemoteSupportStore`는 `SharedPreferences.commit()`의 `false`를
+  예외로 전환하고, 두 ADB receiver와 Web의 Kiosk receiver는 ordered broadcast에
+  `RESULT_OK`/`RESULT_CANCELED`를 반환한다. Kiosk UI도 Web 활성화 ACK 실패 시 로컬
+  활성화를 되돌린다. 따라서 이 부분은 제품 앱 결함으로 다시 고치지 않았다.
+- 운영 도구 `scripts/remote-tablet.ps1`에는 부분 잔존이 있었다. Kiosk 활성화가
+  성공한 뒤 Web 활성화가 실패하면 첫 성공을 되돌리지 않았고, 비활성화는 첫 대상
+  실패에서 중단했다. `Start` 또는 `Capture`의 screenshot이 실패해도 양 앱 원격
+  지원과 로컬 캡처를 정리하지 않았다.
+- RC90 실제 A의 secure 관리자 PIN dialog에서 수정 전 `Start`의 자동 screenshot이
+  거부됐지만 원격 지원이 활성 상태로 남아 수동 `Stop`이 필요했다. PIN을 입력하거나
+  민감 화면을 캡처·dump하지 않고 운영 도구의 실패 후 상태만 확인했다. 승인 ADB와
+  만료형 원격 지원이 모두 필요한 낮은 위험의 운영 경계라 `SOL-0025` P4로 판정했다.
+
+### 최소 수정과 자동검증
+
+- 새 `remote-tablet-state.ps1`가 Kiosk/Web target 전이를 한 곳에서 관리한다. 활성화
+  일부가 실패하면 모든 target에 비활성화를 시도하고, 비활성화 일부가 실패해도 남은
+  target을 계속 처리하며, primary·rollback failure를 함께 보존한다.
+- `remote-tablet.ps1`은 broadcast 성공을 exact `result=-1` token으로 확인한다.
+  `Start`/`Capture` 실패 시 양 target 비활성화와 로컬 캡처 삭제를 다시 시도한 뒤
+  원래 오류를 전파하고, 명시적 `Stop`도 원격·로컬 cleanup 오류를 모두 모은다.
+- 세 PowerShell 파일의 parser 오류는 0건이고 trailing whitespace도 없었다.
+  `scripts/test-remote-tablet-state.ps1`은 실제와 같은 hashtable target으로 정상
+  활성화, Web 활성화 실패 후 전 target rollback, Kiosk 비활성화 실패 뒤 Web 계속
+  시도, rollback 자체 실패의 합성 4개 시나리오를 통과했다
+  (`REMOTE_TABLET_STATE_TESTS=PASS`).
+- 인접 제품 정책 회귀는 `:kiosk:testDebugUnitTest`,
+  `:webpoc:testDebugUnitTest`, `--tests '*RemoteSupportPolicyTest'`로 실행해
+  Kiosk 3/3·Web 3/3, failure/error/skip 0, Gradle `BUILD SUCCESSFUL in 19s`를
+  확인했다.
+
+### 실제 A 회귀·복구점
+
+- 수정 후 같은 secure dialog에서 `Start` screenshot 실패를 다시 만들었을 때 도구가
+  양 target 비활성화와 로컬 캡처 삭제를 자동 완료했다. dialog를 안전하게 닫은 뒤
+  비민감 QR 대기에서 `Capture`가 보안상 거부돼 Kiosk capture 예외가 남지 않았음을
+  확인했고, 명시적 `Stop`도 성공했다.
+- 최종 최신 경로는 물리 A 한 대에서 `Stop → Start -Minutes 15 → Stop`으로 다시
+  통과했다. 활성 캡처에는 전면 카메라 QR 대기, 원격 점검 배지, 도움말·카메라 전환·
+  관리자 제어가 잘림·겹침 없이 보였다. Stop 뒤 로컬·기기 임시 캡처는 없고 직접
+  `screencap`은 exit 1로 다시 차단됐다.
+- 최종 A는 Kiosk RC90/code 95, UID 10288·first install 보존, Kiosk top,
+  Device Owner/HOME 보존, Lock Task `LOCKED`, 원격 지원 `INACTIVE`, test package와
+  실제 ADB forward/reverse 0개다. 스크립트만 바뀌어 release build·APK version·signer·
+  설치본은 변경하지 않았고 A 재설치는 수행하지 않았다.
+- 실제 Android storage write failure나 receiver 누락을 A에서 주입하지 않았다. 해당
+  ordering·aggregation은 합성 target 시험으로 확인했으며 Kiosk UI의 Web 비활성화
+  ACK 실패는 현재도 명시적 안내와 기존 Web 만료시각에 의존하는 제한이 있다.
+- 구현·원격 복구점은
+  `f560353ae807bb39e9b29b47de2f894973808fcd`이며 전용 origin branch에 push했다.
+  rollback은 `git revert f560353ae807bb39e9b29b47de2f894973808fcd` 후 parser,
+  합성 fault test, 양 앱 RemoteSupportPolicy unit test와 실제 A의
+  `Stop → Start → Stop`을 다시 실행한다. 제품 APK를 바꾸지 않았으므로 기기
+  rollback은 필요 없다.
+
 ## RC90 원격 지원 중 민감 AlertDialog Window 캡처 차단 — 2026-08-13
 
 ### 수정 전 재현·결정
