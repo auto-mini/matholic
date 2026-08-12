@@ -3,6 +3,7 @@ package com.local.matholickiosk.kiosk.data
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.ColumnInfo
 
 @Entity(
     tableName = "students",
@@ -22,6 +23,13 @@ data class StudentEntity(
     val isActive: Boolean,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
+    // A reusable card keeps its QR hash while its account credentials are
+    // temporarily filled for a student. A free slot stores encrypted empty
+    // credentials; null means this is a regular student.
+    @ColumnInfo(defaultValue = "NULL")
+    val reusableCardLabel: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val reusableCardAssigned: Boolean = false,
 )
 
 @Entity(

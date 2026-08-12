@@ -18,7 +18,15 @@ interface StudentDao {
     @Query("SELECT * FROM students WHERE studentId = :studentId LIMIT 1")
     fun findById(studentId: String): StudentEntity?
 
-    @Query("SELECT * FROM students WHERE qrTokenHash = :hash AND isActive = 1 LIMIT 1")
+    @Query(
+        """
+        SELECT * FROM students
+        WHERE qrTokenHash = :hash
+          AND isActive = 1
+          AND (reusableCardLabel IS NULL OR reusableCardAssigned = 1)
+        LIMIT 1
+        """,
+    )
     fun findActiveByQrHash(hash: ByteArray): StudentEntity?
 
     @Query(
@@ -30,6 +38,7 @@ interface StudentDao {
           ON ss.studentId = s.studentId AND ss.sessionId = :sessionId
         WHERE s.qrTokenHash = :hash
           AND s.isActive = 1
+          AND (s.reusableCardLabel IS NULL OR s.reusableCardAssigned = 1)
           AND (cm.classId IS NOT NULL OR ss.sessionId IS NOT NULL)
         LIMIT 1
         """,
@@ -45,6 +54,7 @@ interface StudentDao {
           ON ss.studentId = s.studentId AND ss.sessionId = :sessionId
         WHERE s.studentId = :studentId
           AND s.isActive = 1
+          AND (s.reusableCardLabel IS NULL OR s.reusableCardAssigned = 1)
           AND (cm.classId IS NOT NULL OR ss.sessionId IS NOT NULL)
         LIMIT 1
         """,
@@ -59,6 +69,7 @@ interface StudentDao {
         LEFT JOIN session_students ss
           ON ss.studentId = s.studentId AND ss.sessionId = :sessionId
         WHERE s.isActive = 1
+          AND (s.reusableCardLabel IS NULL OR s.reusableCardAssigned = 1)
           AND (cm.classId IS NOT NULL OR ss.sessionId IS NOT NULL)
         ORDER BY s.displayNameExact
         """,
@@ -69,14 +80,41 @@ interface StudentDao {
         """
         SELECT s.* FROM students s
         INNER JOIN class_memberships cm ON cm.studentId = s.studentId
-        WHERE cm.classId = :classId AND s.isActive = 1
+        WHERE cm.classId = :classId
+          AND s.isActive = 1
+          AND (s.reusableCardLabel IS NULL OR s.reusableCardAssigned = 1)
         ORDER BY s.displayNameExact
         """,
     )
     fun listActiveForClass(classId: String): List<StudentEntity>
 
-    @Query("SELECT * FROM students WHERE isActive = 1 ORDER BY displayNameExact")
+    @Query(
+        """
+        SELECT * FROM students
+        WHERE isActive = 1
+          AND (reusableCardLabel IS NULL OR reusableCardAssigned = 1)
+        ORDER BY displayNameExact
+        """,
+    )
     fun listAllActive(): List<StudentEntity>
+
+    @Query(
+        """
+        SELECT * FROM students
+        WHERE isActive = 1 AND reusableCardLabel IS NOT NULL
+        ORDER BY reusableCardLabel
+        """,
+    )
+    fun listReusableCardSlots(): List<StudentEntity>
+
+    @Query(
+        """
+        SELECT * FROM students
+        WHERE reusableCardLabel IS NOT NULL
+        ORDER BY reusableCardLabel
+        """,
+    )
+    fun listAllReusableCardSlots(): List<StudentEntity>
 
     @Query(
         """
@@ -117,6 +155,16 @@ interface QrCardStatusDao {
         """,
     )
     fun listForActiveStudents(): List<QrCardStatusEntity>
+
+    @Query(
+        """
+        SELECT q.* FROM qr_card_status q
+        INNER JOIN students s ON s.studentId = q.studentId
+        WHERE s.isActive = 1 AND s.reusableCardLabel IS NOT NULL
+        ORDER BY s.reusableCardLabel
+        """,
+    )
+    fun listForReusableCardSlots(): List<QrCardStatusEntity>
 
     @Query(
         """
@@ -168,6 +216,9 @@ interface ClassDao {
         """,
     )
     fun listMembershipStudentIds(classId: String): List<String>
+
+    @Query("SELECT classId FROM class_memberships WHERE studentId = :studentId")
+    fun listMembershipClassIds(studentId: String): List<String>
 
     @Query("DELETE FROM class_groups WHERE classId = :classId")
     fun deleteById(classId: String): Int

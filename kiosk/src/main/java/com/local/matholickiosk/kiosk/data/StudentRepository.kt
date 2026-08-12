@@ -29,6 +29,27 @@ data class BatchIssuedQr(
     val issuedQr: IssuedQrPayload,
 )
 
+data class ReusableCardSlotSummary(
+    val studentId: String,
+    val slotLabel: String,
+    val displayNameExact: String,
+    val isAssigned: Boolean,
+    val needsCardPdf: Boolean,
+)
+
+data class AssignedReusableCard(
+    val studentId: String,
+    val slotLabel: String,
+)
+
+data class MovedReusableCard(
+    val previousSlotStudentId: String,
+    val studentId: String,
+    val slotLabel: String,
+    val displayNameExact: String,
+    val issuedQr: IssuedQrPayload,
+)
+
 private data class PendingBatchIssuedQr(
     val result: BatchIssuedQr,
     val token: IssuedQrToken,
@@ -113,6 +134,20 @@ class StudentRepository(
 
     fun listStudents(): List<StudentEntity> = database.studentDao().listAllActive()
 
+    fun listReusableCardSlots(): List<ReusableCardSlotSummary> {
+        val statuses = database.qrCardStatusDao().listForReusableCardSlots()
+            .associateBy(QrCardStatusEntity::studentId)
+        return database.studentDao().listReusableCardSlots().map { student ->
+            ReusableCardSlotSummary(
+                studentId = student.studentId,
+                slotLabel = requireNotNull(student.reusableCardLabel),
+                displayNameExact = student.displayNameExact,
+                isAssigned = student.reusableCardAssigned,
+                needsCardPdf = statuses[student.studentId]?.needsPrint ?: true,
+            )
+        }
+    }
+
     fun listStudentsForClass(classId: String): List<StudentEntity> =
         database.studentDao().listActiveForClass(classId)
 
@@ -179,6 +214,9 @@ class StudentRepository(
     fun reissueQr(studentId: String): IssuedQrPayload {
         val student = requireNotNull(database.studentDao().findById(studentId)) { "Student not found" }
         require(student.isActive) { "Student is inactive" }
+        require(student.reusableCardLabel == null) {
+            "신규용 재사용 카드는 QR을 유지해야 합니다. 실제 QR 카드 전환을 사용하세요."
+        }
         qrCodec.issue().use { issued ->
             database.runInTransaction {
                 val now = nowEpochMs()
@@ -210,6 +248,10 @@ class StudentRepository(
         }
         val students = database.studentDao().listActiveForClass(group.classId)
         require(students.isNotEmpty()) { "선택한 반에 소속 학생이 없습니다." }
+        require(students.none { it.reusableCardLabel != null }) {
+            "신규용 재사용 카드가 포함된 반은 QR 전체 재발급을 할 수 없습니다. " +
+                "재사용 카드의 QR은 유지해야 합니다."
+        }
         val issued = mutableListOf<PendingBatchIssuedQr>()
         try {
             students.forEach { student ->
@@ -266,6 +308,10 @@ class StudentRepository(
             .filter { it.studentId in studentIds }
         require(students.size == studentIds.size) {
             "비활성화되었거나 존재하지 않는 학생이 포함되어 있습니다."
+        }
+        require(students.none { it.reusableCardLabel != null }) {
+            "신규용 재사용 카드는 선택 QR 재발급 대상에 포함할 수 없습니다. " +
+                "재사용 카드의 QR은 유지해야 합니다."
         }
         val issued = mutableListOf<PendingBatchIssuedQr>()
         try {
@@ -421,7 +467,10 @@ class StudentRepository(
                                 updatedAtEpochMs = now,
                             ),
                         )
-                        if (matched.displayNameExact != row.displayNameExact) {
+                        if (
+                            matched.displayNameExact != row.displayNameExact &&
+                            matched.reusableCardLabel == null
+                        ) {
                             check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1)
                         }
                         updated += 1
@@ -480,6 +529,7 @@ class StudentRepository(
             var created = 0
             var updated = 0
             var renamed = 0
+            var renamedRequiringCardPdf = 0
             rows.forEach { row ->
                 val matched = existingUsernames.firstOrNull { (_, username) ->
                     username.contentEquals(row.username)
@@ -488,7 +538,12 @@ class StudentRepository(
                     created += 1
                 } else {
                     updated += 1
-                    if (matched.displayNameExact != row.displayNameExact) renamed += 1
+                    if (matched.displayNameExact != row.displayNameExact) {
+                        renamed += 1
+                        if (matched.reusableCardLabel == null) {
+                            renamedRequiringCardPdf += 1
+                        }
+                    }
                 }
             }
             val alreadyPending = listQrCardStatuses().count(QrCardStatusSummary::needsCardPdf)
@@ -496,7 +551,7 @@ class StudentRepository(
                 created = created,
                 updated = updated,
                 renamed = renamed,
-                cardsNeedingPdfAfterImport = alreadyPending + created + renamed,
+                cardsNeedingPdfAfterImport = alreadyPending + created + renamedRequiringCardPdf,
             )
         } finally {
             existingUsernames.forEach { (_, username) -> username.fill('\u0000') }
@@ -528,8 +583,10 @@ class StudentRepository(
                     updatedAtEpochMs = nowEpochMs(),
                 ),
             )
-            check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1) {
-                "QR card status not found"
+            if (student.reusableCardLabel == null) {
+                check(database.qrCardStatusDao().markCardPdfNeeded(studentId) == 1) {
+                    "QR card status not found"
+                }
             }
             audit("STUDENT_PROFILE_UPDATED", null, studentId, null)
         }
@@ -645,6 +702,12 @@ class StudentRepository(
     }
 
     fun deactivateStudent(studentId: String) {
+        val student = requireNotNull(database.studentDao().findById(studentId)) {
+            "Student not found"
+        }
+        require(student.reusableCardLabel == null) {
+            "신규용 카드는 학생 비활성화 대신 카드 회수·초기화를 사용하세요."
+        }
         withIssuedHashOnly { revokedReplacementHash ->
             database.runInTransaction {
                 check(
@@ -747,6 +810,388 @@ class StudentRepository(
                 null,
                 sessionId,
             )
+        }
+    }
+
+    /** Initializes the reusable-card pool once without rotating an existing slot QR. */
+    fun ensureReusableCardSlots(
+        targetCount: Int = REUSABLE_CARD_TARGET_COUNT,
+    ): List<BatchIssuedQr> = prepareReusableCardSlotsInternal(
+        targetCount = targetCount,
+        allowDuringActiveSession = true,
+        reissuePendingSlots = false,
+    )
+
+    fun prepareReusableCardSlots(
+        targetCount: Int = REUSABLE_CARD_TARGET_COUNT,
+    ): List<BatchIssuedQr> = prepareReusableCardSlotsInternal(
+        targetCount = targetCount,
+        allowDuringActiveSession = false,
+        reissuePendingSlots = true,
+    )
+
+    private fun prepareReusableCardSlotsInternal(
+        targetCount: Int,
+        allowDuringActiveSession: Boolean,
+        reissuePendingSlots: Boolean,
+    ): List<BatchIssuedQr> {
+        require(targetCount in 1..MAX_REUSABLE_CARD_TARGET_COUNT) {
+            "재사용 카드 목표 수는 1~${MAX_REUSABLE_CARD_TARGET_COUNT}장이어야 합니다."
+        }
+        val issued = mutableListOf<PendingBatchIssuedQr>()
+        try {
+            database.runInTransaction {
+                if (!allowDuringActiveSession) {
+                    require(database.sessionDao().get()?.sessionId == null) {
+                        "수업 중에는 신규용 카드를 준비할 수 없습니다."
+                    }
+                }
+                val allSlots = database.studentDao().listAllReusableCardSlots()
+                val slots = allSlots.filter(StudentEntity::isActive)
+                val available = slots.filterNot(StudentEntity::reusableCardAssigned)
+                val statuses = database.qrCardStatusDao().listForReusableCardSlots()
+                    .associateBy(QrCardStatusEntity::studentId)
+                val pending = if (reissuePendingSlots) {
+                    available.filter { statuses[it.studentId]?.needsPrint ?: true }
+                } else {
+                    emptyList()
+                }
+                val usedLabels = allSlots
+                    .mapNotNull(StudentEntity::reusableCardLabel)
+                    .toMutableSet()
+                val now = nowEpochMs()
+
+                fun nextSlotLabel(): String {
+                    var index = 1
+                    while (true) {
+                        val label = "신규카드$index"
+                        if (usedLabels.add(label)) return label
+                        index += 1
+                    }
+                }
+
+                pending.forEach { student ->
+                    val token = qrCodec.issue()
+                    val emptyCredentials = encryptedEmptyCredentials(student.studentId)
+                    issued += PendingBatchIssuedQr(
+                        result = BatchIssuedQr(
+                            studentId = student.studentId,
+                            displayNameExact = requireNotNull(student.reusableCardLabel),
+                            issuedQr = IssuedQrPayload(token.payload),
+                        ),
+                        token = token,
+                    )
+                    database.studentDao().update(
+                        student.copy(
+                            displayNameExact = requireNotNull(student.reusableCardLabel),
+                            displayNameMasked = requireNotNull(student.reusableCardLabel),
+                            usernameCiphertext = emptyCredentials.first.ciphertext,
+                            usernameIv = emptyCredentials.first.iv,
+                            usernameEncryptionVersion = emptyCredentials.first.version,
+                            passwordCiphertext = emptyCredentials.second.ciphertext,
+                            passwordIv = emptyCredentials.second.iv,
+                            passwordEncryptionVersion = emptyCredentials.second.version,
+                            qrTokenHash = token.hash,
+                            reusableCardAssigned = false,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = student.studentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs = statuses[student.studentId]?.lastUsedAtEpochMs,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
+                }
+
+                if (allSlots.isEmpty()) repeat(targetCount) {
+                    val studentId = UUID.randomUUID().toString()
+                    val slotLabel = nextSlotLabel()
+                    val token = qrCodec.issue()
+                    issued += PendingBatchIssuedQr(
+                        result = BatchIssuedQr(
+                            studentId = studentId,
+                            displayNameExact = slotLabel,
+                            issuedQr = IssuedQrPayload(token.payload),
+                        ),
+                        token = token,
+                    )
+                    val emptyCredentials = encryptedEmptyCredentials(studentId)
+                    database.studentDao().insert(
+                        StudentEntity(
+                            studentId = studentId,
+                            displayNameExact = slotLabel,
+                            displayNameMasked = slotLabel,
+                            usernameCiphertext = emptyCredentials.first.ciphertext,
+                            usernameIv = emptyCredentials.first.iv,
+                            usernameEncryptionVersion = emptyCredentials.first.version,
+                            passwordCiphertext = emptyCredentials.second.ciphertext,
+                            passwordIv = emptyCredentials.second.iv,
+                            passwordEncryptionVersion = emptyCredentials.second.version,
+                            qrTokenHash = token.hash,
+                            isActive = true,
+                            createdAtEpochMs = now,
+                            updatedAtEpochMs = now,
+                            reusableCardLabel = slotLabel,
+                            reusableCardAssigned = false,
+                        ),
+                    )
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = studentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs = null,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
+                }
+                if (issued.isNotEmpty()) {
+                    audit(
+                        "REUSABLE_QR_CARDS_PREPARED",
+                        issued.size.toString(),
+                        null,
+                        null,
+                    )
+                }
+            }
+            return issued.map(PendingBatchIssuedQr::result)
+        } finally {
+            issued.forEach { it.token.close() }
+        }
+    }
+
+    fun assignReusableCardSlot(
+        slotStudentId: String,
+        displayNameExact: String,
+        username: CharArray,
+        password: CharArray,
+    ): AssignedReusableCard {
+        try {
+            val exact = displayNameExact.trim()
+            require(exact.isNotEmpty()) { "Exact display name is required" }
+            require(username.isNotEmpty() && password.isNotEmpty()) {
+                "Credentials are required"
+            }
+            val usernameEncrypted = cipher.encrypt(
+                slotStudentId,
+                CredentialField.USERNAME,
+                username,
+            )
+            val passwordEncrypted = cipher.encrypt(
+                slotStudentId,
+                CredentialField.PASSWORD,
+                password,
+            )
+            var assignedSlotLabel = ""
+            database.runInTransaction {
+                val student = requireNotNull(database.studentDao().findById(slotStudentId)) {
+                    "재사용 카드 슬롯을 찾지 못했습니다."
+                }
+                val slotLabel = requireNotNull(student.reusableCardLabel) {
+                    "선택한 학생은 신규용 카드 슬롯이 아닙니다."
+                }
+                require(student.isActive && !student.reusableCardAssigned) {
+                    "선택한 신규용 카드가 이미 사용 중입니다."
+                }
+                require(
+                    database.qrCardStatusDao().find(slotStudentId)?.needsPrint == false,
+                ) {
+                    "먼저 신규용 QR 카드를 지정 PC에 저장하고 출력하세요."
+                }
+                val now = nowEpochMs()
+                database.studentDao().update(
+                    student.copy(
+                        displayNameExact = exact,
+                        displayNameMasked = exact,
+                        usernameCiphertext = usernameEncrypted.ciphertext,
+                        usernameIv = usernameEncrypted.iv,
+                        usernameEncryptionVersion = usernameEncrypted.version,
+                        passwordCiphertext = passwordEncrypted.ciphertext,
+                        passwordIv = passwordEncrypted.iv,
+                        passwordEncryptionVersion = passwordEncrypted.version,
+                        reusableCardAssigned = true,
+                        updatedAtEpochMs = now,
+                    ),
+                )
+                assignedSlotLabel = slotLabel
+                audit(
+                    "REUSABLE_QR_CARD_ASSIGNED",
+                    slotLabel,
+                    slotStudentId,
+                    null,
+                )
+            }
+            return AssignedReusableCard(
+                studentId = slotStudentId,
+                slotLabel = assignedSlotLabel,
+            )
+        } finally {
+            username.fill('\u0000')
+            password.fill('\u0000')
+        }
+    }
+
+    fun releaseReusableCardSlot(slotStudentId: String) {
+        val student = requireNotNull(database.studentDao().findById(slotStudentId)) {
+            "재사용 카드 슬롯을 찾지 못했습니다."
+        }
+        val slotLabel = requireNotNull(student.reusableCardLabel) {
+            "선택한 학생은 신규용 카드 슬롯이 아닙니다."
+        }
+        require(student.isActive && student.reusableCardAssigned) {
+            "선택한 신규용 카드가 사용 중이 아닙니다."
+        }
+        val emptyCredentials = encryptedEmptyCredentials(slotStudentId)
+        database.runInTransaction {
+            require(database.sessionDao().get()?.sessionId == null) {
+                "수업을 종료한 뒤 신규용 카드를 회수·초기화하세요."
+            }
+            val current = requireNotNull(database.studentDao().findById(slotStudentId)) {
+                "재사용 카드 슬롯을 찾지 못했습니다."
+            }
+            require(current.isActive && current.reusableCardAssigned) {
+                "선택한 신규용 카드가 이미 초기화되었습니다."
+            }
+            database.classDao().clearStudentMemberships(slotStudentId)
+            database.studentDao().update(
+                current.copy(
+                    displayNameExact = slotLabel,
+                    displayNameMasked = slotLabel,
+                    usernameCiphertext = emptyCredentials.first.ciphertext,
+                    usernameIv = emptyCredentials.first.iv,
+                    usernameEncryptionVersion = emptyCredentials.first.version,
+                    passwordCiphertext = emptyCredentials.second.ciphertext,
+                    passwordIv = emptyCredentials.second.iv,
+                    passwordEncryptionVersion = emptyCredentials.second.version,
+                    reusableCardAssigned = false,
+                    updatedAtEpochMs = nowEpochMs(),
+                ),
+            )
+            audit(
+                "REUSABLE_QR_CARD_RELEASED",
+                slotLabel,
+                slotStudentId,
+                null,
+            )
+        }
+    }
+
+    /**
+     * Gives an assigned temporary student a normal QR card. The old printed QR
+     * remains attached to its slot and is immediately reset to an empty dummy;
+     * the new regular student receives a new QR and the existing class roster.
+     */
+    fun moveReusableCardToRegularStudent(slotStudentId: String): MovedReusableCard {
+        require(database.sessionDao().get()?.sessionId == null) {
+            "수업을 종료한 뒤 실제 QR 카드로 전환하세요."
+        }
+        val slot = requireNotNull(database.studentDao().findById(slotStudentId)) {
+            "재사용 카드 슬롯을 찾지 못했습니다."
+        }
+        val slotLabel = requireNotNull(slot.reusableCardLabel) {
+            "선택한 학생은 신규용 카드 슬롯이 아닙니다."
+        }
+        require(slot.isActive && slot.reusableCardAssigned) {
+            "선택한 신규용 카드가 사용 중이 아닙니다."
+        }
+        val credentials = decryptCredentials(slotStudentId)
+        try {
+            require(credentials.username.isNotEmpty() && credentials.password.isNotEmpty()) {
+                "먼저 신규 학생 정보를 더미 카드에 등록하세요."
+            }
+            qrCodec.issue().use { issued ->
+                val newStudentId = UUID.randomUUID().toString()
+                val usernameEncrypted = cipher.encrypt(
+                    newStudentId,
+                    CredentialField.USERNAME,
+                    credentials.username,
+                )
+                val passwordEncrypted = cipher.encrypt(
+                    newStudentId,
+                    CredentialField.PASSWORD,
+                    credentials.password,
+                )
+                val now = nowEpochMs()
+                database.runInTransaction {
+                    val current = requireNotNull(database.studentDao().findById(slotStudentId)) {
+                        "재사용 카드 슬롯을 찾지 못했습니다."
+                    }
+                    require(current.isActive && current.reusableCardAssigned) {
+                        "선택한 신규용 카드가 이미 초기화되었습니다."
+                    }
+                    val memberships = database.classDao().listMembershipClassIds(slotStudentId)
+                    database.studentDao().insert(
+                        StudentEntity(
+                            studentId = newStudentId,
+                            displayNameExact = current.displayNameExact,
+                            displayNameMasked = current.displayNameMasked,
+                            usernameCiphertext = usernameEncrypted.ciphertext,
+                            usernameIv = usernameEncrypted.iv,
+                            usernameEncryptionVersion = usernameEncrypted.version,
+                            passwordCiphertext = passwordEncrypted.ciphertext,
+                            passwordIv = passwordEncrypted.iv,
+                            passwordEncryptionVersion = passwordEncrypted.version,
+                            qrTokenHash = issued.hash,
+                            isActive = true,
+                            createdAtEpochMs = now,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    memberships.forEach { classId ->
+                        database.classDao().addMembership(
+                            ClassMembershipEntity(classId, newStudentId),
+                        )
+                    }
+                    database.classDao().clearStudentMemberships(slotStudentId)
+                    val emptyCredentials = encryptedEmptyCredentials(slotStudentId)
+                    database.studentDao().update(
+                        current.copy(
+                            displayNameExact = slotLabel,
+                            displayNameMasked = slotLabel,
+                            usernameCiphertext = emptyCredentials.first.ciphertext,
+                            usernameIv = emptyCredentials.first.iv,
+                            usernameEncryptionVersion = emptyCredentials.first.version,
+                            passwordCiphertext = emptyCredentials.second.ciphertext,
+                            passwordIv = emptyCredentials.second.iv,
+                            passwordEncryptionVersion = emptyCredentials.second.version,
+                            reusableCardAssigned = false,
+                            updatedAtEpochMs = now,
+                        ),
+                    )
+                    val oldStatus = database.qrCardStatusDao().find(slotStudentId)
+                    if (oldStatus != null) {
+                        database.qrCardStatusDao().upsert(oldStatus.copy(needsPrint = false))
+                    }
+                    database.qrCardStatusDao().upsert(
+                        QrCardStatusEntity(
+                            studentId = newStudentId,
+                            issuedAtEpochMs = now,
+                            lastUsedAtEpochMs = null,
+                            lastDeliveredAtEpochMs = null,
+                            needsPrint = true,
+                        ),
+                    )
+                    audit(
+                        "REUSABLE_QR_CARD_MOVED_TO_REGULAR",
+                        slotLabel,
+                        newStudentId,
+                        null,
+                    )
+                }
+                return MovedReusableCard(
+                    previousSlotStudentId = slotStudentId,
+                    studentId = newStudentId,
+                    slotLabel = slotLabel,
+                    displayNameExact = slot.displayNameExact,
+                    issuedQr = IssuedQrPayload(issued.payload),
+                )
+            }
+        } finally {
+            credentials.close()
         }
     }
 
@@ -1009,6 +1454,16 @@ class StudentRepository(
             idleSession
         }
 
+    private fun encryptedEmptyCredentials(studentId: String): Pair<EncryptedValue, EncryptedValue> {
+        val empty = CharArray(0)
+        return try {
+            cipher.encrypt(studentId, CredentialField.USERNAME, empty) to
+                cipher.encrypt(studentId, CredentialField.PASSWORD, empty)
+        } finally {
+            empty.fill('\u0000')
+        }
+    }
+
     private fun audit(
         eventType: String,
         reasonCode: String?,
@@ -1042,6 +1497,8 @@ class StudentRepository(
     }
 
     private companion object {
+        const val REUSABLE_CARD_TARGET_COUNT = 4
+        const val MAX_REUSABLE_CARD_TARGET_COUNT = 4
         const val AUDIT_MAINTENANCE_INTERVAL = 256
         const val MAX_AUDIT_ROWS = 10_000
         const val AUDIT_RETENTION_MS = 90L * 24 * 60 * 60 * 1000

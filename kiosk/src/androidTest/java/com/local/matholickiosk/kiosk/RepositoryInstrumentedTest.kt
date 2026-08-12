@@ -749,6 +749,173 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun reusableCardSlotKeepsQrAcrossAssignmentAndRelease() {
+        val prepared = repository.prepareReusableCardSlots()
+        assertEquals(4, prepared.size)
+        val preparedHashes = prepared.associate { item ->
+            item.studentId to database.studentDao().findById(item.studentId)!!.qrTokenHash.copyOf()
+        }
+        assertEquals(0, repository.ensureReusableCardSlots().size)
+        preparedHashes.forEach { (studentId, hash) ->
+            assertArrayEquals(hash, database.studentDao().findById(studentId)!!.qrTokenHash)
+            hash.fill(0)
+        }
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+
+        val slot = repository.listReusableCardSlots().first()
+        val originalHash = database.studentDao().findById(slot.studentId)!!.qrTokenHash.copyOf()
+        assertFalse(slot.isAssigned)
+        assertFalse(slot.needsCardPdf)
+        assertTrue(repository.listStudents().none { it.studentId == slot.studentId })
+        repository.decryptCredentials(slot.studentId).use {
+            assertTrue(it.username.isEmpty())
+            assertTrue(it.password.isEmpty())
+        }
+
+        val classId = repository.createClass("재사용 카드 수업")
+        val regular = repository.registerStudent(
+            "기존 학생",
+            "existing-user".toCharArray(),
+            "existing-password".toCharArray(),
+        )
+        repository.markCardPdfsSavedToPc(setOf(regular.studentId))
+        repository.replaceClassMemberships(classId, setOf(regular.studentId))
+        val session = repository.startSession(classId)
+        assertNull(
+            repository.validateForActiveSession(
+                qrHash(prepared.first { it.studentId == slot.studentId }.issuedQr.payload),
+            ),
+        )
+
+        val username = "new-user".toCharArray()
+        val password = "new-password".toCharArray()
+        val assigned = repository.assignReusableCardSlot(
+            slotStudentId = slot.studentId,
+            displayNameExact = "신규 학생",
+            username = username,
+            password = password,
+        )
+        assertTrue(username.all { it == '\u0000' })
+        assertTrue(password.all { it == '\u0000' })
+        assertEquals(slot.slotLabel, assigned.slotLabel)
+        assertArrayEquals(
+            originalHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+        repository.updateStudentProfile(slot.studentId, "신규 학생 이름변경")
+        assertFalse(database.qrCardStatusDao().find(slot.studentId)!!.needsPrint)
+        assertArrayEquals(
+            originalHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+        assertNull(
+            repository.validateForActiveSession(
+                qrHash(prepared.first { it.studentId == slot.studentId }.issuedQr.payload),
+            ),
+        )
+        assertTrue(
+            repository.listTemporaryStudentCandidatesForActiveSession(requireNotNull(session.sessionId))
+                .any { it.studentId == slot.studentId },
+        )
+        assertTrue(runCatching { repository.reissueQr(slot.studentId) }.isFailure)
+        assertArrayEquals(
+            originalHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+        assertEquals(0, repository.ensureReusableCardSlots().size)
+        assertEquals(4, repository.listReusableCardSlots().size)
+        repository.endSession()
+        val csvRow = StudentCsvRow(
+            displayNameExact = "신규 학생 CSV 이름",
+            username = "new-user".toCharArray(),
+            password = "new-password-csv".toCharArray(),
+            classNames = setOf("재사용 카드 수업"),
+        )
+        val preview = repository.previewStudentImport(listOf(csvRow))
+        assertEquals(1, preview.updated)
+        assertEquals(1, preview.renamed)
+        assertEquals(0, preview.cardsNeedingPdfAfterImport)
+        val imported = repository.importStudents(listOf(csvRow))
+        assertEquals(0, imported.cardsNeedingPdf)
+        assertFalse(database.qrCardStatusDao().find(slot.studentId)!!.needsPrint)
+        assertArrayEquals(
+            originalHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+        repository.replaceClassMemberships(
+            classId,
+            setOf(regular.studentId, slot.studentId),
+        )
+        assertTrue(runCatching { repository.reissueQrBatch(setOf(slot.studentId)) }.isFailure)
+        assertTrue(runCatching { repository.reissueClassQrBatch(classId) }.isFailure)
+        assertArrayEquals(
+            originalHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+
+        repository.releaseReusableCardSlot(slot.studentId)
+        val released = repository.listReusableCardSlots()
+            .first { it.studentId == slot.studentId }
+        assertFalse(released.isAssigned)
+        assertTrue(repository.listStudents().none { it.studentId == slot.studentId })
+        assertTrue(repository.membershipStudentIds(classId).none { it == slot.studentId })
+        repository.decryptCredentials(slot.studentId).use {
+            assertTrue(it.username.isEmpty())
+            assertTrue(it.password.isEmpty())
+        }
+        assertArrayEquals(
+            originalHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+        assertEquals(0, repository.prepareReusableCardSlots().size)
+    }
+
+    @Test
+    fun assignedReusableCardMovesToNewQrAndResetsOldDummySlot() {
+        val prepared = repository.prepareReusableCardSlots()
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+        val slot = repository.listReusableCardSlots().first()
+        val classId = repository.createClass("실제 카드 전환 수업")
+        val username = "move-user".toCharArray()
+        val password = "move-password".toCharArray()
+        repository.assignReusableCardSlot(
+            slotStudentId = slot.studentId,
+            displayNameExact = "전환 학생",
+            username = username,
+            password = password,
+        )
+        repository.replaceClassMemberships(classId, setOf(slot.studentId))
+        val oldHash = database.studentDao().findById(slot.studentId)!!.qrTokenHash.copyOf()
+
+        val moved = repository.moveReusableCardToRegularStudent(slot.studentId)
+
+        assertFalse(moved.studentId == slot.studentId)
+        assertEquals(slot.slotLabel, moved.slotLabel)
+        assertEquals("전환 학생", moved.displayNameExact)
+        assertFalse(oldHash.contentEquals(qrHash(moved.issuedQr.payload)))
+        assertArrayEquals(
+            oldHash,
+            database.studentDao().findById(slot.studentId)!!.qrTokenHash,
+        )
+        val resetSlot = repository.listReusableCardSlots().first { it.studentId == slot.studentId }
+        assertFalse(resetSlot.isAssigned)
+        repository.decryptCredentials(slot.studentId).use {
+            assertTrue(it.username.isEmpty())
+            assertTrue(it.password.isEmpty())
+        }
+        repository.decryptCredentials(moved.studentId).use {
+            assertArrayEquals("move-user".toCharArray(), it.username)
+            assertArrayEquals("move-password".toCharArray(), it.password)
+        }
+        assertEquals(setOf(moved.studentId), repository.membershipStudentIds(classId))
+        assertTrue(repository.listStudents().any { it.studentId == moved.studentId })
+        assertTrue(repository.listStudents().none { it.studentId == slot.studentId })
+        assertFalse(database.qrCardStatusDao().find(slot.studentId)!!.needsPrint)
+        assertTrue(database.qrCardStatusDao().find(moved.studentId)!!.needsPrint)
+        oldHash.fill(0)
+    }
+
+    @Test
     fun csvImportUpdatesByLoginIdAndTracksOnlyCardsNeedingPdf() {
         val classA = repository.createClass("월1")
         val classB = repository.createClass("화2")

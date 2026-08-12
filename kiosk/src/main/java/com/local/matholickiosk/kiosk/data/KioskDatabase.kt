@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AuditEventEntity::class,
         AdminCredentialEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class KioskDatabase : RoomDatabase() {
@@ -42,7 +42,12 @@ abstract class KioskDatabase : RoomDatabase() {
                     KioskDatabase::class.java,
                     DATABASE_NAME,
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                    )
                     .addCallback(SECURE_DELETE_CALLBACK)
                     .build()
                     .also { instance = it }
@@ -108,6 +113,17 @@ abstract class KioskDatabase : RoomDatabase() {
                         `passwordEncryptionVersion` = 0
                     WHERE `isActive` = 0
                     """.trimIndent(),
+                )
+            }
+        }
+
+        internal val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `students` ADD COLUMN `reusableCardLabel` TEXT DEFAULT NULL",
+                )
+                db.execSQL(
+                    "ALTER TABLE `students` ADD COLUMN `reusableCardAssigned` INTEGER NOT NULL DEFAULT 0",
                 )
             }
         }

@@ -54,10 +54,13 @@ import com.local.matholickiosk.kiosk.bridge.OneTimeCredentialBroker
 import com.local.matholickiosk.kiosk.data.ActiveSessionEntity
 import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.AdminAuthResult
+import com.local.matholickiosk.kiosk.data.BatchIssuedQr
 import com.local.matholickiosk.kiosk.data.KioskDatabase
+import com.local.matholickiosk.kiosk.data.MovedReusableCard
 import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.data.StudentCsvParser
 import com.local.matholickiosk.kiosk.data.ParsedStudentCsv
+import com.local.matholickiosk.kiosk.data.ReusableCardSlotSummary
 import com.local.matholickiosk.kiosk.data.StudentCsvImportPreview
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.CameraFacing
@@ -134,6 +137,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var updateProfileButton: Button
     private lateinit var updateCredentialsButton: Button
     private lateinit var deactivateStudentButton: Button
+    private lateinit var reusableCardsButton: Button
     private lateinit var addTemporaryButton: Button
     private lateinit var startSessionButton: Button
     private lateinit var resumeSessionButton: Button
@@ -208,8 +212,10 @@ class MainActivity : ComponentActivity() {
     private var authEnrollmentMode = false
     private var authBusy = false
     private var initialStateLoadFailed = false
+    private var reusableCardBootstrapMessage: String? = null
     private var classes: List<Choice> = emptyList()
     private var students: List<StudentChoice> = emptyList()
+    private var reusableCardSlots: List<ReusableCardSlotSummary> = emptyList()
     private val classRosterState = ClassRosterSelectionState()
     private val studentSelectionState = RefreshableSelectionState()
     private val webRecoveryGate = SingleFlightGate()
@@ -487,6 +493,7 @@ class MainActivity : ComponentActivity() {
         updateProfileButton = findViewById(R.id.update_profile_button)
         updateCredentialsButton = findViewById(R.id.update_credentials_button)
         deactivateStudentButton = findViewById(R.id.deactivate_student_button)
+        reusableCardsButton = findViewById(R.id.reusable_cards_button)
         addTemporaryButton = findViewById(R.id.add_temporary_button)
         startSessionButton = findViewById(R.id.start_session_button)
         resumeSessionButton = findViewById(R.id.resume_session_button)
@@ -538,6 +545,7 @@ class MainActivity : ComponentActivity() {
             updateProfileButton,
             updateCredentialsButton,
             deactivateStudentButton,
+            reusableCardsButton,
             exportQrPdfButton,
             batchQrButton,
             pendingCardsPdfButton,
@@ -606,6 +614,7 @@ class MainActivity : ComponentActivity() {
         updateProfileButton.setOnClickListener { showUpdateStudentNameDialog() }
         updateCredentialsButton.setOnClickListener { showUpdateCredentialsDialog() }
         deactivateStudentButton.setOnClickListener { confirmDeactivateStudent() }
+        reusableCardsButton.setOnClickListener { showReusableCardMenu() }
         exportQrPdfButton.setOnClickListener { confirmQrPdfExport() }
         batchQrButton.setOnClickListener { confirmBatchQrPrint() }
         pendingCardsPdfButton.setOnClickListener { showPendingCardsDialog() }
@@ -715,10 +724,23 @@ class MainActivity : ComponentActivity() {
                 stage = "ADMIN_PIN_LENGTH"
                 val pinLength = authRepository.enrolledPinLength()
                 stage = "SESSION_RECOVERY"
+                val recoveredState = studentRepository.applyRestartPolicy()
+                val preparedReusableCards = run {
+                    stage = "REUSABLE_CARD_BOOTSTRAP"
+                    studentRepository.ensureReusableCardSlots()
+                }
+                val reusableCardDelivery = deliverReusableQrCards(preparedReusableCards)
                 InitialStateSnapshot(
                     enrolled = enrolled,
                     pinLength = pinLength,
-                    recoveredState = studentRepository.applyRestartPolicy(),
+                    recoveredState = recoveredState,
+                    reusableCardBootstrapMessage = when {
+                        preparedReusableCards.isEmpty() -> null
+                        reusableCardDelivery.isSuccess ->
+                            "신규카드1~4 더미 QR을 지정 PC에 저장했습니다."
+                        else ->
+                            "신규카드1~4 더미 데이터는 준비됐지만 QR PDF 전송은 실패했습니다. 관리자 화면에서 다시 전송하세요."
+                    },
                 )
             }
             result.exceptionOrNull()?.let {
@@ -729,6 +751,7 @@ class MainActivity : ComponentActivity() {
                 result.fold(
                     onSuccess = { snapshot ->
                         enrolledAdminPinLength = snapshot.pinLength
+                        reusableCardBootstrapMessage = snapshot.reusableCardBootstrapMessage
                         statusText.text = snapshot.recoveredState.name
                         showAuthentication(enrollment = !snapshot.enrolled)
                     },
@@ -910,7 +933,9 @@ class MainActivity : ComponentActivity() {
             LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS,
         )
         statusText.text = "ADMIN_LOADING"
-        refreshAdminData(message)
+        val startupMessage = reusableCardBootstrapMessage
+        reusableCardBootstrapMessage = null
+        refreshAdminData(message ?: startupMessage)
         refreshPcPairingState()
         reportPcStatus("관리자 화면", null, notify = false)
     }
@@ -1049,8 +1074,10 @@ class MainActivity : ComponentActivity() {
                         StudentChoice(
                             id = it.studentId,
                             label = it.displayNameExact,
+                            reusableCardLabel = it.reusableCardLabel,
                         )
                     }
+                val loadedReusableCardSlots = studentRepository.listReusableCardSlots()
                 val session = studentRepository.currentSession()
                 val resolvedClassId = session?.classId
                     ?: preferredClassId?.takeIf { candidate ->
@@ -1060,6 +1087,7 @@ class MainActivity : ComponentActivity() {
                 AdminDataSnapshot(
                     classes = loadedClasses,
                     students = loadedStudents,
+                    reusableCardSlots = loadedReusableCardSlots,
                     session = session,
                     resolvedClassId = resolvedClassId,
                     membershipStudentIds = resolvedClassId
@@ -1102,6 +1130,7 @@ class MainActivity : ComponentActivity() {
     ) {
         classes = snapshot.classes
         students = snapshot.students
+        reusableCardSlots = snapshot.reusableCardSlots
         currentSession = snapshot.session
         classRosterState.resolveRefresh(
             snapshot = classSelectionSnapshot,
@@ -1204,7 +1233,11 @@ class MainActivity : ComponentActivity() {
         ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
-            choices.map(StudentChoice::label).ifEmpty { listOf(emptyLabel) },
+            choices.map { choice ->
+                choice.reusableCardLabel?.let { slotLabel ->
+                    "${choice.label} · $slotLabel"
+                } ?: choice.label
+            }.ifEmpty { listOf(emptyLabel) },
         )
 
     private fun createClass() {
@@ -1536,6 +1569,10 @@ class MainActivity : ComponentActivity() {
             adminMessage.text = "학생을 선택하세요."
             return
         }
+        if (selected.reusableCardLabel != null) {
+            confirmMoveReusableCard(selected)
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle("QR 폐기·재발급")
             .setMessage(
@@ -1822,6 +1859,487 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun showReusableCardMenu() {
+        val slots = reusableCardSlots
+        val available = slots.filterNot(ReusableCardSlotSummary::isAssigned)
+        val assigned = slots.filter(ReusableCardSlotSummary::isAssigned)
+        val pendingPrint = available.count(ReusableCardSlotSummary::needsCardPdf)
+        var actionIndex = 0
+        val assignIndex = actionIndex++
+        val replacePendingIndex = if (pendingPrint > 0) actionIndex++ else -1
+        val moveIndex = if (assigned.isNotEmpty()) actionIndex++ else -1
+        val releaseIndex = if (assigned.isNotEmpty()) actionIndex++ else -1
+        val actions = buildList {
+            add("무료 카드 학생에게 배정")
+            if (pendingPrint > 0) add("저장 미확인 카드 QR 폐기·새 QR 전송")
+            if (assigned.isNotEmpty()) add("실제 QR 카드로 전환·더미 초기화")
+            if (assigned.isNotEmpty()) add("사용 중 카드 회수·초기화")
+        }
+        AlertDialog.Builder(this)
+            .setTitle(
+                "신규용 QR 카드 · 전체 ${slots.size}장 · " +
+                    "무료 ${available.size}장 · 사용 중 ${assigned.size}장",
+            )
+            .setItems(actions.toTypedArray()) { _, which ->
+                when {
+                    which == assignIndex -> showAssignReusableCardDialog()
+                    which == replacePendingIndex -> confirmReplacePendingReusableCards(pendingPrint)
+                    which == moveIndex -> showMoveReusableCardDialog()
+                    which == releaseIndex -> showReleaseReusableCardDialog()
+                }
+            }
+            .setNegativeButton("닫기", null)
+            .show()
+    }
+
+    private fun confirmReplacePendingReusableCards(pendingCount: Int) {
+        if (currentSession?.sessionId != null) {
+            adminMessage.text = "수업을 종료한 뒤 더미 QR을 다시 준비하세요."
+            return
+        }
+        if (pairedPcDisplayName == null) {
+            adminMessage.text = "새 더미 QR PDF를 전송하려면 먼저 지정 PC를 페어링하세요."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("저장 미확인 QR ${pendingCount}장 폐기·교체")
+            .setMessage(
+                "앱은 QR 원문을 보관하지 않아 같은 QR을 다시 전송할 수 없습니다.\n\n" +
+                    "계속하면 저장 확인이 안 된 무료 카드의 기존 QR은 즉시 사용할 수 없게 되고 " +
+                    "새 QR PDF를 지정 PC로 전송합니다. PC에 이전 PDF가 있거나 이미 출력했다면 " +
+                    "이전 파일과 인쇄물을 폐기하고 새 QR만 사용하세요.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("기존 QR 폐기·새 QR 전송") { _, _ ->
+                prepareReusableCards()
+            }
+            .show()
+    }
+
+    private fun prepareReusableCards() {
+        if (currentSession?.sessionId != null) {
+            adminMessage.text = "수업을 종료한 뒤 더미 QR을 다시 준비하세요."
+            return
+        }
+        if (pairedPcDisplayName == null) {
+            adminMessage.text = "더미 QR PDF를 전송하려면 먼저 지정 PC를 페어링하세요."
+            return
+        }
+        if (!beginAdminDataOperation("저장 미확인 QR을 폐기하고 새 QR을 전송하는 중")) return
+        ioExecutor.execute {
+            val result = runCatching {
+                val issued = studentRepository.prepareReusableCardSlots()
+                deliverReusableQrCards(issued).getOrThrow()
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { sentCount ->
+                        refreshAdminData(
+                            message = if (sentCount > 0) {
+                                "신규카드 더미 QR ${sentCount}장을 지정 PC에 저장했습니다."
+                            } else {
+                                "다시 전송할 미출력 더미 QR이 없습니다."
+                            },
+                            completeAdminDataOperationAfterLoad = true,
+                        )
+                    },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text =
+                            (it.message ?: "신규용 QR 카드 준비 실패") +
+                                " 더미 QR은 미출력 상태로 유지됩니다."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun deliverReusableQrCards(
+        issued: List<BatchIssuedQr>,
+    ): Result<Int> {
+        if (issued.isEmpty()) return Result.success(0)
+        var output: File? = null
+        val cards = mutableListOf<BatchQrCard>()
+        val deliveryRequestId = ByteArray(PcTransferProtocol.REQUEST_ID_BYTES)
+            .also(SecureRandom()::nextBytes)
+        return try {
+            runCatching {
+                issued.forEach { item ->
+                    cards += BatchQrCard(
+                        displayName = item.displayNameExact,
+                        qrBitmap = QrImageRenderer.render(
+                            payload = item.issuedQr.payload,
+                            sizePixels = QR_SIZE_PIXELS,
+                        ),
+                    )
+                }
+                output = BatchQrPdfExporter.export(this, cards)
+                withReachablePairedPc { pairing ->
+                    pcPdfSender.send(
+                        pairing = pairing,
+                        pdfFile = requireNotNull(output),
+                        filename = "신규카드1-4 더미 QR.pdf",
+                        requestId = deliveryRequestId,
+                    )
+                }
+                studentRepository.markCardPdfsSavedToPc(
+                    issued.mapTo(mutableSetOf(), BatchIssuedQr::studentId),
+                )
+                issued.size
+            }
+        } finally {
+            deliveryRequestId.fill(0)
+            output?.delete()
+            cards.forEach { card ->
+                if (!card.qrBitmap.isRecycled) {
+                    QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
+                }
+            }
+        }
+    }
+
+    private fun showAssignReusableCardDialog() {
+        val candidates = reusableCardSlots.filter {
+            !it.isAssigned && !it.needsCardPdf
+        }
+        if (candidates.isEmpty()) {
+            adminMessage.text = if (
+                reusableCardSlots.any { !it.isAssigned && it.needsCardPdf }
+            ) {
+                "먼저 신규용 카드를 지정 PC에 저장하고 출력하세요."
+            } else {
+                "현재 무료 신규용 카드가 없습니다. 사용 중 카드를 실제 QR 카드로 전환하거나 회수·초기화하세요."
+            }
+            return
+        }
+        val slotSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                candidates.map(ReusableCardSlotSummary::slotLabel),
+            )
+            filterTouchesWhenObscured = true
+        }
+        val nameInput = dialogTextInput(
+            hint = "학생 전체 이름",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PERSON_NAME,
+        )
+        val usernameInput = dialogTextInput(
+            hint = "학습 계정 아이디",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            sensitive = true,
+        )
+        val passwordInput = dialogTextInput(
+            hint = "학습 계정 비밀번호",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            sensitive = true,
+        )
+        val passwordConfirmInput = dialogTextInput(
+            hint = "비밀번호 확인",
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            sensitive = true,
+        )
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+            addView(
+                TextView(this@MainActivity).apply {
+                    text = "사용할 카드"
+                    setTextColor(android.graphics.Color.rgb(72, 101, 129))
+                },
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                slotSpinner,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = dp(4) },
+            )
+            listOf(nameInput, usernameInput, passwordInput, passwordConfirmInput)
+                .forEach { input ->
+                    addView(
+                        input,
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                        ).apply { topMargin = dp(8) },
+                    )
+                }
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("신규 학생에게 카드 배정")
+            .setMessage(
+                "선택한 카드의 QR은 변경하지 않습니다. " +
+                    "학생 이름·ID·PW만 저장하며 현재 수업의 보충 학생으로 자동 추가하지 않습니다.",
+            )
+            .setView(form)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("QR 유지·배정", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val exactName = nameInput.text.toString().trim()
+                val username = usernameInput.text.toSensitiveCharArray()
+                val password = passwordInput.text.toSensitiveCharArray()
+                val confirmation = passwordConfirmInput.text.toSensitiveCharArray()
+                usernameInput.text.clear()
+                passwordInput.text.clear()
+                passwordConfirmInput.text.clear()
+                if (
+                    exactName.isEmpty() ||
+                    username.isEmpty() ||
+                    password.isEmpty() ||
+                    confirmation.isEmpty() ||
+                    !password.contentEquals(confirmation)
+                ) {
+                    username.fill('\u0000')
+                    password.fill('\u0000')
+                    confirmation.fill('\u0000')
+                    passwordConfirmInput.error =
+                        "이름·아이디·비밀번호를 입력하고 확인값을 맞추세요."
+                    return@setOnClickListener
+                }
+                confirmation.fill('\u0000')
+                dialog.dismiss()
+                assignReusableCard(
+                    slot = candidates[slotSpinner.selectedItemPosition],
+                    exactName = exactName,
+                    username = username,
+                    password = password,
+                )
+            }
+        }
+        remoteSupportWindowController.setSensitiveScreen(true)
+        dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
+        dialog.show()
+    }
+
+    private fun assignReusableCard(
+        slot: ReusableCardSlotSummary,
+        exactName: String,
+        username: CharArray,
+        password: CharArray,
+    ) {
+        if (!beginAdminDataOperation("${slot.slotLabel} 학생 계정 배정 중")) {
+            username.fill('\u0000')
+            password.fill('\u0000')
+            return
+        }
+        executeSensitive(
+            cleanup = {
+                username.fill('\u0000')
+                password.fill('\u0000')
+            },
+        ) {
+            val result = runCatching {
+                val assigned = studentRepository.assignReusableCardSlot(
+                    slotStudentId = slot.studentId,
+                    displayNameExact = exactName,
+                    username = username,
+                    password = password,
+                )
+                assigned
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { assigned ->
+                        refreshAdminData(
+                            message =
+                                "${assigned.slotLabel}를 $exactName 학생에게 배정했습니다. " +
+                                    "QR은 그대로 유지하며 현재 수업 보강에는 자동 추가하지 않습니다.",
+                            preferredStudentId = assigned.studentId,
+                            completeAdminDataOperationAfterLoad = true,
+                        )
+                    },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "신규용 카드 배정 실패"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun confirmMoveReusableCard(selected: StudentChoice) {
+        val slotLabel = selected.reusableCardLabel
+        if (slotLabel == null) {
+            adminMessage.text = "신규용 카드 슬롯을 선택하세요."
+            return
+        }
+        if (currentSession?.sessionId != null) {
+            adminMessage.text = "수업을 종료한 뒤 실제 QR 카드로 전환하세요."
+            return
+        }
+        if (pairedPcDisplayName == null) {
+            adminMessage.text = "새 실제 QR 카드를 저장하려면 먼저 지정 PC를 페어링하세요."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("$slotLabel 실제 QR 카드로 전환")
+            .setMessage(
+                "현재 더미 QR은 폐기하지 않고 $slotLabel 빈 더미로 초기화합니다.\n" +
+                    "학생 정보와 반 소속은 새 QR의 일반 학생 카드로 옮기며, 새 QR PDF를 지정 PC에 저장합니다.\n" +
+                    "전환 후에는 새 QR 카드를 사용하세요.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("새 QR 발급·전환") { _, _ -> moveReusableCard(selected) }
+            .show()
+    }
+
+    private fun showMoveReusableCardDialog() {
+        val assigned = students.filter { it.reusableCardLabel != null }
+        if (assigned.isEmpty()) {
+            adminMessage.text = "사용 중인 신규용 카드가 없습니다."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("실제 QR 카드로 전환할 학생 선택")
+            .setItems(
+                assigned.map { selected ->
+                    "${selected.reusableCardLabel} · ${selected.label}"
+                }.toTypedArray(),
+            ) { _, which -> confirmMoveReusableCard(assigned[which]) }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun moveReusableCard(selected: StudentChoice) {
+        val slotLabel = requireNotNull(selected.reusableCardLabel)
+        if (!beginAdminDataOperation("$slotLabel 실제 QR 카드로 전환 중")) return
+        ioExecutor.execute {
+            var output: File? = null
+            val cards = mutableListOf<BatchQrCard>()
+            val requestId = ByteArray(PcTransferProtocol.REQUEST_ID_BYTES)
+                .also(SecureRandom()::nextBytes)
+            val result = runCatching {
+                val moved = studentRepository.moveReusableCardToRegularStudent(selected.id)
+                var deliveryFailure: Throwable? = null
+                try {
+                    cards += BatchQrCard(
+                        displayName = moved.displayNameExact,
+                        qrBitmap = QrImageRenderer.render(
+                            payload = moved.issuedQr.payload,
+                            sizePixels = QR_SIZE_PIXELS,
+                        ),
+                    )
+                    output = BatchQrPdfExporter.export(this, cards)
+                    withReachablePairedPc { pairing ->
+                        pcPdfSender.send(
+                            pairing = pairing,
+                            pdfFile = requireNotNull(output),
+                            filename = "실제 학생 QR 카드.pdf",
+                            requestId = requestId,
+                        )
+                    }
+                    studentRepository.markCardPdfsSavedToPc(setOf(moved.studentId))
+                } catch (failure: Throwable) {
+                    deliveryFailure = failure
+                }
+                moved to deliveryFailure
+            }
+            requestId.fill(0)
+            output?.delete()
+            cards.forEach { card ->
+                if (!card.qrBitmap.isRecycled) {
+                    QrPdfExporter.releaseSensitiveBitmap(card.qrBitmap)
+                }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { (moved, deliveryFailure) ->
+                        showQrPreview(
+                            QrPreview(
+                                studentId = moved.studentId,
+                                exactName = moved.displayNameExact,
+                                bitmap = QrImageRenderer.render(
+                                    payload = moved.issuedQr.payload,
+                                    sizePixels = QR_SIZE_PIXELS,
+                                ),
+                            ),
+                        )
+                        refreshAdminData(
+                            message = if (deliveryFailure == null) {
+                                "실제 학생 QR 카드로 전환했고 기존 ${moved.slotLabel}은 빈 더미로 초기화했습니다. " +
+                                    "새 QR 카드를 사용하세요."
+                            } else {
+                                "실제 학생 데이터와 새 QR을 만들고 기존 ${moved.slotLabel}을 빈 더미로 초기화했습니다. " +
+                                    "새 QR PDF 전송 실패이므로 카드 상태에서 다시 전송하세요."
+                            },
+                            preferredStudentId = moved.studentId,
+                            completeAdminDataOperationAfterLoad = true,
+                        )
+                    },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "실제 QR 카드 전환 실패"
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showReleaseReusableCardDialog() {
+        val assigned = reusableCardSlots.filter(ReusableCardSlotSummary::isAssigned)
+        if (assigned.isEmpty()) {
+            adminMessage.text = "사용 중인 신규용 카드가 없습니다."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("사용 중 카드 선택")
+            .setItems(
+                assigned.map {
+                    "${it.slotLabel} · ${it.displayNameExact}"
+                }.toTypedArray(),
+            ) { _, which ->
+                val selected = assigned[which]
+                AlertDialog.Builder(this)
+                    .setTitle("${selected.slotLabel} 회수·초기화")
+                    .setMessage(
+                        "${selected.displayNameExact} 학생의 계정정보와 반 소속을 이 카드 슬롯에서 제거하고 " +
+                            "같은 QR을 다시 무료 카드로 돌립니다. 수업이 끝난 뒤에만 실행할 수 있습니다.",
+                    )
+                    .setNegativeButton("취소", null)
+                    .setPositiveButton("회수·초기화") { _, _ ->
+                        releaseReusableCard(selected)
+                    }
+                    .show()
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun releaseReusableCard(slot: ReusableCardSlotSummary) {
+        if (!beginAdminDataOperation("${slot.slotLabel} 카드 회수·초기화 중")) return
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.releaseReusableCardSlot(slot.studentId)
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = {
+                        refreshAdminData(
+                            message = "${slot.slotLabel}를 회수·초기화했습니다. 같은 QR이 다시 무료 슬롯이 되었습니다.",
+                            completeAdminDataOperationAfterLoad = true,
+                        )
+                    },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "신규용 카드 회수·초기화 실패"
+                    },
+                )
+            }
+        }
+    }
+
     private fun confirmDeactivateStudent() {
         val selected = students.getOrNull(studentSpinner.selectedItemPosition)
         if (selected == null) {
@@ -1898,6 +2416,9 @@ class MainActivity : ComponentActivity() {
         updateProfileButton.isEnabled = available && hasStudents
         updateCredentialsButton.isEnabled = available && hasStudents
         deactivateStudentButton.isEnabled = available && hasStudents
+        val reusableAvailableCount = reusableCardSlots.count { !it.isAssigned }
+        reusableCardsButton.text = "신규용 카드 관리 · 무료 ${reusableAvailableCount}장"
+        reusableCardsButton.isEnabled = available
         pendingCardsPdfButton.isEnabled =
             available && hasStudents && currentSession?.sessionId == null &&
             pairedPcDisplayName != null
@@ -4580,6 +5101,7 @@ class MainActivity : ComponentActivity() {
     private data class StudentChoice(
         val id: String,
         val label: String,
+        val reusableCardLabel: String? = null,
     )
 
     private data class PcStatusUpdate(
@@ -4591,6 +5113,7 @@ class MainActivity : ComponentActivity() {
     private data class AdminDataSnapshot(
         val classes: List<Choice>,
         val students: List<StudentChoice>,
+        val reusableCardSlots: List<ReusableCardSlotSummary>,
         val session: ActiveSessionEntity?,
         val resolvedClassId: String?,
         val membershipStudentIds: Set<String>,
@@ -4600,6 +5123,7 @@ class MainActivity : ComponentActivity() {
         val enrolled: Boolean,
         val pinLength: Int?,
         val recoveredState: KioskState,
+        val reusableCardBootstrapMessage: String?,
     )
 
     private data class QrPreview(

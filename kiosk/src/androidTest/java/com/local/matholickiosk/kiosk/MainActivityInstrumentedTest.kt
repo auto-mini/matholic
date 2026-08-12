@@ -731,6 +731,7 @@ class MainActivityInstrumentedTest {
                     Boolean::class.javaPrimitiveType,
                     String::class.java,
                     String::class.java,
+                    String::class.java,
                 )
                 .apply { isAccessible = true }
             scenario.onActivity { activity ->
@@ -739,6 +740,7 @@ class MainActivityInstrumentedTest {
                     true,
                     "synthetic-result",
                     checkNotNull(activeSession.sessionId),
+                    null,
                 )
             }
 

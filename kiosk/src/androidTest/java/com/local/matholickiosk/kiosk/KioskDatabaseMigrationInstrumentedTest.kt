@@ -139,4 +139,43 @@ class KioskDatabaseMigrationInstrumentedTest {
             }
         }
     }
+
+    @Test
+    fun migration4To5AddsUnassignedReusableCardColumnsWithoutChangingStudents() {
+        helper.createDatabase(databaseName, 4).apply {
+            execSQL(
+                """
+                INSERT INTO students (
+                    studentId, displayNameExact, displayNameMasked,
+                    usernameCiphertext, usernameIv, usernameEncryptionVersion,
+                    passwordCiphertext, passwordIv, passwordEncryptionVersion,
+                    qrTokenHash, isActive, createdAtEpochMs, updatedAtEpochMs
+                ) VALUES (
+                    'student-1', '기존학생', '기존학생',
+                    X'01', X'02', 1,
+                    X'03', X'04', 1,
+                    X'05', 1, 1000, 2000
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(
+            databaseName,
+            5,
+            true,
+            KioskDatabase.MIGRATION_4_5,
+        ).use { database ->
+            database.query(
+                "SELECT reusableCardLabel, reusableCardAssigned, displayNameExact " +
+                    "FROM students WHERE studentId = 'student-1'",
+            ).use { cursor ->
+                cursor.moveToFirst()
+                assertEquals(null, cursor.getString(0))
+                assertEquals(0, cursor.getInt(1))
+                assertEquals("기존학생", cursor.getString(2))
+            }
+        }
+    }
 }
