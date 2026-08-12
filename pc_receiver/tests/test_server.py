@@ -1,9 +1,11 @@
 import socket
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
+from matholic_pdf_receiver import server as server_module
 from matholic_pdf_receiver.config import ConfigStore, ReceiverConfig
 from matholic_pdf_receiver.protocol import (
     CONTROL_CONFIRM_CSV,
@@ -101,6 +103,101 @@ def test_tcp_receiver_returns_authenticated_ack(
         assert events[0].notification_message == "카드 PDF 저장 완료"
         assert "student" not in events[0].notification_message
     finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_server_close_disconnects_partial_active_handler_before_returning(
+    tmp_path: Path,
+    config: ReceiverConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(server_module, "MAX_ACTIVE_CONNECTIONS", 1)
+    store = config_store(tmp_path / "config.json")
+    store.save(config)
+    state = ReceiverState(config, store)
+    server = ThreadedReceiverServer(("127.0.0.1", 0), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = socket.create_connection(server.server_address, timeout=2)
+    try:
+        connection.sendall(b"M")
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if not server._connection_slots.acquire(blocking=False):
+                break
+            server._connection_slots.release()
+            time.sleep(0.01)
+        else:
+            pytest.fail("partial request handler did not start")
+
+        server.shutdown()
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+        server.server_close()
+
+        connection.settimeout(0.25)
+        try:
+            assert connection.recv(1) == b""
+        except (ConnectionAbortedError, ConnectionResetError):
+            pass
+        assert server._connection_slots.acquire(blocking=False)
+        server._connection_slots.release()
+    finally:
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_server_close_has_bounded_wait_for_handler_inside_state_operation(
+    tmp_path: Path,
+    config: ReceiverConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(server_module, "HANDLER_SHUTDOWN_TIMEOUT_SECONDS", 0.05)
+    store = config_store(tmp_path / "config.json")
+    store.save(config)
+    state = ReceiverState(config, store)
+    pairing = config.pairing(host="127.0.0.1")
+    frame = encode_request(pairing, "student.pdf", b"%PDF-1.4\n%%EOF\n")
+    handler_started = threading.Event()
+    release_handler = threading.Event()
+    original_accept = state.accept
+
+    def wait_inside_accept(payload: bytes) -> tuple[bytes, Path]:
+        handler_started.set()
+        assert release_handler.wait(timeout=2)
+        return original_accept(payload)
+
+    monkeypatch.setattr(state, "accept", wait_inside_accept)
+    server = ThreadedReceiverServer(("127.0.0.1", 0), state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = socket.create_connection(server.server_address, timeout=2)
+    try:
+        connection.sendall(frame)
+        assert handler_started.wait(timeout=2)
+        server.shutdown()
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+
+        started = time.monotonic()
+        server.server_close()
+        elapsed = time.monotonic() - started
+
+        assert elapsed < 0.5
+        assert not server.active_handlers_drained
+    finally:
+        release_handler.set()
+        connection.close()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if server._connection_slots.acquire(blocking=False):
+                server._connection_slots.release()
+                break
+            time.sleep(0.01)
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)

@@ -399,6 +399,7 @@ class ReceiverApplication:
                 pass
         server = self.server
         server_thread = self.server_thread
+        server_stopped = server is None
         if server is not None:
             try:
                 if server_thread is not None and server_thread.is_alive():
@@ -407,15 +408,21 @@ class ReceiverApplication:
                 pass
             try:
                 server.server_close()
+                server_stopped = server.active_handlers_drained
             except Exception:
                 pass
-        receiver_state = self.receiver_state
-        if receiver_state is not None:
-            receiver_state.close()
         current_thread = threading.current_thread()
         for worker in (server_thread, self.tray_thread):
             if worker is not None and worker is not current_thread and worker.is_alive():
                 worker.join(timeout=2)
+        if server_thread is not None and server_thread.is_alive():
+            server_stopped = False
+        receiver_state = self.receiver_state
+        if receiver_state is not None and server_stopped:
+            try:
+                receiver_state.close()
+            except Exception:
+                pass
         root = self.root
         if root is not None:
             try:

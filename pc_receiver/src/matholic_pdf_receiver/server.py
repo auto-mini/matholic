@@ -35,6 +35,7 @@ from .pending_csv import PendingCsv, PendingCsvStore
 
 SOCKET_TIMEOUT_SECONDS = 10
 SOCKET_TOTAL_DEADLINE_SECONDS = 30
+HANDLER_SHUTDOWN_TIMEOUT_SECONDS = 2
 MAX_ACTIVE_CONNECTIONS = 32
 SAFE_FILENAME = re.compile(r"[^0-9A-Za-z가-힣._ -]+")
 
@@ -415,15 +416,23 @@ class ThreadedReceiverServer(socketserver.ThreadingTCPServer):
     def __init__(self, address: tuple[str, int], receiver_state: ReceiverState) -> None:
         self.receiver_state = receiver_state
         self._connection_slots = threading.BoundedSemaphore(MAX_ACTIVE_CONNECTIONS)
+        self._active_requests: set[socket.socket] = set()
+        self._active_requests_changed = threading.Condition()
+        self.active_handlers_drained = True
         super().__init__(address, _ReceiverHandler)
 
     def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
         if not self._connection_slots.acquire(blocking=False):
             request.close()
             return
+        with self._active_requests_changed:
+            self._active_requests.add(request)
         try:
             super().process_request(request, client_address)
         except Exception:
+            with self._active_requests_changed:
+                self._active_requests.discard(request)
+                self._active_requests_changed.notify_all()
             self._connection_slots.release()
             raise
 
@@ -435,4 +444,36 @@ class ThreadedReceiverServer(socketserver.ThreadingTCPServer):
         try:
             super().process_request_thread(request, client_address)
         finally:
+            with self._active_requests_changed:
+                self._active_requests.discard(request)
+                self._active_requests_changed.notify_all()
             self._connection_slots.release()
+
+    def server_close(self) -> None:
+        try:
+            super().server_close()
+        finally:
+            self.active_handlers_drained = self._close_active_requests_and_wait(
+                HANDLER_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+
+    def _close_active_requests_and_wait(self, timeout_seconds: float) -> bool:
+        with self._active_requests_changed:
+            active_requests = tuple(self._active_requests)
+        for request in active_requests:
+            try:
+                request.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                request.close()
+            except OSError:
+                pass
+        deadline = time.monotonic() + timeout_seconds
+        with self._active_requests_changed:
+            while self._active_requests:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._active_requests_changed.wait(remaining)
+        return True

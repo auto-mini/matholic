@@ -178,3 +178,40 @@ def test_main_always_shuts_down_after_mainloop_failure(monkeypatch) -> None:
             app.main()
 
     application.shutdown.assert_called_once_with()
+
+
+def test_cleanup_closes_receiver_state_after_server_and_handlers_stop() -> None:
+    application = app.ReceiverApplication.__new__(app.ReceiverApplication)
+    application.tray = None
+    application.server = Mock(active_handlers_drained=True)
+    application.server_thread = Mock()
+    application.server_thread.is_alive.side_effect = [True, True, False]
+    application.tray_thread = None
+    application.receiver_state = Mock()
+    application.root = Mock()
+
+    application._cleanup_resources()
+
+    application.server.shutdown.assert_called_once_with()
+    application.server.server_close.assert_called_once_with()
+    application.server_thread.join.assert_called_once_with(timeout=2)
+    application.receiver_state.close.assert_called_once_with()
+    application.root.destroy.assert_called_once_with()
+
+
+def test_cleanup_skips_state_close_if_active_handlers_do_not_drain() -> None:
+    application = app.ReceiverApplication.__new__(app.ReceiverApplication)
+    application.tray = None
+    application.server = Mock(active_handlers_drained=False)
+    application.server_thread = Mock()
+    application.server_thread.is_alive.side_effect = [True, False, False]
+    application.tray_thread = None
+    application.receiver_state = Mock()
+    application.root = Mock()
+
+    application._cleanup_resources()
+
+    application.server.shutdown.assert_called_once_with()
+    application.server.server_close.assert_called_once_with()
+    application.receiver_state.close.assert_not_called()
+    application.root.destroy.assert_called_once_with()
