@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 06:25:38 +09:00
+- `last_updated`: 2026-08-13 06:38:13 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `f1823a918f5eda58952377eb41c28e9beba1e9ff` /
-  `f1823a918f5eda58952377eb41c28e9beba1e9ff`; ahead/behind `0/0`.
+  `daa315b10703927853688d7235bf0fe14b57ae9d` /
+  `daa315b10703927853688d7235bf0fe14b57ae9d`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `f1823a918f5eda58952377eb41c28e9beba1e9ff`
-  (`docs(sol): record remote support failure recovery (SOL-0025)`). 이 상태기록 문서
+  `daa315b10703927853688d7235bf0fe14b57ae9d`
+  (`test(kiosk): cover administrator PIN cleanup branches (SOL-0027)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -50,14 +50,15 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0026` 증거 체크포인트. 과거 `LUNA-0023`의 상한 없는
-  QR renderer와 미정리 `BitMatrix`·pixel 배열 후보는 `9047bd7`에서 2,048px 상한과
-  `finally` zeroize로 이미 수정됐다. 현재 source/history·production 720px 호출과
-  격리 API 33 renderer 계측 2/2를 독립 재확인했고 제품 source는 바꾸지 않았다.
-- 다음 우선 큐: 과거 `LUNA-0028`의 관리자 PIN scalar 조회와 verifier/Room byte 배열
-  ownership·zeroize 후보를 현재 DAO·repository·PIN verifier·입력/변경 호출 graph와
-  예외·실패 시험으로 독립 재검증한다. 과거 해결 표시는 현재 증거로 확인하기 전
-  결론으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0027` 증거 체크포인트. 과거 `LUNA-0028`의 full-row PIN
+  bootstrap·Room entity/verifier 배열 alias·cleanup 부재는 `cd0f1cc`에서 scalar 조회,
+  deep copy와 다중 `finally` zeroize로 이미 수정됐다. 현재 source/blame을 독립
+  재확인하고 duplicate·거부·lockout·성공 입력 cleanup 회귀를 추가해 Kiosk unit,
+  lint·assemble와 API 33 전체 84/84를 통과한 test commit·push를 완료했다.
+- 다음 우선 큐: 과거 `LUNA-0029`의 Web loopback CONNECT proxy 동시 tunnel·idle 수명·
+  accept-loop health recovery 후보를 현재 `LoopbackConnectProxy`, registry, coordinator,
+  process lifecycle과 socket fault 시험으로 독립 재검증한다. 과거 해결 표시는 현재
+  증거로 확인하기 전 결론으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -73,7 +74,7 @@
   `SOL-0016`, `SOL-0018`; 현장검증 완료 P3: `SOL-0023`.
 - 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 현장검증 완료 P4: `SOL-0025`;
   기각 `SOL-0002`; 이미 수정됨 `SOL-0004`, `SOL-0017`, `SOL-0019`, `SOL-0020`,
-  `SOL-0021`, `SOL-0022`, `SOL-0026`.
+  `SOL-0021`, `SOL-0022`, `SOL-0026`, `SOL-0027`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -166,6 +167,12 @@
   모두 720px이다. 격리 API 33 AVD의 focused renderer 2/2도 통과했다. 실제 heap·GC·
   OOM·인쇄는 측정하지 않았고 test는 내부 배열을 직접 관찰하지 않으므로 cleanup
   실행 판정은 현재 control flow 근거다. 제품·시험 source와 A 설치본은 바꾸지 않았다.
+- SOL-0027은 `LUNA-0028`의 2026-08-02 full-row 조회·shallow array alias·cleanup 부재가
+  `cd0f1cc`에서 scalar DAO, verifier deep copy와 repository/verifier `finally` cleanup으로
+  이미 교정됐음을 확인했다. 합성 PIN으로 등록·duplicate 예외·거부·lockout·성공의
+  입력 배열 cleanup을 추가 고정했고 focused 2/2, unit 99/99, 전체 계측 84/84를
+  통과했다. Room 내부 복사·heap/GC·provider/DB fault는 직접 관찰하지 않았고 제품
+  source·release·A 설치본은 바꾸지 않았다.
 - 이번 RC90에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -258,6 +265,52 @@
   되돌릴 때만 `git revert 9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe` 후 renderer
   focused·Kiosk 전체 계측, unit·lint·assemble·공식 release를 다시 실행한다. A에
   반영하려면 같은 signer·code 96 이상의 forward rollback을 사용한다.
+- SOL-0027 시험 체크포인트를 되돌리려면
+  `git revert daa315b10703927853688d7235bf0fe14b57ae9d` 후 repository focused,
+  Kiosk unit·lint·debug/AndroidTest assemble과 API 33 전체 계측을 다시 실행한다.
+  제품 source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 관리자 PIN verifier ownership·cleanup 독립 재검증
+
+- `SOL-0027` — Kiosk 관리자 PIN·Room transient 배열 ownership, P4, 신뢰도 높음,
+  상태 `이미 수정됨`.
+- 과거 후보·영향: `LUNA-0028`은 등록 여부·PIN 길이 확인에도 전체 credential row가
+  materialize되고, authenticate entity와 `PinVerifier`, enroll entity가 같은
+  `salt`·`derivedKey` 배열을 alias한 채 명시적 cleanup 없이 끝나 승인 debug/heap
+  전제에서 verifier 잔류 수명을 늘릴 수 있다고 제기했다. raw PIN 저장이나 실제 heap
+  노출은 확인하지 않은 P4 후보였다.
+- 현재 정적·이력 반증:
+  - `cd0f1cc2bd557749b68ae3f161564d1528944368`은 `isEnrolled()`를 scalar
+    `COUNT(*)`, `enrolledPinLength()`를 scalar column 조회로 바꿔 bootstrap과 duplicate
+    enroll 검사에서 BLOB materialization을 제거했다.
+  - enroll은 local verifier를 DB save 성공·예외 뒤 `finally clear()`하고 입력
+    `CharArray`를 외부 `finally`에서 지운다. authenticate는 Room entity 배열을 deep
+    copy해 verifier에 넘기고, 성공·잘못된 PIN·lockout early return·save failure가 모두
+    통과하는 `finally`에서 verifier copy, entity salt/key와 입력 PIN을 지운다.
+  - `PinVerifier.clear()`는 두 배열을 0으로 덮는다. `AdminPin.create()`는 derive failure의
+    salt를 지우고 `verify()`는 PBKDF2 candidate를 `finally`에서 지운다. 핵심 현재
+    line의 blame은 `cd0f1cc`를 유지한다.
+- 신규 동적 회귀: 합성 `654321` 계열만 사용해 enroll 입력, duplicate enroll 예외,
+  잘못된 PIN `Rejected(1,000)`, 같은 시각 lockout early return, 1초 진행 뒤 success를
+  실행했다. 각 호출 뒤 원본 입력 배열이 모두 0 문자이고 결과 상태가 정확함을 확인했다.
+  실제 운영 PIN·물리 A PIN 화면·운영 DB는 사용하지 않았다.
+- 자동검증:
+  - 변경 전 기존 repository focused 1/1 PASS; 변경 후 class 2/2·Gradle 27초 PASS.
+    최종 XML class 12.275초, 신규 case 7.069초, failure/error/skip 0.
+  - `AdminPinTest` 3/3·0.336초, Kiosk unit 전체 99/99·1.089초 PASS.
+  - Kiosk unit·lint·debug/AndroidTest assemble 84 tasks, 1분 32초 PASS.
+  - API 33 AVD 전체 계측 84/84, failure/error/skip 0, XML 135.145초,
+    Gradle 2분 34초 PASS.
+- 반대 근거·미검증: Room generated cursor/statement·SQLite native binding이 만든 추가
+  복사본, ART heap/GC timing, PBKDF2 provider failure와 실제 DB save fault는 직접
+  관찰하지 않았다. persisted verifier를 지우거나 heap dump를 만들지 않았으며 신규
+  시험은 repository가 소유한 input cleanup과 auth state를 고정한다.
+- 변경은 `AdminAuthRepositoryInstrumentedTest.kt` 한 파일뿐이다. 시험·원격 복구점
+  `daa315b10703927853688d7235bf0fe14b57ae9d`, 전용 origin branch push 성공.
+  AVD는 종료했고 물리 A는 RC90 Kiosk top, Lock Task `LOCKED`, secure capture 차단과
+  임시 캡처 부재를 유지했다. release build·A 재설치는 수행하지 않았다.
+- rollback은 `git revert daa315b10703927853688d7235bf0fe14b57ae9d` 후 focused,
+  unit·lint·assemble·전체 계측을 재실행한다. 기기 rollback은 필요 없다.
 
 ## 2026-08-13 QR renderer 임시 표현 zeroize 독립 재검증
 
@@ -2273,6 +2326,8 @@
   `f560353ae807bb39e9b29b47de2f894973808fcd`.
 - `SOL-0026`에서 독립 재검증한 기존 QR renderer 상한·임시 표현 zeroize commit:
   `9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe`.
+- `SOL-0027` 관리자 PIN cleanup branch 회귀 고정 test commit:
+  `daa315b10703927853688d7235bf0fe14b57ae9d`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

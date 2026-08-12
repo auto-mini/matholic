@@ -1,5 +1,54 @@
 # 빌드·보안 검증 기록
 
+## 관리자 PIN verifier ownership·cleanup 회귀 고정 — 2026-08-13
+
+### 현재 판정과 기존 교정
+
+- 과거 `LUNA-0028`은 관리자 등록 여부·PIN 길이 확인도 전체 credential row를 읽고,
+  등록·인증의 `salt`·`derivedKey` 배열이 Room entity와 `PinVerifier` 사이에 alias된
+  채 명시적 cleanup 없이 남는 P4 후보였다.
+- commit `cd0f1cc2bd557749b68ae3f161564d1528944368`이 이 경계를 이미 교정했다.
+  현재 `isEnrolled()`와 `enrolledPinLength()`는 각각 scalar `COUNT(*)`와
+  `pinLength`만 읽는다. 등록 verifier는 DB save 성공·실패 뒤 `finally`에서 지우고,
+  인증은 entity 배열을 deep copy한 verifier와 원본 entity 배열을 성공·거부·lockout
+  조기 반환·DB save 예외 모두 통과하는 `finally`에서 각각 지운다.
+- `PinVerifier.clear()`는 salt와 derived key를 모두 덮어쓰고, `AdminPin.create()`는
+  derive failure에서 salt를 지우며 `verify()`는 candidate key를 `finally`에서
+  지운다. repository는 등록·인증 입력 `CharArray`도 모든 반환·예외에서 0 문자로
+  덮어쓴다. 현재 핵심 line의 blame은 `cd0f1cc`를 유지한다.
+- 따라서 과거 full-row bootstrap·shallow alias·verifier cleanup 부재 전제는 현재
+  source에서 성립하지 않는다. `SOL-0027`은 P4·신뢰도 높음·`이미 수정됨`으로
+  판정했고 제품 source는 바꾸지 않았다.
+
+### 신규 회귀·전체 자동검증
+
+- 기존 repository 계측은 정상 등록→scalar 조회→성공 인증 한 경로만 확인했다.
+  신규 합성 시험은 등록 입력, duplicate enroll 예외, 잘못된 PIN 거부, lockout 조기
+  반환, 만료 후 성공을 차례로 실행하고 각 호출 뒤 입력 `CharArray`가 모두 0 문자인지와
+  정확한 `AdminAuthResult`를 확인한다. 실제 운영 PIN·DB·기기 인증은 사용하지 않았다.
+- 변경 후 focused `AdminAuthRepositoryInstrumentedTest`는 2/2·Gradle 27초 PASS다.
+  최종 전체 XML에서 class 2/2·12.275초, 신규 case 7.069초, failure/error/skip 0이다.
+- `AdminPinTest` 3/3·0.336초 PASS. 최종 Kiosk unit 전체는 99/99·1.089초,
+  failure/error/skip 0이다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 1m 32s`다.
+  API 33 AVD 전체 계측은 84/84, failure/error/skip 0, XML 135.145초,
+  Gradle `BUILD SUCCESSFUL in 2m 34s`다.
+
+### 제한·복구점
+
+- Room generated cursor/statement의 추가 native/managed copy, ART heap/GC timing,
+  PBKDF2 provider failure와 실제 DB save fault의 transient buffer는 직접 관찰하지
+  않았다. 이번 시험은 repository가 소유한 입력 배열과 결과 상태를 검증하며 persisted
+  DB verifier를 지우거나 heap dump를 만들지 않는다.
+- AVD는 시험 직후 종료했다. 물리 A는 Kiosk RC90 top, Lock Task `LOCKED`, secure
+  capture 차단과 임시 캡처 부재를 유지했다. test-only 변경이라 release artifact·
+  version·signer·A 설치본을 바꾸지 않았고 release build·A 재설치는 수행하지 않았다.
+- 신규 시험·원격 복구점은
+  `daa315b10703927853688d7235bf0fe14b57ae9d`이며 전용 origin branch에 push했다.
+  rollback은 `git revert daa315b10703927853688d7235bf0fe14b57ae9d` 후 focused,
+  Kiosk unit·lint·assemble과 전체 계측을 다시 실행한다. 기기 rollback은 필요 없다.
+
 ## QR renderer 임시 표현 zeroize 독립 재검증 — 2026-08-13
 
 ### 현재 판정과 정적 근거
