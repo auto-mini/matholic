@@ -617,6 +617,55 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
+    fun activeRemoteSupportKeepsCredentialSetupSecureAcrossScreenTransitions() {
+        val remoteSupportStore = RemoteSupportStore(context)
+        remoteSupportStore.disable()
+        remoteSupportStore.enable(RemoteSupportPolicy.DEFAULT_DURATION_MILLIS)
+        writeState(WebPocState.IDLE)
+
+        try {
+            assertTrue(remoteSupportStore.activeUntilEpochMillis() != null)
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                scenario.onUiInitialized { activity ->
+                    val showSetup = MainActivity::class.java.getDeclaredMethod("showSetup")
+                        .apply { isAccessible = true }
+                    val showActive = MainActivity::class.java.getDeclaredMethod(
+                        "showActive",
+                        String::class.java,
+                    ).apply { isAccessible = true }
+
+                    showSetup.invoke(activity)
+                    assertEquals(
+                        View.VISIBLE,
+                        activity.findViewById<View>(R.id.setup_panel).visibility,
+                    )
+                    assertEquals(
+                        WindowManager.LayoutParams.FLAG_SECURE,
+                        activity.window.attributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                    )
+
+                    showActive.invoke(activity, WebSecurityPolicy.COURSE_URL)
+                    assertEquals(
+                        0,
+                        activity.window.attributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                    )
+
+                    showSetup.invoke(activity)
+                    assertEquals(
+                        WindowManager.LayoutParams.FLAG_SECURE,
+                        activity.window.attributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                    )
+                }
+            }
+        } finally {
+            remoteSupportStore.disable()
+        }
+    }
+
+    @Test
     fun activeStudentSessionUsesEightyPercentBrightnessAndRestoresPreviousValue() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

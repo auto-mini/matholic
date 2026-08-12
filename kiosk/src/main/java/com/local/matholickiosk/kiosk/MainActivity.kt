@@ -1520,9 +1520,8 @@ class MainActivity : ComponentActivity() {
                 registerStudent(exactName, username, password)
             }
         }
-        remoteSupportWindowController.setSensitiveScreen(true)
         dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
-        dialog.show()
+        showSensitiveDialog(dialog)
     }
 
     private fun registerStudent(
@@ -1663,9 +1662,8 @@ class MainActivity : ComponentActivity() {
                 updateStudentName(selected, exactName)
             }
         }
-        remoteSupportWindowController.setSensitiveScreen(true)
         dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
-        dialog.show()
+        showSensitiveDialog(dialog)
     }
 
     private fun updateStudentName(selected: StudentChoice, exactName: String) {
@@ -1828,9 +1826,8 @@ class MainActivity : ComponentActivity() {
                 updateStudentCredentials(selected, username, password)
             }
         }
-        remoteSupportWindowController.setSensitiveScreen(true)
         dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
-        dialog.show()
+        showSensitiveDialog(dialog)
     }
 
     private fun updateStudentCredentials(
@@ -2153,9 +2150,8 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        remoteSupportWindowController.setSensitiveScreen(true)
         dialog.setOnDismissListener { restoreRemoteSupportScreenPolicy() }
-        dialog.show()
+        showSensitiveDialog(dialog)
     }
 
     private fun assignReusableCard(
@@ -4557,7 +4553,13 @@ class MainActivity : ComponentActivity() {
             if (scannerVisible) qrAnalyzer?.setEnabled(true)
             restoreRemoteSupportScreenPolicy()
         }
+        showSensitiveDialog(dialog)
+    }
+
+    private fun showSensitiveDialog(dialog: AlertDialog) {
         remoteSupportWindowController.setSensitiveScreen(true)
+        checkNotNull(dialog.window) { "Sensitive dialog window is unavailable" }
+            .addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         dialog.show()
     }
 

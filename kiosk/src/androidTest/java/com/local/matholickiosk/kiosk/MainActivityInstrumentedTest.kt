@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inspector.WindowInspector
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -745,6 +746,72 @@ class MainActivityInstrumentedTest {
                 }
             }
         } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
+    fun activeRemoteSupportKeepsAdminPinSecureAndAllowsAdminCapture() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        val remoteSupportStore = RemoteSupportStore(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        remoteSupportStore.disable()
+        remoteSupportStore.enable(RemoteSupportPolicy.DEFAULT_DURATION_MILLIS)
+
+        try {
+            assertTrue(remoteSupportStore.activeUntilEpochMillis() != null)
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitForAdminAuthentication(scenario)
+                scenario.onActivity { activity ->
+                    assertEquals(
+                        View.VISIBLE,
+                        activity.findViewById<View>(R.id.remote_support_badge).visibility,
+                    )
+                    assertTrue(
+                        (activity.window.attributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE) != 0,
+                    )
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                    activity.findViewById<View>(R.id.auth_submit).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<View>(R.id.remote_support_badge).visibility ==
+                            View.VISIBLE &&
+                        (activity.window.attributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE) == 0
+                }
+                scenario.onActivity { activity ->
+                    MainActivity::class.java
+                        .getDeclaredMethod("requestSessionAdminAuthentication")
+                        .apply { isAccessible = true }
+                        .invoke(activity)
+
+                    assertTrue(
+                        (activity.window.attributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE) != 0,
+                    )
+                    val dialogRoot = WindowInspector.getGlobalWindowViews().single {
+                        it !== activity.window.decorView
+                    }
+                    val dialogWindowAttributes =
+                        dialogRoot.layoutParams as WindowManager.LayoutParams
+                    assertTrue(
+                        (dialogWindowAttributes.flags and
+                            WindowManager.LayoutParams.FLAG_SECURE) != 0,
+                    )
+                    dialogRoot.findViewById<View>(android.R.id.button2).performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    (activity.window.attributes.flags and
+                        WindowManager.LayoutParams.FLAG_SECURE) == 0
+                }
+            }
+        } finally {
+            remoteSupportStore.disable()
             database.clearAllTables()
         }
     }
