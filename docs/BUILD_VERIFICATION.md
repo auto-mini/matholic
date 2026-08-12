@@ -1,5 +1,89 @@
 # 빌드·보안 검증 기록
 
+## Web RC138 loopback proxy resource·실패 연결 cleanup — 2026-08-13
+
+### 현재 판정과 부분 잔존
+
+- 과거 `LUNA-0029`의 cached thread pool, 무상한 tunnel·socket 수명, 성공 tunnel의
+  무기한 read와 accept-loop 사망 미통지 전제는 현재 source에 그대로 남아 있지 않다.
+  commit `3410fd54b1b4f7038ac7b71a6641f45d5975de8e`은 worker를
+  `MAX_TUNNELS * 2` fixed pool로 바꾸고 permit·active socket registry, 양방향 60초
+  idle timeout, accept 실패 callback과 coordinator의 1회 bounded restart를 추가했다.
+- 최초 상한 8은 실제 Web RC119에서 공식 로그인 TLS에 503을 반환했다. commit
+  `8c8cb247e4363cc5b367c4482f93d17fcf0ad1b4`가 backlog 64·동시 tunnel 32로
+  올렸고 당시 같은 A·계정·네트워크에서 로그인 성공을 확인했다. 현재 32 tunnel과
+  64 worker는 tunnel마다 요청/상향 복사 worker 1개와 역방향 worker 1개를 배정하는
+  구조와 일치한다.
+- 기존 `LoopbackProxyLifecycleTest`는 permit helper 상한과 registry/task cleanup만
+  검증해 실제 listener의 33번째 연결, 성공 tunnel idle 회수와 accept failure callback을
+  실행하지 않았다. 이번 실제 loopback 회귀로 이 검증 공백을 닫았다.
+- 별도로 실패한 upstream `Socket.connect()`는 `Socket().apply { connect(...) }`에서
+  예외가 나면 지역 `upstream`에 할당되기 전 참조를 잃었다. 현재 Microsoft JDK
+  17.0.20에서 `127.0.0.1:0` 연결은 `BindException` 뒤 `isClosed=false`로 재현돼,
+  반복 DNS/연결 실패 때 native socket 회수를 GC에 맡기는 부분 잔존을 확인했다.
+  사용자 영향은 네트워크 장애 중 반복 요청이 오래 이어질 때 Web proxy의 FD 압박과
+  복구 실패 가능성이므로 `SOL-0028` P3·신뢰도 높음·`자동검증 완료`로 판정했다.
+
+### 최소 수정과 동적 회귀
+
+- `DirectUpstreamSocketConnector`가 새 socket의 연결 소유권을 가진다. connect가
+  성공하기 전 어떤 예외가 나도 `finally`에서 즉시 close하고, 성공한 socket만 proxy에
+  넘긴다. proxy는 idle timeout 설정이 실패해도 반환받은 socket을 닫은 뒤 예외를
+  전파한다. host/443 allowlist, connect/header timeout, 32 tunnel cap과 60초 production
+  idle 값은 바꾸지 않았다.
+- focused `LoopbackProxyLifecycleTest` 9/9, failure/error/skip 0, XML 0.709초 PASS다.
+  실제 loopback listener에서 32개 incomplete client가 worker를 점유한 뒤 33번째가
+  `HTTP/1.1 503 Service Unavailable`을 받는 것을 확인했다. 로컬 upstream을 주입한
+  성공 CONNECT는 시험용 250ms idle 뒤 EOF로 회수됐고, private listener를 강제 close한
+  경우 health callback이 도착했으며 정상 `close()`는 callback을 만들지 않았다.
+  실제 JDK connect failure 뒤 connector가 socket을 닫는 회귀도 포함한다.
+- 기존 coordinator 시험의 `unexpected proxy termination performs one bounded restart`와
+  실제 listener callback 시험을 함께 통과했다. 실제 Android WebView proxy override
+  listener를 고의로 두 번 죽이는 시험은 수행하지 않았다.
+- Web unit 전체 18 suites·72/72, failure/error/skip 0이다. `:webpoc:testDebugUnitTest
+  :webpoc:lintDebug :webpoc:assembleDebug :webpoc:assembleDebugAndroidTest`는 79 tasks,
+  `BUILD SUCCESSFUL in 57s`; debug lint는 0 error·기존 warning 20건이다.
+- API 33 `matholic_rc03_api33` AVD에 debug와 androidTest APK를 serial 고정 설치하고
+  전체 instrumentation 120/120을 실행했다. `Time: 278.177`, failure 0이며 AVD는
+  즉시 종료해 승인 ADB에는 물리 A 한 대만 남겼다.
+
+### signed release·A 보존 설치·제약
+
+- Web version을 `0.4.0-rc138`/code 155로 올렸다. 공식
+  `scripts/build-release.ps1`은 clean 158 tasks 중 155개를 실행해
+  `BUILD SUCCESSFUL in 2m 11s`였고, 양 앱 JVM·release lint·signed assemble,
+  version·non-debuggable·동일 signer 검증을 통과했다. 변경 없는 Kiosk RC90 payload는
+  기존 versioned artifact를 보존했다.
+- RC138 APK는 3,396,550 bytes, SHA-256
+  `30354C7492A7EF3C0FD28922A253F283A7FEF10BC501BA508211D29DECC99811`,
+  v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+- 설치 전 승인 대상은 `SM-P610`/`R54TB029FHZ` 한 대뿐이었다. 기존 Web RC137/code
+  154 설치 APK는 3,393,698 bytes·SHA-256
+  `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`이고
+  신규 artifact와 signer가 같았다. Kiosk top, Device Owner/HOME, Lock Task `LOCKED`,
+  ADB forward/reverse 부재를 확인한 뒤 `adb install -r`로 RC138을 설치했다.
+- Web UID 10293와 first install `2026-07-28 13:12:16`을 보존했고 last update는
+  `2026-08-13 07:10:22`다. A에서 다시 읽은 설치 APK는 RC138 artifact와 bytes·
+  SHA-256·signer가 정확히 일치한다. Kiosk RC90은 계속 top이고 Device Owner/HOME와
+  Lock Task `LOCKED`가 유지됐다. Web crash buffer에는 fatal이 없고 최신 exit-info는
+  설치 전 정상 `TRIM EMPTY`뿐이다.
+- A에는 이미 실제 학생이 포함된 공유 `QR_READY` 수업이 열려 있었다. 관리자 인증 뒤
+  상태를 읽고 데이터 변경 없이 QR 대기로 복귀했으며, 수업 종료·시험 QR 제출·실제
+  Web 로그인/idle·연결 실패 분기는 실행하지 않았다. 따라서 RC138 설치·기본 운영
+  상태는 현장 확인했지만 정확한 SOL-0028 장애 분기를 A 현장 통과로 확대하지 않는다.
+- 최종 원격 지원은 `INACTIVE`, local/device 임시 캡처와 ADB tunnel은 없다. 직접
+  파일형 `screencap`은 exit 1·0 bytes였고 cleanup 뒤 파일은 부재다. 설치 APK 확인용
+  로컬 임시 복사본 두 개는 검증 직후 Recycle Bin으로 이동했다.
+- 구현·원격 복구점은
+  `cb9385ca32405c6554e4aa54260eaef936f716b4`이며 전용 origin branch에 push했다.
+  rollback은 `git revert cb9385ca32405c6554e4aa54260eaef936f716b4` 후 focused,
+  Web unit·lint·debug/AndroidTest assemble, 전체 instrumentation과 공식 release를
+  다시 실행한다. A는 이미 Web code 155이므로 APK 삭제·data clear·downgrade를 하지
+  않고, 되돌린 source에서 같은 signer·code 156 이상의 forward rollback release를
+  만들어 `adb install -r`로 설치한 뒤 UID·firstInstallTime·Device Owner·HOME·Lock
+  Task와 QR 대기를 재확인한다.
+
 ## 관리자 PIN verifier ownership·cleanup 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 기존 교정

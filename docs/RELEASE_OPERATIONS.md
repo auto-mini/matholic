@@ -5,16 +5,16 @@
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer의 Kiosk RC89·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
+같은 signer의 Kiosk RC90·Web POC RC138이 보존형 설치돼 있다. Kiosk DB, Device
 Owner와 전용 HOME을 보존했고 두 설치본의 해시는 보관 artifact와 다시
-일치시켰다. 현재 보관 검증 묶음은 Kiosk RC89, Web POC RC137과 PC 수신기
+일치시켰다. 현재 보관 검증 묶음은 Kiosk RC90, Web POC RC138과 PC 수신기
 0.1.8이다.
 Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 `docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.8의 검증·설치 여부는
 `reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
   `SOL-0016`을 기준으로 한다.
 
-현재 소스 작업본의 Kiosk RC89은 선택적 공유 QR PDF가 process 재시작을 거쳐도
+현재 소스 작업본의 Kiosk RC90은 선택적 공유 QR PDF가 process 재시작을 거쳐도
 남은 수명 안에 정리되도록 예약을 복원하고, 전용 FileProvider가 만료 파일을
 URI로 제공하기 전에 정리한다. 최초 준비 시 신규카드1~4 더미 QR을 자동
 준비해 지정 PC로 전송한다. 자동 PDF 전송은 핵심 초기화와 별도 executor에서
@@ -31,15 +31,22 @@ URI로 제공하기 전에 정리한다. 최초 준비 시 신규카드1~4 더�
 같은 라벨의 새 QR·빈 자격정보로 복구하고 목표 4장을 보충한다. 복구 뒤에는 새
 PDF를 저장·출력해야 한다.
 
-- 현재 A: Kiosk `0.6.0-rc89`/code 94, Web POC `0.4.0-rc137`/code 154
+현재 Web POC RC138은 loopback CONNECT proxy의 32 tunnel 상한과 60초 idle 회수,
+accept listener 1회 bounded restart를 유지하고 upstream 연결 실패 때 아직 반환되지
+않은 socket도 즉시 닫는다. 정확한 자동·설치 검증과 실제 Web 로그인 미수행 경계는
+`docs/BUILD_VERIFICATION.md`의 최신 절을 기준으로 한다.
+
+- 현재 A: Kiosk `0.6.0-rc90`/code 95, Web POC `0.4.0-rc138`/code 155
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc89`/code 94, Web POC `0.4.0-rc137`/code 154,
+  Kiosk `0.6.0-rc90`/code 95, Web POC `0.4.0-rc138`/code 155,
   PC 수신기 `0.1.8`
 - 현재 운영 PC 설치본: PC 수신기 `0.1.8`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- Kiosk RC89 APK: 36,754,057 bytes,
-  `B67B2BCF8D81FCF7D770627F62B14930D94DA4CA519390F3FC59945D25D2B93F`
-- 현재 A: release signer의 Kiosk RC89/Web POC RC137, 기존 Device Owner·전용
+- Kiosk RC90 APK: 36,754,057 bytes,
+  `DB0468FC1F96579235A1D05B6D85AAF9424A76D8FC30605828C5119139183A9B`
+- Web POC RC138 APK: 3,396,550 bytes,
+  `30354C7492A7EF3C0FD28922A253F283A7FEF10BC501BA508211D29DECC99811`
+- 현재 A: release signer의 Kiosk RC90/Web POC RC138, 기존 Device Owner·전용
   HOME·Kiosk/Web UID·firstInstallTime·dataDir 유지, 전면 카메라 QR 대기·Lock Task
   `LOCKED`, 원격 점검 `INACTIVE`
 - Kiosk RC55는 Device Owner 정책으로 Web POC 제거를 차단한다.

@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 06:38:13 +09:00
+- `last_updated`: 2026-08-13 07:18:42 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `daa315b10703927853688d7235bf0fe14b57ae9d` /
-  `daa315b10703927853688d7235bf0fe14b57ae9d`; ahead/behind `0/0`.
+  `cb9385ca32405c6554e4aa54260eaef936f716b4` /
+  `cb9385ca32405c6554e4aa54260eaef936f716b4`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `daa315b10703927853688d7235bf0fe14b57ae9d`
-  (`test(kiosk): cover administrator PIN cleanup branches (SOL-0027)`). 이 상태기록 문서
+  `cb9385ca32405c6554e4aa54260eaef936f716b4`
+  (`fix(web): close failed upstream proxy sockets (SOL-0028)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,7 +17,7 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 06:14 +09:00.
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 07:14 +09:00.
   승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc90`/code 95, UID 10288, first install
@@ -28,37 +28,39 @@
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
-  - 변경되지 않은 Web POC `0.4.0-rc137`/code 154 설치 APK도 현재 artifact와
-    3,393,698 bytes·SHA-256
-    `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`·
-    signer가 일치한다. Web은 재설치하지 않았다.
+  - Web POC `0.4.0-rc138`/code 155, UID 10293, first install
+    `2026-07-28 13:12:16`, last update `2026-08-13 07:10:22`다. A에서 다시 읽은
+    설치 APK는 RC138 artifact와 같은 3,396,550 bytes·SHA-256
+    `30354C7492A7EF3C0FD28922A253F283A7FEF10BC501BA508211D29DECC99811`이고
+    release signer도 일치한다.
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와 실제
     ADB forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
-    `INACTIVE`/부재이며 직접 `screencap`은 exit 1로 다시 차단됐다. Kiosk crash
-    buffer와 exit-info의 crash/ANR 0건은 05:53의 마지막 독립 확인값이다.
-  - RC90 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 정확한
-    데이터 보존 확인창으로 현재 세션과 임시 명단만 안전 종료하고 `ADMIN_IDLE`, Web
-    사전점검과 실제 전면 카메라 QR 대기로 복원했다. 비민감 QR 대기 캡처는 도움말·
-    안내·카메라 전환·관리자 버튼이 잘림·겹침 없이 보였다. 학생·반·QR 데이터 삭제는
-    수행하지 않았고 이번 설치 뒤 개별 학생·카드 수량은 다시 열어 확인하지 않았다.
+    `INACTIVE`/부재이며 직접 파일형 `screencap`은 exit 1·0 bytes로 차단됐다. Web
+    crash buffer fatal은 없고 최신 exit-info는 설치 전 정상 `TRIM EMPTY`다.
+  - 현재는 실제 학생이 포함된 공유 수업의 `QR_READY`가 유지된다. RC138 설치 뒤
+    저장 PIN 전용 도구로 관리자 상태만 읽고 수업 종료·QR 제출·학생·반·QR 변경 없이
+    QR 대기로 복귀했다. 비민감 화면의 도움말·안내·카메라 전환·관리자 버튼은 잘림·
+    겹침 없이 보였다. 정확한 Web 로그인·idle/연결 실패 현장시험은 공유 상태를
+    바꾸지 않기 위해 수행하지 않았다.
 - 운영 PC에는 PC 수신기 0.1.8을 같은 설치 path에 보존 교체했다. 설치 EXE와
   artifact는 23,187,199 bytes·SHA-256
   `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`로
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0027` 증거 체크포인트. 과거 `LUNA-0028`의 full-row PIN
-  bootstrap·Room entity/verifier 배열 alias·cleanup 부재는 `cd0f1cc`에서 scalar 조회,
-  deep copy와 다중 `finally` zeroize로 이미 수정됐다. 현재 source/blame을 독립
-  재확인하고 duplicate·거부·lockout·성공 입력 cleanup 회귀를 추가해 Kiosk unit,
-  lint·assemble와 API 33 전체 84/84를 통과한 test commit·push를 완료했다.
-- 다음 우선 큐: 과거 `LUNA-0029`의 Web loopback CONNECT proxy 동시 tunnel·idle 수명·
-  accept-loop health recovery 후보를 현재 `LoopbackConnectProxy`, registry, coordinator,
-  process lifecycle과 socket fault 시험으로 독립 재검증한다. 과거 해결 표시는 현재
-  증거로 확인하기 전 결론으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0028` 증거 체크포인트. 과거 `LUNA-0029`의 무상한 Web
+  proxy tunnel·idle·listener health 전제는 `3410fd5`에서 이미 대부분 교정됐고,
+  현장 8-tunnel 부족은 `8c8cb24`에서 32로 보정됐다. 실제 listener 회귀를 추가하던 중
+  upstream connect 실패 socket이 GC 수명으로 남는 부분 잔존을 확인해 명시적 owner
+  cleanup으로 수정하고 unit/lint/release·API 33 120/120·RC138 A 보존 설치와 구현
+  commit·push를 완료했다.
+- 다음 우선 큐: 과거 `LUNA-0030`의 PC pairing secret immutable String·queue/lifecycle
+  후보를 현재 scanner callback, executor ownership, persistence encode/load와 Activity
+  종료 경계에서 독립 재검증한다. 과거 해결 표시는 현재 증거로 확인하기 전 결론으로
+  사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -71,7 +73,7 @@
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
-  `SOL-0016`, `SOL-0018`; 현장검증 완료 P3: `SOL-0023`.
+  `SOL-0016`, `SOL-0018`, `SOL-0028`; 현장검증 완료 P3: `SOL-0023`.
 - 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 현장검증 완료 P4: `SOL-0025`;
   기각 `SOL-0002`; 이미 수정됨 `SOL-0004`, `SOL-0017`, `SOL-0019`, `SOL-0020`,
   `SOL-0021`, `SOL-0022`, `SOL-0026`, `SOL-0027`.
@@ -173,6 +175,13 @@
   입력 배열 cleanup을 추가 고정했고 focused 2/2, unit 99/99, 전체 계측 84/84를
   통과했다. Room 내부 복사·heap/GC·provider/DB fault는 직접 관찰하지 않았고 제품
   source·release·A 설치본은 바꾸지 않았다.
+- SOL-0028은 `3410fd5`의 fixed pool·32 tunnel permit·60초 idle·listener callback과
+  `8c8cb24`의 실제 portal 동시성 보정이 현재도 유효함을 확인했다. 기존 helper 시험
+  대신 실제 loopback cap·idle·listener failure를 실행했고, 그 과정에서 실패한 upstream
+  connect socket이 지역 owner에 할당되기 전 참조를 잃는 부분 잔존을 수정했다. focused
+  9/9, Web unit 72/72, API 33 전체 120/120, clean signed release 158 tasks와 RC138 A
+  보존 설치를 통과했다. 정확한 Android upstream 연결 실패·60초 idle과 실제 Web
+  로그인은 공유 `QR_READY` 수업 때문에 A에서 실행하지 않았다.
 - 이번 RC90에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -269,6 +278,64 @@
   `git revert daa315b10703927853688d7235bf0fe14b57ae9d` 후 repository focused,
   Kiosk unit·lint·debug/AndroidTest assemble과 API 33 전체 계측을 다시 실행한다.
   제품 source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0028을 되돌리려면
+  `git revert cb9385ca32405c6554e4aa54260eaef936f716b4` 후 proxy focused, Web
+  unit·lint·debug/AndroidTest assemble, API 33 전체 계측과 공식 release를 다시
+  실행한다. A는 이미 Web code 155이므로 같은 signer·code 156 이상의 forward rollback
+  release를 `adb install -r`로 설치하고 APK 삭제·data clear·downgrade를 하지 않는다.
+  설치 뒤 UID·firstInstallTime·Device Owner·HOME·Lock Task와 QR 대기를 재확인한다.
+
+## 2026-08-13 Web loopback proxy resource·실패 연결 cleanup 독립 재검증
+
+- `SOL-0028` — Web CONNECT proxy resource/health lifecycle, P3, 신뢰도 높음, 상태
+  `자동검증 완료`.
+- 과거 후보·반대 근거: `LUNA-0029`은 성공 tunnel의 무기한 read, cached thread pool,
+  무상한 socket registry와 accept-loop 사망 미통지를 제기했다. 현재 source는 이미
+  `3410fd54b1b4f7038ac7b71a6641f45d5975de8e`의 fixed 64-worker pool,
+  32-permit cap, active socket registry, 양방향 60초 idle과 unexpected termination
+  callback을 유지한다. coordinator는 callback 뒤 proxy/timeout을 정리하고 새 port로
+  override를 한 번만 재시도한 뒤 두 번째 실패를 terminal `FAILED`로 만든다.
+- 상한 이력 정정: 최초 교정의 8 tunnel은 실제 Web RC119 공식 로그인에서 즉시 503을
+  만들어 TLS가 반복 실패했다. `8c8cb247e4363cc5b367c4482f93d17fcf0ad1b4`가
+  backlog 64·상한 32로 올린 뒤 같은 A·계정·네트워크에서 성공했다. 32 handler와 각
+  reverse copy를 위한 64 worker는 현재 task 구조와 맞으므로 과거 정정표의 “8 cap”은
+  현행 값이 아니다.
+- 신규 부분 잔존·원인: 기존 `Socket().apply { connect(...) }`는 connect 예외가 나면
+  `upstream` 지역 owner에 할당되기 전에 socket 참조를 잃었다. Microsoft JDK 17.0.20의
+  `127.0.0.1:0` probe는 `BindException`, `CLOSED=false`를 반환해 자동 close 가정을
+  반증했다. 반복 네트워크 실패에서 FD 회수를 GC에 맡기는 경계라 P3로 확정했다.
+- 최소 수정: `DirectUpstreamSocketConnector`가 allocation→connect 성공까지 socket을
+  소유하고 실패 시 `finally` close한다. proxy의 idle timeout 설정이 실패해도 반환받은
+  socket을 닫는다. allowlist·port 443·connect/header timeout·32 cap·60초 production
+  idle과 외부 API는 바꾸지 않았다.
+- 자동검증:
+  - 실제 loopback cap, 시험용 250ms 성공 tunnel idle 회수, 실제/정상 listener 종료,
+    JDK connect failure cleanup을 포함한 lifecycle focused 9/9·0.709초 PASS.
+  - 기존 coordinator의 unexpected termination 1회 bounded restart 시험 PASS.
+  - Web unit 18 suites·72/72, lintDebug 0 error·기존 warning 20, debug/AndroidTest
+    assemble 포함 79 tasks·57초 PASS.
+  - API 33 AVD 전체 Web instrumentation 120/120, `Time: 278.177`, failure 0.
+  - 공식 clean release 158 tasks·2분 11초 PASS. RC138/code 155 artifact는
+    3,396,550 bytes·SHA-256
+    `30354C7492A7EF3C0FD28922A253F283A7FEF10BC501BA508211D29DECC99811`,
+    기존 release signer와 일치한다.
+- A 현장·제약: RC137/code 154 설치본의 bytes/hash/signer와 신규 signer, 승인 A 한 대,
+  Kiosk top·Device Owner/HOME·`LOCKED`를 확인하고 RC138을 `adb install -r`로 설치했다.
+  UID 10293·firstInstallTime 보존, 설치 APK와 artifact 일치, crash buffer fatal 0을
+  확인했다. 다만 실제 학생이 포함된 공유 `QR_READY` 수업을 바꾸지 않기 위해 수업
+  종료·시험 QR·Web 로그인·Android connect failure/60초 idle을 실행하지 않았다.
+  관리자는 상태만 확인하고 QR 대기로 복귀했으며 학생·반·QR 데이터는 변경하지 않았다.
+- 검증 중 비제품 실패: 긴 설치 전 PowerShell wrapper는 로컬 정책에 의해 실행 전에
+  차단돼 짧은 읽기 전용 명령으로 분할했다. `remote-tablet.ps1 -Action Status`는 지원하지
+  않는 action이라 인자 검증에서 실패했지만 뒤이은 전용 PIN 입력은 정상 완료됐고,
+  `Capture` 거부·`Stop`·파일 검사를 통해 최종 원격 비활성을 확인했다. 기기·제품 실패로
+  확대하지 않는다.
+- 최종 A는 Kiosk RC90 top, Web RC138 설치, Lock Task `LOCKED`, 원격 지원
+  `INACTIVE`, ADB tunnel과 local/device capture 부재다. 직접 파일형 screencap은 exit 1·
+  0 bytes였다. 설치 확인용 임시 APK 두 개는 Recycle Bin으로 이동했다.
+- 구현·원격 복구점은 `cb9385ca32405c6554e4aa54260eaef936f716b4`, 전용 origin
+  branch push 성공. rollback은 위 절차대로 same-signer code 156+ forward release를
+  사용한다.
 
 ## 2026-08-13 관리자 PIN verifier ownership·cleanup 독립 재검증
 
@@ -2328,6 +2395,8 @@
   `9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe`.
 - `SOL-0027` 관리자 PIN cleanup branch 회귀 고정 test commit:
   `daa315b10703927853688d7235bf0fe14b57ae9d`.
+- `SOL-0028` Web proxy 실패 upstream socket cleanup·실제 listener resource 회귀·RC138
+  release metadata commit: `cb9385ca32405c6554e4aa54260eaef936f716b4`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤
