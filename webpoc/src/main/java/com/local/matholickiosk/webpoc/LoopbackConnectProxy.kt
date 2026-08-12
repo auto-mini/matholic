@@ -38,6 +38,28 @@ internal object ConnectTargetPolicy {
         (target.host.endsWith(".matholic.com") || target.host in exactHosts)
 }
 
+internal fun interface UpstreamSocketConnector {
+    fun connect(target: ConnectTarget, timeoutMs: Int): Socket
+}
+
+/** Creates one connected socket and retains no ownership after returning it. */
+internal class DirectUpstreamSocketConnector(
+    private val socketFactory: () -> Socket = { Socket() },
+) : UpstreamSocketConnector {
+    override fun connect(target: ConnectTarget, timeoutMs: Int): Socket {
+        val socket = socketFactory()
+        var connected = false
+        try {
+            socket.connect(InetSocketAddress(target.host, target.port), timeoutMs)
+            connected = true
+            return socket
+        } finally {
+            // Socket.connect() may leave a failed socket open, depending on the runtime.
+            if (!connected) runCatching { socket.close() }
+        }
+    }
+}
+
 /**
  * A loopback-only CONNECT tunnel. It never terminates TLS, records no traffic, and only resolves
  * the small HTTPS host allowlist required by the Matholic pages.
@@ -45,6 +67,8 @@ internal object ConnectTargetPolicy {
 internal class LoopbackConnectProxy private constructor(
     private val serverSocket: ServerSocket,
     private val onUnexpectedTermination: () -> Unit,
+    private val upstreamSocketConnector: UpstreamSocketConnector,
+    private val tunnelIdleTimeoutMs: Int,
 ) : Closeable {
     private val executor = Executors.newFixedThreadPool(MAX_TUNNELS * 2) { task ->
         Thread(task, "matholic-loopback-proxy").apply { isDaemon = true }
@@ -109,14 +133,11 @@ internal class LoopbackConnectProxy private constructor(
                 return
             }
 
-            val connectedUpstream = Socket().apply {
-                connect(InetSocketAddress(target.host, target.port), CONNECT_TIMEOUT_MS)
-                soTimeout = TUNNEL_IDLE_TIMEOUT_MS
-            }
+            val connectedUpstream = openUpstream(target)
             upstream = connectedUpstream
             if (!activeSockets.register(connectedUpstream)) return
             writeResponse(client, "HTTP/1.1 200 Connection Established\r\n\r\n")
-            client.soTimeout = TUNNEL_IDLE_TIMEOUT_MS
+            client.soTimeout = tunnelIdleTimeoutMs
 
             if (
                 !ProxyTaskSubmission.submit(
@@ -178,6 +199,18 @@ internal class LoopbackConnectProxy private constructor(
         return null
     }
 
+    private fun openUpstream(target: ConnectTarget): Socket {
+        val socket = upstreamSocketConnector.connect(target, CONNECT_TIMEOUT_MS)
+        var configured = false
+        try {
+            socket.soTimeout = tunnelIdleTimeoutMs
+            configured = true
+            return socket
+        } finally {
+            if (!configured) runCatching { socket.close() }
+        }
+    }
+
     private fun writeResponse(socket: Socket, response: String) {
         socket.getOutputStream().apply {
             write(response.toByteArray(StandardCharsets.ISO_8859_1))
@@ -204,11 +237,41 @@ internal class LoopbackConnectProxy private constructor(
 
     companion object {
         fun start(onUnexpectedTermination: () -> Unit = {}): LoopbackConnectProxy {
+            return create(
+                onUnexpectedTermination = onUnexpectedTermination,
+                upstreamSocketConnector = DirectUpstreamSocketConnector(),
+                tunnelIdleTimeoutMs = TUNNEL_IDLE_TIMEOUT_MS,
+            )
+        }
+
+        internal fun startForTesting(
+            upstreamSocketConnector: UpstreamSocketConnector,
+            tunnelIdleTimeoutMs: Int,
+            onUnexpectedTermination: () -> Unit = {},
+        ): LoopbackConnectProxy {
+            require(tunnelIdleTimeoutMs > 0)
+            return create(
+                onUnexpectedTermination = onUnexpectedTermination,
+                upstreamSocketConnector = upstreamSocketConnector,
+                tunnelIdleTimeoutMs = tunnelIdleTimeoutMs,
+            )
+        }
+
+        private fun create(
+            onUnexpectedTermination: () -> Unit,
+            upstreamSocketConnector: UpstreamSocketConnector,
+            tunnelIdleTimeoutMs: Int,
+        ): LoopbackConnectProxy {
             val server = ServerSocket().apply {
                 reuseAddress = true
                 bind(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), ACCEPT_BACKLOG)
             }
-            return LoopbackConnectProxy(server, onUnexpectedTermination)
+            return LoopbackConnectProxy(
+                serverSocket = server,
+                onUnexpectedTermination = onUnexpectedTermination,
+                upstreamSocketConnector = upstreamSocketConnector,
+                tunnelIdleTimeoutMs = tunnelIdleTimeoutMs,
+            )
         }
 
         private const val ACCEPT_BACKLOG = 64
