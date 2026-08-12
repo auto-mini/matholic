@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 04:05:44 +09:00
+- `last_updated`: 2026-08-13 04:17:00 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `7cf7833237de494dda97d971439a2aa788e71524` /
-  `7cf7833237de494dda97d971439a2aa788e71524`; ahead/behind `0/0`.
+  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa` /
+  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `7cf7833237de494dda97d971439a2aa788e71524`
-  (`test(kiosk): lock active-session membership boundary (SOL-0019)`). 이 상태기록 문서
+  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`
+  (`test(kiosk): lock recovery action recreation (SOL-0020)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -49,14 +49,15 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0019` 증거 체크포인트. 과거 `LUNA-0025`의 활성 수업 중
-  membership undo 우회 후보는 현재 `d558937` source에서 이미 해결됐음을 확인했다.
-  기존 repository guard와 신규 Activity Web-launch 실패 계측, unit/lint/assemble,
-  최종 전체 79/79, test commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
-- 다음 우선 큐: 과거 `LUNA-0027`의 Activity 재생성 중 pending Web recovery
-  Start/EndSession action 보존 후보를 현재 saved-state 복원과 ActivityResult callback
-  연결로 독립 재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로
-  사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0020` 증거 체크포인트. 과거 `LUNA-0027`의 Activity
+  재생성 중 pending Web recovery Start/EndSession action 유실 후보는 현재
+  `d558937` source에서 이미 해결됐음을 확인했다. 신규 실제 Activity recreation
+  계측, unit/lint/assemble, 최종 전체 80/80, test commit·push를 완료했다. 제품
+  판정은 `이미 수정됨`이다.
+- 다음 우선 큐: 과거 `LUNA-0024`의 실행취소 불가 관리자 작업 뒤 stale 이름·반 소속
+  undo 잔존 후보를 현재 공통 `adminDataOperationGate`와
+  `beginAdminDataOperation()`의 undo invalidation으로 독립 재검증한다. 과거 해결
+  표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -71,7 +72,7 @@
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
   `SOL-0016`, `SOL-0018`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
-  `SOL-0017`, `SOL-0019`.
+  `SOL-0017`, `SOL-0019`, `SOL-0020`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -115,6 +116,12 @@
   Activity 계측은 외부 launcher 실패를 강제해도 undo가 먼저 사라지고 gate가
   복구되는 순서를 확인했다. 기존 repository guard와 focused 2/2, 최종 전체 79/79를
   통과했다. test-only 변경이라 release build·A 재설치는 수행하지 않았다.
+- SOL-0020은 제품 source가 이미 `d558937`에서 pending Web recovery action을
+  instance state에 저장·복원하도록 수정돼 있었다. 신규 Activity 계측은 실제
+  `ActivityScenario.recreate()` 두 번으로 StartSession의 반 ID·임시 학생 ID 집합과
+  EndSession 유형 보존을 확인했다. focused 1/1, 최종 전체 80/80을 통과했다. 다만
+  OS process kill·저메모리 reclaim과 실제 외부 Web result redelivery는 강제하지
+  않았다. test-only 변경이라 release build·A 재설치는 수행하지 않았다.
 - 이번 RC89에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -174,6 +181,49 @@
   `git revert 7cf7833237de494dda97d971439a2aa788e71524` 후 Kiosk unit, lint,
   AndroidTest assemble·관련 focused 두 건과 전체 계측을 다시 실행한다. 이 commit은
   제품 source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0020 시험 체크포인트를 되돌리려면
+  `git revert 6675c8aa7a107a1472a170f85fa61bf95c3ac0aa` 후 Kiosk unit, lint,
+  AndroidTest assemble·신규 focused와 전체 계측을 다시 실행한다. 이 commit은 제품
+  source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 Kiosk Web recovery action Activity 재생성 독립 재검증
+
+- `SOL-0020` — Kiosk lifecycle/Web recovery/session 후속 전이, P4, 신뢰도 높음,
+  상태 `이미 수정됨`.
+- 사용자 영향 후보는 Web 사전 복구 화면이 열린 동안 Kiosk Activity가 재생성되면
+  StartSession 또는 EndSession 후속 action이 사라져, Web이 성공을 반환해도 수업
+  시작·종료 DB 전이가 생략되는 것이었다. 과거 `LUNA-0027`은 2026-08-02 source를
+  근거로 한 후보다.
+- 현재 정적 근거: commit `d5589373fe6951451839c43ac75578ac22472b5b`부터
+  `onSaveInstanceState()`는 action discriminator와 StartSession의 반 ID·임시 학생
+  ID 목록을 저장하고, `onCreate(savedInstanceState)`는
+  `restorePendingRecoveryAction()`으로 이를 result callback 전에 복원한다.
+  EndSession도 별도 discriminator로 보존된다.
+- 신규 동적 근거: 합성 StartSession action에 `synthetic-class`와 두 합성 임시 ID를
+  넣고 실제 `ActivityScenario.recreate()`를 수행했다. 새 Activity의 action 유형·반
+  ID·ID 집합이 모두 같았다. 이어 EndSession singleton을 넣고 다시 재생성해 새
+  Activity가 EndSession 유형을 보유함을 확인했다. 빈 합성 DB만 사용했고 실제 학생·
+  반·QR·Web 계정은 사용하지 않았다.
+- 실행한 자동검증:
+  - `:kiosk:assembleDebugAndroidTest`: 52 tasks, 6초 PASS.
+  - 신규 focused 계측: 1/1, Gradle 10초 PASS.
+  - `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+    :kiosk:assembleDebugAndroidTest`: 84 tasks, 7초 PASS; JVM XML 99/99,
+    failure/error/skip 0, 0.969초.
+  - API 33 전체 `:kiosk:connectedDebugAndroidTest`: 80/80,
+    failure/error/skip 0, XML 95.945초, Gradle 1분 43초 PASS. 신규 case는 0.62초다.
+- 반대 근거·제약: Kiosk manifest가 흔한 orientation/screenSize 변화를 직접 처리해
+  일반 사용 중 Activity 재생성 빈도는 낮다. 이번 시험은 표준 Activity save/restore
+  lifecycle을 직접 검증하지만, OS process kill·저메모리 process reclaim과 실제 외부
+  Web Activity result redelivery는 강제하지 않았다. 그러므로 그 더 강한 경계까지
+  통과한 것으로 확대하지 않는다.
+- 변경은 `MainActivityInstrumentedTest.kt` 한 파일뿐이다. 시험·원격 복구점은
+  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`, 전용 origin branch push 성공. source·
+  version·release artifact는 바뀌지 않았고 A 재설치는 수행하지 않았다. A는 읽기 전용
+  확인에서 RC89/code 94, top resumed Kiosk와 Lock Task `LOCKED`를 유지했고 AVD는
+  종료했다.
+- rollback은 `git revert 6675c8aa7a107a1472a170f85fa61bf95c3ac0aa` 후 신규
+  focused·unit·lint·assemble·전체 계측을 재실행한다. 기기 rollback은 필요 없다.
 
 ## 2026-08-13 Kiosk 활성 수업 membership·pending undo 독립 재검증
 
@@ -1833,6 +1883,14 @@
   release metadata commit: `a5905540cd9a74d589bb78fee7ea247bb35a56ac`.
 - `SOL-0016` PC receiver active socket 종료 barrier·state cleanup 순서·0.1.8
   package metadata commit: `850b6f31ad272c71175cb724d6d4058b9d295752`.
+- `SOL-0017` 수업 종료 idle projection·startup readiness 회귀 고정 test commit:
+  `57aa2f108d65e69a7645f75b623fed1274bdb661`.
+- `SOL-0018` 학생 CSV intake·수업 시작 공통 gate 구현 commit:
+  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`.
+- `SOL-0019` 활성 수업 membership·pending undo 경계 회귀 고정 test commit:
+  `7cf7833237de494dda97d971439a2aa788e71524`.
+- `SOL-0020` Web recovery action Activity 재생성 보존 회귀 고정 test commit:
+  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

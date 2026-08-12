@@ -1,5 +1,45 @@
 # 빌드·보안 검증 기록
 
+## Kiosk Web recovery action Activity 재생성 보존 회귀 고정 — 2026-08-13
+
+### 현재 판정과 시험 범위
+
+- 과거 `LUNA-0027`은 외부 Web recovery 화면이 열린 동안 Kiosk Activity가
+  재생성되면 메모리의 `PendingRecoveryAction.StartSession` 또는 `EndSession`이
+  사라져, 성공 result가 돌아와도 후속 수업 시작·종료가 생략될 수 있다고 제기했다.
+  현재 제품 source는 이미 commit
+  `d5589373fe6951451839c43ac75578ac22472b5b`에서 action을 instance state에 저장하고
+  `onCreate()`에서 복원한다. 이번 SOL-0020의 판정은 P4·신뢰도 높음·
+  `이미 수정됨`이며 제품 source는 바꾸지 않았다.
+- `onSaveInstanceState()`는 StartSession의 반 ID와 임시 학생 ID 집합 또는
+  EndSession 유형을 저장한다. `restorePendingRecoveryAction()`은 새 Activity의
+  result callback이 소비할 동일 의미의 action을 재구성한다.
+- 신규 `pendingRecoveryActionsSurviveActivityRecreation`은 합성 StartSession action을
+  Activity에 설정하고 실제 `ActivityScenario.recreate()`를 호출해 유형·반 ID·두 임시
+  학생 ID 집합을 모두 확인한다. 이어 EndSession singleton을 설정하고 다시 재생성해
+  EndSession 유형도 보존됨을 확인한다. 실제 학생·반·QR·Web 계정은 사용하지 않았다.
+
+### 자동검증
+
+- AndroidTest assemble은 52 tasks, `BUILD SUCCESSFUL in 6s`다. 신규 focused는
+  1/1, `BUILD SUCCESSFUL in 10s`로 통과했다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 7s`다. JVM XML은
+  99/99, failure/error/skip 0, 0.969초이고 lint와 두 debug APK 조립도 성공했다.
+- 최종 API 33 전체 계측은 80/80, failure/error/skip 0, XML 95.945초, Gradle
+  `BUILD SUCCESSFUL in 1m 43s`다. 신규 case는 XML 기준 0.62초다.
+- 이번 시험은 표준 Activity save/restore 재생성을 검증한다. OS process kill·저메모리
+  process reclaim과 실제 외부 Web Activity result redelivery는 강제하지 않았으므로
+  그 경계까지 통과한 것으로 확대하지 않는다.
+- 변경은 `androidTest` 한 파일뿐이라 release artifact·version·signer와 A 설치본은
+  바뀌지 않았다. release build·A 재설치는 수행하지 않았다. 최종 읽기 전용 확인에서
+  A는 Kiosk RC89/code 94, top resumed Kiosk와 Lock Task `LOCKED`를 유지했고 시험용
+  API 33 AVD는 종료해 승인 물리 A만 남겼다.
+- 시험·복구점은 `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`이며 전용 origin
+  branch에 push했다. rollback은 `git revert 6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`
+  뒤 위 focused·unit·lint·assemble·전체 계측을 다시 실행한다. 제품 source와 A
+  설치본은 바뀌지 않았으므로 기기 rollback은 필요 없다.
+
 ## Kiosk 활성 수업 membership·pending undo 경계 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 시험 범위
