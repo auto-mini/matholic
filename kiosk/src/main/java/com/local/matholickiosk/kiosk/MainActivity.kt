@@ -737,9 +737,10 @@ class MainActivity : ComponentActivity() {
                     reusableCardBootstrapMessage = when {
                         preparedReusableCards.isEmpty() -> null
                         reusableCardDelivery.isSuccess ->
-                            "신규카드1~4 더미 QR을 지정 PC에 저장했습니다."
+                            "신규용 더미 QR ${preparedReusableCards.size}장을 지정 PC에 저장했습니다."
                         else ->
-                            "신규카드1~4 더미 데이터는 준비됐지만 QR PDF 전송은 실패했습니다. 관리자 화면에서 다시 전송하세요."
+                            "신규용 더미 데이터 ${preparedReusableCards.size}장은 준비됐지만 " +
+                                "QR PDF 전송은 실패했습니다. 관리자 화면에서 다시 준비하세요."
                     },
                 )
             }
@@ -1975,11 +1976,19 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 output = BatchQrPdfExporter.export(this, cards)
+                val cardLabels = issued.map(BatchIssuedQr::displayNameExact).sorted()
+                val filename = if (
+                    cardLabels == (1..4).map { index -> "신규카드$index" }
+                ) {
+                    "신규카드1-4 더미 QR.pdf"
+                } else {
+                    "${cardLabels.joinToString("-")} 더미 QR.pdf"
+                }
                 withReachablePairedPc { pairing ->
                     pcPdfSender.send(
                         pairing = pairing,
                         pdfFile = requireNotNull(output),
-                        filename = "신규카드1-4 더미 QR.pdf",
+                        filename = filename,
                         requestId = deliveryRequestId,
                     )
                 }

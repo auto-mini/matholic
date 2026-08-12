@@ -907,7 +907,53 @@ class StudentRepository(
                     )
                 }
 
-                if (allSlots.isEmpty()) repeat(targetCount) {
+                var missingSlotCount = (targetCount - slots.size).coerceAtLeast(0)
+                allSlots.filterNot(StudentEntity::isActive)
+                    .take(missingSlotCount)
+                    .forEach { student ->
+                        val studentId = student.studentId
+                        val slotLabel = requireNotNull(student.reusableCardLabel)
+                        val token = qrCodec.issue()
+                        val previousStatus = database.qrCardStatusDao().find(studentId)
+                        issued += PendingBatchIssuedQr(
+                            result = BatchIssuedQr(
+                                studentId = studentId,
+                                displayNameExact = slotLabel,
+                                issuedQr = IssuedQrPayload(token.payload),
+                            ),
+                            token = token,
+                        )
+                        val emptyCredentials = encryptedEmptyCredentials(studentId)
+                        database.classDao().clearStudentMemberships(studentId)
+                        database.studentDao().update(
+                            student.copy(
+                                displayNameExact = slotLabel,
+                                displayNameMasked = slotLabel,
+                                usernameCiphertext = emptyCredentials.first.ciphertext,
+                                usernameIv = emptyCredentials.first.iv,
+                                usernameEncryptionVersion = emptyCredentials.first.version,
+                                passwordCiphertext = emptyCredentials.second.ciphertext,
+                                passwordIv = emptyCredentials.second.iv,
+                                passwordEncryptionVersion = emptyCredentials.second.version,
+                                qrTokenHash = token.hash,
+                                isActive = true,
+                                reusableCardAssigned = false,
+                                updatedAtEpochMs = now,
+                            ),
+                        )
+                        database.qrCardStatusDao().upsert(
+                            QrCardStatusEntity(
+                                studentId = studentId,
+                                issuedAtEpochMs = now,
+                                lastUsedAtEpochMs = previousStatus?.lastUsedAtEpochMs,
+                                lastDeliveredAtEpochMs = null,
+                                needsPrint = true,
+                            ),
+                        )
+                        missingSlotCount -= 1
+                    }
+
+                repeat(missingSlotCount) {
                     val studentId = UUID.randomUUID().toString()
                     val slotLabel = nextSlotLabel()
                     val token = qrCodec.issue()

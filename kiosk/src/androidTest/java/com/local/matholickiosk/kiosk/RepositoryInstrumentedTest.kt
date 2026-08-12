@@ -871,6 +871,49 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun ensureReusableCardSlotsRepairsInactiveLegacySlot() {
+        val prepared = repository.prepareReusableCardSlots()
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+        val slot = repository.listReusableCardSlots().first()
+        val legacyHash = ByteArray(32) { index -> (index + 1).toByte() }
+        val classId = repository.createClass("비활성 슬롯 복구 수업")
+        database.classDao().addMembership(ClassMembershipEntity(classId, slot.studentId))
+        val entity = requireNotNull(database.studentDao().findById(slot.studentId))
+        database.studentDao().update(
+            entity.copy(
+                displayNameExact = "과거 배정 학생",
+                displayNameMasked = "과거 배정 학생",
+                qrTokenHash = legacyHash,
+                isActive = false,
+                reusableCardAssigned = true,
+            ),
+        )
+        assertEquals(3, repository.listReusableCardSlots().size)
+
+        val repaired = repository.ensureReusableCardSlots()
+
+        assertEquals(1, repaired.size)
+        assertEquals(slot.studentId, repaired.single().studentId)
+        assertEquals(slot.slotLabel, repaired.single().displayNameExact)
+        val restored = requireNotNull(database.studentDao().findById(slot.studentId))
+        assertTrue(restored.isActive)
+        assertFalse(restored.reusableCardAssigned)
+        assertEquals(slot.slotLabel, restored.displayNameExact)
+        assertFalse(legacyHash.contentEquals(restored.qrTokenHash))
+        val repairedHash = qrHash(repaired.single().issuedQr.payload)
+        assertArrayEquals(repairedHash, restored.qrTokenHash)
+        assertEquals(4, repository.listReusableCardSlots().size)
+        assertTrue(database.qrCardStatusDao().find(slot.studentId)!!.needsPrint)
+        assertFalse(repository.membershipStudentIds(classId).contains(slot.studentId))
+        repository.decryptCredentials(slot.studentId).use {
+            assertTrue(it.username.isEmpty())
+            assertTrue(it.password.isEmpty())
+        }
+        legacyHash.fill(0)
+        repairedHash.fill(0)
+    }
+
+    @Test
     fun assignedReusableCardMovesToNewQrAndResetsOldDummySlot() {
         val prepared = repository.prepareReusableCardSlots()
         repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
