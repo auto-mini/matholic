@@ -1,5 +1,70 @@
 # 빌드·보안 검증 기록
 
+## Kiosk Lock Task fail-closed·관리자 인증 readiness 회귀 고정 — 2026-08-13
+
+### 현재 판정과 시험 범위
+
+- 과거 `LUNA-0022`는 `startLockTask()` 뒤 실제 mode가 `LOCKED`가 아니어도 진입을
+  성공으로 볼 수 있고, 그 과정에서 추가한 overlay restriction이 실패 뒤 남으며,
+  Activity·사전점검·Gate 5 verifier도 이를 놓칠 수 있다고 제기했다. 현재 제품
+  source는 이미 commit `d5589373fe6951451839c43ac75578ac22472b5b`에서 exact
+  `LOCKED`와 실패 전파·restriction cleanup을 적용했고,
+  `fc03216f`에서 비동기 mode 전이를 최대 1.5초 기다리도록 보강했다. 이번
+  SOL-0022의 판정은 P3·신뢰도 높음·`이미 수정됨`이며 제품 source는 바꾸지 않았다.
+- `KioskLockTaskController.enterRestrictedMode()`는 Device Owner·allowlist가 아니면
+  `false`를 반환한다. 자격이 있으면 `DISALLOW_CREATE_WINDOWS`를 추가한 뒤 Lock Task를
+  시작하고 실제 mode가 `LOCKED`가 될 때만 `true`를 반환한다. 예외·timeout이면 현재
+  mode가 `NONE`이 아닌 경우 `stopLockTask()`를 시도하고 restriction을 제거한 뒤 실패를
+  전파한다.
+- `MainActivity.enterDedicatedMode()`는 예외뿐 아니라 `success(false)`도
+  `dedicatedDevicePolicyFailed`로 누적한다. `SessionPreflightPolicy`는 mode가 정확히
+  `LOCKED`가 아니면 수업 시작을 차단하고, `verify-gate5-device-owner.ps1`도
+  `PINNED` 등을 허용하지 않고 정확한 `LOCKED`만 통과시킨다.
+- 신규 `failedLockTaskEntryIsRenderedAsPolicyError`는 Device Owner가 아닌 시험
+  package라는 전제를 먼저 단언하고 빈 합성 DB에서 Activity를 실행한다. 실제
+  `success(false)` 경로가 내부 정책 실패 flag와 화면의 `보안 정책 오류`로 함께
+  드러나는 것을 검증한다.
+- 전체 계측 중 드러난 기존 시험의 startup 경쟁도 함께 고정했다. 로딩 중에도
+  `auth_panel`은 보일 수 있어 기존 시험이 너무 일찍 PIN을 입력하면 뒤늦은
+  `showAuthentication()`이 값을 지웠다. 17개 등록 관리자 시험은 이제 panel뿐 아니라
+  제목 `관리자 인증`, PIN 입력 visibility·enabled까지 기다린다. 기본 15초 timeout은
+  늘리지 않았다.
+
+### 자동검증·중간 실패·현장 대조
+
+- 기존 `SessionPreflightPolicyTest` 4건과 `DedicatedDevicePolicyTest` 4건은 focused
+  8/8, Gradle 20초 PASS다. 신규 Activity focused는 1/1, Gradle 32초 PASS다.
+- 첫 API 33 전체 82개에서 신규 case는 0.318초에 통과했지만 기존
+  `quickClassButtonsKeepStableGeometryAndTypographyAfterSelectionChanges`가 초기
+  관리자 준비 대기에서 17.7초 뒤 1/82 실패했다. 해당 시험은 격리 1/1·22초에
+  통과했고, 일시적으로 30초를 적용한 신규+빠른 반 조합도 2/2 통과했다.
+- 두 번째 전체 82개에서는 빠른 반 시험이 통과했지만 기존
+  `correctAdminPinOpensAdminWithoutDoneOrSubmitTap`이 같은 초기 경계에서 17.274초 뒤
+  1/82 실패했다. 해당 시험은 격리 1/1·23초에 통과했다. 세 시험 조합에 기본 대기를
+  30초로 넓혀도 PIN 시험이 30초 뒤 실패해 단순 저속 가설은 반증됐다.
+- 로딩 panel과 실제 인증 화면을 구분하는 공통 readiness helper를 17곳에 적용하고
+  timeout을 15초로 복원했다. 신규 Lock Task·빠른 반·PIN 조합은 3/3, Gradle 41초
+  PASS다. 최종 전체 계측은 82/82, failure/error/skip 0, XML 101.362초, Gradle
+  `BUILD SUCCESSFUL in 1m 57s`다. 세 case의 최종 XML 시간은 각각 0.337초,
+  4.985초, 4.802초다.
+- 최종 `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 35s`다. JVM XML은
+  99/99, failure/error/skip 0, 0.808초이고 lint와 두 debug APK 조립도 성공했다.
+  Gate 5 script PowerShell parser 오류는 0건이다.
+- 실제 A에서 Gate 5 verifier를 다시 실행해 `SM-P610`/Android 13/SDK 33, Kiosk
+  RC89/code 94, Device Owner, Kiosk·Web allowlist와 Lock Task `LOCKED`를 확인했다.
+  Kiosk는 top resumed이고 원격 지원은 `INACTIVE`다.
+- 실제 Device Owner에서 restriction 추가 직후 `startLockTask()` timeout·예외를
+  강제하거나 `PINNED` 전이를 만들지는 않았다. 따라서 그 cleanup fault branch는 현재
+  source의 정적 대조이고, 실제 A의 positive `LOCKED` 경로와 혼동하지 않는다. 보안
+  상태를 약화시키는 fault injection은 수행하지 않았다.
+- 변경은 `androidTest` 한 파일뿐이라 release artifact·version·signer와 A 설치본은
+  바뀌지 않았다. release build·A 재설치는 수행하지 않았다. 시험·복구점은
+  `3dda9f1d5f80def21c457e1775797332f946b0bb`이며 전용 origin branch에 push했다.
+  rollback은 `git revert 3dda9f1d5f80def21c457e1775797332f946b0bb` 뒤 위
+  focused·unit·lint·assemble·전체 계측을 다시 실행한다. 제품 source와 A 설치본은
+  바뀌지 않았으므로 기기 rollback은 필요 없다.
+
 ## Kiosk 관리자 cross-operation undo lifetime 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 시험 범위

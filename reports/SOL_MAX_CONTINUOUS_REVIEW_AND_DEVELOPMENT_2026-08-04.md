@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 04:28:00 +09:00
+- `last_updated`: 2026-08-13 04:56:24 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `750b7d7089f630295ba8b2f3f7e032766c75b94d` /
-  `750b7d7089f630295ba8b2f3f7e032766c75b94d`; ahead/behind `0/0`.
+  `3dda9f1d5f80def21c457e1775797332f946b0bb` /
+  `3dda9f1d5f80def21c457e1775797332f946b0bb`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `750b7d7089f630295ba8b2f3f7e032766c75b94d`
-  (`test(kiosk): lock cross-operation undo invalidation (SOL-0021)`). 이 상태기록 문서
+  `3dda9f1d5f80def21c457e1775797332f946b0bb`
+  (`test(kiosk): lock fail-closed dedicated mode (SOL-0022)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,7 +17,7 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 03:49 +09:00.
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 04:56 +09:00.
   승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc89`/code 94, UID 10288, first install
@@ -49,14 +49,15 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0021` 증거 체크포인트. 과거 `LUNA-0024`의 다음 관리자
-  작업 뒤 stale 이름·반 소속·반 삭제 undo 잔존 후보는 현재 `d558937` source에서
-  이미 해결됐음을 확인했다. 신규 실제 반 생성 UI 계측, unit/lint/assemble, 최종
-  전체 81/81, test commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
-- 다음 우선 큐: 과거 `LUNA-0022`의 Lock Task 진입 결과가 `LOCKED`가 아닐 때 정책
-  실패가 누락되고 verifier가 이를 성공으로 오판할 수 있다는 후보를 현재
-  `KioskLockTaskController`, `enterDedicatedMode()`, preflight와 Gate 5 script로 독립
-  재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0022` 증거 체크포인트. 과거 `LUNA-0022`의 Lock Task가
+  exact `LOCKED`가 아닐 때 정책 실패·overlay restriction cleanup·verifier 판정이
+  어긋날 수 있다는 후보는 현재 `d558937`·`fc03216` source에서 이미 해결됐음을
+  확인했다. 신규 failure propagation 계측, policy 시험, unit/lint/assemble, 최종 전체
+  82/82, 실제 A Gate 5와 test commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
+- 다음 우선 큐: 과거 `LUNA-0020`의 원격 지원 활성 중 Kiosk 관리자 PIN과 Web
+  자격정보 화면에서 `FLAG_SECURE`가 복원되는지 현재 양 앱 controller·민감 화면
+  진입점·회귀시험과 실제 비민감 상태로 독립 재검증한다. 과거 해결 표시는 현재 증거로
+  다시 확인하기 전 결론으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -71,7 +72,7 @@
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
   `SOL-0016`, `SOL-0018`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
-  `SOL-0017`, `SOL-0019`, `SOL-0020`, `SOL-0021`.
+  `SOL-0017`, `SOL-0019`, `SOL-0020`, `SOL-0021`, `SOL-0022`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -126,6 +127,16 @@
   이름 undo가 mutation 전에 사라지고 완료 뒤 되살아나지 않으며 강제 undo 호출도
   no-op인 것을 확인했다. focused 1/1, 최종 전체 81/81을 통과했다. 대표 조합만 동적
   실행했고 전체 undo×operation matrix는 정적 공통 진입점 대조로 제한했다. test-only
+  변경이라 release build·A 재설치는 수행하지 않았다.
+- SOL-0022는 제품 source가 이미 `d558937`에서 exact `LOCKED` 확인·false/예외 실패
+  전파·restriction cleanup·preflight/verifier 차단을 적용했고 `fc03216`에서 bounded
+  transition wait를 추가한 상태였다. 신규 non-Device-Owner Activity 계측은
+  `success(false)`가 내부 정책 실패와 `보안 정책 오류` 화면으로 함께 전달됨을
+  확인했다. 첫 두 전체 실행은 각각 기존 빠른 반·PIN 시험이 로딩 중에도 보이는
+  `auth_panel`을 실제 인증 준비로 오인해 1/82 실패했고, 30초 timeout으로도 PIN 실패가
+  남아 단순 저속 가설을 반증했다. 제목·PIN visibility/enabled까지 기다리는 공통
+  readiness를 17곳에 적용해 조합 3/3과 최종 전체 82/82를 통과했다. 실제 A Gate 5는
+  exact `LOCKED`를 통과했지만 Device Owner fault cleanup은 강제하지 않았다. test-only
   변경이라 release build·A 재설치는 수행하지 않았다.
 - 이번 RC89에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
@@ -194,6 +205,61 @@
   `git revert 750b7d7089f630295ba8b2f3f7e032766c75b94d` 후 Kiosk unit, lint,
   AndroidTest assemble·신규 focused와 전체 계측을 다시 실행한다. 이 commit은 제품
   source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0022 시험 체크포인트를 되돌리려면
+  `git revert 3dda9f1d5f80def21c457e1775797332f946b0bb` 후 Kiosk unit, lint,
+  AndroidTest assemble·관련 focused와 전체 계측을 다시 실행한다. 이 commit은 제품
+  source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 Kiosk Lock Task fail-closed·관리자 인증 readiness 독립 재검증
+
+- `SOL-0022` — Kiosk 전용기기 정책/수업 사전점검/계측 안정성, P3, 신뢰도 높음,
+  상태 `이미 수정됨`.
+- 사용자 영향 후보는 `startLockTask()` 뒤 mode가 exact `LOCKED`가 아니어도 QR·인증
+  흐름을 계속하고, 진입 전 추가한 `DISALLOW_CREATE_WINDOWS`가 실패 뒤 남으며,
+  Activity·사전점검·Gate 5 verifier가 이를 성공으로 오판하는 것이었다. 과거
+  `LUNA-0022`는 2026-08-02 source를 근거로 한 후보다.
+- 현재 정적 근거: commit `d5589373fe6951451839c43ac75578ac22472b5b`부터
+  `enterRestrictedMode()`는 Device Owner·allowlist가 아니면 `false`, 실제 mode가
+  `LOCKED`가 될 때만 `true`를 반환한다. restriction 추가 뒤 예외·확인 실패면 현재
+  mode가 `NONE`이 아닌 경우 `stopLockTask()`를 시도하고 restriction을 지운 뒤 실패를
+  전파한다. `MainActivity.enterDedicatedMode()`는 `isFailure`뿐 아니라
+  `!getOrDefault(false)`도 정책 실패에 누적한다. preflight와 Gate 5 script는 exact
+  `LOCKED`가 아니면 차단한다. commit `fc03216f`는 비동기 mode 전이를 25ms polling,
+  최대 1.5초로 기다리게 했다.
+- 신규 동적 근거: Device Owner가 아닌 API 33 시험 package 전제를 단언하고 빈 합성
+  DB로 실제 Activity를 실행했다. controller의 `success(false)`가
+  `dedicatedDevicePolicyFailed=true`와 화면의 `보안 정책 오류`로 함께 나타났다. 기존
+  policy focused 8/8도 LOCKED/PINNED/NONE과 configuration failure 차단을 확인했다.
+- 실행한 자동검증과 중간 실패:
+  - 기존 `SessionPreflightPolicyTest` 4건과 `DedicatedDevicePolicyTest` 4건: 8/8,
+    Gradle 20초 PASS. 신규 Activity focused: 1/1, Gradle 32초 PASS.
+  - 첫 전체 82개는 신규 case 0.318초 PASS 뒤 기존 빠른 반 시험이 초기 관리자 준비
+    대기에서 17.7초 뒤 1/82 실패했다. 격리 1/1·22초와 일시적 30초 대기 조합 2/2를
+    확인했다.
+  - 두 번째 전체 82개는 빠른 반 시험 통과 뒤 기존 PIN 시험이 같은 경계에서
+    17.274초 뒤 1/82 실패했다. 격리 1/1·23초 PASS였고, 세 시험에 기본 30초를
+    적용해도 PIN 시험이 30초 뒤 실패해 단순 기기 저속 가설을 반증했다.
+  - 원인은 로딩 중에도 `auth_panel`이 보이므로 실제 `showAuthentication()` 전에 PIN을
+    넣고, 이후 인증 화면 초기화가 값을 지우는 startup 경쟁이었다. 제목
+    `관리자 인증`, PIN visibility·enabled까지 기다리는 helper를 등록 관리자 시험
+    17곳에 적용하고 기본 15초 timeout을 복원했다. 관련 조합은 3/3·41초 PASS다.
+  - 최종 API 33 전체는 82/82, failure/error/skip 0, XML 101.362초, Gradle 1분 57초
+    PASS다. 신규·빠른 반·PIN case는 각각 0.337초·4.985초·4.802초다.
+  - 최종 unit/lint/debug·AndroidTest assemble은 84 tasks·35초 PASS, JVM XML
+    99/99·failure/error/skip 0·0.808초다. Gate 5 script parser 오류는 0건이다.
+- 실제 A 동적 근거: 승인 `SM-P610`/Android 13/SDK 33에서 현재 verifier가 Device
+  Owner, Kiosk RC89/code 94, Kiosk·Web allowlist와 Lock Task `LOCKED`를 통과했다.
+  Kiosk는 top resumed이고 원격 지원은 `INACTIVE`다.
+- 반대 근거·제약: non-Device-Owner `false` 분기는 restriction을 추가하기 전이므로
+  신규 계측이 cleanup branch 자체를 실행하지는 않는다. 실제 Device Owner A에서
+  restriction 추가 직후 timeout·예외나 `PINNED`를 고의로 만들지 않았다. cleanup은
+  현재 source의 정적 대조이고, A의 positive `LOCKED` 통과와 구분한다. 보안 상태를
+  약화시키는 fault injection은 수행하지 않았다.
+- 변경은 `MainActivityInstrumentedTest.kt` 한 파일뿐이다. 시험·원격 복구점은
+  `3dda9f1d5f80def21c457e1775797332f946b0bb`, 전용 origin branch push 성공. source·
+  version·release artifact는 바뀌지 않았고 A 재설치는 수행하지 않았다.
+- rollback은 `git revert 3dda9f1d5f80def21c457e1775797332f946b0bb` 후 관련
+  focused·unit·lint·assemble·전체 계측을 재실행한다. 기기 rollback은 필요 없다.
 
 ## 2026-08-13 Kiosk 관리자 cross-operation undo lifetime 독립 재검증
 
@@ -1943,6 +2009,8 @@
   `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`.
 - `SOL-0021` 관리자 cross-operation undo lifetime 회귀 고정 test commit:
   `750b7d7089f630295ba8b2f3f7e032766c75b94d`.
+- `SOL-0022` Lock Task fail-closed·관리자 인증 readiness 회귀 고정 test commit:
+  `3dda9f1d5f80def21c457e1775797332f946b0bb`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤
