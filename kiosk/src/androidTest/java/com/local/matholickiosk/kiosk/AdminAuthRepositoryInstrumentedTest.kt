@@ -8,8 +8,10 @@ import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.AdminAuthResult
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -45,5 +47,39 @@ class AdminAuthRepositoryInstrumentedTest {
             AdminAuthResult.Success,
             repository.authenticate("654321".toCharArray()),
         )
+    }
+
+    @Test
+    fun pinInputsAreClearedAcrossDuplicateRejectedLockedAndSuccessfulBranches() {
+        var nowEpochMs = 10_000L
+        val repository = AdminAuthRepository(database) { nowEpochMs }
+        val enrolledPin = "654321".toCharArray()
+        repository.enroll(enrolledPin)
+        assertArrayEquals(CharArray(enrolledPin.size), enrolledPin)
+
+        val duplicatePin = "123456".toCharArray()
+        assertThrows(IllegalStateException::class.java) {
+            repository.enroll(duplicatePin)
+        }
+        assertArrayEquals(CharArray(duplicatePin.size), duplicatePin)
+
+        val rejectedPin = "654322".toCharArray()
+        assertEquals(
+            AdminAuthResult.Rejected(1_000L),
+            repository.authenticate(rejectedPin),
+        )
+        assertArrayEquals(CharArray(rejectedPin.size), rejectedPin)
+
+        val lockedPin = "654321".toCharArray()
+        assertEquals(
+            AdminAuthResult.Rejected(1_000L),
+            repository.authenticate(lockedPin),
+        )
+        assertArrayEquals(CharArray(lockedPin.size), lockedPin)
+
+        nowEpochMs += 1_000L
+        val acceptedPin = "654321".toCharArray()
+        assertEquals(AdminAuthResult.Success, repository.authenticate(acceptedPin))
+        assertArrayEquals(CharArray(acceptedPin.size), acceptedPin)
     }
 }
