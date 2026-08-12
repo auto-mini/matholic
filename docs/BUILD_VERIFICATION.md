@@ -1,5 +1,61 @@
 # 빌드·보안 검증 기록
 
+## PC 수신기 0.1.8 active handler 종료 barrier — 2026-08-13
+
+### 수정 전 재현·구현 범위
+
+- 기존 `ThreadedReceiverServer`는 listener·tray thread만 2초 join하고 request
+  handler는 daemon으로 두었다. `server_close()`는 active socket을 추적하지 않아
+  tray 종료나 Tk mainloop 반환 뒤에도 최대 30초 read deadline 동안 handler와
+  client 연결이 살아 있을 수 있었다. process가 먼저 끝나면 in-flight 작업도
+  완료 경계를 거치지 못한다.
+- loopback client가 1 byte만 보낸 partial request 상태에서 `shutdown()`과
+  `server_close()`를 호출한 신규 focused test는 수정 전 0.78초에 실패했다.
+  close 반환 뒤 client `recv()`가 250ms timeout이어서 연결이 실제로 열려 있음을
+  확인했다. SOL-0004의 admission/frame deadline과 달리 이번 범위는 앱 종료
+  barrier다.
+- 0.1.8 server는 admission 직후 active socket을 condition 아래 추적하고 handler
+  `finally`에서 제거한다. listener를 닫은 뒤 active socket을 shutdown/close하고
+  handler가 정리될 때까지 최대 2초 기다린다. network read는 즉시 풀리고, 이미
+  state 작업 안에 들어간 비정상 handler는 무기한 기다리지 않는다.
+- 앱은 listener와 handler가 모두 정리된 뒤에만 `ReceiverState.close()`로 대기 CSV
+  메모리 buffer를 지운다. 2초 안에 handler가 회수되지 않으면 process 종료를
+  계속하되 state를 먼저 지워 active control 처리와 경쟁하지 않는다. PDF의 원자적
+  `.part`→final, replay receipt, ACK와 event 순서는 바꾸지 않았다.
+
+### 자동·패키지·운영 PC 검증
+
+- 수정 후 partial close, state 작업 50ms bounded fallback, app cleanup 순서와
+  non-drain state 보존 focused test 4개는 `4 passed in 1.40s`다. 수정 후 partial
+  단건은 `1 passed in 0.09s`다.
+- source 전체 `python -m pytest -q`는 27/27, 1.98초 PASS이고
+  `python -m compileall -q src tests`는 오류 0건이다. 공식 build environment에서
+  다시 27/27, 2.59초 PASS한 뒤 PyInstaller 6.15.0 package와 독립 인증·저장·ACK·
+  정리 smoke를 통과했다.
+- 0.1.8 artifact는 23,187,199 bytes, SHA-256
+  `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`다.
+  PyInstaller warning은 Windows에서 사용하지 않는 POSIX·GTK·macOS 및 선택 모듈뿐이고
+  Windows hidden import와 packaged smoke는 통과했다.
+- 운영 PC의 0.1.7 설치본은 보관 artifact와 23,185,198 bytes·SHA-256
+  `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`로
+  정확히 일치했다. parent/child 2개, listener 1개, established 연결 0개를 확인한
+  뒤 exact process만 종료하고
+  `%LOCALAPPDATA%\MatholicPdfReceiver\backup\MatholicPdfReceiver-before-0.1.8-20260813-024559.exe`
+  로 백업해 hash를 재확인했다.
+- 0.1.8을 같은 설치 path에 교체하고 설치본 hash=artifact hash, 독립 smoke exit 0,
+  background parent/child 2개, `0.0.0.0:48129` listener 1개, established 0개를 두 번
+  확인했다. Startup shortcut target/`--background`, 기존 `Private`/TCP 48129 단일
+  방화벽 rule, DPAPI config 818 bytes·last write `2026-08-13 02:23:48`, pending CSV
+  store 부재를 보존했다. 현재 비관리자 세션이라 이미 정확한 방화벽 rule을
+  재작성하지 않았다.
+- 실제 운영 PC에서 전송 중 tray Quit, Windows 로그오프·종료, 강제 process kill은
+  수행하지 않았다. 실제 수신 PDF·페어링·방화벽·수신 폴더 내용도 바꾸지 않았고,
+  정확한 영향 분기는 loopback synthetic request로 확인한 `자동검증 완료`다.
+- 구현·복구점은 `850b6f31ad272c71175cb724d6d4058b9d295752`이며 전용 origin branch에
+  push했다. source rollback은 `git revert 850b6f31ad272c71175cb724d6d4058b9d295752`,
+  운영 PC rollback은 active 연결 0개를 확인한 뒤 위 exact 0.1.7 backup을 같은
+  설치 path에 복원하고 독립 smoke·listener·자동시작·방화벽을 다시 확인한다.
+
 ## Kiosk RC88 공유 QR PDF 재시작 만료 복구 — 2026-08-13
 
 ### 구현 범위

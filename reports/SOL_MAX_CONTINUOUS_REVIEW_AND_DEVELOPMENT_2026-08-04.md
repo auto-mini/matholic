@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 02:32:31 +09:00
+- `last_updated`: 2026-08-13 02:53:48 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `a5905540cd9a74d589bb78fee7ea247bb35a56ac` /
-  `a5905540cd9a74d589bb78fee7ea247bb35a56ac`; ahead/behind `0/0`.
+  `850b6f31ad272c71175cb724d6d4058b9d295752` /
+  `850b6f31ad272c71175cb724d6d4058b9d295752`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `a5905540cd9a74d589bb78fee7ea247bb35a56ac`
-  (`fix(kiosk): expire shared QR PDFs after restart (SOL-0015)`). 이 상태기록 문서
+  `850b6f31ad272c71175cb724d6d4058b9d295752`
+  (`fix(receiver): drain active handlers on shutdown (SOL-0016)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -40,16 +40,20 @@
   - RC88 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
     안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
     Web 사전점검을 거쳐 전면 카메라 QR 대기로 복원했다.
-- 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지 않았다. 설치본의
-  마지막 독립 현장 확인은 아래 SOL-0008을 따른다.
-- 현재 작업 중 finding: `SOL-0015` 증거 체크포인트. 공유 QR PDF의 재시작 뒤 남은
-  만료 재예약·FileProvider 선행 정리, 전체 자동검증·RC88 release·A 보존 설치와
-  통합 회귀·구현 push를 완료했다. 실제 QR 공유 중 process kill·1시간 경과는
-  강제하지 않고 합성 비-QR API 33 계측으로 확인했으므로 상태는 `자동검증 완료`다.
-- 다음 우선 큐: PC receiver 0.1.7이 active PDF/control handler 처리 중 tray Quit,
-  Tk mainloop 반환 또는 shutdown 예외를 만나도 file·replay·ACK·event 정합성과
-  server/handler thread를 유한하게 drain/join하는지 현재 source와 fault test로
-  독립 재검증한다. SOL-0004의 admission/frame deadline과 중복시키지 않는다.
+- 운영 PC에는 PC 수신기 0.1.8을 같은 설치 path에 보존 교체했다. 설치 EXE와
+  artifact는 23,187,199 bytes·SHA-256
+  `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`로
+  일치한다. 독립 smoke exit 0, background parent/child 2개,
+  `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
+  `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
+- 현재 작업 중 finding: `SOL-0016` 증거 체크포인트. active request socket 추적,
+  종료 시 socket close·최대 2초 handler drain, state cleanup 순서, 전체 27 pytest,
+  0.1.8 package·독립 smoke·운영 PC 보존 교체와 구현 push를 완료했다. 실제 운영
+  전송 중 tray Quit·Windows 로그오프는 강제하지 않아 상태는 `자동검증 완료`다.
+- 다음 우선 큐: Kiosk가 수업 종료 transaction을 commit한 뒤 관리자 snapshot
+  refresh가 실패해도 memory의 이전 active session·종료/재개 control·scanner를
+  재사용하지 않는지 현재 source와 fault injection으로 독립 재검증한다. 과거
+  `LUNA-0026`은 조사 자료일 뿐 현재 결함으로 선결하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -61,7 +65,8 @@
   정확한 영향 분기를 재현하지 않았다.
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
-- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`.
+- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
+  `SOL-0016`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
@@ -84,6 +89,11 @@
   manifest provider 교체와 provider 초기화 선행 삭제, 전체 76개 계측으로 확인했다.
   process가 계속 종료된 동안 private cache 파일이 물리적으로 남는 것과 이미 읽은
   외부 수신기 복사본은 앱이 회수하지 못하는 잔여 경계다.
+- SOL-0016의 정확한 운영 전송 중 tray Quit·Windows 로그오프·종료는 실제 PC에서
+  강제하지 않았다. 수정 전 partial socket 잔존 실패, 수정 후 socket close·slot
+  회수와 state operation 50ms bounded fallback, app cleanup 순서를 loopback으로
+  확인했다. Computer Use에는 background tray의 targetable window가 없어 Explorer
+  좌표를 추측하지 않았고 앱·연결·파일 상태를 바꾸지 않았다.
 - 이번 RC88에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -121,6 +131,52 @@
   code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
+- SOL-0016만 되돌리려면
+  `git revert 850b6f31ad272c71175cb724d6d4058b9d295752` 후 PC receiver 전체 pytest,
+  compileall, PyInstaller package와 독립 smoke를 다시 실행한다. 운영 PC는 active
+  연결 0개를 확인한 뒤
+  `%LOCALAPPDATA%\MatholicPdfReceiver\backup\MatholicPdfReceiver-before-0.1.8-20260813-024559.exe`
+  의 SHA-256
+  `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`를
+  확인해 같은 설치 path에 복원하고, smoke·listener·자동시작·방화벽을 재확인한다.
+
+## 2026-08-13 PC 수신기 0.1.8 active handler 종료 barrier·운영 설치
+
+- SOL-0004는 connection 32개·frame 30초·event queue 상한을 교정했지만 daemon
+  request handler를 종료 시 개별 회수하지 않는 경계를 bounded process 종료로
+  남겼다. 현재 `server_close()`는 listener만 닫고 active socket을 추적하지 않아
+  tray 종료나 Tk mainloop 반환 뒤에도 partial client가 연결된 상태였다.
+- 수정 전 loopback client가 1 byte만 보낸 상태에서 `shutdown()`과
+  `server_close()`를 호출한 focused test는 0.78초에 실패했다. close 반환 뒤
+  `recv()`가 250ms timeout이어서 handler/client socket 잔존을 직접 확인했다.
+- 0.1.8은 admission 직후 socket을 condition 아래 추적하고 handler `finally`에서
+  회수한다. listener를 닫은 뒤 모든 active socket을 shutdown/close하고 최대 2초
+  drain한다. handler가 회수된 뒤에만 pending CSV memory를 닫고, 이미 state 작업
+  내부에서 응답하지 않는 handler는 bounded fallback 뒤 process 종료를 계속한다.
+- 자동·패키지 증거:
+  - partial close·slot 회수, state operation 50ms fallback, state cleanup 순서·
+    non-drain 보존 focused 4/4는 1.40초, partial 단건은 0.09초 PASS.
+  - source 전체 pytest 27/27, 1.98초, compileall 오류 0. 공식 build environment
+    pytest 27/27, 2.59초, PyInstaller 6.15.0 package와 독립 인증·저장·ACK·정리
+    smoke PASS.
+  - artifact 23,187,199 bytes, SHA-256
+    `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`.
+- 운영 PC:
+  - 설치 전 0.1.7은 보관 artifact와 23,185,198 bytes·SHA-256
+    `E88C7DBB3443F53EBB47DFB44B25D91F868DEA72B62C7BC9031D83915813CEF2`로
+    일치했고 background parent/child 2개, listener 1개, established 0개였다.
+  - exact 설치 EXE를 위 timestamped backup에 복사·hash 확인한 뒤 exact process만
+    종료하고 0.1.8을 같은 path에 교체했다. 설치본 hash=artifact hash, 독립 smoke
+    exit 0, background parent/child 2개, listener 1개, established 0개를 두 번
+    확인했다.
+  - Startup target/`--background`, 기존 `Private`/TCP 48129 단일 방화벽 rule,
+    DPAPI config 818 bytes·last write `2026-08-13 02:23:48`, pending CSV store 부재를
+    보존했다. 현재 비관리자 세션이라 이미 정확한 방화벽 rule을 재작성하지 않았다.
+  - Computer Use로 실제 tray Quit를 시도할 targetable receiver/Explorer window가
+    반환되지 않아 좌표를 추측하지 않았다. 실제 수신 PDF·페어링·방화벽·수신 폴더,
+    전송 중 tray Quit·Windows 로그오프·강제 process kill은 변경·수행하지 않았다.
+- 구현·복구점:
+  `850b6f31ad272c71175cb724d6d4058b9d295752`, 전용 origin branch push 성공.
 
 ## 2026-08-13 RC88 공유 QR PDF 재시작 만료 복구·A 설치
 
@@ -1499,6 +1555,73 @@
   되돌린 source에서 같은 signer·code 94 이상의 forward rollback release를
   `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를 하지 않는다.
 
+### SOL-0016 — 앱 종료 뒤 active PC receiver handler가 남을 수 있음
+
+- 영역: PC receiver·tray/Tk shutdown·active socket/thread·민감 state lifetime
+- 심각도: P3
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: 운영자가 알림 영역의 종료를 누르거나 Tk mainloop가 반환해도 이미
+  연결된 partial request handler와 client socket이 최대 30초 deadline 동안 남을 수
+  있었다. process가 먼저 끝나면 in-flight 작업은 ACK/event 완료 경계를 거치지
+  못하고, handler가 state lock 안에서 지연되면 앱 cleanup의 pending CSV memory
+  정리도 종료를 무기한 붙잡을 가능성이 있었다.
+- 재현 조건(수정 전 0.1.7): active connection 상한을 1로 둔 loopback server에
+  연결해 request magic 1 byte만 보낸다. handler가 slot을 점유한 뒤 listener
+  `shutdown()`과 `server_close()`를 호출하고 client 연결이 닫혔는지 확인한다.
+- 기대 결과: 새 연결 admission을 먼저 막고 active socket을 닫아 network handler를
+  깨운다. handler가 유한한 시간 안에 회수된 뒤에만 공유 receiver state를 닫으며,
+  state 내부 지연 때문에 앱 종료가 무기한 멈추지 않는다.
+- 실제 결과(수정 전): `daemon_threads=True`라 Python `ThreadingMixIn`은 handler를
+  join 목록에 넣지 않았고 server는 active socket을 추적하지 않았다. focused test는
+  `server_close()` 반환 뒤 client `recv()`가 250ms timeout이 되어 0.78초 1/1
+  failure였다. connection slot도 handler deadline 전에는 회수되지 않았다.
+- 정적·동적 근거:
+  - `ThreadedReceiverServer`는 admission 성공 직후 socket을 condition 아래 추적하고
+    handler `finally`에서 제거·알림한다. `server_close()`는 listener close 뒤 active
+    socket을 shutdown/close하고 최대 2초 condition wait한다.
+  - partial handler 수정 후 단건은 0.09초 PASS이고 client EOF/reset과 connection
+    slot 회수를 확인했다. state operation이 시험용 50ms보다 오래 머무는 경우에는
+    0.5초 안에 `active_handlers_drained=false`로 반환했다.
+  - 앱 cleanup은 listener thread도 종료되고 `active_handlers_drained=true`일 때만
+    `ReceiverState.close()`를 호출한다. drain 실패 때 state close를 생략하는 순서와
+    정상 순서를 mock 시험 2개로 고정했다. focused 4/4는 1.40초 PASS다.
+  - source 전체 pytest 27/27, 1.98초, compileall 오류 0. 공식 build environment
+    pytest 27/27, 2.59초, PyInstaller 6.15.0 package와 독립 인증·저장·ACK·정리
+    smoke를 통과했다.
+- 반대 근거·미검증:
+  - 기존 각 handler는 최대 32개·30초, recv 10초와 payload 상한이 있어 일반적인
+    무제한 resource leak은 아니었다. PDF 저장은 fsync·atomic replace와 persistent
+    replay receipt를 사용하고 ACK 유실 재시도도 idempotent하다.
+  - 실제 운영 PC에서 전송 중 tray Quit, Windows 로그오프·종료, 강제 process kill은
+    수행하지 않았다. Computer Use가 background tray와 Explorer의 targetable window를
+    반환하지 않아 좌표를 추측하지 않았고 exact 영향 분기는 loopback synthetic
+    request다. 실제 PDF·페어링·학생·CSV 데이터는 변경하지 않았다.
+  - 2초 뒤에도 state operation이 회수되지 않으면 daemon handler와 in-memory CSV는
+    process exit에 맡긴다. 이는 무기한 shutdown보다 bounded fail-safe를 우선한
+    잔여 경계이며 정상 application-level ACK 완료를 보장하는 drain은 아니다.
+- 원인·결정: SOL-0004는 admission/frame/event resource 상한을 교정했지만 daemon
+  handler의 process 종료 가정을 실제 socket close barrier로 만들지 않은 부분
+  잔존이었다. non-daemon handler로 바꿔 모든 disk/OS 지연을 무기한 join하지 않고,
+  active socket close와 bounded wait를 명시해 정상 network handler는 회수하고
+  비정상 state 지연에서는 공유 state를 먼저 지우지 않도록 했다.
+- 변경 파일: PC receiver `server.py`, `app.py`, `test_server.py`, `test_app.py`,
+  0.1.8 version/build metadata와 receiver README.
+- 관련 commit:
+  `850b6f31ad272c71175cb724d6d4058b9d295752`; 전용 origin branch push 성공,
+  구현 push 직후 ahead/behind `0/0`.
+- 운영 PC 상태: 0.1.7 exact artifact/hash를 timestamped backup에 보존한 뒤 active
+  연결 0개 상태에서 exact installed process만 종료하고 0.1.8을 같은 path에
+  교체했다. 설치본 23,187,199 bytes·SHA-256
+  `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`,
+  independent smoke exit 0, background parent/child 2개, listener 1개,
+  established 0개다. Startup·Private firewall·DPAPI config를 보존했다.
+- rollback: 코드
+  `git revert 850b6f31ad272c71175cb724d6d4058b9d295752` 후 pytest, compileall,
+  package와 독립 smoke를 재실행한다. 운영 PC는 active 연결 0개를 확인하고 위
+  0.1.7 backup hash를 검증한 뒤 같은 설치 path에 복원해 smoke·listener·Startup·
+  firewall을 다시 확인한다. 페어링 config와 수신 PDF는 삭제하지 않는다.
+
 ## 최근 변경·검증·전달
 
 - 누적 보고서 기준선 commit:
@@ -1540,6 +1663,8 @@
   commit: `51d1b03c7694f685e91421c0c8953fc9b8aae329`.
 - `SOL-0015` 공유 QR PDF 재시작 만료 복구·provider 선행 정리·API 33 회귀·RC88
   release metadata commit: `a5905540cd9a74d589bb78fee7ea247bb35a56ac`.
+- `SOL-0016` PC receiver active socket 종료 barrier·state cleanup 순서·0.1.8
+  package metadata commit: `850b6f31ad272c71175cb724d6d4058b9d295752`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

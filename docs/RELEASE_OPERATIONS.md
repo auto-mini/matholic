@@ -8,11 +8,11 @@ RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. �
 같은 signer의 Kiosk RC88·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
 Owner와 전용 HOME을 보존했고 두 설치본의 해시는 보관 artifact와 다시
 일치시켰다. 현재 보관 검증 묶음은 Kiosk RC88, Web POC RC137과 PC 수신기
-0.1.7이다.
+0.1.8이다.
 Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
-`docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.7의 검증·설치 여부는
+`docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.8의 검증·설치 여부는
 `reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
-  `SOL-0008`을 기준으로 한다.
+  `SOL-0016`을 기준으로 한다.
 
 현재 소스 작업본의 Kiosk RC88은 선택적 공유 QR PDF가 process 재시작을 거쳐도
 남은 수명 안에 정리되도록 예약을 복원하고, 전용 FileProvider가 만료 파일을
@@ -32,8 +32,8 @@ PDF를 저장·출력해야 한다.
 - 현재 A: Kiosk `0.6.0-rc88`/code 93, Web POC `0.4.0-rc137`/code 154
 - 내부 보관 현재 검증 묶음:
   Kiosk `0.6.0-rc88`/code 93, Web POC `0.4.0-rc137`/code 154,
-  PC 수신기 `0.1.7`
-- 현재 운영 PC 설치본: PC 수신기 `0.1.7`
+  PC 수신기 `0.1.8`
+- 현재 운영 PC 설치본: PC 수신기 `0.1.8`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
 - Kiosk RC88 APK: 36,754,057 bytes,
   `00EE705C788720D80BF90203F8F02EAEF1D69143F9C3816683344C4F5BE85C28`
@@ -233,7 +233,7 @@ A의 개발자 옵션과 USB 디버깅은 껐고 생산 잠금 물리 실기를 
 
 ### 현재 PC 설치 상태
 
-- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.7`
+- 수신기 이름: `매쓰홀릭 PDF 수신기` `0.1.8`
 - 설치 파일:
   `%LOCALAPPDATA%\MatholicPdfReceiver\app\MatholicPdfReceiver.exe`
 - 수신 폴더:
@@ -299,7 +299,7 @@ Kiosk 첫 실행 때 신규용 더미 카드 4장을 자동으로 만들고 `신
 
 - PC가 표시되지 않거나 전송되지 않으면 먼저 A와 PC가 같은 사설 Wi-Fi인지,
   PC 수신기 창이 실행 중인지 확인한다.
-- 수신기 0.1.7은 사설 LAN 주소가 아직 없어도 TCP 서버와 트레이를 먼저 시작하고
+- 수신기 0.1.8은 사설 LAN 주소가 아직 없어도 TCP 서버와 트레이를 먼저 시작하고
   5초마다 주소를 다시 확인한다. 주소가 생기거나 바뀌면 현재 주소의 페어링 QR을
   자동으로 표시·갱신한다.
 - Kiosk RC46 이상은 저장된 주소 연결이 실패하면 현재 Wi-Fi의 같은
@@ -309,7 +309,7 @@ Kiosk 첫 실행 때 신규용 더미 카드 4장을 자동으로 만들고 `신
 - 다른 Wi-Fi, 다른 `/24` 망, PC 방화벽 차단 또는 수신기 중지 상태에서는
   자동 복구하지 않는다. 이 경우 네트워크를 바로잡고 다시 시도하며, PC가
   실제로 교체됐거나 수신기 설정이 초기화됐다면 수동 재페어링한다.
-- 0.1.7 수신기는 주소 변경 시 새 QR 확인을 알린다. 같은 `/24`에서 Kiosk의
+- 0.1.8 수신기는 주소 변경 시 새 QR 확인을 알린다. 같은 `/24`에서 Kiosk의
   인증된 자동 복구가 성공하면 수동 재페어링은 필요 없고, 자동 복구가 되지
   않을 때만 새 QR로 다시 페어링한다.
 - PC 교체·수신기 설정 초기화 뒤에는 `지정 PC 다시 페어링`을 수행한다.
