@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 00:37:11 +09:00
+- `last_updated`: 2026-08-13 01:46:21 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466` /
-  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`; ahead/behind `0/0`.
+  `51d1b03c7694f685e91421c0c8953fc9b8aae329` /
+  `51d1b03c7694f685e91421c0c8953fc9b8aae329`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`
-  (`fix(kiosk): keep startup responsive during QR delivery (SOL-0013)`). 이 상태기록 문서
+  `51d1b03c7694f685e91421c0c8953fc9b8aae329`
+  (`fix(kiosk): bound stalled PC PDF writes (SOL-0014)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,13 +17,13 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 독립 확인: 2026-08-13 00:36 +09:00. 승인 ADB device는 serial
+- 실제 A 마지막 독립 확인: 2026-08-13 01:39 +09:00. 승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc86`/code 91, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-13 00:29:33`.
-  - A에서 다시 읽은 Kiosk 설치 APK는 release artifact와 같은 36,754,045 bytes·
+  - Kiosk `0.6.0-rc87`/code 92, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-13 01:31:20`.
+  - A에서 다시 읽은 Kiosk 설치 APK는 RC87 release artifact와 같은 36,754,045 bytes·
     SHA-256
-    `0979D4A9688AE60DDF95A40238455A16D63C1752356425043574159A90BBAAC1`다.
+    `DE13ECB75EA784328D4954B81375387A1F415DA9BC428A6AB4D3984BB74A1724`다.
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
@@ -36,25 +36,27 @@
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
     지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash buffer 일치 항목 없음.
-  - RC86 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
+  - RC87 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
     안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
     Web 사전점검을 거쳐 전면 카메라 QR 대기로 복원했다.
 - 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지 않았다. 설치본의
   마지막 독립 현장 확인은 아래 SOL-0008을 따른다.
-- 현재 작업 중 finding: `SOL-0013` 증거 체크포인트. 구현·자동검증·RC86 설치와
-  A 통합 회귀·구현 push를 완료했다. 정확한 무응답 bootstrap 분기는 운영 QR을
-  바꾸지 않고 loopback 계측으로 확인했으므로 상태는 `자동검증 완료`다.
-- 다음 우선 큐: 지정 PC 전송 executor가 write/read stall에서 다른 명시적 PC
-  제어 작업을 무기한 막을 수 있는지, 실제 payload 상한·socket timeout·queue
-  동작을 독립 재검증한다. 가능성만으로 수정하지 않는다.
+- 현재 작업 중 finding: `SOL-0014` 증거 체크포인트. 구현·전체 자동검증·RC87
+  release·A 보존 설치와 통합 회귀·구현 push를 완료했다. 정확한 운영 PC partial
+  stall은 고의로 만들지 않고 JVM·Android 최대 payload loopback으로 확인했으므로
+  상태는 `자동검증 완료`다.
+- 다음 우선 큐: PC receiver가 선언된 frame을 일부만 보내는 client, 느린 disk·ACK
+  또는 다중 연결에서 worker·임시 파일·listener를 유한하게 정리하는지 현재
+  0.1.7 source와 fault test로 독립 재검증한다. 가능성만으로 수정하지 않는다.
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서 후보는 현재 source와 독립 재검증 전에는 열린
   결함으로 승격하지 않는다.
-- 자동검증 완료 P2: `SOL-0009`, `SOL-0013` 2건. QR 고정 불변조건과 무응답 PC
-  startup 격리는 전체 계측으로 확인했고 RC86까지 A에 설치했지만 실제 운영 카드의
-  QR을 변경하거나 운영 PC를 고의로 stall시켜 정확한 영향 분기를 재현하지 않았다.
+- 자동검증 완료 P2: `SOL-0009`, `SOL-0013`, `SOL-0014` 3건. QR 고정 불변조건,
+  무응답 PC startup 격리와 PDF write timeout은 전체 계측으로 확인했고 RC87까지
+  A에 설치했지만 실제 운영 카드의 QR을 변경하거나 운영 PC를 고의로 stall시켜
+  정확한 영향 분기를 재현하지 않았다.
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`.
@@ -71,7 +73,11 @@
   않았다. loopback receiver가 연결만 받고 ACK를 보류한 수정 전 실패·수정 후
   통과 시험과 전체 72개 instrumentation으로 확인했으며, A의 설치·인증·관리자·
   복구·Web 사전점검·QR 대기 통과를 정확한 무응답 PC 분기 통과로 확대하지 않는다.
-- 이번 RC86에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+- SOL-0014의 “연결 뒤 읽지 않는 receiver”도 운영 PC에서 고의 재현하지 않았다.
+  최대 5MiB frame·1KiB receive buffer의 JVM에서 수정 전 무기한 대기, JVM·Android
+  수정 후 bounded timeout을 확인했고 전체 73개 instrumentation을 통과했다.
+  실제 Windows PC·Wi-Fi·disk의 장시간 partial stall 현장 통과로 확대하지 않는다.
+- 이번 RC87에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
 - 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
@@ -81,21 +87,76 @@
   실패했다. 구현 뒤 focused `OK (1 test)`와 최종 전체 `OK (71 tests)`로 통과했다.
 - 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
   lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
-  A는 이미 Room v5·code 91이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  A는 이미 Room v5·code 92이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
   기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
-  migration을 마련하고, 같은 signer·code 92 이상의 복구 release를
+  migration을 마련하고, 같은 signer·code 93 이상의 복구 release를
   `adb install -r`로 설치해야 한다.
 - SOL-0012만 되돌리려면
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 91이므로 같은 signer·code 92 이상의 forward rollback을 사용하며 APK
+  code 92이므로 같은 signer·code 93 이상의 forward rollback을 사용하며 APK
   삭제·data clear·downgrade를 하지 않는다. Room schema는 계속 v5다.
 - SOL-0013만 되돌리려면
   `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 91이므로 되돌린 source에서 같은 signer·code 92 이상의 forward rollback
+  code 92이므로 되돌린 source에서 같은 signer·code 93 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
+- SOL-0014만 되돌리려면
+  `git revert 51d1b03c7694f685e91421c0c8953fc9b8aae329` 후 Kiosk unit, lint,
+  AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
+  code 92이므로 되돌린 source에서 같은 signer·code 93 이상의 forward rollback
+  release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
+  하지 않는다.
+
+## 2026-08-13 RC87 지정 PC PDF write timeout·A 설치
+
+- `Socket.soTimeout`은 ACK read만 제한해, TCP 연결 뒤 PDF를 읽지 않는 수신기에는
+  최대 5MiB 암호화 frame의 write가 무기한 대기할 수 있었다. 단일
+  `pcControlExecutor`가 점유돼 이후 명시적 PC 작업도 진행되지 않았다.
+- blocking `SocketChannel` write를 짧은 daemon writer에서 실행하고 호출자가 기존
+  read timeout과 같은 기본 10초 절대 제한만 기다리게 했다. timeout·interrupt는
+  channel을 닫아 write를 해제하고, 정상 write는 channel을 보존해 기존 인증 ACK를
+  그대로 읽는다. 암호화·상한·endpoint 복구·ACK·secret 정리는 바꾸지 않았다.
+- 수정 전 최대 payload loopback JVM 시험은 2초 안에 끝나지 않아 실패했다. 첫
+  nonblocking selector 구현은 JVM/Kiosk를 통과했으나 API 33 전체 72개 중
+  quick-class·SOL-0013 startup 2개 timeout과 executor thread 96~100% CPU를 보여
+  commit하지 않고 폐기했다. blocking writer 첫 보정의 정상 ACK socket close race도
+  `SocketException` 회귀로 잡아 정상 완료와 timeout close를 분리했다.
+- 최종 자동·릴리스 검증:
+  - JVM sender 정상 ACK·stall 2/2, 0.579초; stall 0.552초, 정상 0.027초.
+  - Android 최대 5MiB stall focused 1/1, SOL-0013 startup focused 1/1.
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS.
+  - API 33 전체 instrumentation 73/73, 실패·skip 0,
+    `BUILD SUCCESSFUL in 1m 55s`.
+  - 공식 release 158 tasks, `BUILD SUCCESSFUL in 2m 4s`; Kiosk/Web JVM,
+    release lint, signed assemble, version·non-debuggable·동일 signer 검증 PASS.
+- RC87 artifact:
+  `artifacts/matholic-kiosk-0.6.0-rc87-release.apk`, 36,754,045 bytes,
+  SHA-256
+  `DE13ECB75EA784328D4954B81375387A1F415DA9BC428A6AB4D3984BB74A1724`,
+  signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- A 실기:
+  - RC86/code 91 설치본과 보관 artifact의 byte·SHA-256·signer 일치를 먼저
+    확인하고 RC87/code 92를 `adb install -r`로 보존 설치했다. UID 10288,
+    firstInstallTime, Device Owner, preferred HOME·data·Lock Task를 유지했다.
+  - A에서 다시 읽은 설치 APK는 RC87 artifact와 byte·SHA-256·v2 signer가 정확히
+    일치했다. 변경 없는 Web RC137은 재설치하지 않았다.
+  - 보안 PIN 화면에서 remote capture가 거부돼 즉시 지원을 중지하고 UI hierarchy와
+    지정 DPAPI 도구만 사용했다. `RECOVERY_REQUIRED`를 학생·반·QR을 삭제하지 않는
+    원버튼으로 `ADMIN_IDLE`에 복구했고 카드 메뉴 `전체 4장 · 무료 4장 · 사용 중
+    0장`을 확인했다. 카드·계정·QR은 변경하지 않았다.
+  - 첫 수업 시작 판별은 명시적 `웹 검사 후 시작` 확인창에서 버튼을 누르지 않고
+    45초 대기해 timeout이었다. 제품 실패가 아닌 절차 누락임을 실제 화면으로
+    확인하고 exact 확인 버튼을 누른 뒤 15초 안에 전면 카메라 QR 대기로 갔다.
+  - 최종 Kiosk top resumed, Lock Task `LOCKED`, 원격 지원 `INACTIVE`, ADB
+    forward/reverse 없음, Kiosk crash buffer 일치 항목 없음이다.
+- 운영 PC를 일부러 partial stall시키거나 신규 QR을 만들지 않았다. 정확한
+  SOL-0014 분기는 JVM·Android loopback 자동검증이며 A에서는 설치·인증·복구·메뉴·
+  Web 사전점검·QR 대기 통합 회귀까지만 확인했다.
+- 구현·복구점:
+  `51d1b03c7694f685e91421c0c8953fc9b8aae329`, 전용 origin branch push 성공.
 
 ## 2026-08-13 RC86 시작 PDF 전송 격리·A 설치
 
@@ -1197,7 +1258,7 @@
   `LOCKED` 확인. 비활성 복구 분기는 수행하지 않음.
 - rollback: 코드
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 위 unit/lint/전체
-  계측/release를 재실행한다. A는 code 91이므로 같은 signer·code 92+의 forward
+  계측/release를 재실행한다. A는 code 92이므로 같은 signer·code 93+의 forward
   rollback을 만들고 앱 삭제·data clear·downgrade를 하지 않는다. Room v5는
   유지한다.
 
@@ -1252,8 +1313,63 @@
   crash buffer 일치 항목 없음이다. 운영 PC 수신기와 pairing은 변경하지 않았다.
 - rollback: 코드
   `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit/lint,
-  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 91이므로
-  같은 signer·code 92 이상의 forward rollback을 `adb install -r`로 설치하고
+  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 92이므로
+  같은 signer·code 93 이상의 forward rollback을 `adb install -r`로 설치하고
+  APK 삭제·data clear·downgrade를 하지 않는다.
+
+### SOL-0014 — 연결 뒤 읽지 않는 지정 PC가 PDF write를 무기한 점유함
+
+- 영역: Kiosk PC PDF sender·socket timeout·executor/resource bound
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: 지정 PC가 TCP 연결은 수락하지만 process stall·disk/보안 제품 지연
+  등으로 payload를 읽지 않으면 명시적 PDF 전송이 끝나지 않는다. 단일
+  `pcControlExecutor`가 점유돼 이후 PC 상태·파일·알림 작업도 queue에서 진행되지
+  않으며 관리자에게 완료·실패 결과가 돌아오지 않는다.
+- 재현 조건(수정 전 RC86): loopback `ServerSocket`의 receive buffer를 1KiB로
+  제한하고 연결만 수락한 채 읽지 않는다. Kiosk sender에서 허용 상한 5MiB PDF를
+  전송하고 2초 안에 종료되는지 확인한다.
+- 기대 결과: connect·write·ACK read 각각이 유한한 시간 안에 성공 또는 실패하고,
+  peer가 읽지 않아도 sender와 전용 executor가 회수된다.
+- 실제 결과(수정 전): `Socket.soTimeout`은 input read에만 적용되고
+  `getOutputStream().write(frame)`에는 제한이 없었다. focused JVM 시험은 2초
+  future 제한을 넘겨 `PDF send exceeded its bounded I/O timeout`으로 실패했다.
+  peer를 finally에서 닫은 뒤에야 worker가 풀렸고 해당 Gradle 실행은 약 53.3초였다.
+- 정적·동적 근거:
+  - `PcPdfSender`는 blocking `SocketChannel` writer를 daemon thread에서 실행하고
+    호출자가 기본 10초 write timeout만 기다린다. timeout·interrupt에서 channel을
+    닫고 writer를 정리한다. 정상 완료에는 socket을 보존해 기존 인증 ACK를 읽는다.
+  - 최종 JVM 정상 frame+ACK와 max payload stall 2/2는 0.579초, Android API 33
+    max payload stall focused 1/1은 250ms 설정·총 2초 미만으로 통과했다.
+  - Kiosk 84 tasks, 전체 API 33 73/73, 공식 release 158 tasks를 통과했다.
+- 반대 근거·중간 실패:
+  - 첫 nonblocking selector 구현은 JVM/Kiosk를 통과했지만 API 33 전체 72개 중
+    quick-class·startup 2개 timeout과 높은 executor CPU를 보여 폐기했다. quick-class
+    focused 자체는 통과했으나 startup의 PIN 뒤 관리자 데이터 3초 제한이 반복
+    실패했다. 이 구현은 commit되지 않았다.
+  - blocking writer 첫 보정도 write latch 직후 정상 socket을 닫는 race로 정상 ACK
+    시험이 `SocketException` 실패했고, timeout 여부와 write 완료를 분리해 수정했다.
+  - 현재 A에는 새로 보낼 PDF가 없어 실제 Windows 운영 PC를 일부러 partial
+    stall시키지 않았다. A RC87 설치·인증·복구·Web 사전점검·QR 대기는 통과했지만
+    정확한 영향 분기의 현장 통과로 확대하지 않는다.
+- 원인·결정: Java socket의 read timeout이 write까지 제한한다고 가정한 것이
+  원인이다. Android/JVM 양쪽에서 close로 blocking write가 해제됨을 시험하고,
+  전체 channel을 nonblocking으로 바꾸는 대신 bounded helper thread로 기존
+  connect·ACK stream 호환성과 CPU idle을 유지했다.
+- 변경 파일: `PcPdfSender.kt`, JVM·Android sender 회귀시험,
+  `MainActivityInstrumentedTest.kt`, Kiosk RC87 version/release scripts.
+- 관련 commit:
+  `51d1b03c7694f685e91421c0c8953fc9b8aae329`; 전용 origin branch push 성공,
+  구현 push 직후 ahead/behind `0/0`.
+- A/PC 현장 상태: Kiosk RC87/code 92 설치 APK가 artifact와 byte·SHA-256·signer
+  일치한다. UID·firstInstallTime·Device Owner·HOME·data를 유지했고 안전 복구 뒤
+  QR 대기·Lock Task `LOCKED`, 원격 `INACTIVE`, 포트 매핑과 crash buffer 일치 항목
+  없음이다. 운영 PC 수신기와 pairing은 변경하지 않았다.
+- rollback: 코드
+  `git revert 51d1b03c7694f685e91421c0c8953fc9b8aae329` 후 Kiosk unit/lint,
+  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 92이므로
+  같은 signer·code 93 이상의 forward rollback을 `adb install -r`로 설치하고
   APK 삭제·data clear·downgrade를 하지 않는다.
 
 ## 최근 변경·검증·전달
@@ -1293,6 +1409,8 @@
   `e7c558da18152795d11427d13d8d61b5323e1640`.
 - `SOL-0013` 시작 PDF 전송 격리·회귀·RC86 release metadata commit:
   `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`.
+- `SOL-0014` 지정 PC PDF write timeout·JVM/Android 회귀·RC87 release metadata
+  commit: `51d1b03c7694f685e91421c0c8953fc9b8aae329`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

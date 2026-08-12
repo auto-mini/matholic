@@ -1,5 +1,89 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC87 지정 PC PDF write timeout — 2026-08-13
+
+### 구현 범위
+
+- 기존 `PcPdfSender`의 `Socket.soTimeout`은 ACK read에만 적용됐다. 지정 PC가 TCP
+  연결은 수락하지만 PDF를 읽지 않으면 최대 5MiB 암호화 frame의
+  `OutputStream.write()`가 무기한 대기할 수 있었고, 단일 `pcControlExecutor`의
+  이후 명시적 PC 작업도 진행되지 않았다.
+- sender는 blocking `SocketChannel` writer를 짧은 daemon thread에서 실행하고
+  호출자가 절대 write 제한을 `CountDownLatch`로 기다린다. 기본 write 제한은 기존
+  read 제한과 같은 10초다. timeout·호출자 interrupt에서는 channel을 먼저 닫아
+  blocking write를 해제하고 writer를 정리한다. write가 정상 완료된 channel은
+  그대로 보존해 기존 인증 ACK를 읽는다.
+- PDF 상한, 암호화 frame, endpoint 복구, ACK 인증, pairing secret 정리는 바꾸지
+  않았다. 연결 실패와 ACK read는 각각 기존 connect/read timeout을 유지한다.
+
+### 재현·중간 실패·최종 자동검증
+
+- 수정 전 JVM 회귀시험은 1KiB receive buffer의 loopback receiver가 연결만 받고
+  읽지 않는 상태에서 최대 5MiB PDF를 보냈다. sender가 2초 안에 끝나지 않아
+  `PDF send exceeded its bounded I/O timeout`으로 실패했고, peer를 정리한 뒤에야
+  worker가 풀렸다. 해당 Gradle 실행은 약 53.3초였다.
+- 첫 구현은 nonblocking `SocketChannel`·`Selector`를 사용했다. JVM과 Kiosk 84
+  tasks는 통과했지만 첫 API 33 전체 계측은 72개 중 2개가 timeout으로 실패했다:
+  `quickClassButtonsKeepStableGeometryAndTypographyAfterSelectionChanges`,
+  `unresponsivePairedPcDoesNotDelayAdminAuthenticationAtStartup`. crash·ANR·DB 오류는
+  없었고 quick-class focused는 독립 통과했지만, startup focused의 PIN 뒤 관리자
+  데이터 3초 제한이 반복 실패하고 시험 process의 executor thread가 96~100% CPU를
+  사용했다. 이 구현은 commit하지 않고 위 blocking writer 방식으로 폐기했다.
+- blocking writer 첫 보정에서는 write latch 직후 writer thread가 아직 alive인 짧은
+  순간을 실패로 오인해 정상 ACK socket을 닫았고 정상 경로 시험이
+  `SocketException`으로 실패했다. write 완료 여부를 분리해 정상 완료에는 먼저
+  channel을 닫지 않도록 고쳤다.
+- 최종 JVM `PcPdfSenderTest`는 정상 전체 frame·인증 ACK와 write-stall timeout 2개를
+  모두 통과했다. XML은 `tests=2`, failure/error/skip 0, 전체 0.579초이며 stall
+  0.552초, 정상 ACK 0.027초다.
+- Android API 33 전용 `PcPdfSenderInstrumentedTest`도 최대 5MiB·1KiB receive
+  buffer·250ms timeout에서 `SocketTimeoutException`과 총 2초 미만 종료를 1/1
+  통과해 Android blocking I/O 해제를 직접 확인했다.
+- SOL-0013 startup 시험은 인증 UI 2초 제한을 유지했다. PIN PBKDF2와 cold emulator
+  CPU 경합에 종속되던 비본질적 관리자 데이터 제한만 3초에서 8초로 늘리고 server
+  hold를 20초로 늘려 PC write가 끝나기 전에 관리자 데이터가 준비됨을 계속
+  단언했다. 최종 focused 1/1을 통과했다.
+- 최종 `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 1m 42s`다.
+  같은 API 33 AVD의 전체 instrumentation은 새 시험을 포함해 73/73, 실패·skip 0,
+  Gradle `BUILD SUCCESSFUL in 1m 55s`다.
+- 세 release PowerShell script parser는 오류 0건이다. 공식
+  `scripts/build-release.ps1`은 158 tasks, `BUILD SUCCESSFUL in 2m 4s`였고
+  Kiosk/Web JVM, release lint, signed assemble, version·non-debuggable·동일 signer
+  검증을 통과했다.
+- RC87 release APK는 36,754,045 bytes, SHA-256
+  `DE13ECB75EA784328D4954B81375387A1F415DA9BC428A6AB4D3984BB74A1724`,
+  `versionName=0.6.0-rc87`, `versionCode=92`, v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+
+### A 보존 설치·현장 확인
+
+- 승인 ADB 대상은 `SM-P610`/`R54TB029FHZ` 한 대뿐이었다. 설치 전 RC86/code 91
+  설치 APK가 보관 RC86과 36,754,045 bytes·SHA-256·signer까지 같음을 확인하고,
+  원격을 중지한 전면 QR 대기 안전점에서 같은 signer RC87/code 92를
+  `adb install -r`로 보존 설치했다.
+- UID 10288, first install `2026-07-24 12:52:28`, Device Owner, preferred HOME,
+  앱 data와 Lock Task `LOCKED`를 유지했다. last update는
+  `2026-08-13 01:31:20`이다. A에서 다시 읽은 설치 APK도 RC87 artifact와
+  byte·SHA-256·v2 signer가 정확히 일치했다. Web RC137은 변경·재설치하지 않았다.
+- 설치 재시작의 보안 PIN 화면에서는 원격 capture가 거부돼 즉시 지원을 중지했고,
+  UI hierarchy로 PIN 화면임만 확인한 뒤 지정 DPAPI 입력 도구만 사용했다.
+  `RECOVERY_REQUIRED` 확인창이 학생·반·QR은 삭제하지 않고 현재 수업·임시 명단만
+  정리함을 확인해 `ADMIN_IDLE`로 안전 복구했다. 신규용 카드 메뉴는
+  `전체 4장 · 무료 4장 · 사용 중 0장`이며 항목·계정·QR을 변경하지 않았다.
+- 첫 수업 시작 뒤 45초 QR 판별은 `수업 시작 사전점검` 확인창에서 명시적
+  `웹 검사 후 시작`을 누르지 않은 채 기다려 timeout이었다. 제품 실패가 아니라
+  현장 절차 누락임을 실제 화면으로 확인했다. 보안 정책 정상·공식 Web 안전검사·
+  로그인 잔여 안전정리 문구와 exact 확인 버튼을 검증해 누른 뒤 15초 안에 전면
+  카메라 QR 대기로 전환됐다.
+- 최종 Kiosk top resumed, Lock Task `LOCKED`, 원격 지원 `INACTIVE`, ADB
+  forward/reverse 0개, Kiosk crash buffer 일치 항목 0개다.
+- 현재 A에는 보낼 신규 PDF가 없고 운영 PC를 일부러 partial stall시키지 않았다.
+  따라서 SOL-0014의 정확한 영향 분기는 JVM·Android loopback 자동검증 완료이며,
+  A에서는 RC87 설치·인증·복구·메뉴·Web 사전점검·QR 대기 통합 회귀까지만
+  확인했다. 구현·release commit은
+  `51d1b03c7694f685e91421c0c8953fc9b8aae329`이고 전용 origin branch에 push했다.
+
 ## Kiosk RC86 시작 PDF 전송 비동기화 — 2026-08-13
 
 ### 구현 범위
