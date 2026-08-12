@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 04:17:00 +09:00
+- `last_updated`: 2026-08-13 04:28:00 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa` /
-  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`; ahead/behind `0/0`.
+  `750b7d7089f630295ba8b2f3f7e032766c75b94d` /
+  `750b7d7089f630295ba8b2f3f7e032766c75b94d`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`
-  (`test(kiosk): lock recovery action recreation (SOL-0020)`). 이 상태기록 문서
+  `750b7d7089f630295ba8b2f3f7e032766c75b94d`
+  (`test(kiosk): lock cross-operation undo invalidation (SOL-0021)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -49,15 +49,14 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0020` 증거 체크포인트. 과거 `LUNA-0027`의 Activity
-  재생성 중 pending Web recovery Start/EndSession action 유실 후보는 현재
-  `d558937` source에서 이미 해결됐음을 확인했다. 신규 실제 Activity recreation
-  계측, unit/lint/assemble, 최종 전체 80/80, test commit·push를 완료했다. 제품
-  판정은 `이미 수정됨`이다.
-- 다음 우선 큐: 과거 `LUNA-0024`의 실행취소 불가 관리자 작업 뒤 stale 이름·반 소속
-  undo 잔존 후보를 현재 공통 `adminDataOperationGate`와
-  `beginAdminDataOperation()`의 undo invalidation으로 독립 재검증한다. 과거 해결
-  표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0021` 증거 체크포인트. 과거 `LUNA-0024`의 다음 관리자
+  작업 뒤 stale 이름·반 소속·반 삭제 undo 잔존 후보는 현재 `d558937` source에서
+  이미 해결됐음을 확인했다. 신규 실제 반 생성 UI 계측, unit/lint/assemble, 최종
+  전체 81/81, test commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
+- 다음 우선 큐: 과거 `LUNA-0022`의 Lock Task 진입 결과가 `LOCKED`가 아닐 때 정책
+  실패가 누락되고 verifier가 이를 성공으로 오판할 수 있다는 후보를 현재
+  `KioskLockTaskController`, `enterDedicatedMode()`, preflight와 Gate 5 script로 독립
+  재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -72,7 +71,7 @@
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
   `SOL-0016`, `SOL-0018`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
-  `SOL-0017`, `SOL-0019`, `SOL-0020`.
+  `SOL-0017`, `SOL-0019`, `SOL-0020`, `SOL-0021`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -122,6 +121,12 @@
   EndSession 유형 보존을 확인했다. focused 1/1, 최종 전체 80/80을 통과했다. 다만
   OS process kill·저메모리 reclaim과 실제 외부 Web result redelivery는 강제하지
   않았다. test-only 변경이라 release build·A 재설치는 수행하지 않았다.
+- SOL-0021은 제품 source가 이미 `d558937`에서 공통 관리자 데이터 operation이 gate
+  확보 직후 이전 undo를 폐기하도록 수정돼 있었다. 신규 실제 반 생성 UI 계측은 합성
+  이름 undo가 mutation 전에 사라지고 완료 뒤 되살아나지 않으며 강제 undo 호출도
+  no-op인 것을 확인했다. focused 1/1, 최종 전체 81/81을 통과했다. 대표 조합만 동적
+  실행했고 전체 undo×operation matrix는 정적 공통 진입점 대조로 제한했다. test-only
+  변경이라 release build·A 재설치는 수행하지 않았다.
 - 이번 RC89에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -185,6 +190,51 @@
   `git revert 6675c8aa7a107a1472a170f85fa61bf95c3ac0aa` 후 Kiosk unit, lint,
   AndroidTest assemble·신규 focused와 전체 계측을 다시 실행한다. 이 commit은 제품
   source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0021 시험 체크포인트를 되돌리려면
+  `git revert 750b7d7089f630295ba8b2f3f7e032766c75b94d` 후 Kiosk unit, lint,
+  AndroidTest assemble·신규 focused와 전체 계측을 다시 실행한다. 이 commit은 제품
+  source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 Kiosk 관리자 cross-operation undo lifetime 독립 재검증
+
+- `SOL-0021` — Kiosk 관리자 실행취소/학생·반 mutation, P4, 신뢰도 높음, 상태
+  `이미 수정됨`.
+- 사용자 영향 후보는 이름·반 소속·반 삭제 뒤 노출된 30초 undo가 CSV, QR 재발급,
+  자격정보 변경, 비활성화, 학생·반 생성 같은 후속 작업 뒤에도 남아 이전 상태를
+  “방금 작업”으로 되돌리는 것이었다. 과거 `LUNA-0024`는 2026-08-02 source를
+  근거로 한 후보다.
+- 현재 정적 근거: commit `d5589373fe6951451839c43ac75578ac22472b5b`부터
+  `beginAdminDataOperation()`은 Web recovery와 기존 operation 차단을 통과해 공통
+  gate를 확보한 직후 `clearPendingAdminUndo()`를 호출한다. 현재 학생·반·CSV·QR·
+  credentials·비활성화·재사용 카드·PDF·보강 mutation의 실제 실행 경로는 이 공통
+  진입점을 사용한다. Web recovery 시작도 별도로 같은 invalidation을 수행한다.
+- 신규 동적 근거: 합성 학생의 현재 이름과 이전 이름 `RestoreStudentName` action을
+  실제 undo button에 등록했다. 실제 `class_name_input`과 반 생성 버튼을 누른 같은 UI
+  callback 안에서 pending action null, 버튼 `GONE`/disabled, operation gate active를
+  확인했다. 반 생성 완료 뒤에도 action은 null이었고 `performPendingAdminUndo()`를
+  직접 호출해도 학생 이름은 현재 값으로 유지됐으며 합성 반은 정상 생성됐다. 실제
+  학생·반·QR·CSV는 사용하지 않았다.
+- 실행한 자동검증:
+  - AndroidTest assemble: 52 tasks, 37초 PASS. AVD boot probe 실패와 겹친 Gradle로
+    Kotlin incremental cache 등록 충돌이 한 번 났으나 compiler의 non-incremental
+    fallback 뒤 같은 build가 성공했다.
+  - 신규 focused 계측: 1/1, Gradle 31초 PASS.
+  - `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+    :kiosk:assembleDebugAndroidTest`: 84 tasks, 1분 5초 PASS; JVM XML 99/99,
+    failure/error/skip 0, 0.969초.
+  - API 33 전체 `:kiosk:connectedDebugAndroidTest`: 최초 실행 81/81,
+    failure/error/skip 0, XML 98.967초, Gradle 1분 56초 PASS. 신규 case는 4.651초다.
+- 반대 근거·제약: 시작 조건이 잘못되거나 다른 gate가 이미 활성이라 새 operation이
+  거부되면 이전 undo는 의도대로 남는다. 이번 동적 시험은 이름 undo→반 생성 대표
+  조합이며, 이름/소속/반 삭제 undo와 CSV·QR·credentials·비활성화 등의 전체 조합을
+  각각 UI로 실행하지 않았다. 공통 진입점 연결은 현재 source에서 정적으로 확인했다.
+- 변경은 `MainActivityInstrumentedTest.kt` 한 파일뿐이다. 시험·원격 복구점은
+  `750b7d7089f630295ba8b2f3f7e032766c75b94d`, 전용 origin branch push 성공. source·
+  version·release artifact는 바뀌지 않았고 A 재설치는 수행하지 않았다. A는 읽기 전용
+  확인에서 RC89/code 94, top resumed Kiosk와 Lock Task `LOCKED`, test package 부재,
+  원격 지원 `INACTIVE`를 유지했고 AVD는 종료했다.
+- rollback은 `git revert 750b7d7089f630295ba8b2f3f7e032766c75b94d` 후 신규
+  focused·unit·lint·assemble·전체 계측을 재실행한다. 기기 rollback은 필요 없다.
 
 ## 2026-08-13 Kiosk Web recovery action Activity 재생성 독립 재검증
 
@@ -1891,6 +1941,8 @@
   `7cf7833237de494dda97d971439a2aa788e71524`.
 - `SOL-0020` Web recovery action Activity 재생성 보존 회귀 고정 test commit:
   `6675c8aa7a107a1472a170f85fa61bf95c3ac0aa`.
+- `SOL-0021` 관리자 cross-operation undo lifetime 회귀 고정 test commit:
+  `750b7d7089f630295ba8b2f3f7e032766c75b94d`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

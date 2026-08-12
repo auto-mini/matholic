@@ -1,5 +1,51 @@
 # 빌드·보안 검증 기록
 
+## Kiosk 관리자 cross-operation undo lifetime 회귀 고정 — 2026-08-13
+
+### 현재 판정과 시험 범위
+
+- 과거 `LUNA-0024`는 이름·반 소속·반 삭제 뒤 제공된 30초 실행취소가 CSV, QR
+  재발급, 자격정보 변경, 비활성화, 학생·반 생성 같은 다음 작업 뒤에도 남아 이전
+  상태를 “방금 작업”으로 되돌릴 수 있다고 제기했다. 현재 제품 source는 이미 commit
+  `d5589373fe6951451839c43ac75578ac22472b5b`에서 이 경계를 수정했다. 이번
+  SOL-0021의 판정은 P4·신뢰도 높음·`이미 수정됨`이며 제품 source는 바꾸지 않았다.
+- 모든 실제 관리자 데이터 mutation·PDF operation은 공통
+  `beginAdminDataOperation()`으로 진입한다. Web recovery와 기존 operation 차단을
+  통과해 gate를 확보한 직후 `clearPendingAdminUndo()`가 action, generation, 버튼
+  visibility/enabled를 함께 폐기한다. 시작 자체가 거부된 클릭은 기존 undo를 지우지
+  않는다.
+- 신규 `creatingClassInvalidatesPendingNameUndoBeforeMutation`은 합성 학생의 이전 이름
+  undo를 실제 Activity 버튼에 등록한 뒤 실제 `class_name_input`과 “반 생성” 버튼을
+  사용한다. 클릭의 동기 경계에서 pending action null, 버튼 `GONE`/disabled와 공통
+  gate active를 확인하고, 반 생성 완료 뒤에도 undo가 되살아나지 않음을 확인한다.
+  `performPendingAdminUndo()`를 직접 다시 호출해도 no-op이고 학생의 현재 이름과 새 반이
+  모두 유지된다. 실제 학생·반·QR·CSV는 사용하지 않았다.
+
+### 자동검증
+
+- AndroidTest assemble은 52 tasks, `BUILD SUCCESSFUL in 37s`다. 앞선 AVD 부팅 probe
+  래퍼가 빈 `getprop`에 `.Trim()`을 호출해 실패한 동안 시작된 Gradle과 후속 assemble이
+  겹쳐 Kotlin incremental cache 등록 충돌이 한 번 발생했지만, compiler가 명시적으로
+  non-incremental compilation으로 fallback해 같은 build가 성공했다. 제품·시험 실패는
+  아니다.
+- 신규 focused는 1/1, 31초 PASS다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 1m 5s`다. JVM XML은
+  99/99, failure/error/skip 0, 0.969초이고 lint와 두 debug APK 조립도 성공했다.
+- 최종 API 33 전체 계측은 최초 실행에서 81/81, failure/error/skip 0, XML 98.967초,
+  Gradle `BUILD SUCCESSFUL in 1m 56s`다. 신규 case는 XML 기준 4.651초다.
+- 동적 시험은 대표 조합인 이름 undo→반 생성을 검증했다. 현재 source의 공통 진입점
+  연결은 정적으로 대조했지만 이름/소속/반 삭제 undo와 CSV·QR·자격정보·비활성화 등
+  모든 조합을 각각 UI로 실행하지는 않았다.
+- 변경은 `androidTest` 한 파일뿐이라 release artifact·version·signer와 A 설치본은
+  바뀌지 않았다. release build·A 재설치는 수행하지 않았다. 최종 읽기 전용 확인에서
+  A는 Kiosk RC89/code 94, top resumed Kiosk와 Lock Task `LOCKED`, test package 부재,
+  원격 지원 `INACTIVE`를 유지했고 시험용 API 33 AVD는 종료했다.
+- 시험·복구점은 `750b7d7089f630295ba8b2f3f7e032766c75b94d`이며 전용 origin
+  branch에 push했다. rollback은 `git revert 750b7d7089f630295ba8b2f3f7e032766c75b94d`
+  뒤 위 focused·unit·lint·assemble·전체 계측을 다시 실행한다. 제품 source와 A
+  설치본은 바뀌지 않았으므로 기기 rollback은 필요 없다.
+
 ## Kiosk Web recovery action Activity 재생성 보존 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 시험 범위
