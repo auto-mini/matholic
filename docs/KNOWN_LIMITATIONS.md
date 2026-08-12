@@ -2,9 +2,15 @@
 
 ## 2026-08-13 현재 운영 제한
 
-- 현재 A 설치본은 Kiosk RC85/Web RC137이다. 보존 설치 뒤 UID·firstInstallTime,
-  Device Owner·전용 HOME·Lock Task를 유지했고, RC85 신규용 카드 관리 메뉴와
-  최종 QR 대기를 실물 확인했다.
+- 현재 A 설치본은 Kiosk RC86/Web RC137이다. 보존 설치 뒤 UID·firstInstallTime,
+  Device Owner·전용 HOME·Lock Task를 유지했고, RC86 원버튼 안전 복구, 신규용
+  카드 무료 4장 유지, Web 사전점검과 최종 QR 대기를 실물 확인했다.
+- RC86은 시작 때 준비된 신규 카드 PDF 전송을 핵심 초기화와 분리해 지정 PC가
+  응답하지 않아도 관리자 인증과 관리자 데이터 준비를 계속한다. loopback
+  receiver가 TCP 연결만 수락하고 ACK를 보류하는 수정 전 실패·수정 후 통과 시험은
+  완료했지만, 현재 A에는 새로 준비할 카드가 없어 운영 QR을 무효화하거나 실제
+  Windows PC를 일부러 정지시켜 같은 분기를 강제하지 않았다. 실제 PC·Wi-Fi의
+  장시간 partial stall까지 현장 통과한 것으로 확대하지 않는다.
 - RC85는 과거 비활성 재사용 슬롯이 있으면 같은 슬롯 라벨의 새 QR·빈 자격정보로
   복구해 활성 수를 4장으로 보충한다. 이때 과거 QR·PDF·인쇄물은 무효이며 새 PDF를
   저장·출력해야 한다. 현재 A에는 비활성 슬롯이 없어 이 분기를 고의로 만들지

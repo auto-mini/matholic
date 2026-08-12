@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 00:03:15 +09:00
+- `last_updated`: 2026-08-13 00:37:11 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `e7c558da18152795d11427d13d8d61b5323e1640` /
-  `e7c558da18152795d11427d13d8d61b5323e1640`; ahead/behind `0/0`.
+  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466` /
+  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `e7c558da18152795d11427d13d8d61b5323e1640`
-  (`fix(kiosk): restore inactive reusable card slots (SOL-0012)`). 이 상태기록 문서
+  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`
+  (`fix(kiosk): keep startup responsive during QR delivery (SOL-0013)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,40 +17,44 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 독립 확인: 2026-08-12 23:57 +09:00. 승인 ADB device는 serial
+- 실제 A 마지막 독립 확인: 2026-08-13 00:36 +09:00. 승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc85`/code 90, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-12 23:52:00`.
-  - A에서 다시 읽은 설치 APK는 release artifact와 같은 36,754,045 bytes·
+  - Kiosk `0.6.0-rc86`/code 91, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-13 00:29:33`.
+  - A에서 다시 읽은 Kiosk 설치 APK는 release artifact와 같은 36,754,045 bytes·
     SHA-256
-    `5E8F629715E04A3A6A6C56897D55BE5AD75B94DF5EA1E3B47663E7F8560397F7`다.
+    `0979D4A9688AE60DDF95A40238455A16D63C1752356425043574159A90BBAAC1`다.
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
+  - 변경되지 않은 Web POC `0.4.0-rc137`/code 154 설치 APK도 현재 artifact와
+    3,393,698 bytes·SHA-256
+    `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`·
+    signer가 일치한다. Web은 재설치하지 않았다.
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
     지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash buffer 일치 항목 없음.
-  - RC85 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
+  - RC86 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
     안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
-    새 수업을 시작해 QR 대기로 복원했다.
-- Web POC RC137과 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지
-  않았다. Web RC137 artifact payload는 공식 release 빌드에서 기존 파일과 같은
-  SHA-256으로 유지됐고, PC 설치본의 마지막 독립 현장 확인은 아래 SOL-0008을
-  따른다.
-- 현재 작업 중 finding: 없음. `SOL-0012` 구현·자동검증·RC85 설치·현장 상태
-  확인과 구현 push를 완료했고, 이 증거 문서 체크포인트 뒤 다음 후보를 선정한다.
-- 다음 우선 큐: 첫 신규용 카드 bootstrap에서 지정 PC가 도달 불가능할 때 PDF
-  전송 대기가 초기 관리자 화면 준비를 불필요하게 막는지 독립 재검증한다. 확정
-  결함 전에는 A·PC pairing이나 운영 데이터를 변경하지 않는다.
+    Web 사전점검을 거쳐 전면 카메라 QR 대기로 복원했다.
+- 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지 않았다. 설치본의
+  마지막 독립 현장 확인은 아래 SOL-0008을 따른다.
+- 현재 작업 중 finding: `SOL-0013` 증거 체크포인트. 구현·자동검증·RC86 설치와
+  A 통합 회귀·구현 push를 완료했다. 정확한 무응답 bootstrap 분기는 운영 QR을
+  바꾸지 않고 loopback 계측으로 확인했으므로 상태는 `자동검증 완료`다.
+- 다음 우선 큐: 지정 PC 전송 executor가 write/read stall에서 다른 명시적 PC
+  제어 작업을 무기한 막을 수 있는지, 실제 payload 상한·socket timeout·queue
+  동작을 독립 재검증한다. 가능성만으로 수정하지 않는다.
 
 ### 열린 finding과 제약
 
 - 열린 P0/P1: 없음. 과거 보고서 후보는 현재 source와 독립 재검증 전에는 열린
   결함으로 승격하지 않는다.
-- 자동검증 완료 P2: `SOL-0009` 1건. QR 고정 불변조건은 전체 계측으로 확인했고
-  RC85까지 A에 설치했지만 실제 운영 카드의 QR을 의도적으로 변경해 재현하지 않았다.
+- 자동검증 완료 P2: `SOL-0009`, `SOL-0013` 2건. QR 고정 불변조건과 무응답 PC
+  startup 격리는 전체 계측으로 확인했고 RC86까지 A에 설치했지만 실제 운영 카드의
+  QR을 변경하거나 운영 PC를 고의로 stall시켜 정확한 영향 분기를 재현하지 않았다.
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`.
@@ -58,12 +62,16 @@
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
-- 저장 미확인 슬롯이 0장이어서 RC85의 기존 QR 폐기·새 QR 전송 경고창은 A에서
+- 저장 미확인 슬롯이 0장이어서 RC86의 기존 QR 폐기·새 QR 전송 경고창은 A에서
   강제로 만들지 않았다. 최종 source compile, lint, release와 전체 계측은 통과했다.
 - 현재 A에는 비활성 재사용 슬롯이 없어 SOL-0012 복구 분기를 고의로 만들지
   않았다. 해당 분기는 수정 전 실패·수정 후 통과 focused 시험과 전체 71개
   instrumentation으로 확인했으며 A 실물 통과로 확대하지 않는다.
-- 이번 RC85에서 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+- 현재 A에는 새로 준비할 재사용 카드가 없어 SOL-0013의 자동 PDF 전송이 시작되지
+  않았다. loopback receiver가 연결만 받고 ACK를 보류한 수정 전 실패·수정 후
+  통과 시험과 전체 72개 instrumentation으로 확인했으며, A의 설치·인증·관리자·
+  복구·Web 사전점검·QR 대기 통과를 정확한 무응답 PC 분기 통과로 확대하지 않는다.
+- 이번 RC86에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
 - 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
@@ -73,15 +81,65 @@
   실패했다. 구현 뒤 focused `OK (1 test)`와 최종 전체 `OK (71 tests)`로 통과했다.
 - 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
   lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
-  A는 이미 Room v5·code 90이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  A는 이미 Room v5·code 91이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
   기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
-  migration을 마련하고, 같은 signer·code 91 이상의 복구 release를
+  migration을 마련하고, 같은 signer·code 92 이상의 복구 release를
   `adb install -r`로 설치해야 한다.
 - SOL-0012만 되돌리려면
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 90이므로 같은 signer·code 91 이상의 forward rollback을 사용하며 APK
+  code 91이므로 같은 signer·code 92 이상의 forward rollback을 사용하며 APK
   삭제·data clear·downgrade를 하지 않는다. Room schema는 계속 v5다.
+- SOL-0013만 되돌리려면
+  `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit, lint,
+  AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
+  code 91이므로 되돌린 source에서 같은 signer·code 92 이상의 forward rollback
+  release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
+  하지 않는다.
+
+## 2026-08-13 RC86 시작 PDF 전송 격리·A 설치
+
+- 신규 카드 bootstrap은 지정 PC가 TCP 연결만 받고 ACK를 주지 않으면 기존
+  `ioExecutor`를 timeout 동안 점유해 관리자 인증과 관리자 데이터 준비를 함께
+  지연시켰다. 핵심 DB·PIN·세션·카드 준비가 성공하면 인증 UI를 먼저 표시하고,
+  PDF 전달만 별도 `pcControlExecutor`에 제출하도록 최소 수정했다.
+- 무응답 loopback PC 회귀시험은 수정 전 `Time: 6.048`, 1 failure로 인증 UI
+  2초 제한을 넘겼다. 수정 후에는 연결을 계속 보류한 채 인증 UI 2초, PIN 뒤
+  관리자 패널·반 데이터 3초 제한을 통과했고 최종 focused는 `Time: 7.447`,
+  `OK (1 test)`였다.
+- 최종 자동·릴리스 검증:
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS.
+  - API 33 전용 AVD 전체 instrumentation:
+    `Time: 90.795`, `OK (72 tests)`.
+  - 공식 release: 158 tasks, `BUILD SUCCESSFUL in 2m 15s`; Kiosk/Web JVM,
+    release lint, signed assemble, version·non-debuggable·동일 signer 검증 PASS.
+- RC86 artifact:
+  `artifacts/matholic-kiosk-0.6.0-rc86-release.apk`, 36,754,045 bytes,
+  SHA-256
+  `0979D4A9688AE60DDF95A40238455A16D63C1752356425043574159A90BBAAC1`,
+  signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- A 실기:
+  - RC85/code 90에서 RC86/code 91로 `adb install -r` 성공. UID 10288,
+    firstInstallTime, Device Owner, preferred HOME과 앱 데이터가 유지됐다.
+  - A에서 다시 읽은 Kiosk 설치 APK는 RC86 artifact와 byte count·SHA-256·v2
+    signer가 정확히 일치했다. 변경 없는 Web RC137 설치 APK도 현재 artifact와
+    byte count·SHA-256·signer가 일치했다.
+  - masked PIN·`RECOVERY_REQUIRED`를 확인하고 지정 DPAPI 도구로 인증했다.
+    학생·반·QR을 삭제하지 않는 원버튼 안전 복구 뒤 `ADMIN_IDLE`, 신규용 카드
+    `무료 4장`을 확인했고 카드·계정·QR은 바꾸지 않았다.
+  - Web 사전점검 뒤 실제 전면 카메라 QR 대기를 확인했다. 첫 자동 화면 판별은
+    scanner에서 관리자 `status_text`가 보이지 않아 45초 뒤 실패했지만 즉시 실제
+    캡처와 UI 계층으로 정상 QR 안내임을 확인했다. 첫 recovery bounds helper도
+    문자열 좌표 계산으로 화면 밖을 눌러 상태 변화가 없었고, 정수 좌표와 label을
+    재확인한 뒤 성공했다.
+  - 최종 Kiosk top resumed, Lock Task `LOCKED`, 원격 지원 `INACTIVE`, ADB
+    forward/reverse 없음, Kiosk crash buffer 일치 항목 없음이다.
+- A에는 신규 준비 대상 카드가 없어 운영 QR을 폐기하거나 운영 PC를 고의로
+  stall시키지 않았다. 정확한 SOL-0013 분기는 loopback 계측으로 확인했고 A에서는
+  설치·인증·관리자·복구·Web 사전점검·QR 대기 통합 회귀까지만 확인했다.
+- 구현·복구점:
+  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`, 전용 origin branch push 성공.
 
 ## 2026-08-13 RC85 비활성 신규용 카드 슬롯 복구·A 설치
 
@@ -1028,8 +1086,8 @@
 - A 현장검증: RC84/code 89 보존 설치, UID·firstInstallTime·Device Owner·HOME·
   data 유지, 설치 APK/artifact hash 일치, QR 대기·Lock Task `LOCKED` 복원.
 - rollback: 코드 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 위
-  unit/lint/전체 계측/release를 재실행한다. A는 Room v5·code 89이므로 단순
-  downgrade하지 않고 v5 호환 source와 같은 signer의 code 90+ forward rollback을
+  unit/lint/전체 계측/release를 재실행한다. A는 Room v5·code 91이므로 단순
+  downgrade하지 않고 v5 호환 source와 같은 signer의 code 92+ forward rollback을
   만든다. 앱 삭제·data clear로 우회하지 않는다.
 
 ### SOL-0010 — 신규용 카드 관리 대화상자에서 작업 목록이 보이지 않음
@@ -1139,9 +1197,64 @@
   `LOCKED` 확인. 비활성 복구 분기는 수행하지 않음.
 - rollback: 코드
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 위 unit/lint/전체
-  계측/release를 재실행한다. A는 code 90이므로 같은 signer·code 91+의 forward
+  계측/release를 재실행한다. A는 code 91이므로 같은 signer·code 92+의 forward
   rollback을 만들고 앱 삭제·data clear·downgrade를 하지 않는다. Room v5는
   유지한다.
+
+### SOL-0013 — 무응답 지정 PC가 시작 관리자 화면을 지연시킴
+
+- 영역: Kiosk startup·executor·신규용 카드 PDF 전송·복구 UX
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: 최초 실행이나 비활성 슬롯 복구로 카드 PDF가 준비된 시점에 저장된
+  지정 PC가 연결만 받고 응답하지 않으면 Kiosk가 `초기 상태 확인 중`에 머물고
+  관리자 PIN과 반 데이터가 나타나지 않는다. 네트워크 장애가 인증·수업 복구와
+  무관한 핵심 시작 흐름까지 지연시킨다.
+- 재현 조건(수정 전 RC85): 빈 DB에 관리자 PIN과 loopback PC pairing을 만들고,
+  receiver가 TCP 연결은 수락하지만 PDF 응답을 보내지 않게 한 뒤 MainActivity를
+  시작한다.
+- 기대 결과: DB·PIN·세션·재사용 카드 준비가 끝나면 관리자 인증을 즉시 표시하고,
+  PDF 전송은 독립적으로 완료·실패해 관리자 데이터 준비를 막지 않는다.
+- 실제 결과(수정 전): `loadInitialState()`가 핵심 초기화와 같은 `ioExecutor`에서
+  `deliverReusableQrCards()`의 connect/read timeout·주소 복구·재시도를 기다린 뒤
+  `showAuthentication()`을 게시했다. focused 시험은 연결 성립 뒤 2초 UI 제한을
+  넘겨 `Time: 6.048`, `Tests run: 1, Failures: 1`로 실패했다.
+- 정적·동적 근거:
+  - DB open, 감사 정리, PIN·세션 복구, `ensureReusableCardSlots()`는 기존
+    `ioExecutor` 직렬 경계에 유지했다. 성공 snapshot을 UI에 먼저 게시한 뒤 실제
+    PDF 전달만 `pcControlExecutor`에 제출한다.
+  - 전달 완료 메시지는 UI thread에서 관리자 패널과 operation gate 상태를 확인해
+    즉시 안전 refresh하거나 다음 관리자 진입까지 보관한다. 카드가 없거나 초기화가
+    실패하면 별도 PC task를 만들지 않는다.
+  - 수정 후 focused 시험은 receiver 연결을 계속 보류한 상태에서도 인증 UI를 2초
+    안에 표시하고 PIN 뒤 관리자 패널·반 데이터를 3초 안에 준비해
+    `Time: 7.447`, `OK (1 test)`로 통과했다.
+  - 최종 Kiosk 84 tasks, API 33 전체 `Time: 90.795`, `OK (72 tests)`, 공식
+    release 158 tasks와 RC86 APK 이중 검증을 통과했다.
+- 반대 근거·미검증: 시험 receiver는 실제 Windows PC가 아닌 Android emulator의
+  loopback socket이다. 현재 A에는 신규 준비 대상 카드가 없어 운영 QR을 폐기하거나
+  운영 PC를 고의로 stall시키지 않았다. A RC86 설치·인증·관리자·복구·Web
+  사전점검·QR 대기는 통과했지만 정확한 무응답 bootstrap 분기의 현장 통과로
+  확대하지 않는다.
+- 원인·결정: 카드 PDF 전달을 필수 DB 초기화의 성공 조건처럼 같은 executor에서
+  기다린 것이 원인이다. 카드 발급의 DB 원자성과 기존 전송 보안·ACK 정책은
+  유지하고, 외부 PC I/O만 이미 존재하는 전용 executor로 격리했다. PC 실패는
+  카드 준비 자체를 되돌리지 않고 기존 수동 재준비 안내로 복구한다.
+- 변경 파일: `MainActivity.kt`, `MainActivityInstrumentedTest.kt`, Kiosk RC86
+  version/release scripts.
+- 관련 commit:
+  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`; 전용 origin branch push 성공,
+  구현 push 직후 ahead/behind `0/0`.
+- A/PC 현장 상태: Kiosk RC86/code 91과 기존 Web RC137 설치 APK가 각 artifact와
+  byte·SHA-256·signer 일치한다. UID·firstInstallTime·Device Owner·HOME·data를
+  유지했고 안전 복구 뒤 QR 대기·Lock Task `LOCKED`, 원격 `INACTIVE`, 포트 매핑과
+  crash buffer 일치 항목 없음이다. 운영 PC 수신기와 pairing은 변경하지 않았다.
+- rollback: 코드
+  `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit/lint,
+  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 91이므로
+  같은 signer·code 92 이상의 forward rollback을 `adb install -r`로 설치하고
+  APK 삭제·data clear·downgrade를 하지 않는다.
 
 ## 최근 변경·검증·전달
 
@@ -1178,6 +1291,8 @@
   `b76fdf8043f34e9abb063d683db655fe6280d882`.
 - `SOL-0012` 비활성 재사용 슬롯 복구·회귀·RC85 release metadata commit:
   `e7c558da18152795d11427d13d8d61b5323e1640`.
+- `SOL-0013` 시작 PDF 전송 격리·회귀·RC86 release metadata commit:
+  `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

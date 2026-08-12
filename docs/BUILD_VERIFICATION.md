@@ -1,5 +1,78 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC86 시작 PDF 전송 비동기화 — 2026-08-13
+
+### 구현 범위
+
+- 최초 실행이나 비활성 슬롯 복구로 신규용 카드가 준비되면 기존 구현은
+  `ioExecutor`에서 지정 PC의 PDF 저장 ACK를 기다린 뒤에야 관리자 인증 화면을
+  표시했다. 저장된 PC가 TCP 연결만 받고 응답하지 않으면 connect/read timeout과
+  주소 복구·재시도 동안 `초기 상태 확인 중` 화면에 머물렀고, 같은 executor의
+  관리자 데이터 준비도 시작되지 못했다.
+- DB open, 감사 정리, PIN·세션 복구와 재사용 슬롯 준비는 기존 직렬 초기화에
+  유지했다. 준비 결과가 성공하면 인증 화면을 먼저 표시하고, PDF 전송만 기존
+  별도 `pcControlExecutor`에서 수행한다. 전송 결과는 관리자 화면이 안전하게
+  갱신 가능한 시점에 표시하고, 작업 gate가 활성 상태면 다음 관리자 진입까지
+  보관한다.
+- PDF 암호화·지정 PC 인증·ACK 판정, 실패 문구와 수동 재준비 경로는 바꾸지
+  않았다. 신규 카드가 없으면 추가 PC 작업도 만들지 않는다.
+
+### 회귀·자동·릴리스 검증
+
+- 새 focused instrumentation
+  `unresponsivePairedPcDoesNotDelayAdminAuthenticationAtStartup`은 빈 DB와 시험용
+  관리자 PIN, loopback 페어링을 만들고 TCP 연결만 수락한 채 응답을 보류한다.
+  수정 전에는 PC 연결은 성립했지만 2초 안에 관리자 인증 UI가 나타나지 않아
+  `Time: 6.048`, `Tests run: 1, Failures: 1`로 실패했다.
+- 수정 후 같은 연결이 계속 열린 상태에서 2초 안에 관리자 인증 UI, PIN 입력 뒤
+  3초 안에 관리자 패널과 반 데이터가 표시됨을 단언했고 최종 focused 실행은
+  `Time: 7.447`, `OK (1 test)`로 통과했다. 시험 종료 때 pairing secret, DB와
+  loopback server를 정리한다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks로 통과했다. RC86 version 반영 뒤
+  Android 13 API 33 전용 에뮬레이터의 최종 전체 Kiosk 계측시험은
+  `Time: 90.795`, `OK (72 tests)`로 통과했다.
+- 세 release PowerShell script는 parser 오류 0건이다. 공식
+  `scripts/build-release.ps1`은 158 tasks, `BUILD SUCCESSFUL in 2m 15s`였고
+  Kiosk/Web JVM 시험, release lint, signed assemble, version·non-debuggable·
+  동일 signer 이중 검증을 통과했다. Web RC137 payload는 기존 artifact와 같은
+  SHA-256을 유지했다.
+- RC86 release APK는 36,754,045 bytes이며 SHA-256은
+  `0979D4A9688AE60DDF95A40238455A16D63C1752356425043574159A90BBAAC1`다.
+  `versionName=0.6.0-rc86`, `versionCode=91`, v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`를
+  확인했다.
+
+### A 보존 설치·현장 확인
+
+- 승인 ADB 대상은 `SM-P610`/`R54TB029FHZ` 한 대뿐이었다. RC85/code 90의
+  설치 APK가 RC85 artifact와 byte·SHA-256·signer 일치함을 먼저 확인한 뒤,
+  같은 signer의 RC86/code 91을 `adb install -r`로 보존 설치했다.
+- Kiosk UID 10288, first install `2026-07-24 12:52:28`, Device Owner,
+  preferred HOME, 앱 데이터와 Lock Task `LOCKED`를 유지했고 last update는
+  `2026-08-13 00:29:33`이다. A에서 다시 읽은 설치 APK는 RC86 artifact와
+  36,754,045 bytes·SHA-256·v2 signer가 정확히 일치했다.
+- 변경되지 않은 Web POC RC137/code 154도 A 설치 APK와 현재 artifact가
+  3,393,698 bytes, SHA-256
+  `D49BFB81A727CA94D7D94E9D5A5D88C4151EB63F22F742F1C06C59972ABC9651`,
+  signer까지 일치함을 다시 확인했다. Web은 재설치하지 않았다.
+- 설치 재시작의 masked 관리자 PIN·`RECOVERY_REQUIRED`를 확인하고 지정 DPAPI
+  입력 도구만 사용했다. 원버튼 확인창이 학생·반·QR을 삭제하지 않고 현재 수업과
+  임시 명단만 종료함을 확인한 뒤 안전 복구해 `ADMIN_IDLE`로 돌아왔다. 신규용
+  카드 메뉴는 `무료 4장`으로 유지됐고 카드·계정·QR은 변경하지 않았다.
+- 첫 recovery selector helper는 bounds 숫자를 문자열로 더해 화면 밖 좌표를
+  만들었고 대화상자가 열리지 않아 상태 변화가 없었다. 각 좌표를 정수로 변환한
+  뒤 실제 label과 bounds를 다시 확인해 안전 복구했다.
+- 현재 선택 반의 `웹 검사 후 시작`을 실행해 전면 카메라 QR 대기로 복원했다.
+  첫 45초 자동 판별은 scanner 화면에서 관리자용 `status_text`가 사라지는 구조를
+  `QR_READY` 실패로 잘못 판정했지만, 즉시 실제 캡처와 UI 계층으로 QR 안내를
+  확인했다. 최종 Kiosk top resumed, Lock Task `LOCKED`, 원격 지원 `INACTIVE`,
+  ADB forward/reverse 0개, Kiosk crash buffer 일치 항목 0개다.
+- A에는 새로 준비할 카드가 없고 운영 QR을 폐기할 수 없어 “카드 준비와 동시에
+  실제 Windows PC가 무응답”인 정확한 분기는 강제로 만들지 않았다. 따라서
+  SOL-0013의 영향 분기는 수정 전 실패·수정 후 통과 loopback 계측 증거이며,
+  A에서는 RC86 설치·인증·관리자·복구·Web 사전점검·QR 대기 회귀만 확인했다.
+
 ## Kiosk RC85 비활성 신규용 카드 슬롯 자동 복구 — 2026-08-12
 
 ### 구현 범위
