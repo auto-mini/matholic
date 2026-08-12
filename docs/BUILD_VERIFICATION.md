@@ -1,5 +1,116 @@
 # 빌드·보안 검증 기록
 
+## RC90 원격 지원 중 민감 AlertDialog Window 캡처 차단 — 2026-08-13
+
+### 수정 전 재현·결정
+
+- 과거 `LUNA-0020`의 Activity 화면별 `FLAG_SECURE` 후보는 commit `a2e4dd3`과
+  `69d0426`에서 Kiosk 인증 화면·민감 대화상자·Web credential setup 진입 시
+  `RemoteSupportWindowController.setSensitiveScreen(true)`를 호출하도록 수정돼
+  있었다. Kiosk/Web Activity window 전환과 정책 단위시험도 현재 source에서
+  일치했다.
+- 그러나 Android `AlertDialog`는 Activity와 별도 Window다. RC89 실제 A에서
+  원격 지원을 15분 활성화하고 비민감 QR 대기 화면의 관리자 버튼을 누른 뒤,
+  PIN 입력·화면 캡처·UI hierarchy dump 없이 `dumpsys window`의 flag만 읽었다.
+  기본 Activity는 `fl=81812180`으로 `FLAG_SECURE=true`였지만 관리자 PIN dialog는
+  `fl=1800002`로 `FLAG_SECURE=false`였다. 즉 controller가 Activity만 다시 잠가도
+  dialog Window가 그 flag를 상속하지 않는 부분 잔존을 확인했다.
+- 회귀시험 `activeRemoteSupportKeepsAdminPinSecureAndAllowsAdminCapture`를 실제
+  Window 구조까지 확장했다. 원격 지원 중 Activity PIN 화면은 secure, 관리자
+  화면은 capture 허용, 세션 관리자 PIN dialog 진입 뒤 Activity와 dialog Window가
+  모두 secure, dialog 취소 뒤 관리자 화면은 다시 capture 허용이어야 한다.
+  제품 수정 전 이 시험은 dialog flag 단언에서 1/1 실패했고 Gradle은 18초 뒤
+  실패했다.
+- 최소 수정은 신규 학생 자격정보, 표시명, 로그인 정보 변경, 재사용 카드 배정,
+  세션 관리자 PIN의 다섯 민감 `AlertDialog`를 공통 `showSensitiveDialog()`로
+  표시한다. 공통 경로는 Activity 정책을 민감 상태로 바꾸고 dialog 자체 Window에
+  표시 전 `FLAG_SECURE`를 추가한다. dismiss 후 기존 화면별 정책 복원은 유지했다.
+- Web은 별도 dialog가 아닌 Activity setup panel이므로 제품 source를 바꾸지 않았다.
+  신규 `activeRemoteSupportKeepsCredentialSetupSecureAcrossScreenTransitions`는 원격
+  지원 중 setup→active→setup 전환에서 각각 secure→capture 허용→secure가 되는
+  실제 Activity Window 계약을 고정한다.
+
+### 자동검증·release
+
+- Kiosk 강화 시험은 수정 전 1/1 실패, 수정 후 1/1·Gradle 20초 PASS다. 최종 API 33
+  Kiosk 전체 계측은 83/83, failure/error/skip 0, XML 129.278초, Gradle
+  `BUILD SUCCESSFUL in 2m 18s`다.
+- Web 신규 focused는 1/1·14초 PASS다. 첫 Web 전체 계측 wrapper는 304초에 timeout이
+  났고 당시 XML 120건 중 기존 DOM fixture 1건만 실패했다. 신규 원격 지원 case는
+  2.447초에 통과했다. 이 별도 시험 결함은 아래 SOL-0024로 수정했으며, 최종 Web
+  전체는 120/120, failure/error/skip 0, XML 283.498초, Gradle 4분 50초 PASS다.
+- 최종 `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest :webpoc:testDebugUnitTest :webpoc:lintDebug
+  :webpoc:assembleDebug :webpoc:assembleDebugAndroidTest`는 163 tasks,
+  `BUILD SUCCESSFUL in 36s`다. JVM XML은 Kiosk 99/99·1.158초, Web 67/67·0.333초이고
+  양쪽 failure/error/skip은 모두 0이다.
+- 공식 `scripts/build-release.ps1`은 clean build 158 tasks 중 154개를 실행해
+  `BUILD SUCCESSFUL in 2m 40s`였고, 양 앱 JVM·release lint·signed assemble,
+  version·non-debuggable·동일 signer 검증을 통과했다. 변경 없는 Web RC137 payload는
+  기존 artifact를 보존했다.
+- RC90 release APK는 36,754,057 bytes, SHA-256
+  `DB0468FC1F96579235A1D05B6D85AAF9424A76D8FC30605828C5119139183A9B`,
+  `versionName=0.6.0-rc90`, `versionCode=95`, v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+  checksum 파일과 명시적 `verify-release-apks.ps1`도 통과했다.
+
+### A 보존 설치·Window 현장검증
+
+- 설치 전 승인 ADB 대상은 `SM-P610`/`R54TB029FHZ` 한 대뿐이었다. RC89/code 94
+  설치본과 artifact byte·SHA-256·signer 일치, UID 10288, first install
+  `2026-07-24 12:52:28`, Device Owner, preferred HOME, Kiosk top, QR 대기,
+  Lock Task `LOCKED`, 원격 지원·test package·ADB forward/reverse 부재를 확인했다.
+- 같은 signer RC90/code 95를 `adb install -r`로 설치했다. last update는
+  `2026-08-13 05:45:31`이고 UID·firstInstallTime·Device Owner·HOME·앱 data를
+  유지했다. A에서 다시 읽은 설치 APK는 RC90 artifact와 byte·SHA-256이 정확히
+  일치한다. Web RC137/code 154는 변경·재설치하지 않았다.
+- 설치 재시작으로 보존된 수업이 `RECOVERY_REQUIRED`가 됐다. 원격 지원을 끈 정확한
+  관리자 인증 화면에서 저장 PIN 전용 도구를 사용했고, 확인창의 “남은 Web 로그인·
+  현재 수업·보강 명단만 종료하며 학생·반·QR 데이터는 삭제하지 않음” 문구와
+  `안전 복구` 버튼을 확인한 뒤 실행했다. `ADMIN_IDLE`과 Web 사전점검 정상 안내를
+  거쳐 실제 전면 카메라 QR 대기로 복원했다.
+- RC90에서 원격 지원 중 QR 대기의 base Activity는 `fl=81810180`, secure=false였다.
+  관리자 PIN dialog 진입 뒤 dialog `fl=1802002`, base Activity `fl=81812180`로
+  두 Window 모두 secure=true였다. PIN·비밀번호는 입력하지 않았고 민감 dialog의
+  screenshot·UI dump도 만들지 않았다. flag 확인 뒤 dialog를 취소하고 원격 지원을
+  종료했다.
+- 첫 취소 `BACK`은 소프트 키보드만 닫고 dialog를 남겼다. 뒤이은 원격 Start의
+  자동 screenshot이 보안상 거부돼 즉시 Stop했고, Window 개수만 확인해 두 번째
+  `BACK`으로 dialog를 닫았다. 이후 비민감 QR 대기 캡처는 성공했고 도움말·안내·
+  카메라 전환·관리자 버튼·원격 배지가 잘림·겹침 없이 보였다.
+- 최종 상태는 Kiosk RC90 top resumed, QR 대기, Lock Task `LOCKED`, base window
+  secure=true, 원격 배지·test package·ADB tunnel·device/local 임시 캡처 부재,
+  exit-info crash/ANR와 crash buffer fatal 0건이다. 실제 PIN 문자나 Web 자격정보가
+  screenshot에 포함되는 공격 결과는 안전상 재현하지 않았다. A의 Web setup 화면도
+  실제 자격정보 흐름으로 전환하지 않아 Web 현장검증으로 확대하지 않는다.
+- 구현·원격 복구점은
+  `658cbe20a1f9ac353f264bc6466d71c6916ae07e`이며 전용 origin branch에 push했다.
+  rollback은 `git revert 658cbe20a1f9ac353f264bc6466d71c6916ae07e` 후 Kiosk/Web
+  focused·전체 계측, unit·lint·assemble과 공식 release를 다시 실행한다. A는 이미
+  code 95이므로 APK 삭제·data clear·downgrade를 하지 않고, 되돌린 source에서 같은
+  signer·code 96 이상의 forward rollback release를 만들어 `adb install -r`로
+  설치한 뒤 UID·firstInstallTime·Device Owner·HOME·Lock Task와 QR 대기를 재확인한다.
+
+## Web keypad malformed-answer fixture 정정 — 2026-08-13
+
+- SOL-0023 첫 Web 전체 계측에서 기존
+  `testStudentExperienceAddsIdempotentBottomMathKeypad`가 복원 답 `6`을 기대했지만
+  실제 빈 문자열로 1/120 실패했다. 제품 DOM 계약 회귀가 아니라 commit
+  `866484fde9bce4a075a12b1e4825078d228768a1`이 malformed `6--` 복구·repair count
+  단언을 추가하면서 이 fixture의 `let latex = ''`만 바꾸지 않은 시험 결함이었다.
+  같은 commit의 다른 fixture는 이미 `6--`로 고쳐져 있었다.
+- 수정 전 isolated 1/1은 expected `6`, actual empty로 재현됐다. 동일 문구가 여러
+  fixture에 있어 첫 patch가 다른 occurrence를 잠시 가리켰지만 즉시 원복하고 목표
+  fixture 한 줄만 `let latex='6--'`로 고쳤다. 잘못 짚은 occurrence는 최종 diff나
+  commit에 포함되지 않았다.
+- 수정 후 focused 1/1·Gradle 8초, 전체 `DomContractInstrumentedTest` 76/76·48초,
+  최종 Web 전체 120/120·4분 50초 PASS다. 최종 XML은 failure/error/skip 0,
+  283.498초이며 해당 case는 0.389초다.
+- 제품 source·release artifact·A 설치본은 바꾸지 않았다. 시험·원격 복구점은
+  `7cd302891dbf7cf77db51dc25e949ed577389bd3`이며 전용 origin branch에 push했다.
+  rollback은 `git revert 7cd302891dbf7cf77db51dc25e949ed577389bd3` 후 focused,
+  전체 DOM class와 Web 전체 계측을 다시 실행한다. 기기 rollback은 필요 없다.
+
 ## Kiosk Lock Task fail-closed·관리자 인증 readiness 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 시험 범위

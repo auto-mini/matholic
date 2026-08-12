@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 04:56:24 +09:00
+- `last_updated`: 2026-08-13 05:59:27 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `3dda9f1d5f80def21c457e1775797332f946b0bb` /
-  `3dda9f1d5f80def21c457e1775797332f946b0bb`; ahead/behind `0/0`.
+  `658cbe20a1f9ac353f264bc6466d71c6916ae07e` /
+  `658cbe20a1f9ac353f264bc6466d71c6916ae07e`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `3dda9f1d5f80def21c457e1775797332f946b0bb`
-  (`test(kiosk): lock fail-closed dedicated mode (SOL-0022)`). 이 상태기록 문서
+  `658cbe20a1f9ac353f264bc6466d71c6916ae07e`
+  (`fix(kiosk): secure sensitive dialog windows (SOL-0023)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,14 +17,14 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 04:56 +09:00.
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 05:53 +09:00.
   승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc89`/code 94, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-13 03:37:37`.
-  - A에서 다시 읽은 Kiosk 설치 APK는 RC89 release artifact와 같은 36,754,057 bytes·
+  - Kiosk `0.6.0-rc90`/code 95, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-13 05:45:31`.
+  - A에서 다시 읽은 Kiosk 설치 APK는 RC90 release artifact와 같은 36,754,057 bytes·
     SHA-256
-    `B67B2BCF8D81FCF7D770627F62B14930D94DA4CA519390F3FC59945D25D2B93F`다.
+    `DB0468FC1F96579235A1D05B6D85AAF9424A76D8FC30605828C5119139183A9B`다.
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
@@ -35,29 +35,31 @@
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
-  - 설치 package는 `com.local.matholickiosk.kiosk/.print.QrPdfFileProvider`를
-    등록한다. Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와
-    ADB forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
+  - Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와 ADB
+    forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
     `INACTIVE`/부재이며 Kiosk crash buffer와 exit-info의 crash/ANR은 0건이다.
-  - RC89 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 정확한 확인창의
-    데이터 보존 문구를 확인하고 원버튼 안전 복구로 현재 세션과 임시 명단만 종료했다.
-    선택 반 인원 4명과 신규용 카드 무료 4장이 유지됐고, Web 사전점검을 거쳐 실제
-    전면 카메라 QR 대기로 복원했다. 캡처에서 잘림·겹침·오류 표시는 없었다.
+  - RC90 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 정확한
+    데이터 보존 확인창으로 현재 세션과 임시 명단만 안전 종료하고 `ADMIN_IDLE`, Web
+    사전점검과 실제 전면 카메라 QR 대기로 복원했다. 비민감 QR 대기 캡처는 도움말·
+    안내·카메라 전환·관리자 버튼이 잘림·겹침 없이 보였다. 학생·반·QR 데이터 삭제는
+    수행하지 않았고 이번 설치 뒤 개별 학생·카드 수량은 다시 열어 확인하지 않았다.
 - 운영 PC에는 PC 수신기 0.1.8을 같은 설치 path에 보존 교체했다. 설치 EXE와
   artifact는 23,187,199 bytes·SHA-256
   `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`로
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0022` 증거 체크포인트. 과거 `LUNA-0022`의 Lock Task가
-  exact `LOCKED`가 아닐 때 정책 실패·overlay restriction cleanup·verifier 판정이
-  어긋날 수 있다는 후보는 현재 `d558937`·`fc03216` source에서 이미 해결됐음을
-  확인했다. 신규 failure propagation 계측, policy 시험, unit/lint/assemble, 최종 전체
-  82/82, 실제 A Gate 5와 test commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
-- 다음 우선 큐: 과거 `LUNA-0020`의 원격 지원 활성 중 Kiosk 관리자 PIN과 Web
-  자격정보 화면에서 `FLAG_SECURE`가 복원되는지 현재 양 앱 controller·민감 화면
-  진입점·회귀시험과 실제 비민감 상태로 독립 재검증한다. 과거 해결 표시는 현재 증거로
-  다시 확인하기 전 결론으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0023`·`SOL-0024` 증거 체크포인트. 원격 지원 중
+  Activity는 민감 상태로 복원돼도 별도 Kiosk `AlertDialog` Window가 secure flag를
+  상속하지 않는 `LUNA-0020` 부분 잔존을 실제 A에서 확인해 공통 보안 표시 경로로
+  수정했다. 수정 전/후 계측, 전체 Kiosk/Web suite, RC90 release·보존 설치와 실제
+  Window flag 검증, 구현 commit·push를 완료했다. Web 전체시험이 드러낸 malformed
+  keypad fixture 한 줄 결함도 SOL-0024로 정정·검증·push했다.
+- 다음 우선 큐: 과거 `LUNA-0021`의 원격 지원 Kiosk/Web 저장 commit·ordered broadcast
+  ACK 실패가 양 앱의 capture 차단 상태를 어긋나게 할 수 있다는 후보를 현재
+  `RemoteSupportStore`, 두 receiver, Kiosk toggle rollback과 실제 broadcast 결과로
+  독립 재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지
+  않는다.
 
 ### 열린 finding과 제약
 
@@ -70,8 +72,8 @@
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
-  `SOL-0016`, `SOL-0018`.
-- 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
+  `SOL-0016`, `SOL-0018`; 현장검증 완료 P3: `SOL-0023`.
+- 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
   `SOL-0017`, `SOL-0019`, `SOL-0020`, `SOL-0021`, `SOL-0022`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
@@ -138,7 +140,21 @@
   readiness를 17곳에 적용해 조합 3/3과 최종 전체 82/82를 통과했다. 실제 A Gate 5는
   exact `LOCKED`를 통과했지만 Device Owner fault cleanup은 강제하지 않았다. test-only
   변경이라 release build·A 재설치는 수행하지 않았다.
-- 이번 RC89에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+- SOL-0023은 `a2e4dd3`·`69d0426`의 Activity 화면별 secure 복원 뒤에도 별도 Kiosk
+  `AlertDialog` Window가 flag를 상속하지 않는 부분 잔존이었다. RC89 실제 A의 원격
+  지원 중 base Activity는 secure였으나 세션 관리자 PIN dialog는 secure=false였고,
+  같은 경계를 추가한 계측도 수정 전 1/1 실패했다. 다섯 민감 dialog를 공통
+  `showSensitiveDialog()`로 표시해 자체 Window에도 `FLAG_SECURE`를 추가했다. 수정 후
+  focused와 Kiosk 83/83, Web 120/120, 양 앱 unit/lint/assemble, RC90 release를 통과했고
+  A에서 원격 지원 중 base/dialog 두 Window 모두 secure=true를 확인했다. PIN·자격정보
+  문자와 민감 화면 screenshot은 사용하지 않았다. Web credential setup의 실제 A
+  전환은 수행하지 않아 Web 현장 통과로 확대하지 않는다.
+- SOL-0024는 제품 결함이 아니라 `866484f`에서 malformed 답 `6--` 복원 단언을
+  추가하면서 한 DOM fixture의 초기값만 빈 문자열로 남긴 시험 결함이다. 수정 전
+  isolated 1/1과 첫 Web 전체 1/120이 expected `6`, actual empty로 실패했다. 목표
+  fixture 한 줄을 고쳐 focused 1/1, DOM class 76/76, 최종 Web 전체 120/120을
+  통과했다. 제품 source·release·A 설치본에는 영향이 없다.
+- 이번 RC90에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
 - 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
@@ -148,31 +164,31 @@
   실패했다. 구현 뒤 focused `OK (1 test)`와 최종 전체 `OK (71 tests)`로 통과했다.
 - 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
   lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
-  A는 이미 Room v5·code 94이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  A는 이미 Room v5·code 95이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
   기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
-  migration을 마련하고, 같은 signer·code 95 이상의 복구 release를
+  migration을 마련하고, 같은 signer·code 96 이상의 복구 release를
   `adb install -r`로 설치해야 한다.
 - SOL-0012만 되돌리려면
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 94이므로 같은 signer·code 95 이상의 forward rollback을 사용하며 APK
+  code 95이므로 같은 signer·code 96 이상의 forward rollback을 사용하며 APK
   삭제·data clear·downgrade를 하지 않는다. Room schema는 계속 v5다.
 - SOL-0013만 되돌리려면
   `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 94이므로 되돌린 source에서 같은 signer·code 95 이상의 forward rollback
+  code 95이므로 되돌린 source에서 같은 signer·code 96 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0014만 되돌리려면
   `git revert 51d1b03c7694f685e91421c0c8953fc9b8aae329` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 94이므로 되돌린 source에서 같은 signer·code 95 이상의 forward rollback
+  code 95이므로 되돌린 source에서 같은 signer·code 96 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0015만 되돌리려면
   `git revert a5905540cd9a74d589bb78fee7ea247bb35a56ac` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 94이므로 되돌린 source에서 같은 signer·code 95 이상의 forward rollback
+  code 95이므로 되돌린 source에서 같은 signer·code 96 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0016만 되돌리려면
@@ -190,7 +206,7 @@
 - SOL-0018을 되돌리려면
   `git revert 6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0` 후 Kiosk unit, lint,
   AndroidTest assemble·CSV/빠른 반 focused·전체 계측과 공식 release를 다시
-  실행한다. A는 code 94이므로 되돌린 source에서 같은 signer·code 95 이상의
+  실행한다. A는 code 95이므로 되돌린 source에서 같은 signer·code 96 이상의
   forward rollback release를 만들어 `adb install -r`로 설치하며 APK 삭제·data
   clear·downgrade를 하지 않는다.
 - SOL-0019 시험 체크포인트를 되돌리려면
@@ -209,6 +225,123 @@
   `git revert 3dda9f1d5f80def21c457e1775797332f946b0bb` 후 Kiosk unit, lint,
   AndroidTest assemble·관련 focused와 전체 계측을 다시 실행한다. 이 commit은 제품
   source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0023을 되돌리려면
+  `git revert 658cbe20a1f9ac353f264bc6466d71c6916ae07e` 후 Kiosk/Web 원격 지원
+  focused와 전체 계측, unit·lint·debug/AndroidTest assemble, 공식 release를 다시
+  실행한다. A는 이미 code 95이므로 되돌린 source의 version을 같은 signer·code 96
+  이상으로 올린 forward rollback release를 `adb install -r`로 설치하고, APK 삭제·
+  data clear·downgrade를 하지 않는다. 설치 뒤 UID·firstInstallTime·Device Owner·
+  HOME·Lock Task와 QR 대기를 다시 확인한다.
+- SOL-0024 시험 fixture를 되돌리려면
+  `git revert 7cd302891dbf7cf77db51dc25e949ed577389bd3` 후 해당 focused, 전체
+  `DomContractInstrumentedTest`와 Web 전체 계측을 다시 실행한다. 제품 source·release·
+  A 설치본은 바꾸지 않았으므로 기기 rollback은 필요 없다.
+
+## 2026-08-13 Web malformed keypad fixture 정정
+
+- `SOL-0024` — Web DOM 계측 fixture·검증 신뢰성, P4, 신뢰도 높음, 상태
+  `자동검증 완료`.
+- 사용자 영향은 제품 동작이 아니라 회귀시험 신뢰성이다. SOL-0023의 첫 Web 전체
+  계측에서 기존 `testStudentExperienceAddsIdempotentBottomMathKeypad`가 복원 답
+  `6`을 기대했지만 빈 문자열을 받아 전체 suite를 실패시켰다.
+- 수정 전 정적·동적 근거: commit
+  `866484fde9bce4a075a12b1e4825078d228768a1`은 malformed answer `6--`를 `6`으로
+  보존 복구하고 repair count 2를 요구하도록 단언을 바꿨지만, 이 fixture의
+  `let latex = ''`만 바꾸지 않았다. 같은 commit의 다른 동형 fixture는 이미
+  `let latex='6--'`였다. isolated 1/1은 expected `6`, actual empty로 실패했다.
+- 결정·수정: 제품 DOM 계약이나 expected 값을 약화시키지 않고 목표 fixture 초기값
+  한 줄만 `6--`로 맞췄다. 동일 문구가 여러 fixture에 있어 첫 patch가 다른 occurrence를
+  잠시 가리켰지만 즉시 원복하고 정확한 대상만 변경했다. 잘못 짚은 occurrence는 최종
+  diff·commit에 없다.
+- 검증:
+  - 첫 Web 전체 wrapper는 304초 timeout이었고 XML 120건 중 이 기존 case 1건만
+    실패했다. 당시 SOL-0023 신규 case는 2.447초 PASS였다.
+  - 수정 후 isolated 1/1·Gradle 8초, 전체 `DomContractInstrumentedTest` 76/76·48초
+    PASS다.
+  - 최종 Web 전체는 120/120, failure/error/skip 0, XML 283.498초, Gradle 4분 50초
+    PASS이며 해당 case는 0.389초다.
+- 반대 근거·제약: fixture가 비어 있으면 malformed 복구 자체를 실행하지 않으므로
+  기존 failure는 제품 회귀의 증거가 아니다. 실제 Web 학습 화면·서버 답안·학생 계정은
+  사용하지 않았다.
+- 변경 파일은 `DomContractInstrumentedTest.kt` 한 파일이다. 시험·원격 복구점
+  `7cd302891dbf7cf77db51dc25e949ed577389bd3`, 전용 origin branch push 성공.
+
+## 2026-08-13 RC90 원격 지원 민감 Dialog Window 보안
+
+- `SOL-0023` — Kiosk/Web 원격 지원·관리자 PIN·자격정보 화면, P3, 신뢰도 높음,
+  상태 `현장검증 완료`.
+- 사용자 영향·재현 조건: 승인된 원격 지원이 활성인 동안 Kiosk 관리자 PIN dialog가
+  열리면 controller는 base Activity만 다시 secure로 만들었다. `AlertDialog`는 별도
+  Window라 flag를 상속하지 않았고, PIN 문자가 그 Window에 표시될 때 승인된 capture
+  주체에 노출될 가능성이 있었다. 관리자 승인·원격 지원·민감 dialog 진입이 모두
+  필요하므로 P3로 제한한다.
+- 과거 finding 정정: `LUNA-0020`의 Activity 화면별 문제는 `a2e4dd3`에서 Kiosk 인증·
+  Web setup의 `setSensitiveScreen()` 전환으로, `69d0426`에서 네 민감 credential
+  dialog 진입·dismiss 복원으로 이미 대부분 수정됐다. 이번에는 “이미 수정됨”으로
+  끝내지 않고 실제 Android Window를 대조해 별도 dialog flag 부분 잔존을 확인했다.
+- 수정 전 실제 A 동적 근거:
+  - RC89 QR 대기에서 원격 지원 15분을 켜고 비민감 화면의 관리자 버튼 bounds만
+    읽어 탭했다. PIN 입력·screenshot·민감 UI dump는 하지 않았다.
+  - PIN dialog가 열린 뒤 base Activity `fl=81812180`은 secure=true였으나 별도 dialog
+    `fl=1800002`는 secure=false였다. 원격 지원을 즉시 끄고 dialog를 취소했으며 Lock
+    Task는 `LOCKED`, 임시 캡처는 부재였다.
+  - 강화한 Kiosk 회귀시험도 수정 전 dialog 자체 flag 단언에서 1/1 실패했고 Gradle은
+    18초 뒤 실패했다.
+- 원인·결정: Activity Window flag가 attached dialog에 자동 상속된다는 암묵적 가정이
+  원인이었다. 신규 학생 credential, 표시명, 로그인 정보 변경, 재사용 카드 배정,
+  세션 관리자 PIN의 다섯 dialog를 `showSensitiveDialog()` 하나로 표시한다. 이 경로는
+  controller의 Activity 정책을 먼저 민감 상태로 바꾸고 `dialog.window`에 표시 전
+  `FLAG_SECURE`를 추가한다. dismiss 뒤 현재 인증 panel 여부에 따른 기존 복원은
+  유지했다. Web credential setup은 Activity panel이라 제품 source를 바꾸지 않았다.
+- 자동검증:
+  - Kiosk 강화 focused는 수정 후 1/1·Gradle 20초 PASS. Web setup→active→setup
+    focused는 1/1·14초 PASS다.
+  - 최종 Kiosk API 33 전체는 83/83, failure/error/skip 0, XML 129.278초, Gradle
+    2분 18초 PASS다. 최종 Web 전체는 위 SOL-0024 정정 후 120/120·4분 50초 PASS다.
+  - 양 앱 unit/lint/debug·AndroidTest assemble은 163 tasks·36초 PASS. JVM XML은
+    Kiosk 99/99·1.158초, Web 67/67·0.333초, 모두 failure/error/skip 0이다.
+  - 공식 clean release는 158 tasks 중 154개 실행·2분 40초 PASS. RC90/code 95 APK는
+    36,754,057 bytes, SHA-256
+    `DB0468FC1F96579235A1D05B6D85AAF9424A76D8FC30605828C5119139183A9B`, v2 signer
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+    checksum·명시적 release verification도 통과했고 Web RC137 payload는 동일하다.
+- A 보존 설치·현장 근거:
+  - 승인 `SM-P610`/`R54TB029FHZ` 한 대의 RC89 설치본과 artifact byte·hash·signer,
+    UID 10288, first install `2026-07-24 12:52:28`, Device Owner·HOME, Kiosk top·QR
+    대기·Lock Task `LOCKED`, 원격/test package/tunnel 부재를 먼저 확인했다.
+  - 같은 signer RC90/code 95를 `adb install -r`로 설치했다. last update
+    `2026-08-13 05:45:31`, UID·first install·Device Owner·HOME·data가 보존됐고 A에서
+    다시 읽은 APK가 artifact와 byte·SHA-256 일치했다. Web RC137은 재설치하지 않았다.
+  - 재시작의 `RECOVERY_REQUIRED`에서 원격을 끄고 저장 PIN 전용 도구로 인증했다.
+    남은 Web 로그인·현재 수업·보강 명단만 종료하고 학생·반·QR은 삭제하지 않는다는
+    확인창을 읽은 뒤 `안전 복구`를 실행했다. `ADMIN_IDLE`, Web 사전점검 정상 안내와
+    실제 전면 카메라 QR 대기까지 복원했다. 이번 설치 뒤 개별 학생·카드 수량은 다시
+    열어 확인하지 않았다.
+  - RC90 원격 지원 중 QR 대기의 base Activity는 `fl=81810180`, secure=false였다.
+    PIN dialog 진입 뒤 dialog `fl=1802002`, base `fl=81812180`으로 두 Window가 모두
+    secure=true였다. PIN·비밀번호는 입력하지 않았고 민감 화면 capture/UI dump도
+    만들지 않았다.
+  - 첫 `BACK`은 키보드만 닫아 dialog가 남았고, 뒤이은 원격 Start의 자동 screenshot은
+    secure Window 때문에 거부됐다. 즉시 Stop한 뒤 Window 개수만 보고 두 번째
+    `BACK`으로 dialog를 닫았다. 이후 비민감 QR 대기 캡처는 정상이며 안내·도움말·
+    두 하단 제어·원격 배지가 잘림·겹침 없이 보였다.
+  - 최종 RC90 top resumed·QR 대기, Lock Task `LOCKED`, base secure=true, 원격/test
+    package/tunnel/device·local 임시 캡처 부재, exit-info crash/ANR·crash buffer fatal
+    0건이다.
+- 반대 근거·미검증: 원격 지원은 관리자 승인·signature/DUMP receiver·만료형 store로
+  제한되고 운영 문서는 PIN·비밀번호 입력 전 Stop을 요구한다. 실제 PIN 문자나 Web
+  credential이 screenshot에 나타나는 공격 결과는 안전상 재현하지 않았다. Web의
+  Activity setup 전환은 AVD에서 검증했고 실제 A credential 화면은 열지 않았으므로
+  Kiosk dialog 현장 통과를 Web 현장 통과로 확대하지 않는다.
+- 검증 도구 중간 실패: 설치 전/후 종합 확인의 긴 inline PowerShell 두 건이 정책에
+  의해 실행 전 차단됐다. 짧은 임시 script로 바꾼 첫 두 실행은 각각 apksigner 출력
+  label 차이와 PowerShell read-only `$HOME` 이름 충돌로 실패했으며 device 상태는
+  바뀌지 않았다. parser 확인 뒤 정정 실행은 성공했고 임시 script를 삭제했다. 최종
+  script의 device-temp 조회 shell 조각도 quoting 문법 오류가 있었지만, 이미 수행된
+  exact-path 삭제 뒤 단순 `test -e`로 두 파일 부재를 다시 확인했다.
+- 변경 파일: `MainActivity.kt`, Kiosk/Web AndroidTest, Kiosk version과 세 release
+  script. 구현·원격 복구점
+  `658cbe20a1f9ac353f264bc6466d71c6916ae07e`, 전용 origin branch push 성공.
 
 ## 2026-08-13 Kiosk Lock Task fail-closed·관리자 인증 readiness 독립 재검증
 
@@ -441,8 +574,8 @@
   세 release script. 구현·원격 복구점은
   `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`, 전용 origin branch push 성공.
 - source rollback은 `git revert 6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0` 후 위
-  focused·unit·lint·assemble·전체 계측과 공식 release를 재실행한다. A는 code 94라
-  downgrade·삭제·data clear를 하지 않고, 되돌린 source에서 같은 signer·code 95+
+  focused·unit·lint·assemble·전체 계측과 공식 release를 재실행한다. A는 code 95라
+  downgrade·삭제·data clear를 하지 않고, 되돌린 source에서 같은 signer·code 96+
   forward rollback을 만들어 `adb install -r`한다.
 
 ## 2026-08-13 Kiosk 수업 종료 idle projection 독립 재검증
@@ -2011,6 +2144,10 @@
   `750b7d7089f630295ba8b2f3f7e032766c75b94d`.
 - `SOL-0022` Lock Task fail-closed·관리자 인증 readiness 회귀 고정 test commit:
   `3dda9f1d5f80def21c457e1775797332f946b0bb`.
+- `SOL-0024` malformed keypad 답 복구 fixture 정정 test commit:
+  `7cd302891dbf7cf77db51dc25e949ed577389bd3`.
+- `SOL-0023` 민감 Dialog Window secure flag·양 앱 화면 전환 회귀·RC90 release
+  metadata commit: `658cbe20a1f9ac353f264bc6466d71c6916ae07e`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤
