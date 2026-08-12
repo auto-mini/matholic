@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 01:46:21 +09:00
+- `last_updated`: 2026-08-13 02:32:31 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `51d1b03c7694f685e91421c0c8953fc9b8aae329` /
-  `51d1b03c7694f685e91421c0c8953fc9b8aae329`; ahead/behind `0/0`.
+  `a5905540cd9a74d589bb78fee7ea247bb35a56ac` /
+  `a5905540cd9a74d589bb78fee7ea247bb35a56ac`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `51d1b03c7694f685e91421c0c8953fc9b8aae329`
-  (`fix(kiosk): bound stalled PC PDF writes (SOL-0014)`). 이 상태기록 문서
+  `a5905540cd9a74d589bb78fee7ea247bb35a56ac`
+  (`fix(kiosk): expire shared QR PDFs after restart (SOL-0015)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,13 +17,13 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 독립 확인: 2026-08-13 01:39 +09:00. 승인 ADB device는 serial
+- 실제 A 마지막 독립 확인: 2026-08-13 02:24 +09:00. 승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc87`/code 92, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-13 01:31:20`.
-  - A에서 다시 읽은 Kiosk 설치 APK는 RC87 release artifact와 같은 36,754,045 bytes·
+  - Kiosk `0.6.0-rc88`/code 93, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-13 02:17:50`.
+  - A에서 다시 읽은 Kiosk 설치 APK는 RC88 release artifact와 같은 36,754,057 bytes·
     SHA-256
-    `DE13ECB75EA784328D4954B81375387A1F415DA9BC428A6AB4D3984BB74A1724`다.
+    `00EE705C788720D80BF90203F8F02EAEF1D69143F9C3816683344C4F5BE85C28`다.
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
@@ -34,20 +34,22 @@
   - Device Owner와 preferred HOME은 각각
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
-  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
+  - 설치 package는 `com.local.matholickiosk.kiosk/.print.QrPdfFileProvider`를
+    등록한다. Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
     지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash buffer 일치 항목 없음.
-  - RC87 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
+  - RC88 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
     안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
     Web 사전점검을 거쳐 전면 카메라 QR 대기로 복원했다.
 - 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지 않았다. 설치본의
   마지막 독립 현장 확인은 아래 SOL-0008을 따른다.
-- 현재 작업 중 finding: `SOL-0014` 증거 체크포인트. 구현·전체 자동검증·RC87
-  release·A 보존 설치와 통합 회귀·구현 push를 완료했다. 정확한 운영 PC partial
-  stall은 고의로 만들지 않고 JVM·Android 최대 payload loopback으로 확인했으므로
-  상태는 `자동검증 완료`다.
-- 다음 우선 큐: PC receiver가 선언된 frame을 일부만 보내는 client, 느린 disk·ACK
-  또는 다중 연결에서 worker·임시 파일·listener를 유한하게 정리하는지 현재
-  0.1.7 source와 fault test로 독립 재검증한다. 가능성만으로 수정하지 않는다.
+- 현재 작업 중 finding: `SOL-0015` 증거 체크포인트. 공유 QR PDF의 재시작 뒤 남은
+  만료 재예약·FileProvider 선행 정리, 전체 자동검증·RC88 release·A 보존 설치와
+  통합 회귀·구현 push를 완료했다. 실제 QR 공유 중 process kill·1시간 경과는
+  강제하지 않고 합성 비-QR API 33 계측으로 확인했으므로 상태는 `자동검증 완료`다.
+- 다음 우선 큐: PC receiver 0.1.7이 active PDF/control handler 처리 중 tray Quit,
+  Tk mainloop 반환 또는 shutdown 예외를 만나도 file·replay·ACK·event 정합성과
+  server/handler thread를 유한하게 drain/join하는지 현재 source와 fault test로
+  독립 재검증한다. SOL-0004의 admission/frame deadline과 중복시키지 않는다.
 
 ### 열린 finding과 제약
 
@@ -59,7 +61,7 @@
   정확한 영향 분기를 재현하지 않았다.
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
-- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`.
+- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
@@ -77,7 +79,12 @@
   최대 5MiB frame·1KiB receive buffer의 JVM에서 수정 전 무기한 대기, JVM·Android
   수정 후 bounded timeout을 확인했고 전체 73개 instrumentation을 통과했다.
   실제 Windows PC·Wi-Fi·disk의 장시간 partial stall 현장 통과로 확대하지 않는다.
-- 이번 RC87에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+- SOL-0015의 정확한 공유 중 process kill·1시간 경과·외부 URI 재접근은 실제 A에서
+  강제하지 않았다. 합성 비-QR 파일의 수정 전 실패·수정 후 남은 수명 삭제,
+  manifest provider 교체와 provider 초기화 선행 삭제, 전체 76개 계측으로 확인했다.
+  process가 계속 종료된 동안 private cache 파일이 물리적으로 남는 것과 이미 읽은
+  외부 수신기 복사본은 앱이 회수하지 못하는 잔여 경계다.
+- 이번 RC88에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
 - 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
@@ -87,27 +94,82 @@
   실패했다. 구현 뒤 focused `OK (1 test)`와 최종 전체 `OK (71 tests)`로 통과했다.
 - 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
   lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
-  A는 이미 Room v5·code 92이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  A는 이미 Room v5·code 93이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
   기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
-  migration을 마련하고, 같은 signer·code 93 이상의 복구 release를
+  migration을 마련하고, 같은 signer·code 94 이상의 복구 release를
   `adb install -r`로 설치해야 한다.
 - SOL-0012만 되돌리려면
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 92이므로 같은 signer·code 93 이상의 forward rollback을 사용하며 APK
+  code 93이므로 같은 signer·code 94 이상의 forward rollback을 사용하며 APK
   삭제·data clear·downgrade를 하지 않는다. Room schema는 계속 v5다.
 - SOL-0013만 되돌리려면
   `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 92이므로 되돌린 source에서 같은 signer·code 93 이상의 forward rollback
+  code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0014만 되돌리려면
   `git revert 51d1b03c7694f685e91421c0c8953fc9b8aae329` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 92이므로 되돌린 source에서 같은 signer·code 93 이상의 forward rollback
+  code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
+- SOL-0015만 되돌리려면
+  `git revert a5905540cd9a74d589bb78fee7ea247bb35a56ac` 후 Kiosk unit, lint,
+  AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
+  code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
+  release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
+  하지 않는다.
+
+## 2026-08-13 RC88 공유 QR PDF 재시작 만료 복구·A 설치
+
+- RC15의 공유 시작 1시간·정상 복귀 30초 삭제 예약은 process가 종료되면 사라졌다.
+  다음 시작 정리는 이미 만료된 파일만 지웠고 아직 젊은 orphan의 남은 수명을
+  재예약하지 않아, 한 번 재시작한 뒤 살아 있는 process에서도 다음 export·재시작
+  전까지 로그인 가능한 QR PDF가 cache에 남을 수 있었다.
+- 시작 정리는 만료 파일을 즉시 삭제하고 젊은 파일은 마지막 수정 시각 기준 남은
+  시간만 process Handler에 다시 예약한다. 전용 `QrPdfFileProvider`가 같은 정리를
+  `onCreate()`에서 마친 뒤 기존 FileProvider 동작을 제공하므로 Activity 없이 URI
+  요청으로 재기동돼도 만료 파일을 먼저 삭제한다. 기존 non-exported authority,
+  일시 read grant와 `qr_exports/` 범위는 유지했다.
+- 수정 전·후 자동 증거:
+  - 만료까지 약 1.5초 남은 합성 비-QR orphan은 수정 전 5.033초 뒤에도 남아 1/1
+    failure, 수정 후 `Time: 1.134`, `OK (1 test)`였다.
+  - provider manifest 계약은 수정 전 AndroidX 기본 provider라 0.027초 1/1 failure,
+    전용 provider 뒤 0.018초 `OK (1 test)`였다. 실제 manifest `ProviderInfo`로 provider를
+    초기화한 만료 선행 삭제도 0.032초 `OK (1 test)`였다.
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS. API 33 전체
+    instrumentation `Time: 77.511`, `OK (76 tests)`, 실패·skip 0.
+  - 공식 release 158 tasks, `BUILD SUCCESSFUL in 2m 5s`; Kiosk JVM 99개·Web JVM
+    67개, release lint, signed assemble, version·non-debuggable·동일 signer PASS.
+- RC88 artifact:
+  `artifacts/matholic-kiosk-0.6.0-rc88-release.apk`, 36,754,057 bytes, SHA-256
+  `00EE705C788720D80BF90203F8F02EAEF1D69143F9C3816683344C4F5BE85C28`,
+  signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- A 실기:
+  - 승인 A 한 대의 RC87 설치 APK와 artifact byte·SHA-256·signer 일치를 먼저
+    확인하고 같은 signer RC88/code 93을 `adb install -r`로 보존 설치했다. UID 10288,
+    firstInstallTime, Device Owner, preferred HOME·data·Lock Task를 유지했다.
+  - A에서 다시 읽은 설치 APK는 RC88 artifact와 byte·SHA-256·v2 signer가 정확히
+    같고 새 provider가 package에 등록됐다. 변경 없는 Web RC137은 재설치하지 않았다.
+  - 원격을 중지한 exact PIN 화면에서 지정 DPAPI 도구만 사용했다. 확인창의 현재
+    수업·보강 명단만 종료하고 학생·반·QR은 삭제하지 않는 범위를 검증해
+    `ADMIN_IDLE`로 안전 복구했다. 카드 메뉴 `전체 4장 · 무료 4장 · 사용 중 0장`,
+    exact Web 사전점검과 전면 카메라 QR 대기를 확인했다. 카드·계정·QR은 바꾸지
+    않았다.
+  - 첫 preinstall signer verifier는 실제 `V2 Signer` 라벨 대신 `Signer #1`만
+    기대해 APK pull·hash 뒤 실패했다. 임시 경로를 정리하고 공개 인증서 출력에 맞게
+    parser를 보정해 재검증했다. recovery 버튼 탐색도 `visible-to-user=true`가 반드시
+    출력된다고 가정해 첫 네 번 scroll 뒤 실패했지만 아무 버튼도 누르지 않았고,
+    resource-id·bounds로 실제 버튼을 찾아 exact 확인 뒤 진행했다. 예상 대화상자 제목
+    한 건도 소스와 대조해 고친 뒤에만 안전 복구를 눌렀다. 제품 실패가 아니다.
+  - 실제 QR 공유·process kill·1시간 대기·외부 앱 URI 재접근은 하지 않았다. 최종
+    Kiosk top resumed, Lock Task `LOCKED`, 원격 `INACTIVE`, ADB forward/reverse 0,
+    crash/ANR buffer 일치 0, 검증 임시 파일 0이다.
+- 구현·복구점:
+  `a5905540cd9a74d589bb78fee7ea247bb35a56ac`, 전용 origin branch push 성공.
 
 ## 2026-08-13 RC87 지정 PC PDF write timeout·A 설치
 
@@ -1258,7 +1320,7 @@
   `LOCKED` 확인. 비활성 복구 분기는 수행하지 않음.
 - rollback: 코드
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 위 unit/lint/전체
-  계측/release를 재실행한다. A는 code 92이므로 같은 signer·code 93+의 forward
+  계측/release를 재실행한다. A는 code 93이므로 같은 signer·code 94+의 forward
   rollback을 만들고 앱 삭제·data clear·downgrade를 하지 않는다. Room v5는
   유지한다.
 
@@ -1313,8 +1375,8 @@
   crash buffer 일치 항목 없음이다. 운영 PC 수신기와 pairing은 변경하지 않았다.
 - rollback: 코드
   `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit/lint,
-  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 92이므로
-  같은 signer·code 93 이상의 forward rollback을 `adb install -r`로 설치하고
+  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 93이므로
+  같은 signer·code 94 이상의 forward rollback을 `adb install -r`로 설치하고
   APK 삭제·data clear·downgrade를 하지 않는다.
 
 ### SOL-0014 — 연결 뒤 읽지 않는 지정 PC가 PDF write를 무기한 점유함
@@ -1368,9 +1430,74 @@
   없음이다. 운영 PC 수신기와 pairing은 변경하지 않았다.
 - rollback: 코드
   `git revert 51d1b03c7694f685e91421c0c8953fc9b8aae329` 후 Kiosk unit/lint,
-  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 92이므로
-  같은 signer·code 93 이상의 forward rollback을 `adb install -r`로 설치하고
+  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 93이므로
+  같은 signer·code 94 이상의 forward rollback을 `adb install -r`로 설치하고
   APK 삭제·data clear·downgrade를 하지 않는다.
+
+### SOL-0015 — process 재시작 뒤 공유 QR PDF가 만료 상한을 넘길 수 있음
+
+- 영역: Kiosk QR PDF cache·FileProvider·process lifecycle·민감 임시파일 회수
+- 심각도: P3
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: 사용자가 신규용 QR 카드 PDF를 공유하는 동안 Kiosk process가
+  종료되면 메모리의 삭제 예약도 사라진다. 1시간이 되기 전에 앱이 한 번
+  재시작되면 아직 젊은 orphan은 지워지지 않았고 남은 만료도 다시 예약되지 않아,
+  로그인 가능한 QR PDF가 다음 export·재시작·OS cache 회수 전까지 앱 private
+  cache에 의도한 1시간 상한보다 오래 남을 수 있었다.
+- 재현 조건(수정 전 RC87): `qr_exports/`에 만료까지 약 1.5초 남은 합성 비-QR
+  PDF를 두고 startup `cleanupExpired()`를 실행한 뒤 process를 계속 살려 5초 이상
+  기다린다. 별도로 manifest provider가 AndroidX 기본 `FileProvider`인지 확인한다.
+- 기대 결과: 이미 만료된 파일은 즉시 삭제하고, 아직 젊은 파일은 마지막 수정
+  시각 기준 남은 수명만 다시 예약한다. 외부 URI 요청으로 process가 시작돼도
+  provider가 파일을 내주기 전에 같은 만료 정리를 수행한다.
+- 실제 결과(수정 전): startup 정리는 당시 1시간 이상인 파일만 삭제했다. 젊은
+  파일은 5.033초 뒤에도 남아 focused test 1/1 failure였고, manifest provider는
+  `androidx.core.content.FileProvider`라 Activity 없는 URI 재기동에는 앱 정리가
+  없었다. provider 계약 test도 0.027초 1/1 failure였다.
+- 정적·동적 근거:
+  - `QrPdfExporter.cleanupExpired()`가 파일 나이를 한 번 계산해 만료 파일은 즉시
+    삭제하고, 젊은 파일은 남은 수명만 process Handler에 예약한다. 0 이하
+    `lastModified`는 만료로, 미래 시각은 재시작 뒤 최대 1시간으로 제한한다.
+  - `QrPdfFileProvider.onCreate()`가 `super` 초기화 뒤 같은 cleanup을 실행한다.
+    기존 non-exported authority, 일시 read grant와 `qr_exports/` path 범위는
+    바꾸지 않았다.
+  - 젊은 orphan focused test는 수정 후 `Time: 1.134`, `OK (1 test)`였다.
+    전용 provider manifest 계약은 `Time: 0.018`, 실제 manifest `ProviderInfo`로
+    초기화한 만료 선행 삭제는 `Time: 0.032`, 각각 `OK (1 test)`였다.
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS. API 33 전체
+    instrumentation `Time: 77.511`, `OK (76 tests)`, 실패·skip 0.
+  - 공식 release 158 tasks, `BUILD SUCCESSFUL in 2m 5s`; Kiosk JVM 99개·Web JVM
+    67개, release lint, signed assemble, version·non-debuggable·동일 signer PASS.
+- 반대 근거·미검증:
+  - 파일은 app private cache와 non-exported provider 아래 있고 share target은
+    사용자가 명시적으로 선택한다. 따라서 일반 파일 공개 결함은 아니며 영향은
+    선택한 로그인 가능 QR의 잔존 기간에 한정된다.
+  - process가 계속 죽어 있으면 앱은 정확히 1시간에 private 파일을 물리 삭제할 수
+    없다. 다만 FileProvider URI 재접근이 process를 시작하면 만료 파일을 제공하기
+    전에 삭제한다. 외부 수신기가 이미 읽어 복사한 파일은 앱이 회수할 수 없다.
+  - 실제 A에서 공유 중 process kill·1시간 대기·외부 URI 재접근을 강제하지 않았다.
+    위 시간 경계는 합성 비-QR API 33 계측이며 현장검증 완료로 확대하지 않는다.
+- 원인·결정: RC12/RC15의 정상 복귀 30초·공유 시작 1시간 삭제가 process-local
+  Handler에만 의존했고, startup sweep이 젊은 파일의 남은 수명을 재구성하지 않은
+  부분 잔존이었다. 별도 AlarmManager/WorkManager를 추가하지 않고 현재 cache
+  계약 안에서 재시작 시 예약을 복구하며, 외부 접근 경계에는 전용 provider의
+  fail-closed 선행 정리를 추가했다.
+- 변경 파일: `QrPdfExporter.kt`, 신규 `QrPdfFileProvider.kt`, Android manifest,
+  `QrPrintDocumentAdapterInstrumentedTest.kt`, Kiosk RC88 version/release scripts.
+- 관련 commit:
+  `a5905540cd9a74d589bb78fee7ea247bb35a56ac`; 전용 origin branch push 성공,
+  구현 push 직후 ahead/behind `0/0`.
+- A/PC 현장 상태: 같은 signer RC88/code 93을 승인 A 한 대에 `adb install -r`로
+  보존 설치했다. 설치 APK와 artifact byte·SHA-256·signer, 새 provider 등록을
+  다시 확인했다. UID·firstInstallTime·Device Owner·HOME·data·Lock Task를
+  유지했고 안전 복구, 카드 메뉴, Web 사전점검과 QR 대기까지 통과했다. 실제
+  공유·process kill은 수행하지 않았고 운영 PC 수신기는 변경하지 않았다.
+- rollback: 코드
+  `git revert a5905540cd9a74d589bb78fee7ea247bb35a56ac` 후 Kiosk unit/lint,
+  AndroidTest assemble·전체 계측과 공식 release를 재실행한다. A는 code 93이므로
+  되돌린 source에서 같은 signer·code 94 이상의 forward rollback release를
+  `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를 하지 않는다.
 
 ## 최근 변경·검증·전달
 
@@ -1411,6 +1538,8 @@
   `b8ce2d394e5f02655a4bbe70842d4dde7bde1466`.
 - `SOL-0014` 지정 PC PDF write timeout·JVM/Android 회귀·RC87 release metadata
   commit: `51d1b03c7694f685e91421c0c8953fc9b8aae329`.
+- `SOL-0015` 공유 QR PDF 재시작 만료 복구·provider 선행 정리·API 33 회귀·RC88
+  release metadata commit: `a5905540cd9a74d589bb78fee7ea247bb35a56ac`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤

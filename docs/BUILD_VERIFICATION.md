@@ -1,5 +1,80 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC88 공유 QR PDF 재시작 만료 복구 — 2026-08-13
+
+### 구현 범위
+
+- RC15는 선택적 QR PDF 공유를 시작할 때 process 범위 Handler에 최대 1시간 삭제를
+  예약하고 정상 복귀 때 30초 삭제도 추가했다. 그러나 공유 중 process가 종료되면
+  두 예약이 함께 사라졌다. 다음 Kiosk 시작의 `cleanupExpired()`는 이미 1시간을
+  넘긴 파일만 삭제하고 아직 젊은 orphan의 남은 만료는 다시 예약하지 않았다.
+  따라서 1시간 전에 한 번 재시작한 뒤 process가 계속 살아 있어도 해당 PDF는 다음
+  export·재시작 전까지 앱 cache에 남을 수 있었다.
+- 시작 정리는 각 `qr_exports` 직계 파일의 마지막 수정 시각을 기준으로 이미 만료된
+  파일을 즉시 삭제하고, 아직 유효하면 남은 시간만 process Handler에 다시 예약한다.
+  알 수 없는 수정 시각은 보수적으로 만료 처리하고 미래 시각은 재시작 시점부터 최대
+  1시간으로 제한한다.
+- AndroidX 기본 provider 대신 이를 상속한 `QrPdfFileProvider`를 manifest에 등록했다.
+  provider `onCreate()`가 같은 정리를 마친 뒤에만 기존 FileProvider 동작을 제공하므로,
+  Activity가 아니라 공유 URI 요청으로 process가 재기동돼도 만료 파일을 먼저 삭제한다.
+  authority, `exported=false`, 일시 read grant와 `qr_exports/` 경로 범위는 바꾸지 않았다.
+- process가 계속 종료된 동안 OS를 깨우는 exact alarm은 추가하지 않았다. private cache
+  파일은 다음 process 시작이나 OS cache 정리 전까지 물리적으로 남을 수 있지만,
+  외부 URI 요청이 process를 시작하면 provider가 만료 검사 전에 파일을 제공하지
+  않는다. 이미 외부 수신기가 읽은 복사본은 계속 앱 밖 신뢰 경계다.
+
+### 수정 전 재현·최종 자동검증
+
+- 실제 QR·학생정보 없이 합성 비-QR PDF fixture만 사용했다. 수정 전 신규
+  `startupCleanupReschedulesYoungOrphanForItsRemainingLifetime`은 만료까지 약 1.5초
+  남은 파일에 시작 정리를 실행한 뒤 5초를 기다렸지만 파일이 남아 API 33에서
+  `Time: 5.033`, 1/1 failure로 실패했다.
+- 남은 수명 재예약을 먼저 구현한 뒤 같은 시험은 `Time: 1.134`, `OK (1 test)`였다.
+- provider 재시작 진입점 계약은 수정 전 manifest가
+  `androidx.core.content.FileProvider`를 반환해 `Time: 0.027`, 1/1 failure였다. 전용
+  provider 등록 뒤 같은 시험은 `Time: 0.018`, `OK (1 test)`였다. 실제 manifest
+  `ProviderInfo`로 새 provider를 초기화해 만료 합성 파일이 URI 제공 전에 삭제되는
+  focused 시험도 `Time: 0.032`, `OK (1 test)`였다.
+- QR PDF 계측 클래스의 기존 공유 grant·30초/1시간 삭제·경로 제한·PDF 렌더링과
+  신규 계약을 함께 통과했다. 최종 소스 전체 Kiosk 계측은 API 33 AVD에서
+  `Time: 77.511`, `OK (76 tests)`이며 실패·skip 0이다.
+- 최종 `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 9s`다.
+- 세 release PowerShell script parser는 오류 0건이다. 공식
+  `scripts/build-release.ps1`은 158 tasks, `BUILD SUCCESSFUL in 2m 5s`였고 Kiosk JVM
+  99개·Web JVM 67개, release lint, signed assemble, version·non-debuggable·동일
+  signer 검증을 통과했다. Web RC137 payload는 기존 artifact와 동일하다.
+- RC88 release APK는 36,754,057 bytes, SHA-256
+  `00EE705C788720D80BF90203F8F02EAEF1D69143F9C3816683344C4F5BE85C28`,
+  `versionName=0.6.0-rc88`, `versionCode=93`, v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+
+### A 보존 설치·현장 확인
+
+- 승인 ADB 대상은 `SM-P610`/`R54TB029FHZ` 한 대뿐이었다. 전면 카메라 QR 대기와
+  Lock Task `LOCKED`, 원격 지원 `INACTIVE`를 확인했다. 설치 전 RC87 APK가 보관
+  RC87과 36,754,045 bytes·SHA-256·signer까지 같고 RC88 signer와도 일치함을
+  확인한 뒤 `adb install -r`로 RC88/code 93을 보존 설치했다.
+- UID 10288, first install `2026-07-24 12:52:28`, Device Owner, preferred HOME,
+  앱 data와 Lock Task `LOCKED`를 유지했다. last update는
+  `2026-08-13 02:17:50`이다. 설치 package는 새 `QrPdfFileProvider`를 등록했고,
+  A에서 다시 읽은 APK도 RC88 artifact와 byte·SHA-256·v2 signer가 정확히
+  일치했다. Web RC137은 변경·재설치하지 않았다.
+- 원격을 중지한 정확한 관리자 PIN 화면에서 지정 DPAPI 입력 도구만 사용했다.
+  `RECOVERY_REQUIRED` 뒤 확인창이 현재 수업·보강 명단만 종료하고 학생·반·QR은
+  삭제하지 않음을 검증해 `ADMIN_IDLE`로 안전 복구했다. 신규용 카드 메뉴는
+  `전체 4장 · 무료 4장 · 사용 중 0장`이며 항목·계정·QR을 바꾸지 않았다.
+- 정확한 `수업 시작 사전점검`의 `웹 검사 후 시작`을 누른 뒤 30초 안에 전면 카메라
+  QR 대기로 돌아왔다. 실제 QR 로그인, 학생정보 변경, 선택적 PDF 공유와 공유 중
+  process kill·1시간 경과는 수행하지 않았다. 따라서 SOL-0015의 정확한 영향 분기는
+  합성 API 33 계측으로 확인한 `자동검증 완료`이며 A는 설치·provider 등록·기본 흐름
+  통합 회귀다.
+- 최종 Kiosk top resumed, Lock Task `LOCKED`, 원격 지원 `INACTIVE`, ADB
+  forward/reverse 0개, 최근 Matholic crash/ANR buffer 일치 항목 0개다. 검증용
+  workspace/device/LOCALAPPDATA 임시 파일과 빈 디렉터리는 정리했다.
+- 구현·복구점은 `a5905540cd9a74d589bb78fee7ea247bb35a56ac`이며 전용 origin branch에
+  push했다.
+
 ## Kiosk RC87 지정 PC PDF write timeout — 2026-08-13
 
 ### 구현 범위
