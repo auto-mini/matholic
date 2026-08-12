@@ -1,5 +1,82 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC84 신규용 재사용 QR 4장·QR 고정 경계 교정 — 2026-08-12
+
+### 구현 범위
+
+- Room v5에 재사용 카드 슬롯 표기와 배정 상태를 추가하고 4→5 마이그레이션을
+  제공했다. 기존 학생은 기본값으로 일반 학생 상태를 유지한다.
+- 최초 준비 시 신규용 더미 슬롯 4장을 `신규카드1`~`신규카드4`로 만들고 지정
+  PC에 `신규카드1-4 더미 QR.pdf`를 암호화해 전송한다. PC 저장 ACK 전에는
+  배정하지 않는다. 시작 때 이미 존재하는 슬롯은 미출력 상태여도 QR을 자동
+  교체하지 않는다. 관리자가 미출력 카드 재전송을 명시적으로 선택할 때만 새
+  QR을 만들어 다시 전송한다.
+- 무료 슬롯의 아이디·비밀번호는 암호화된 빈 값으로 저장해 로그인되지 않게
+  한다. 학생 배정은 QR hash를 변경하지 않고 이름·ID·PW만 저장하며 현재
+  수업의 임시 보충 학생으로 자동 추가하지 않는다.
+- 실제 QR 카드로 전환하면 새 일반 학생 행·새 QR을 발급하고 반 소속을 옮긴다.
+  기존 더미 슬롯은 기존 QR을 유지한 채 이름을 슬롯 라벨로, 계정정보를 빈
+  값으로 되돌린다. 새 QR PDF 전송 ACK 뒤 새 카드 상태를 출력 완료로 표시한다.
+- 무료 슬롯은 일반 학생·반 구성·QR 검증 목록에서 제외해 미배정 더미 카드가
+  실수로 로그인되지 않도록 했다.
+- 재사용 슬롯은 일반 학생의 개별·선택·반 전체 QR 재발급 경로에서 거부한다.
+  이름 변경과 학생 CSV 갱신도 재사용 QR을 다시 출력 대기로 만들지 않으며,
+  CSV 미리보기의 카드 PDF 필요 예상 수에도 더하지 않는다.
+- `신규용 카드 관리` 메뉴는 목록 항목을 실제로 표시하고, 실제 QR 카드 전환은
+  현재 학생 선택과 무관하게 사용 중 카드를 먼저 고르게 한다.
+- 저장 확인이 안 된 슬롯을 수동으로 다시 준비할 때는 같은 QR 재전송이 아님을
+  밝히고, 기존 QR과 이전 PDF·인쇄물이 무효가 된다는 확인을 받은 뒤에만 새 QR을
+  발급한다.
+
+### 자동 검증
+
+- Android 13 API 33 전용 에뮬레이터에서 최종 소스의 전체 Kiosk 계측시험
+  `OK (70 tests)`를 확인했다. Room 4→5, 4장 준비, 빈 계정정보, 시작·이름·CSV·
+  모든 일반 재발급 경로의 QR hash 보존, 현재 수업 보강 미자동 추가, 실제 QR
+  전환과 기존 슬롯 초기화, 관리자 UI 회귀가 포함된다.
+- 최종 계측 소스 첫 빌드는 새 CSV 단언에서 preview 모델의 필드명을 import
+  결과에도 잘못 사용해 컴파일 실패했다. 실제 `cardsNeedingPdf` 필드로 교정한
+  뒤 AndroidTest assemble과 전체 70개를 다시 실행해 모두 통과했다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks로 통과했다. 공식
+  `scripts/build-release.ps1`은 158 tasks, Kiosk/Web JVM 시험, release lint,
+  signed assemble과 APK 이중 검증을 통과했다.
+- RC84 release APK는 36,754,045 bytes이며 SHA-256은
+  `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`다.
+  `versionName=0.6.0-rc84`, `versionCode=89`, non-debuggable, v2 signature와
+  기존 release signer 일치를 확인했다.
+
+## Kiosk RC84 A 보존 설치·관리 UI 실기 — 2026-08-12
+
+### 설치 무결성·운영 상태
+
+- 승인된 대상은 Samsung SM-P610 `R54TB029FHZ` 한 대이며, RC84
+  `versionCode 89` / `versionName 0.6.0-rc84` release APK를
+  `adb install -r`로 설치했다.
+- APK SHA-256은
+  `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`다.
+  release signer SHA-256은 기존 recovery marker와 동일한
+  `9D5BD7D9C328DF2E5C54B67D1AA2D42CAEF2674EEACE0614BFE2D37C7651F5B7`다.
+- Kiosk UID 10288과 `firstInstallTime=2026-07-24 12:52:28`을 유지하고
+  `lastUpdateTime=2026-08-12 23:24:35`로 갱신됐다. A에서 다시 읽은 설치 APK는
+  보관 artifact와 바이트 단위 SHA-256이 일치했다.
+- Kiosk Device Owner, preferred HOME `MainActivity`, top resumed와 Lock Task
+  `LOCKED`가 유지됐다. Kiosk 관련 crash buffer 일치 항목은 없었다.
+- 설치 재시작으로 남아 있던 세션이 실패폐쇄 복구 상태가 됐다. 관리자 화면의
+  `오류 상태 원버튼 복구`를 사용해 현재 세션과 임시 명단만 정상 종료했고,
+  학생·반·QR은 삭제하지 않았다.
+- 실제 A에서 `신규용 카드 관리 · 무료 4장`을 열어 목록의 `무료 카드 학생에게
+  배정` 항목을 확인하고 직접 눌렀다. 이어 `신규 학생에게 카드 배정` 제목,
+  확인·취소 버튼과 이름·아이디·비밀번호·비밀번호 확인 4개 입력칸을 확인했다.
+  실제 계정정보 입력이나 카드 배정은 수행하지 않고 취소했다.
+- RC84에서도 `신규용 QR 카드 · 전체 4장 · 무료 4장 · 사용 중 0장` 메뉴와 배정
+  항목을 다시 실물 확인했다. 현재 저장 미확인 슬롯이 0장이어서 새 QR 교체
+  경고창은 A에서 강제로 만들지 않았고, 최종 소스 compile·전체 계측으로만
+  확인했다.
+- 최종 A는 전면 카메라 QR 대기, Kiosk top resumed, Lock Task `LOCKED`, 원격
+  점검 `INACTIVE`다. 이번 RC84 검증에서는 실물 카드 출력·절단·코팅·부착과
+  카메라 광학 왕복을 수행하지 않았다.
+
 ## Kiosk RC79 / Web RC137 A 보존 설치·실기 완료 — 2026-08-11
 
 ### 설치 무결성·정책 보존

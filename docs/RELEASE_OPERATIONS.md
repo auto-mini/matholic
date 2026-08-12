@@ -1,26 +1,36 @@
 # Release 서명·운영 전환
 
-작성일: 2026-07-24, 갱신일: 2026-08-11 (Asia/Seoul)
+작성일: 2026-07-24, 갱신일: 2026-08-12 (Asia/Seoul)
 
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer의 Kiosk RC79·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
-Owner와 전용 HOME을 보존했고 두 설치본의 해시는 보관 artifact와 일치한다.
-현재 보관 검증 묶음은 Kiosk RC79, Web POC RC137과 PC 수신기 0.1.7이다.
+같은 signer의 Kiosk RC84·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
+Owner와 전용 HOME을 보존했고 RC84 설치본의 해시는 보관 artifact와 다시
+일치시켰다. 현재 보관 검증 묶음은 Kiosk RC84, Web POC RC137과 PC 수신기
+0.1.7이다.
 Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 `docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.7의 검증·설치 여부는
 `reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
-`SOL-0008`을 기준으로 한다.
+  `SOL-0008`을 기준으로 한다.
 
-- 현재 A: Kiosk `0.6.0-rc79`/code 84, Web POC `0.4.0-rc137`/code 154
+현재 소스 작업본의 Kiosk RC84는 최초 준비 시 신규카드1~4 더미 QR을 자동
+준비해 지정 PC로 전송한다. 더미의 아이디·비밀번호는 빈 값이며, 학생 배정은
+현재 수업 보강에 자동 추가하지 않는다. 재시작, 이름·CSV 갱신과 일반 QR
+재발급은 재사용 카드 QR을 바꾸지 않는다. 실제 QR 카드로 전환하면 새 일반
+학생 QR을 발급하고 기존 더미 슬롯을 빈 값으로 되돌린다. 저장 미확인 슬롯을
+수동 교체할 때는 기존 QR과 이전 인쇄물 무효화를 확인한 뒤 새 QR을 발급한다.
+
+- 현재 A: Kiosk `0.6.0-rc84`/code 89, Web POC `0.4.0-rc137`/code 154
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc79`/code 84, Web POC `0.4.0-rc137`/code 154,
+  Kiosk `0.6.0-rc84`/code 89, Web POC `0.4.0-rc137`/code 154,
   PC 수신기 `0.1.7`
 - 현재 운영 PC 설치본: PC 수신기 `0.1.7`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- 현재 A: release signer의 Kiosk RC79/Web POC RC137, 기존 Device Owner·전용
-  HOME·Kiosk/Web UID·firstInstallTime·dataDir 유지, `토2` QR 대기·Lock Task
+- Kiosk RC84 APK: 36,754,045 bytes,
+  `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`
+- 현재 A: release signer의 Kiosk RC84/Web POC RC137, 기존 Device Owner·전용
+  HOME·Kiosk/Web UID·firstInstallTime·dataDir 유지, 전면 카메라 QR 대기·Lock Task
   `LOCKED`, 원격 점검 `INACTIVE`
 - Kiosk RC55는 Device Owner 정책으로 Web POC 제거를 차단한다.
 - 휴대 가능한 release 키 복구본: **SM-S918N Android 폰에서 SHA-256 일치 확인**
@@ -252,6 +262,30 @@ Wi-Fi 안에서 DHCP 때문에 지정 PC의 IPv4 주소만 바뀐 경우에는 �
 
 QR 재발급은 기존 QR을 즉시 무효화한다. 전송만 다시 해야 한다면 새 QR을
 불필요하게 재발급하지 말고 현재 카드 전송 기능을 사용한다.
+
+### 신규용 QR 카드 4장 미리 준비·재사용
+
+Kiosk 첫 실행 때 신규용 더미 카드 4장을 자동으로 만들고 `신규카드1`~
+`신규카드4` QR PDF를 지정 PC로 전송한다. 더미 행의 아이디·비밀번호는 빈
+값으로 암호화해 로그인되지 않으며, PC 저장 ACK가 확인된 카드만 학생에게
+배정할 수 있다. 재전송이 필요한 경우 관리자 화면의 신규용 카드 관리에서
+`미출력 더미 QR 다시 지정 PC 전송`을 실행한다.
+
+새 학생이 들어오면 관리자 화면의 신규용 카드 관리에서 출력이 확인된 무료
+카드를 선택하고 학생 이름·학습 ID·PW를 입력한다. QR은 재발급하지 않고
+기존 hash를 유지한다. 이 배정은 현재 수업의 임시 보충 명단에 학생을
+자동으로 추가하지 않는다.
+
+학생이 실제 QR 카드를 받게 되면 해당 학생을 선택해 `실제 QR 카드로 전환·
+더미 초기화`를 실행한다. 앱은 새 일반 학생 행과 새 QR을 만들고 기존 반
+소속을 새 학생으로 옮긴 뒤 새 QR PDF를 지정 PC로 전송한다. 기존
+`신규카드1`~`신규카드4` 슬롯은 기존 더미 QR을 유지한 빈 계정으로 자동
+초기화되므로 다음 신규 학생에게 재사용할 수 있다.
+
+학생 사용이 끝난 뒤 수업을 종료하고 `사용 중 카드 회수·초기화`를 실행하면
+계정정보와 반 소속을 제거하고 같은 QR을 무료 슬롯으로 돌린다. 수업 중에는
+회수·초기화를 거부한다. 출력에 실패한 무료 슬롯은 다음 준비 때 기존 토큰을
+교체하므로, PC 저장 ACK가 확인되기 전에는 학생에게 배정하지 않는다.
 
 ### 장애 확인
 

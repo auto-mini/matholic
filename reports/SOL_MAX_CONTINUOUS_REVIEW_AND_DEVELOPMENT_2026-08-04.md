@@ -2,6 +2,122 @@
 
 ## 현재 상태
 
+- `last_updated`: 2026-08-12 23:32:14 +09:00
+- 현재 branch: `codex/sol-continuous-development-20260804`
+- 보고서 갱신 직전 branch tip / upstream:
+  `59c9181144ba8758a6710ff793dbcdac7a24a57b` /
+  `59c9181144ba8758a6710ff793dbcdac7a24a57b`; ahead/behind `0/0`.
+- 마지막 push 성공 commit:
+  `59c9181144ba8758a6710ff793dbcdac7a24a57b`
+  (`feat(kiosk): add safe reusable QR cards (SOL-0009)`). 이 상태기록 문서
+  commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
+  상태를 따른다.
+- 최초 보존 기준선: `master`의
+  `ccf410d6b9758c7594a07e94e459bf7e83c554bc`; 당시 `origin/master`보다
+  24 commits ahead.
+- 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
+  않는다.
+- 실제 A 마지막 독립 확인: 2026-08-12 23:29 +09:00. 승인 ADB device는 serial
+  `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
+  - Kiosk `0.6.0-rc84`/code 89, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-12 23:24:35`.
+  - A에서 다시 읽은 설치 APK는 release artifact와 같은 36,754,045 bytes·
+    SHA-256
+    `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`다.
+    v2 signer SHA-256은 기존 release signer
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
+    일치한다.
+  - Device Owner와 preferred HOME은 각각
+    `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
+    `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
+  - Kiosk가 top resumed이고 Lock Task `LOCKED`; 전면 카메라 QR 대기다. 원격
+    지원 `INACTIVE`, ADB forward/reverse 없음, Kiosk crash buffer 일치 항목 없음.
+  - RC84 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
+    안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
+    새 수업을 시작해 QR 대기로 복원했다.
+- Web POC RC137과 운영 PC 수신기 0.1.7은 이번 Kiosk 변경에서 수정·재설치하지
+  않았다. Web RC137 artifact payload는 공식 release 빌드에서 기존 파일과 같은
+  SHA-256으로 유지됐고, PC 설치본의 마지막 독립 현장 확인은 아래 SOL-0008을
+  따른다.
+- 현재 작업 중 finding: `SOL-0011` 증거·운영 문서 체크포인트. 구현·설치까지는
+  끝났고 문서 commit/push만 남았다.
+- 다음 우선 큐: 재사용 슬롯이 일부만 남거나 비활성 슬롯이 존재할 때 목표 4장을
+  안전하게 보충하는 복구 경계를 독립 재검증한다. 확정 결함 전에는 DB나 A 데이터를
+  변경하지 않는다.
+
+### 열린 finding과 제약
+
+- 열린 P0/P1: 없음. 과거 보고서 후보는 현재 source와 독립 재검증 전에는 열린
+  결함으로 승격하지 않는다.
+- 자동검증 완료 P2: `SOL-0009` 1건. QR 고정 불변조건은 전체 계측으로 확인했고
+  RC84를 A에 설치했지만 실제 운영 카드의 QR을 의도적으로 변경해 재현하지 않았다.
+- 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
+  신규 `SOL-0010` 5건.
+- 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`.
+- 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`.
+- 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
+  데이터를 바꾸므로 이번 A 실기에서 수행하지 않았다. 메뉴 목록과 배정 폼 진입까지만
+  확인하고 입력 없이 취소했다.
+- 저장 미확인 슬롯이 0장이어서 RC84의 기존 QR 폐기·새 QR 전송 경고창은 A에서
+  강제로 만들지 않았다. 최종 source compile, lint, release와 전체 계측은 통과했다.
+- 이번 RC84에서 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+  왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
+  확대하지 않는다.
+- 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
+  오타로 compile 실패했다. 실제 `cardsNeedingPdf`로 고친 뒤 최종 소스 전체
+  70/70을 다시 실행해 통과했다.
+- 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
+  lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
+  A는 이미 Room v5·code 89이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
+  migration을 마련하고, 같은 signer·code 90 이상의 복구 release를
+  `adb install -r`로 설치해야 한다.
+
+## 2026-08-12 RC84 신규용 재사용 QR 카드 교정·A 설치
+
+- Room v5에 신규카드1~4 재사용 슬롯을 추가했다. 무료 슬롯은 암호화된 빈
+  자격정보로 로그인되지 않으며 일반 학생·반 구성에서 숨긴다. 배정은 QR hash를
+  유지하고 이름·ID·PW만 바꾸며 현재 수업 보강에 자동 추가하지 않는다.
+- 실제 카드 전환은 새 일반 학생·새 QR을 만들고 기존 반 소속을 옮긴 뒤, 원래
+  재사용 슬롯을 같은 QR·빈 자격정보로 초기화한다.
+- 시작 때 이미 존재하는 저장 미확인 슬롯의 QR을 자동 교체하지 않는다. 재사용
+  카드는 개별·선택·반 전체 일반 재발급에서 거부하고, 이름·CSV 변경도 카드 PDF
+  필요 상태나 QR hash를 바꾸지 않는다.
+- 관리자 `신규용 카드 관리` AlertDialog에서 목록 항목이 실제 표시되도록
+  message와 item 구성을 분리했다. 실제 카드 전환은 사용 중 카드를 명시적으로
+  선택하게 했다. 저장 미확인 슬롯의 수동 교체는 같은 QR 재전송이 아니며 기존
+  QR·이전 파일·인쇄물이 무효가 됨을 확인한 뒤에만 실행한다.
+- 자동검증:
+  - `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+    :kiosk:assembleDebugAndroidTest`: 84 tasks, `BUILD SUCCESSFUL`.
+  - API 33 전용 AVD 최종 소스 전체 instrumentation:
+    `Time: 89.815`, `OK (70 tests)`.
+  - `scripts/build-release.ps1`: 158 tasks, Kiosk/Web JVM 시험, release lint,
+    signed assemble, version·non-debuggable·동일 signer 이중 검증 PASS.
+  - PowerShell parser: `build-release.ps1`, `verify-release-apks.ps1`,
+    `provision-release-device-owner.ps1` 오류 0건. `git diff --check` PASS.
+- RC84 release artifact:
+  `artifacts/matholic-kiosk-0.6.0-rc84-release.apk`, 36,754,045 bytes,
+  SHA-256
+  `F703EE8BD349A89E4A781025C22E6311F0999D844AF58036A27410A3440C7D98`,
+  signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- A 실기:
+  - RC83/code 88에서 RC84/code 89로 `adb install -r` 성공. UID 10288,
+    firstInstallTime, Device Owner, preferred HOME과 앱 데이터가 유지됐다.
+  - A에서 읽은 설치 APK와 artifact의 byte count·SHA-256이 정확히 일치했다.
+  - 설치 후 안전 복구, 신규용 카드 관리 메뉴 목록, 무료 4장 표시를 확인했다.
+    실제 계정정보 입력·배정 없이 닫고 새 수업을 시작해 QR 대기·Lock Task
+    `LOCKED`로 복원했다.
+  - 첫 원격 Start/Capture는 관리자 PIN 보안 화면의 screenshot 차단 때문에
+    실패했다. 지원 상태를 즉시 Stop한 뒤 UI XML에서 PIN 화면임만 확인하고
+    허용된 DPAPI PIN 입력 도구를 사용했다. 최종 원격 지원은 `INACTIVE`다.
+- 구현·복구점: `59c9181144ba8758a6710ff793dbcdac7a24a57b`, 전용 origin branch
+  push 성공. Room v5 설치 뒤 기기 rollback은 위 현재 상태의 forward rollback
+  주의사항을 따른다.
+
+## 2026-08-11 이전 상태 스냅샷
+
 - `last_updated`: 2026-08-11 10:19:25 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
@@ -818,6 +934,118 @@
     복원·`--background` 실행한다. receiver ID·DPAPI secret·수신 파일은 보존하고
     설정 삭제나 새 identity 생성으로 우회하지 않는다.
 
+### SOL-0009 — 재사용 카드 QR이 시작·일반 갱신 경로에서 무효화될 수 있음
+
+- 영역: Kiosk QR 식별자·학생 저장소·Room migration
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: 학생에게 배정한 재사용 실물 카드의 QR이 앱 재시작, 일반 QR
+  재발급 또는 이름·CSV 갱신 뒤 바뀌면 이미 출력·부착한 카드가 로그인되지 않는다.
+  운영자는 외관상 정상인 카드를 다시 만들어야 하고 새 학생 처리 흐름이 중단된다.
+- 재현 조건(수정 전 구현):
+  - 저장 ACK가 없는 재사용 슬롯이 있는 상태에서 앱을 재시작한다.
+  - 배정된 재사용 학생을 개별·선택·반 전체 일반 QR 재발급에 포함한다.
+  - 배정된 재사용 학생의 이름을 직접 또는 CSV로 변경한 뒤 일반 미출력 카드
+    처리 경로를 사용한다.
+- 기대 결과: 재사용 슬롯은 배정·이름·ID·PW·수업 소속 변화와 앱 재시작에도
+  QR hash를 유지한다. 새 QR은 관리자가 실제 일반 QR 카드 전환 또는 명시적인
+  저장 미확인 카드 폐기·교체를 선택할 때만 발급한다.
+- 실제 결과(수정 전 구현): 시작의 `ensureReusableCardSlots()`가 pending 슬롯을
+  다시 발급했고, 일반 단건·선택·반 일괄 재발급이 재사용 슬롯을 구분하지 않았다.
+  이름·CSV 변경도 `needsPrint`를 다시 세워 후속 일반 재발급 대상으로 만들었다.
+- 정적·동적 근거:
+  - `StudentRepository`의 startup ensure와 manual prepare를 분리하고 startup에는
+    `reissuePendingSlots=false`를 사용했다.
+  - 단건·선택·반 일괄 재발급에서 `reusableCardLabel != null`을 거부한다.
+  - 직접 이름·CSV 갱신은 재사용 카드의 `needsPrint`를 세우지 않고 CSV preview
+    예상 수에도 넣지 않는다.
+  - API 33 AVD 전체 70/70 PASS. `RepositoryInstrumentedTest`의 재사용 카드
+    회귀는 최초 hash를 시작 ensure, 직접 이름, CSV, 단건·선택·반 전체 재발급
+    시도 전후로 대조해 동일함을 확인한다.
+- 반대 근거·미검증: A의 운영 DB와 실물 카드 hash를 의도적으로 회전시키는
+  수정 전 재현은 데이터·실물 상태를 해치므로 수행하지 않았다. RC84 설치,
+  Room 4→5 migration과 관리자 메뉴는 실제 A에서 확인했지만 실제 계정 배정·
+  회수·전환은 하지 않았다.
+- 원인·결정: 재사용 카드의 불변조건을 일반 학생 QR lifecycle과 분리하지 않은
+  것이 원인이다. 저장소 경계에서 모든 일반 재발급을 거부하고 startup은 기존
+  hash를 유지한다. UI 우회가 생겨도 저장소가 최종 방어한다.
+- 변경 파일: `StudentRepository.kt`, `Daos.kt`, `Entities.kt`,
+  `KioskDatabase.kt`, Room schema 5, 관련 repository·migration 시험,
+  `MainActivity.kt`, `activity_main.xml`, RC84 version/release scripts.
+- 관련 commit: `59c9181144ba8758a6710ff793dbcdac7a24a57b`; 전용 origin branch
+  push 성공, 구현 push 직후 ahead/behind `0/0`.
+- 자동검증:
+  - Kiosk unit·debug lint·debug/AndroidTest assemble 84 tasks PASS.
+  - 최종 전체 instrumentation `OK (70 tests)`, 89.815초.
+  - 공식 release 158 tasks와 signer·non-debuggable·version 검증 PASS.
+- A 현장검증: RC84/code 89 보존 설치, UID·firstInstallTime·Device Owner·HOME·
+  data 유지, 설치 APK/artifact hash 일치, QR 대기·Lock Task `LOCKED` 복원.
+- rollback: 코드 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 위
+  unit/lint/전체 계측/release를 재실행한다. A는 Room v5·code 89이므로 단순
+  downgrade하지 않고 v5 호환 source와 같은 signer의 code 90+ forward rollback을
+  만든다. 앱 삭제·data clear로 우회하지 않는다.
+
+### SOL-0010 — 신규용 카드 관리 대화상자에서 작업 목록이 보이지 않음
+
+- 영역: Kiosk 관리자 UI·AlertDialog
+- 심각도: P2
+- 신뢰도: 높음
+- 상태: 현장검증 완료
+- 사용자 영향: 관리자 버튼과 무료 4장 수치는 보이지만 팝업에 배정·전환·회수
+  작업 항목이 표시되지 않아 신규용 카드 핵심 기능을 실제로 시작할 수 없다.
+- 재현 조건(수정 전 RC82): 신규용 카드 관리 버튼을 눌러 message와 item 목록을
+  함께 설정한 AlertDialog를 연다.
+- 기대/실제: 작업 목록과 닫기 제어가 모두 보여야 하지만 제목·설명·닫기만
+  표시되고 item 목록은 보이지 않았다.
+- 정적 근거: 같은 AlertDialog에 message와 item adapter를 함께 구성해 list가
+  표시되지 않는 구조였다. 상태 요약은 title로 옮기고 작업은 `setItems`만으로
+  구성했다. 실제 카드 전환은 현재 student spinner에 의존하지 않고 별도 사용 중
+  카드 선택 목록을 연다.
+- 동적 근거:
+  - RC83 실제 A에서 `신규용 QR 카드 · 전체 4장 · 무료 4장 · 사용 중 0장`과
+    `무료 카드 학생에게 배정` item을 확인하고 item을 직접 눌렀다.
+  - 이어 배정 dialog의 제목·확인·취소와 이름·ID·PW·PW 확인 4개 입력칸을
+    확인한 뒤 입력 없이 취소했다.
+  - 최종 RC84 실제 A에서도 같은 메뉴 제목·무료 4장·배정 item 표시를 다시
+    확인했다. 실제 학생정보나 카드 상태는 변경하지 않았다.
+- 반대 근거: 지원 A 한 대의 현재 2000×1200 landscape에서만 확인했다. 모든
+  Android display·font scale로 확대하지 않는다.
+- 관련 commit·변경 파일: `59c9181144ba8758a6710ff793dbcdac7a24a57b`,
+  `MainActivity.kt`, `activity_main.xml`; 전용 origin branch push 성공.
+- 자동검증: MainActivity source compile, debug lint, AndroidTest assemble,
+  전체 instrumentation 70/70, official release 158 tasks PASS.
+- rollback: SOL-0009와 같은 commit revert·검증·forward device rollback을 따른다.
+
+### SOL-0011 — 저장 미확인 더미 QR 재전송이 기존 QR 폐기를 알리지 않음
+
+- 영역: Kiosk 관리자 UI·QR 재발급 안전
+- 심각도: P3
+- 신뢰도: 높음
+- 상태: 자동검증 완료
+- 사용자 영향: PC 저장 ACK가 유실됐지만 파일이 저장·출력된 경계에서 관리자가
+  “다시 전송”을 같은 QR 재전송으로 이해할 수 있다. 실제 동작은 새 QR 발급이므로
+  이전 PDF·인쇄물이 예고 없이 무효가 된다.
+- 재현 조건(수정 전 구현): 무료 재사용 슬롯의 `needsPrint=true` 상태에서
+  `미출력 더미 QR 다시 지정 PC 전송`을 누른다.
+- 기대 결과: 동일 QR을 재전송할 수 없으면 기존 QR 폐기와 이전 파일·인쇄물
+  무효화를 명시하고 별도 확인을 받은 뒤 실행한다.
+- 실제 결과(수정 전 구현): QR 원문은 저장하지 않고 hash만 보유하면서 action
+  label은 단순 재전송으로 표시했고, 확인 없이 `prepareReusableCardSlots()`가
+  QR을 회전했다.
+- 원인·결정: bearer QR 원문을 reversible 저장해 공격면을 넓히지 않는다. 대신
+  action을 `저장 미확인 카드 QR 폐기·새 QR 전송`으로 바꾸고, 같은 QR 재전송이
+  불가능한 이유·기존 QR 폐기·이전 파일/인쇄물 폐기를 설명하는 확인창 뒤에만
+  실행한다. 저장소의 명시적 manual prepare에서만 pending QR 회전을 허용한다.
+- 동적·반대 근거: 현재 A는 무료 4장 모두 저장 완료 상태라 pending action이
+  없었다. 운영 QR을 일부러 pending으로 만들지 않았으므로 A 경고창 실물 확인은
+  수행하지 않았다.
+- 관련 commit·변경 파일: `59c9181144ba8758a6710ff793dbcdac7a24a57b`,
+  `MainActivity.kt`, 운영·제한 문서; 전용 origin branch push 성공.
+- 자동검증: RC84 source compile, Kiosk unit/debug lint/AndroidTest assemble,
+  전체 instrumentation 70/70, official release 158 tasks와 script parser PASS.
+- rollback: SOL-0009와 같은 commit revert·검증·forward device rollback을 따른다.
+
 ## 최근 변경·검증·전달
 
 - 누적 보고서 기준선 commit:
@@ -846,13 +1074,16 @@
   `13e46747ad7cbc805c4c8fd7af49ad0f0a14573e`.
 - `SOL-0008` PC receiver LAN 복구 구현·회귀·0.1.6 package 준비 commit:
   `a7ac871573c31ec81c212087734bfd5815546367`.
+- `SOL-0009`~`SOL-0011` 재사용 QR 카드 구현·QR 고정·관리 UI·RC84 release
+  metadata commit:
+  `59c9181144ba8758a6710ff793dbcdac7a24a57b`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
-- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 이 보고서의 SOL-0008
-  package 검증·0.1.6 운영 설치·Goal 종료 상태는 현재 증거 checkpoint에서
-  정렬한다. Goal 종료 뒤 사용자의 명시적 후속 지시로 설치와 추가 현장검증만
-  수행했으며 연속 리뷰 cycle은 재개하지 않았다.
-- Goal 종료 A 안전점검의 첫 wrapper는 `adb devices -l`의 model token
+- 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤
+  Goal 종료 기록은 당시 스냅샷이며, 사용자가 2026-08-12 연속 리뷰·개발을 다시
+  명시해 현재 Goal은 활성 상태다. 사용자가 명시적으로 중단할 때까지 완료로
+  처리하지 않는다.
+- 과거 Goal 종료 A 안전점검의 첫 wrapper는 `adb devices -l`의 model token
   `SM_P610`을 `SM-P610`으로 직접 비교해 승인 A 판정을 false로 냈고, 원격 임시
   파일 검사에는 Android shell 인용 오류가 있었다. 제품 실패나 상태 변경은
   없었다. `getprop ro.product.model`과 단순 file existence 검사로 각각 승인 A
