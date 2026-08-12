@@ -1,5 +1,47 @@
 # 빌드·보안 검증 기록
 
+## QR renderer 임시 표현 zeroize 독립 재검증 — 2026-08-13
+
+### 현재 판정과 정적 근거
+
+- 과거 `LUNA-0023`은 `QrImageRenderer`가 QR `BitMatrix`와 pixel `IntArray`를
+  Bitmap에 복사한 뒤 명시적으로 지우지 않고 크기 상한도 두지 않는 P3 후보였다.
+  그 보고서 본문의 2026-08-02 스냅샷은 현재 source가 아니다.
+- commit `9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe`가 다음 날 renderer를
+  수정했다. 현재 구현은 크기를 256..2,048px로 제한하고, 성공·pixel 채움·
+  `Bitmap.createBitmap()`·`setPixels()` 예외가 통과하는 `finally`에서
+  `pixels.fill(0)`과 `matrix.clear()`를 실행한다.
+- 현재 production 호출 6곳은 모두 `QR_SIZE_PIXELS=720`을 사용한다. 720×720
+  pixel 배열은 518,400개, 약 2,073,600 bytes이며 외부 입력이 renderer 크기를
+  정하는 호출은 없다. 두 source/test 파일은 `9047bd7` 이후 현재 HEAD까지 후속
+  변경되지 않았다.
+- 따라서 과거의 “상한 없음·정상 반환 뒤에도 임시 표현 zeroize 없음” 전제는 현재
+  코드에서 성립하지 않는다. `SOL-0026`은 P3·신뢰도 높음·`이미 수정됨`으로
+  판정하고 제품 source를 다시 바꾸지 않았다.
+
+### 격리 자동검증과 제한
+
+- 물리 A가 아닌 API 33 `matholic_rc03_api33` AVD에서
+  `QrImageRendererInstrumentedTest`를 focused 실행했다. 정상 256px Bitmap과
+  2,048px 초과 거부 2/2가 통과했고, XML은 failure/error/skip 0,
+  testsuites 1.064초·class 0.063초, Gradle `BUILD SUCCESSFUL in 1m 29s`다.
+- 합성 payload `KIOSK-QR-TEST`만 사용했다. 실제 학생 QR·원문·heap dump·GC timing·
+  물리 인쇄/PDF/PC 전송은 실행하지 않았다. 기존 계측은 결과와 상한을 검증하고
+  내부 배열의 zeroize 자체를 관찰하지 않으므로 cleanup 판정은 현재 `finally`
+  control flow와 이력에 근거한다.
+- `IntArray` allocation은 현재 `try` 진입 직전에 있어, matrix 생성 뒤 그 allocation
+  자체가 실패하는 극단적 OOM에서는 `matrix.clear()` 실행을 동적으로 증명하지 않았다.
+  production 720px·상한 2,048px이고 실제 잔류·노출·OOM을 재현하지 않아 별도 확정
+  결함으로 승격하지 않았다.
+- AVD는 시험 직후 종료했고 승인 ADB에는 물리 A 한 대만 남았다. 제품 source·시험·
+  release artifact·version·signer와 A 설치본을 변경하지 않았으며 A 재설치·기기
+  rollback은 필요 없다.
+- 과거 fix를 의도적으로 되돌릴 때만
+  `git revert 9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe` 후 focused·Kiosk 전체
+  계측, unit·lint·assemble과 공식 release를 다시 실행한다. A는 code 95이므로
+  source rollback을 설치하려면 같은 signer·code 96 이상의 forward rollback을
+  사용하고 APK 삭제·data clear·downgrade를 하지 않는다.
+
 ## 원격 지원 도구 부분 활성화·실패 후 fail-closed — 2026-08-13
 
 ### 현재 판정과 수정 전 재현

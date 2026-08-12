@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 06:14:57 +09:00
+- `last_updated`: 2026-08-13 06:25:38 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `f560353ae807bb39e9b29b47de2f894973808fcd` /
-  `f560353ae807bb39e9b29b47de2f894973808fcd`; ahead/behind `0/0`.
+  `f1823a918f5eda58952377eb41c28e9beba1e9ff` /
+  `f1823a918f5eda58952377eb41c28e9beba1e9ff`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `f560353ae807bb39e9b29b47de2f894973808fcd`
-  (`fix(tools): fail closed on remote support errors (SOL-0025)`). 이 상태기록 문서
+  `f1823a918f5eda58952377eb41c28e9beba1e9ff`
+  (`docs(sol): record remote support failure recovery (SOL-0025)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -50,16 +50,14 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0025` 증거 체크포인트. 과거 `LUNA-0021`의 앱 저장·
-  ordered broadcast ACK 문제는 `a2e4dd3`에서 이미 대부분 수정됐지만 운영
-  `remote-tablet.ps1`이 부분 활성화와 Start/Capture 실패 뒤 원격 지원을 남기는
-  잔존을 정적·실제 A에서 확인했다. 전 target rollback·계속 cleanup으로 수정하고
-  합성 fault test, 양 앱 정책 unit, 실제 A 실패·정상 경로, 구현 commit·push를
-  완료했다.
-- 다음 우선 큐: 과거 `LUNA-0023`의 QR renderer `BitMatrix`·720×720 pixel `IntArray`가
-  반환 Bitmap 정리와 별개로 zeroize되지 않는 후보를 현재 `QrImageRenderer`, 전체
-  호출 graph, 예외·batch 반복 시험과 실제 메모리 영향으로 독립 재검증한다. 과거
-  P3 후보를 현재 증거 없이 확정 결함으로 사용하지 않는다.
+- 현재 작업 중 finding: `SOL-0026` 증거 체크포인트. 과거 `LUNA-0023`의 상한 없는
+  QR renderer와 미정리 `BitMatrix`·pixel 배열 후보는 `9047bd7`에서 2,048px 상한과
+  `finally` zeroize로 이미 수정됐다. 현재 source/history·production 720px 호출과
+  격리 API 33 renderer 계측 2/2를 독립 재확인했고 제품 source는 바꾸지 않았다.
+- 다음 우선 큐: 과거 `LUNA-0028`의 관리자 PIN scalar 조회와 verifier/Room byte 배열
+  ownership·zeroize 후보를 현재 DAO·repository·PIN verifier·입력/변경 호출 graph와
+  예외·실패 시험으로 독립 재검증한다. 과거 해결 표시는 현재 증거로 확인하기 전
+  결론으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -75,7 +73,7 @@
   `SOL-0016`, `SOL-0018`; 현장검증 완료 P3: `SOL-0023`.
 - 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 현장검증 완료 P4: `SOL-0025`;
   기각 `SOL-0002`; 이미 수정됨 `SOL-0004`, `SOL-0017`, `SOL-0019`, `SOL-0020`,
-  `SOL-0021`, `SOL-0022`.
+  `SOL-0021`, `SOL-0022`, `SOL-0026`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -162,6 +160,12 @@
   합성 4개 fault scenario, Kiosk/Web 정책 unit 각 3/3, 실제 A의 실패 후 자동 차단과
   정상 Stop→Start→Stop을 통과했다. 실제 receiver/storage failure는 A에 주입하지
   않았고 스크립트만 바뀌어 APK·설치본에는 영향이 없다.
+- SOL-0026은 `LUNA-0023`의 2026-08-02 source 전제가 다음 날 `9047bd7`에서 이미
+  교정된 것을 현재 source·history로 확인했다. renderer는 256..2,048px 상한과
+  `finally`의 `pixels.fill(0)`·`matrix.clear()`를 유지하고 production 6개 호출은
+  모두 720px이다. 격리 API 33 AVD의 focused renderer 2/2도 통과했다. 실제 heap·GC·
+  OOM·인쇄는 측정하지 않았고 test는 내부 배열을 직접 관찰하지 않으므로 cleanup
+  실행 판정은 현재 control flow 근거다. 제품·시험 source와 A 설치본은 바꾸지 않았다.
 - 이번 RC90에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -249,6 +253,51 @@
   `scripts/test-remote-tablet-state.ps1`, 양 앱 `RemoteSupportPolicyTest`와 실제 A의
   `Stop → Start → Stop`을 다시 실행한다. 제품 APK·version·A 설치본을 바꾸지 않았으므로
   기기 rollback은 필요 없다.
+- SOL-0026은 이번 사이클에서 제품·시험 source를 바꾸지 않아 새 code rollback이
+  없다. 과거 교정 `9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe`를 의도적으로
+  되돌릴 때만 `git revert 9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe` 후 renderer
+  focused·Kiosk 전체 계측, unit·lint·assemble·공식 release를 다시 실행한다. A에
+  반영하려면 같은 signer·code 96 이상의 forward rollback을 사용한다.
+
+## 2026-08-13 QR renderer 임시 표현 zeroize 독립 재검증
+
+- `SOL-0026` — Kiosk QR renderer·민감 메모리 수명, P3, 신뢰도 높음, 상태
+  `이미 수정됨`.
+- 과거 후보·기대 영향: `LUNA-0023`은 renderer가 QR payload의 `BitMatrix`와
+  720×720 pixel `IntArray`를 Bitmap에 복사한 뒤 명시적으로 zeroize하지 않아 반환
+  Bitmap cleanup 뒤에도 heap에 파생 QR 표현이 남을 수 있다고 제기했다. 실제 heap
+  노출은 확인하지 않은 P3·중간 신뢰도 후보였다.
+- 현재 정적·이력 반증:
+  - commit `9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe`가 2026-08-03
+    `fix(qr): bound rendering and wipe temporary pixels`로 해당 파일과 renderer 계측을
+    추가·수정했다. 이 commit은 현재 HEAD의 ancestor이고 두 파일의 후속 변경은 없다.
+  - `render()`는 크기를 256..2,048px로 제한한다. matrix 생성과 720×720 기준
+    518,400개·약 2,073,600-byte pixel 배열 뒤, pixel 채움과 Bitmap create/copy를
+    `try`에 두고 `finally`에서 `pixels.fill(0)`·`matrix.clear()`를 호출한다.
+  - 현재 `MainActivity`의 register/reissue/pending batch/단건 PDF/반 batch 등 production
+    호출 6곳은 모두 `QR_SIZE_PIXELS=720`을 사용하고 외부 size 입력 경로가 없다.
+- 자동검증: `matholic_rc03_api33` API 33 AVD에서
+  `QrImageRendererInstrumentedTest` focused 2/2 PASS. 정상 256px Bitmap과
+  `MAX_SIZE_PIXELS+1` 거부를 확인했고 XML은 failure/error/skip 0,
+  testsuites 1.064초·class 0.063초, Gradle 1분 29초 PASS다.
+- 반대 근거·미검증:
+  - 기존 계측은 결과 크기와 상한을 검증하며 renderer 내부 배열을 직접 보유해
+    zeroize 결과를 관찰하지 않는다. cleanup 판정은 현재 `finally` control flow와
+    Git 이력의 정적 증거다.
+  - `IntArray` allocation 자체는 현재 `try` 직전에 있어 matrix 생성 뒤 극단적 OOM이
+    나는 경로, ART/JIT liveness, native Bitmap 복사본, heap dump·GC timing은 실행하지
+    않았다. production 720px·상한 2,048px이고 실제 잔류·노출·OOM 증거가 없어 별도
+    확정 finding으로 승격하지 않았다.
+  - 합성 `KIOSK-QR-TEST`만 사용했고 실제 학생 QR·원문·PDF·PC 전송·물리 인쇄·A 화면은
+    사용하지 않았다. focused 후 AVD를 종료했고 승인 ADB에는 물리 A 한 대만 남았다.
+- 결정: 과거 “상한과 zeroize가 전혀 없다”는 핵심 전제는 현재 source에서 반증된다.
+  제품·시험 source, release metadata/artifact, A 설치본을 바꾸지 않았고 release build·
+  A 재설치는 수행하지 않았다. 이번 사이클의 변경은 증거 문서뿐이다.
+- 과거 fix rollback은
+  `git revert 9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe` 후 focused·Kiosk 전체
+  계측, unit·lint·assemble과 공식 release를 재실행한다. A는 code 95이므로 같은
+  signer·code 96 이상의 forward rollback만 사용하며 APK 삭제·data clear·downgrade를
+  하지 않는다.
 
 ## 2026-08-13 원격 지원 도구 부분 활성화·실패 후 fail-closed
 
@@ -2222,6 +2271,8 @@
   metadata commit: `658cbe20a1f9ac353f264bc6466d71c6916ae07e`.
 - `SOL-0025` 원격 지원 target 수렴·실패 후 fail-closed 운영 도구 commit:
   `f560353ae807bb39e9b29b47de2f894973808fcd`.
+- `SOL-0026`에서 독립 재검증한 기존 QR renderer 상한·임시 표현 zeroize commit:
+  `9047bd7a4584bf4ba2d0ae52c9adcf60a30f0ebe`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤
