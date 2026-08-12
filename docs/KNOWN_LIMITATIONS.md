@@ -2,10 +2,16 @@
 
 ## 2026-08-13 현재 운영 제한
 
-- 현재 A 설치본은 Kiosk RC88/Web RC137이다. 보존 설치 뒤 UID·firstInstallTime,
-  Device Owner·전용 HOME·Lock Task를 유지했고, RC88 전용 PDF provider 등록,
+- 현재 A 설치본은 Kiosk RC89/Web RC137이다. 보존 설치 뒤 UID·firstInstallTime,
+  Device Owner·전용 HOME·Lock Task를 유지했고, RC89 전용 PDF provider 등록,
   원버튼 안전 복구, 신규용 카드 무료 4장 유지, Web 사전점검과 최종 QR 대기를
   실물 확인했다.
+- RC89은 지정 PC의 학생 CSV 요청·parse·미리보기·적용이 끝날 때까지 공통 관리자
+  데이터 gate를 유지한다. 지연 loopback PC 계측에서 CSV 요청 중 수업 시작과 다른
+  학생·반 작업이 차단되고 요청 종료 뒤 제어가 복구됨을 확인했다. 운영 PC에는 대기
+  CSV가 없었고 실제 학생정보를 바꾸지 않기 위해 A에서 정확한 CSV 수신 분기는
+  수행하지 않았다. 따라서 이 수정은 `자동검증 완료`이며 RC89 A 확인은 보존 설치와
+  관리자 복구·Web 사전점검·QR 대기 통합 회귀다.
 - RC86은 시작 때 준비된 신규 카드 PDF 전송을 핵심 초기화와 분리했고, RC87은
   TCP 연결 뒤 PDF를 읽지 않는 수신기의 write도 10초 기본 제한으로 끊는다.
   loopback receiver가 ACK를 보류하는 startup 시험은 수정 전 실패·수정 후

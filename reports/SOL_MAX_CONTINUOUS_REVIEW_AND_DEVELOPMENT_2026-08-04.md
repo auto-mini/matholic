@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 03:10:18 +09:00
+- `last_updated`: 2026-08-13 03:49:10 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `57aa2f108d65e69a7645f75b623fed1274bdb661` /
-  `57aa2f108d65e69a7645f75b623fed1274bdb661`; ahead/behind `0/0`.
+  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0` /
+  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `57aa2f108d65e69a7645f75b623fed1274bdb661`
-  (`test(kiosk): lock session-end idle projection (SOL-0017)`). 이 상태기록 문서
+  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`
+  (`fix(kiosk): serialize CSV intake with sessions (SOL-0018)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,14 +17,14 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 03:08 +09:00.
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 03:49 +09:00.
   승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
-  - Kiosk `0.6.0-rc88`/code 93, UID 10288, first install
-    `2026-07-24 12:52:28`, last update `2026-08-13 02:17:50`.
-  - A에서 다시 읽은 Kiosk 설치 APK는 RC88 release artifact와 같은 36,754,057 bytes·
+  - Kiosk `0.6.0-rc89`/code 94, UID 10288, first install
+    `2026-07-24 12:52:28`, last update `2026-08-13 03:37:37`.
+  - A에서 다시 읽은 Kiosk 설치 APK는 RC89 release artifact와 같은 36,754,057 bytes·
     SHA-256
-    `00EE705C788720D80BF90203F8F02EAEF1D69143F9C3816683344C4F5BE85C28`다.
+    `B67B2BCF8D81FCF7D770627F62B14930D94DA4CA519390F3FC59945D25D2B93F`다.
     v2 signer SHA-256은 기존 release signer
     `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`와
     일치한다.
@@ -36,27 +36,27 @@
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - 설치 package는 `com.local.matholickiosk.kiosk/.print.QrPdfFileProvider`를
-    등록한다. 03:08 읽기 전용 재확인에서 Kiosk가 top resumed이고 Lock Task
-    `LOCKED`, test package와 ADB forward/reverse가 없다. 마지막 실제 화면 확인
-    02:24에는 전면 카메라 QR 대기였고 원격 지원 `INACTIVE`, Kiosk crash buffer
-    일치 항목 없음이었다.
-  - RC88 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 원버튼
-    안전 복구로 현재 세션과 임시 명단만 종료하고 학생·반·QR은 삭제하지 않은 뒤
-    Web 사전점검을 거쳐 전면 카메라 QR 대기로 복원했다.
+    등록한다. Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와
+    ADB forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
+    `INACTIVE`/부재이며 Kiosk crash buffer와 exit-info의 crash/ANR은 0건이다.
+  - RC89 보존 설치 재시작으로 남은 세션이 `RECOVERY_REQUIRED`가 됐다. 정확한 확인창의
+    데이터 보존 문구를 확인하고 원버튼 안전 복구로 현재 세션과 임시 명단만 종료했다.
+    선택 반 인원 4명과 신규용 카드 무료 4장이 유지됐고, Web 사전점검을 거쳐 실제
+    전면 카메라 QR 대기로 복원했다. 캡처에서 잘림·겹침·오류 표시는 없었다.
 - 운영 PC에는 PC 수신기 0.1.8을 같은 설치 path에 보존 교체했다. 설치 EXE와
   artifact는 23,187,199 bytes·SHA-256
   `55BF10A5AB6E41B94A18478D38CFD4C9F1B4ACDCA0609667C8B9ED857C92D3A0`로
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0017` 증거 체크포인트. 과거 `LUNA-0026`의 수업 종료
-  후 snapshot 실패 후보는 현재 `d5589373` source에서 이미 수정됐음을 확인했고,
-  실제 종료 commit 뒤 refresh만 실패시키는 계측, unit 99/99, lint·assemble,
-  최종 전체 77/77과 시험 commit·push를 완료했다. 제품 판정은 `이미 수정됨`이다.
-- 다음 우선 큐: Web 사전점검 동안 캡처된 반·보강 선택이 뒤이은 관리자 mutation
-  뒤 오래된 상태로 수업 시작에 쓰이지 않는지 현재 common gate, action snapshot과
-  repository transaction을 독립 재검증한다. 과거 `LUNA-0035`는 조사 자료일 뿐
-  현재 결함으로 선결하지 않는다.
+- 현재 작업 중 finding: `SOL-0018` 증거 체크포인트. 지정 PC 학생 CSV 가져오기가
+  네트워크·parse·미리보기 동안 공통 관리자 gate 밖에 남은 것을 수정했다. 수정 전
+  지연 PC 계측 실패, 수정 후 focused·unit/lint/assemble·전체 78/78, 공식 RC89 release,
+  구현 commit·push와 A 보존 설치·기본 흐름을 완료했다. 정확한 CSV A/운영 PC 분기는
+  실제 학생정보를 바꾸지 않기 위해 수행하지 않아 판정은 `자동검증 완료`다.
+- 다음 우선 큐: 과거 `LUNA-0025`의 활성 수업 중 반 소속 변경·pending undo 우회
+  후보를 현재 repository active-session guard, 즉시 UI fail-close와 계측으로 독립
+  재검증한다. 과거 해결 표시는 현재 증거로 다시 확인하기 전 결론으로 사용하지 않는다.
 
 ### 열린 finding과 제약
 
@@ -69,7 +69,7 @@
 - 현장검증 완료 P2: 기존 `SOL-0003`, `SOL-0005`, `SOL-0006`, `SOL-0008`과
   신규 `SOL-0010` 5건.
 - 완료 P3: `SOL-0001`; 자동검증 완료 P3: `SOL-0011`, `SOL-0012`, `SOL-0015`,
-  `SOL-0016`.
+  `SOL-0016`, `SOL-0018`.
 - 자동검증 완료 P4: `SOL-0007`; 기각 `SOL-0002`; 이미 수정됨 `SOL-0004`,
   `SOL-0017`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
@@ -104,7 +104,13 @@
   시험의 null adapter polling race 한 건으로 실패했고, 격리 1/1 통과로 비결정성을
   확인한 뒤 null-safe readiness로 보강했다. 최종 focused 2/2와 전체 77/77은
   통과했다. androidTest-only 변경이라 release build·A 재설치는 수행하지 않았다.
-- 이번 RC88에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
+- SOL-0018의 정확한 운영 PC/A CSV 수신은 수행하지 않았다. 운영 PC에 대기 CSV가
+  없고 실제 학생정보를 변경하지 않기 위해 지연 loopback PC와 합성 pairing으로
+  요청 중 공통 gate, 수업 시작·학생·반 제어 차단과 종료 후 복구를 검증했다. 첫
+  전체 78개는 기존 빠른 반 geometry 시험의 spinner readiness race 한 건으로
+  실패했고, 격리 1/1 통과 후 adapter·버튼 readiness를 보강해 focused 2/2와 최종
+  78/78을 통과했다. A는 RC89 보존 설치와 기본 운영 흐름 통합 회귀까지만 확인했다.
+- 이번 RC89에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
 - 첫 최종 계측 소스 빌드는 import 결과에 preview 전용 필드명을 사용한 시험 코드
@@ -114,31 +120,31 @@
   실패했다. 구현 뒤 focused `OK (1 test)`와 최종 전체 `OK (71 tests)`로 통과했다.
 - 롤백은 `git revert 59c9181144ba8758a6710ff793dbcdac7a24a57b` 후 Kiosk unit,
   lint, AndroidTest assemble·전체 계측과 공식 release build를 다시 실행한다.
-  A는 이미 Room v5·code 93이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
+  A는 이미 Room v5·code 94이므로 APK 삭제나 downgrade를 하지 않는다. 되돌린
   기능 source에서도 v5를 읽을 수 있게 유지하거나 명시적 forward-compatible
-  migration을 마련하고, 같은 signer·code 94 이상의 복구 release를
+  migration을 마련하고, 같은 signer·code 95 이상의 복구 release를
   `adb install -r`로 설치해야 한다.
 - SOL-0012만 되돌리려면
   `git revert e7c558da18152795d11427d13d8d61b5323e1640` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 93이므로 같은 signer·code 94 이상의 forward rollback을 사용하며 APK
+  code 94이므로 같은 signer·code 95 이상의 forward rollback을 사용하며 APK
   삭제·data clear·downgrade를 하지 않는다. Room schema는 계속 v5다.
 - SOL-0013만 되돌리려면
   `git revert b8ce2d394e5f02655a4bbe70842d4dde7bde1466` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
+  code 94이므로 되돌린 source에서 같은 signer·code 95 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0014만 되돌리려면
   `git revert 51d1b03c7694f685e91421c0c8953fc9b8aae329` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
+  code 94이므로 되돌린 source에서 같은 signer·code 95 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0015만 되돌리려면
   `git revert a5905540cd9a74d589bb78fee7ea247bb35a56ac` 후 Kiosk unit, lint,
   AndroidTest assemble·전체 계측과 공식 release를 다시 실행한다. A는 이미
-  code 93이므로 되돌린 source에서 같은 signer·code 94 이상의 forward rollback
+  code 94이므로 되돌린 source에서 같은 signer·code 95 이상의 forward rollback
   release를 만들어 `adb install -r`로 설치하며 APK 삭제·data clear·downgrade를
   하지 않는다.
 - SOL-0016만 되돌리려면
@@ -153,6 +159,79 @@
   `git revert 57aa2f108d65e69a7645f75b623fed1274bdb661` 후 Kiosk unit, lint,
   AndroidTest assemble·focused 두 건과 전체 계측을 다시 실행한다. 이 commit은 제품
   source·version·A 설치본을 바꾸지 않았으므로 기기 rollback은 필요 없다.
+- SOL-0018을 되돌리려면
+  `git revert 6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0` 후 Kiosk unit, lint,
+  AndroidTest assemble·CSV/빠른 반 focused·전체 계측과 공식 release를 다시
+  실행한다. A는 code 94이므로 되돌린 source에서 같은 signer·code 95 이상의
+  forward rollback release를 만들어 `adb install -r`로 설치하며 APK 삭제·data
+  clear·downgrade를 하지 않는다.
+
+## 2026-08-13 RC89 학생 CSV intake·수업 시작 공통 gate
+
+- `SOL-0018` — Kiosk 관리자 데이터/session 동시성, P3, 신뢰도 높음, 상태
+  `자동검증 완료`.
+- 사용자 영향·재현 조건: 지정 PC의 CSV 요청이 느리거나 preview가 열린 동안 기존
+  구현은 import 버튼만 잠갔다. 사용자가 수업 시작 또는 다른 학생·반 작업을 누르면
+  같은 관리자 의도 수명 안에서 작업이 겹칠 수 있었다. repository의 활성 session
+  guard는 잘못된 CSV DB 적용을 제한하지만, 느린 요청이 끝난 뒤 오래된 preview가
+  나타나거나 서로 다른 작업 안내·제어가 교차하는 UI/운영 혼선을 막지는 못했다.
+- 기대 결과는 fetch 시작부터 취소·실패·적용 완료까지 공통 관리자 데이터 operation
+  하나가 활성이고 수업 시작·Web recovery 및 다른 학생·반 작업이 제출되지 않는
+  것이다. 수정 전 실제 결과는 PC 연결을 수락해 응답을 보류한 동안
+  `adminDataOperationGate.isActive=false`였고 신규 계측이
+  `CSV fetch did not hold the common admin operation gate`로 1/1 실패했다.
+- 정적 근거: 수정 전 `fetchStudentCsvFromPc()`는 session·pairing만 확인하고
+  `pcControlExecutor`에 바로 제출했으며 import 버튼의 별도 boolean만 바꿨다.
+  `applyStudentCsv()`가 preview 확인 뒤에야 공통 gate를 잡아 network·parse·preview가
+  보호되지 않았다. 이번 수정은 fetch 직전에 `beginAdminDataOperation()`을 호출하고
+  no-download, network/parse/preview/submit/apply failure, preview dismiss와 성공 후
+  refresh까지 모든 terminal branch에서 정확히 해제한다. 취소·실패 시 parsed
+  credential owner도 기존 계약대로 지운다.
+- 동적 근거: loopback server가 TCP 연결만 수락한 뒤 latch로 응답을 지연했다. 합성
+  pairing을 Activity에 적용해 fetch를 시작한 뒤 gate active와 학생 등록·반 생성·
+  수업 시작 disabled를 확인했다. 수업 시작 함수를 직접 호출해 Web recovery gate가
+  inactive로 남고 `다른 학생·반 작업이 끝날 때까지 기다리세요.`가 표시됨을
+  확인했다. server 해제 뒤 gate가 끝나고 세 제어가 다시 enabled가 됐다. 실제 학생
+  CSV·QR·운영 pairing secret은 사용하지 않았다.
+- 반대 근거·심각도: 단일 PC executor와 repository transaction/active-session guard는
+  실제 DB corruption 가능성을 낮춘다. 명시적 사용자 조작과 느린 PC가 함께 필요하고
+  수정 전 데이터 손상은 재현하지 않았으므로 P2가 아닌 P3로 판정했다. 과거
+  `LUNA-0035/0036`의 공통 gate 교정이 CSV fetch 단계에는 부분 잔존했던 것으로
+  정정한다.
+- 자동검증:
+  - 수정 전 focused 1/1 failure, 수정 후 신규 focused 1/1 PASS.
+  - 첫 전체 78개에서 신규 CSV case는 7.087초 PASS였으나 기존 빠른 반 geometry
+    시험이 spinner adapter 준비 전 진행돼 1건 실패했다. 격리 1/1 PASS로 timing
+    race를 확인하고 readiness를 adapter 12개·`월1` enabled까지 강화했다.
+  - CSV gate와 빠른 반 focused 2/2는 41초, 최종 API 33 전체는 78/78,
+    failure/error/skip 0, XML 91.854초, Gradle 1분 49초 PASS다.
+  - 최종 unit/lint/debug·AndroidTest assemble은 84 tasks·32초 PASS, JVM 99/99,
+    failure/error/skip 0·0.912초다. 세 release script parser 오류 0건이다.
+  - 공식 release는 158 tasks·2분 16초 PASS했다. RC89 artifact는 36,754,057 bytes,
+    SHA-256 `B67B2BCF8D81FCF7D770627F62B14930D94DA4CA519390F3FC59945D25D2B93F`,
+    versionName/code `0.6.0-rc89`/94, v2 signer SHA-256
+    `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+    checksum·명시적 artifact verify도 통과했고 Web RC137 payload는 동일하다.
+- A/PC 현장 상태:
+  - 승인 A 한 대의 RC88/code 93 설치본 byte·hash·signer와 UID 10288, first install,
+    Device Owner·HOME·Lock Task·QR 대기 안전 상태를 먼저 확인했다. 같은 signer
+    RC89/code 94를 `adb install -r`로 설치했고 UID·first install·data·관리 정책을
+    보존했다. 설치 APK는 RC89 artifact와 byte·SHA-256이 정확히 일치한다.
+  - 재시작 `RECOVERY_REQUIRED`를 지정 PIN 도구와 정확한 데이터 보존 확인창으로
+    안전 종료했다. `ADMIN_IDLE`, 선택 반 인원 4명·신규용 카드 무료 4장·관리자 제어
+    복구를 확인한 뒤 Web 사전점검으로 전면 QR 대기를 복원했다. 실제 화면은 잘림·
+    겹침·오류가 없고 최종 Kiosk top/실행 중, Lock Task `LOCKED`, 원격 지원
+    `INACTIVE`, test package·ADB tunnel·임시 파일·crash/ANR 0건이다.
+  - 운영 PC에 대기 CSV가 없고 실제 학생정보 변경을 피하기 위해 정확한 A/운영 PC
+    CSV 수신은 수행하지 않았다. 따라서 A 결과를 해당 지연 CSV 분기 현장 통과로
+    확대하지 않는다.
+- 변경 파일: `MainActivity.kt`, `MainActivityInstrumentedTest.kt`, Kiosk version과
+  세 release script. 구현·원격 복구점은
+  `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`, 전용 origin branch push 성공.
+- source rollback은 `git revert 6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0` 후 위
+  focused·unit·lint·assemble·전체 계측과 공식 release를 재실행한다. A는 code 94라
+  downgrade·삭제·data clear를 하지 않고, 되돌린 source에서 같은 signer·code 95+
+  forward rollback을 만들어 `adb install -r`한다.
 
 ## 2026-08-13 Kiosk 수업 종료 idle projection 독립 재검증
 

@@ -1,5 +1,86 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC89 학생 CSV intake·수업 시작 공통 gate — 2026-08-13
+
+### 수정 전 재현·구현 범위
+
+- 과거 `LUNA-0035/0036` 교정은 Web recovery와 대부분의 학생·반 mutation을 공통
+  `adminDataOperationGate`로 직렬화했지만, 지정 PC의 학생 CSV 가져오기는 요청 중
+  import 버튼만 따로 비활성화했다. 네트워크 요청·parse·미리보기 동안 공통 gate가
+  비어 있어 수업 시작이나 다른 관리자 작업을 제출할 수 있었고, gate는 사용자가
+  적용을 확정한 뒤에야 잡혔다. repository의 활성 수업 guard는 잘못된 CSV DB
+  mutation을 제한하지만 관리자 의도와 화면 수명을 직렬화하지는 못했다.
+- 지연 loopback PC가 연결만 수락하고 응답을 보류한 신규
+  `studentCsvFetchHoldsAdminGateUntilThePcRequestFinishes`는 수정 전 공통 gate가
+  inactive여서 `CSV fetch did not hold the common admin operation gate`로 1/1
+  실패했다. 실제 학생 CSV·운영 pairing secret은 사용하지 않고 고정 합성 pairing만
+  사용했다.
+- RC89은 session·pairing 선행조건 뒤 CSV 요청 전에
+  `beginAdminDataOperation("지정 PC에서 암호화된 학생 CSV를 가져오는 중")`을
+  호출한다. PC fetch, parse, preview와 apply가 한 gate 수명 안에 있고, 전송 없음,
+  parse/preview/submit/apply 실패와 미리보기 취소·dismiss도 민감 parsed row를 정리한
+  뒤 gate를 해제한다. apply 성공은 repository 저장과 관리자 snapshot 갱신까지 gate를
+  유지한다.
+- 회귀시험은 지연 요청 중 gate active, 학생 등록·반 생성·수업 시작 disabled를 함께
+  확인하고 직접 수업 시작 경로를 호출해 Web recovery gate가 열리지 않으며
+  `다른 학생·반 작업이 끝날 때까지 기다리세요.`가 표시됨을 단언한다. 서버를 해제한
+  뒤 공통 gate와 세 제어가 정상 복구되는 것도 확인한다.
+
+### 자동검증과 중간 실패
+
+- 수정 후 신규 focused 시험은 1/1, 약 34초에 통과했다. 첫 API 33 전체 계측은
+  신규 시험 자체는 7.087초에 통과했으나 기존
+  `quickClassButtonsKeepStableGeometryAndTypographyAfterSelectionChanges`가 spinner
+  adapter 준비 전에 진행되는 timing race로 1/78 실패했다. 같은 시험 격리 1/1
+  통과로 제품 회귀가 아닌 readiness 문제임을 확인했다.
+- 기존 빠른 반 시험은 grid child 12개뿐 아니라 spinner adapter 12개와 `월1` 버튼
+  활성까지 기다리도록 보강했다. CSV gate와 빠른 반 시험 focused 2/2는 41초,
+  최종 전체는 78/78, failure/error/skip 0, XML 91.854초, Gradle
+  `BUILD SUCCESSFUL in 1m 49s`다.
+- 최종 `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 32s`다. JVM XML은
+  99/99, failure/error/skip 0, 0.912초이고 debug lint와 두 APK 조립도 성공했다.
+- 세 release PowerShell script parser는 오류 0건이다. 공식
+  `scripts/build-release.ps1`은 158 tasks, `BUILD SUCCESSFUL in 2m 16s`였고 Kiosk·
+  Web JVM, release lint, signed assemble, version·non-debuggable·동일 signer 검증을
+  통과했다. Web RC137 payload는 기존 artifact와 동일하다.
+- RC89 release APK는 36,754,057 bytes, SHA-256
+  `B67B2BCF8D81FCF7D770627F62B14930D94DA4CA519390F3FC59945D25D2B93F`,
+  `versionName=0.6.0-rc89`, `versionCode=94`, v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+  checksum 파일과 명시적 `verify-release-apks.ps1`도 같은 byte·hash·signer로
+  통과했다.
+
+### A 보존 설치·통합 회귀
+
+- 승인 ADB 대상은 `SM-P610`/`R54TB029FHZ` 한 대뿐이었다. 설치 전 Kiosk RC88/code
+  93 설치본이 보관 RC88과 byte·SHA-256·signer까지 일치하고, UID 10288, first install
+  `2026-07-24 12:52:28`, Device Owner, preferred HOME, Kiosk top와 Lock Task
+  `LOCKED`, test package·ADB forward/reverse 없음, 전면 QR 대기를 확인했다.
+- 같은 signer RC89/code 94를 `adb install -r`로 보존 설치했다. last update는
+  `2026-08-13 03:37:37`이고 UID·firstInstallTime·Device Owner·HOME·앱 data를
+  유지했다. A에서 다시 읽은 APK는 RC89 artifact와 36,754,057 bytes·SHA-256이
+  정확히 일치했다. Web RC137은 변경·재설치하지 않았다.
+- 재시작으로 기존 QR 대기 session이 `RECOVERY_REQUIRED`가 된 뒤, 원격 지원을 끈
+  정확한 관리자 PIN 화면에서 지정 DPAPI 입력 도구만 사용했다. 확인창의 현재 수업·
+  보강 명단만 종료하고 학생·반·QR은 삭제하지 않는 문구를 확인해 `ADMIN_IDLE`로
+  안전 복구했다. 선택 반 인원 4명과 신규용 카드 무료 4장이 보존됐고 CSV·수업 시작
+  제어가 다시 활성화됐다.
+- 정확한 `수업 시작 사전점검`의 `웹 검사 후 시작` 뒤 Kiosk가 전면 카메라 QR 대기로
+  돌아오고 Lock Task `LOCKED`가 됐다. 실제 캡처에서 안내·전면 렌즈 전환·도움말·
+  상태 아이콘의 잘림·겹침·오류 표시가 없었다. 최종 Kiosk top/실행 중, 원격 지원
+  `INACTIVE`, test package·ADB forward/reverse·임시 캡처 없음, Kiosk crash buffer와
+  exit-info의 crash/ANR 0건이다.
+- 운영 PC에는 대기 CSV가 없었고 실제 학생정보 변경을 피하기 위해 A에서 정확한
+  CSV 수신 분기는 수행하지 않았다. 따라서 SOL-0018은 P3·신뢰도 높음·
+  `자동검증 완료`이며 A는 RC89 설치·데이터 보존·관리자 복구·Web 사전점검·QR 대기
+  통합 회귀다.
+- 구현·복구점은 `6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`이며 전용 origin branch에
+  push했다. rollback은 `git revert 6cdbd953f052f2dcb9ce61cd782dd13f1752f3b0`
+  후 위 focused·unit·lint·assemble·전체 계측과 공식 release를 다시 실행한다. A는
+  code 94이므로 APK 삭제·data clear·downgrade를 하지 않고, 되돌린 source에서 같은
+  signer·code 95 이상의 forward rollback release를 만들어 `adb install -r`한다.
+
 ## Kiosk 수업 종료 idle projection 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 시험 범위

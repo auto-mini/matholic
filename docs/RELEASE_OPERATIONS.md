@@ -5,16 +5,16 @@
 ## 현재 상태
 
 RC02는 A에 release Device Owner로 배포해 핵심 실기를 완료했다. 현재 A에는
-같은 signer의 Kiosk RC88·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
+같은 signer의 Kiosk RC89·Web POC RC137이 보존형 설치돼 있다. Kiosk DB, Device
 Owner와 전용 HOME을 보존했고 두 설치본의 해시는 보관 artifact와 다시
-일치시켰다. 현재 보관 검증 묶음은 Kiosk RC88, Web POC RC137과 PC 수신기
+일치시켰다. 현재 보관 검증 묶음은 Kiosk RC89, Web POC RC137과 PC 수신기
 0.1.8이다.
 Kiosk·Web의 정확한 자동·릴리스 검증과 설치 여부는
 `docs/BUILD_VERIFICATION.md`의 최신 절, PC 수신기 0.1.8의 검증·설치 여부는
 `reports/SOL_MAX_CONTINUOUS_REVIEW_AND_DEVELOPMENT_2026-08-04.md`의
   `SOL-0016`을 기준으로 한다.
 
-현재 소스 작업본의 Kiosk RC88은 선택적 공유 QR PDF가 process 재시작을 거쳐도
+현재 소스 작업본의 Kiosk RC89은 선택적 공유 QR PDF가 process 재시작을 거쳐도
 남은 수명 안에 정리되도록 예약을 복원하고, 전용 FileProvider가 만료 파일을
 URI로 제공하기 전에 정리한다. 최초 준비 시 신규카드1~4 더미 QR을 자동
 준비해 지정 PC로 전송한다. 자동 PDF 전송은 핵심 초기화와 별도 executor에서
@@ -23,21 +23,23 @@ URI로 제공하기 전에 정리한다. 최초 준비 시 신규카드1~4 더�
 닫아 executor를 무기한 점유하지 않는다. 더미의 아이디·비밀번호는 빈 값이며,
 학생 배정은 현재 수업 보강에 자동 추가하지 않는다. 재시작, 이름·CSV 갱신과
 일반 QR 재발급은 재사용 카드 QR을
-바꾸지 않는다. 실제 QR 카드로 전환하면 새 일반 학생 QR을 발급하고 기존 더미
+바꾸지 않는다. 학생 CSV 가져오기는 PC 요청·parse·미리보기·적용 전체 수명 동안
+공통 관리자 데이터 gate를 유지해 수업 시작과 다른 학생·반 작업을 차단한다.
+실제 QR 카드로 전환하면 새 일반 학생 QR을 발급하고 기존 더미
 슬롯을 빈 값으로 되돌린다. 저장 미확인 슬롯을 수동 교체할 때는 기존 QR과 이전
 인쇄물 무효화를 확인한 뒤 새 QR을 발급한다. 과거 비활성 재사용 슬롯이 있으면
 같은 라벨의 새 QR·빈 자격정보로 복구하고 목표 4장을 보충한다. 복구 뒤에는 새
 PDF를 저장·출력해야 한다.
 
-- 현재 A: Kiosk `0.6.0-rc88`/code 93, Web POC `0.4.0-rc137`/code 154
+- 현재 A: Kiosk `0.6.0-rc89`/code 94, Web POC `0.4.0-rc137`/code 154
 - 내부 보관 현재 검증 묶음:
-  Kiosk `0.6.0-rc88`/code 93, Web POC `0.4.0-rc137`/code 154,
+  Kiosk `0.6.0-rc89`/code 94, Web POC `0.4.0-rc137`/code 154,
   PC 수신기 `0.1.8`
 - 현재 운영 PC 설치본: PC 수신기 `0.1.8`
 - signer SHA-256: `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`
-- Kiosk RC88 APK: 36,754,057 bytes,
-  `00EE705C788720D80BF90203F8F02EAEF1D69143F9C3816683344C4F5BE85C28`
-- 현재 A: release signer의 Kiosk RC88/Web POC RC137, 기존 Device Owner·전용
+- Kiosk RC89 APK: 36,754,057 bytes,
+  `B67B2BCF8D81FCF7D770627F62B14930D94DA4CA519390F3FC59945D25D2B93F`
+- 현재 A: release signer의 Kiosk RC89/Web POC RC137, 기존 Device Owner·전용
   HOME·Kiosk/Web UID·firstInstallTime·dataDir 유지, 전면 카메라 QR 대기·Lock Task
   `LOCKED`, 원격 점검 `INACTIVE`
 - Kiosk RC55는 Device Owner 정책으로 Web POC 제거를 차단한다.
