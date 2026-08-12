@@ -220,6 +220,99 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun sessionRecoveryInvalidatesPendingMembershipUndoBeforeWebLaunch() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<View>(R.id.create_class_button).isEnabled
+                }
+
+                val undoType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingAdminUndo",
+                )
+                val restoreMembershipsType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingAdminUndo\$RestoreMemberships",
+                )
+                val restoreMemberships = restoreMembershipsType
+                    .getDeclaredConstructor(
+                        String::class.java,
+                        String::class.java,
+                        Set::class.java,
+                    )
+                    .apply { isAccessible = true }
+                    .newInstance("synthetic-class", "월1", setOf("synthetic-student"))
+                val offerUndoMethod = MainActivity::class.java
+                    .getDeclaredMethod("offerAdminUndo", undoType)
+                    .apply { isAccessible = true }
+                val pendingUndoField = MainActivity::class.java
+                    .getDeclaredField("pendingAdminUndo")
+                    .apply { isAccessible = true }
+                val webRecoveryGateField = MainActivity::class.java
+                    .getDeclaredField("webRecoveryGate")
+                    .apply { isAccessible = true }
+                val webRecoveryLauncherField = MainActivity::class.java
+                    .getDeclaredField("webRecoveryLauncher")
+                    .apply { isAccessible = true }
+                val pendingRecoveryType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingRecoveryAction",
+                )
+                val startSessionType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingRecoveryAction\$StartSession",
+                )
+                val startSession = startSessionType
+                    .getDeclaredConstructor(String::class.java, Set::class.java)
+                    .apply { isAccessible = true }
+                    .newInstance("synthetic-class", emptySet<String>())
+                val launchRecoveryMethod = MainActivity::class.java
+                    .getDeclaredMethod("launchWebSessionRecovery", pendingRecoveryType)
+                    .apply { isAccessible = true }
+
+                scenario.onActivity { activity ->
+                    offerUndoMethod.invoke(activity, restoreMemberships)
+                    val undoButton = activity.findViewById<View>(R.id.undo_admin_button)
+                    assertTrue(pendingUndoField.get(activity) != null)
+                    assertEquals(View.VISIBLE, undoButton.visibility)
+                    assertTrue(undoButton.isEnabled)
+
+                    @Suppress("UNCHECKED_CAST")
+                    val launcher = webRecoveryLauncherField.get(activity) as
+                        androidx.activity.result.ActivityResultLauncher<android.content.Intent>
+                    launcher.unregister()
+                    launchRecoveryMethod.invoke(activity, startSession)
+
+                    assertNull(pendingUndoField.get(activity))
+                    assertEquals(View.GONE, undoButton.visibility)
+                    assertFalse(undoButton.isEnabled)
+                    assertFalse(
+                        (webRecoveryGateField.get(activity) as SingleFlightGate).isActive,
+                    )
+                    assertEquals(
+                        "Web 세션 정리 화면을 열지 못했습니다.",
+                        activity.findViewById<android.widget.TextView>(R.id.admin_message)
+                            .text
+                            .toString(),
+                    )
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun correctAdminPinOpensAdminWithoutDoneOrSubmitTap() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
