@@ -1,0 +1,7 @@
+setuptools==84.0.0
+pytest==8.4.1
+pyinstaller==6.15.0
+cryptography==50.0.0
+Pillow==12.3.0
+pystray==0.19.5
+qrcode==8.2

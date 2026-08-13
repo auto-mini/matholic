@@ -53,6 +53,11 @@ python -m pytest .\tests -q
 합성 PDF를 암호화 전송해 인증 ACK·저장·정리까지 확인한 뒤 `artifacts`에
 보관한다.
 
+`build-receiver.ps1`은 먼저 Windows x64/CPython 3.11용
+`build-requirements.lock`을 `--require-hashes`로 동기화하고 `pip check`를
+통과한 환경에서만 시험과 PyInstaller 패키징을 진행한다. 의존성을 바꾸려면
+`build-requirements.in`과 wheel SHA-256 lock을 함께 의도적으로 갱신한다.
+
 ```powershell
 .\build-receiver.ps1
 ```

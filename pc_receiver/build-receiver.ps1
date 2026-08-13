@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $sourceRoot = $PSScriptRoot
 $repositoryRoot = Split-Path $sourceRoot -Parent
+$requirementsLock = Join-Path $sourceRoot 'build-requirements.lock'
 $buildRoot = Join-Path $env:LOCALAPPDATA 'CodexBuild\matholic-receiver-package'
 $workPath = Join-Path $buildRoot 'work'
 $distPath = Join-Path $buildRoot 'dist'
@@ -17,10 +18,25 @@ $checksum = Join-Path $repositoryRoot 'artifacts\PC_RECEIVER_SHA256.txt'
 if (-not (Test-Path -LiteralPath $PythonPath)) {
     throw "Receiver Python environment not found: $PythonPath"
 }
+if (-not (Test-Path -LiteralPath $requirementsLock)) {
+    throw "Receiver build dependency lock not found: $requirementsLock"
+}
 
 $previousLocation = Get-Location
 try {
     Set-Location -LiteralPath $sourceRoot
+    & $PythonPath -m pip install `
+        --disable-pip-version-check `
+        --require-hashes `
+        --only-binary=:all: `
+        --requirement $requirementsLock
+    if ($LASTEXITCODE -ne 0) {
+        throw 'PC receiver locked build dependency installation failed.'
+    }
+    & $PythonPath -m pip check --disable-pip-version-check
+    if ($LASTEXITCODE -ne 0) {
+        throw 'PC receiver build dependency check failed.'
+    }
     $env:PYTHONPATH = (Resolve-Path '.\src').Path
     & $PythonPath -m pytest '.\tests' -q
     if ($LASTEXITCODE -ne 0) {
