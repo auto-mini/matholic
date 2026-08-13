@@ -38,11 +38,25 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MainActivityInstrumentedTest {
+    @Before
+    fun clearAutomaticScheduleStateBeforeTest() {
+        ApplicationProvider.getApplicationContext<Context>()
+            .deleteSharedPreferences(AUTOMATIC_SCHEDULE_PREFERENCES)
+    }
+
+    @After
+    fun clearAutomaticScheduleStateAfterTest() {
+        ApplicationProvider.getApplicationContext<Context>()
+            .deleteSharedPreferences(AUTOMATIC_SCHEDULE_PREFERENCES)
+    }
+
     @Test
     fun destroyedActivityDiscardsQueuedPcPairingAndWipesMutableSecrets() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -375,9 +389,14 @@ class MainActivityInstrumentedTest {
                     "${MainActivity::class.java.name}\$PendingRecoveryAction\$StartSession",
                 )
                 val startSession = startSessionType
-                    .getDeclaredConstructor(String::class.java, Set::class.java)
+                    .getDeclaredConstructor(
+                        String::class.java,
+                        Set::class.java,
+                        Boolean::class.javaPrimitiveType,
+                        String::class.java,
+                    )
                     .apply { isAccessible = true }
-                    .newInstance("synthetic-class", emptySet<String>())
+                    .newInstance("synthetic-class", emptySet<String>(), false, null)
                 val launchRecoveryMethod = MainActivity::class.java
                     .getDeclaredMethod("launchWebSessionRecovery", pendingRecoveryType)
                     .apply { isAccessible = true }
@@ -529,19 +548,26 @@ class MainActivityInstrumentedTest {
                     "${MainActivity::class.java.name}\$PendingRecoveryAction\$StartSession",
                 )
                 val startSession = startSessionType
-                    .getDeclaredConstructor(String::class.java, Set::class.java)
+                    .getDeclaredConstructor(
+                        String::class.java,
+                        Set::class.java,
+                        Boolean::class.javaPrimitiveType,
+                        String::class.java,
+                    )
                     .apply { isAccessible = true }
                     .newInstance(
                         "synthetic-class",
                         setOf("synthetic-temporary-a", "synthetic-temporary-b"),
+                        false,
+                        null,
                     )
                 val endSessionType = Class.forName(
                     "${MainActivity::class.java.name}\$PendingRecoveryAction\$EndSession",
                 )
                 val endSession = endSessionType
-                    .getDeclaredField("INSTANCE")
+                    .getDeclaredConstructor(Boolean::class.javaPrimitiveType)
                     .apply { isAccessible = true }
-                    .get(null)
+                    .newInstance(false)
 
                 scenario.onActivity { activity ->
                     pendingRecoveryField.set(activity, startSession)
@@ -1205,8 +1231,15 @@ class MainActivityInstrumentedTest {
                         ActiveSessionEntity::class.java,
                     )
                     .apply { isAccessible = true }
+                val endSessionType = Class.forName(
+                    "${MainActivity::class.java.name}\$PendingRecoveryAction\$EndSession",
+                )
+                val endSessionAction = endSessionType
+                    .getDeclaredConstructor(Boolean::class.javaPrimitiveType)
+                    .apply { isAccessible = true }
+                    .newInstance(false)
                 val completeSessionEndMethod = MainActivity::class.java
-                    .getDeclaredMethod("completeSessionEnd")
+                    .getDeclaredMethod("completeSessionEnd", endSessionType)
                     .apply { isAccessible = true }
                 lateinit var originalRepository: StudentRepository
 
@@ -1237,7 +1270,7 @@ class MainActivityInstrumentedTest {
                             activity.findViewById<View>(R.id.resume_session_button).visibility,
                         )
 
-                        completeSessionEndMethod.invoke(activity)
+                        completeSessionEndMethod.invoke(activity, endSessionAction)
                         assertTrue(
                             "Session end transaction did not commit",
                             endCommitted.await(5, TimeUnit.SECONDS),
@@ -1807,6 +1840,10 @@ class MainActivityInstrumentedTest {
                 activity.findViewById<View>(R.id.pin_input).visibility == View.VISIBLE &&
                 activity.findViewById<View>(R.id.pin_input).isEnabled
         }
+    }
+
+    private companion object {
+        const val AUTOMATIC_SCHEDULE_PREFERENCES = "automatic_class_schedule"
     }
 
     private fun waitUntil(

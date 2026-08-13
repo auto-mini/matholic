@@ -2,10 +2,12 @@ package com.local.matholickiosk.kiosk
 
 import android.content.Context
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.local.matholickiosk.kiosk.domain.DailyClassScheduleOverride
 import com.local.matholickiosk.kiosk.domain.ScheduledClassEntry
 import java.time.LocalDate
@@ -60,7 +62,10 @@ class AutomaticClassScheduleStoreInstrumentedTest {
     @Test
     fun administratorLayoutExposesScheduleControlAndReadableSummary() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val root = LayoutInflater.from(context).inflate(R.layout.activity_main, null, false)
+        lateinit var root: View
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            root = LayoutInflater.from(context).inflate(R.layout.activity_main, null, false)
+        }
         val button = root.findViewById<Button>(R.id.class_schedule_button)
         val summary = root.findViewById<TextView>(R.id.class_schedule_summary)
 
