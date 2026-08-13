@@ -80,14 +80,19 @@ import com.local.matholickiosk.kiosk.domain.SensitiveHandoffTask
 import com.local.matholickiosk.kiosk.domain.SensitiveTask
 import com.local.matholickiosk.kiosk.domain.SessionPreflightInput
 import com.local.matholickiosk.kiosk.domain.SessionPreflightPolicy
+import com.local.matholickiosk.kiosk.domain.SessionPreflightResult
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.domain.StudentLoginPcNotificationPolicy
 import com.local.matholickiosk.kiosk.domain.StudentLoginPcStage
 import com.local.matholickiosk.kiosk.domain.ScannerCameraResumeAction
 import com.local.matholickiosk.kiosk.domain.ScannerCameraResumePolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticClassSchedulePolicy
+import com.local.matholickiosk.kiosk.domain.AutomaticClassTransition
+import com.local.matholickiosk.kiosk.domain.AutomaticClassTransitionPolicy
+import com.local.matholickiosk.kiosk.domain.AutomaticSessionState
 import com.local.matholickiosk.kiosk.domain.DailyClassScheduleOverride
 import com.local.matholickiosk.kiosk.domain.ScheduledClassEntry
+import com.local.matholickiosk.kiosk.domain.ScheduledClassTarget
 import com.local.matholickiosk.kiosk.print.BatchQrCard
 import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -180,6 +185,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var scannerHelpCloseButton: Button
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val automaticClassScheduleRunnable = Runnable {
+        reconcileAutomaticClassSchedule()
+    }
+    private var automaticScheduleCheckInFlight = false
     private var automaticAuthenticationGeneration = 0
     private var scannerHelpPausedAnalyzer = false
     private val scannerDisplayListener = object : DisplayManager.DisplayListener {
@@ -414,14 +423,21 @@ class MainActivity : ComponentActivity() {
                 }
                 is PendingRecoveryAction.StartSession ->
                     completeSessionStart(requestedAction)
-                PendingRecoveryAction.EndSession ->
-                    completeSessionEnd()
+                is PendingRecoveryAction.EndSession ->
+                    completeSessionEnd(requestedAction)
             }
         } else {
             finishWebRecoveryOperation()
             val message = "Web 세션 정리에 실패해 수업 상태를 변경하지 않았습니다" +
                 (failureReason?.let { " · $it" } ?: "")
-            refreshAdminData(message)
+            if (requestedAction.isAutomaticScheduleAction()) {
+                showAuthentication(enrollment = false)
+                authError.text = message
+                reportPcStatus("자동 반 전환 실패", null, notify = true)
+                scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+            } else {
+                refreshAdminData(message)
+            }
         }
     }
 
@@ -781,6 +797,7 @@ class MainActivity : ComponentActivity() {
                         enrolledAdminPinLength = snapshot.pinLength
                         statusText.text = snapshot.recoveredState.name
                         showAuthentication(enrollment = !snapshot.enrolled)
+                        requestAutomaticClassScheduleCheck()
                     },
                     onFailure = {
                         showInitialStateFailure(stage)
@@ -3128,7 +3145,7 @@ class MainActivity : ComponentActivity() {
             PendingRecoveryAction.None -> "Web 로그인 상태 안전 정리 중"
             is PendingRecoveryAction.StartSession ->
                 "공식 웹 접속·화면 구조·로그인 상태 사전점검 중"
-            PendingRecoveryAction.EndSession -> "Web 상태 정리 후 수업 안전 종료 중"
+            is PendingRecoveryAction.EndSession -> "Web 상태 정리 후 수업 안전 종료 중"
         }
         updateSessionAdminControls(currentSession)
         suppressNextAdminStopRelock = true
@@ -3149,6 +3166,12 @@ class MainActivity : ComponentActivity() {
             }
     }
 
+    private fun PendingRecoveryAction.isAutomaticScheduleAction(): Boolean = when (this) {
+        PendingRecoveryAction.None -> false
+        is PendingRecoveryAction.StartSession -> automaticSchedule
+        is PendingRecoveryAction.EndSession -> automaticSchedule
+    }
+
     private fun startOrEndSession() {
         if (adminDataOperationGate.isActive) {
             adminMessage.text = "다른 학생·반 작업이 끝날 때까지 기다리세요."
@@ -3163,7 +3186,7 @@ class MainActivity : ComponentActivity() {
                 )
                 .setNegativeButton("취소", null)
                 .setPositiveButton("안전 종료") { _, _ ->
-                    launchWebSessionRecovery(PendingRecoveryAction.EndSession)
+                    launchWebSessionRecovery(PendingRecoveryAction.EndSession())
                 }
                 .show()
             return
@@ -3189,40 +3212,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runSessionPreflight(action: PendingRecoveryAction.StartSession) {
-        val entered = lockTaskController.enterRestrictedMode()
-        dedicatedDevicePolicyFailed =
-            entered.isFailure || !entered.getOrDefault(false)
-        updateDedicatedDeviceStatus(administratorUnlocked = false)
-        val status = lockTaskController.status()
-        val batteryIntent = registerReceiver(
-            null,
-            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
-        )
-        val batteryLevel = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-        val batteryScale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val batteryPercent = if (batteryLevel >= 0 && batteryScale > 0) {
-            (batteryLevel * 100 / batteryScale).coerceIn(0, 100)
-        } else {
-            null
-        }
-        val cameraHardware = packageManager.hasSystemFeature(
-            PackageManager.FEATURE_CAMERA_ANY,
-        )
-        val result = SessionPreflightPolicy.evaluate(
-            SessionPreflightInput(
-                deviceOwner = status.isDeviceOwner,
-                kioskPackagePermitted = status.isKioskPackagePermitted,
-                webAppProtected = status.isWebPocUninstallBlocked,
-                lockTaskMode = status.mode,
-                policyConfigurationFailed = dedicatedDevicePolicyFailed,
-                cameraPermissionGranted =
-                    checkSelfPermission(Manifest.permission.CAMERA) ==
-                    PackageManager.PERMISSION_GRANTED,
-                cameraHardwareAvailable = cameraHardware,
-                batteryPercent = batteryPercent,
-                usableStorageBytes = filesDir.usableSpace,
-            ),
-        )
+        val result = evaluateSessionPreflight()
         if (!result.canStart) {
             exitDedicatedModeForAdministrator()
             adminMessage.text = "수업 시작 차단 · ${result.blockingReasons.joinToString(" ")}"
@@ -3253,6 +3243,57 @@ class MainActivity : ComponentActivity() {
                 launchWebSessionRecovery(action)
             }
             .show()
+    }
+
+    private fun runAutomaticSessionPreflight(action: PendingRecoveryAction.StartSession) {
+        val result = evaluateSessionPreflight()
+        if (!result.canStart) {
+            exitDedicatedModeForAdministrator()
+            showAuthentication(enrollment = false)
+            authError.text =
+                "자동 수업 시작을 차단했습니다 · ${result.blockingReasons.joinToString(" ")}"
+            reportPcStatus("자동 수업 시작 차단", null, notify = true)
+            return
+        }
+        manualStudentSelectionOnly = result.manualStudentSelectionRequired
+        launchWebSessionRecovery(action)
+    }
+
+    private fun evaluateSessionPreflight(): SessionPreflightResult {
+        val entered = lockTaskController.enterRestrictedMode()
+        dedicatedDevicePolicyFailed =
+            entered.isFailure || !entered.getOrDefault(false)
+        updateDedicatedDeviceStatus(administratorUnlocked = false)
+        val status = lockTaskController.status()
+        val batteryIntent = registerReceiver(
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+        )
+        val batteryLevel = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val batteryScale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val batteryPercent = if (batteryLevel >= 0 && batteryScale > 0) {
+            (batteryLevel * 100 / batteryScale).coerceIn(0, 100)
+        } else {
+            null
+        }
+        val cameraHardware = packageManager.hasSystemFeature(
+            PackageManager.FEATURE_CAMERA_ANY,
+        )
+        return SessionPreflightPolicy.evaluate(
+            SessionPreflightInput(
+                deviceOwner = status.isDeviceOwner,
+                kioskPackagePermitted = status.isKioskPackagePermitted,
+                webAppProtected = status.isWebPocUninstallBlocked,
+                lockTaskMode = status.mode,
+                policyConfigurationFailed = dedicatedDevicePolicyFailed,
+                cameraPermissionGranted =
+                    checkSelfPermission(Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED,
+                cameraHardwareAvailable = cameraHardware,
+                batteryPercent = batteryPercent,
+                usableStorageBytes = filesDir.usableSpace,
+            ),
+        )
     }
 
     private fun runOperationalSelfTest() {
@@ -3449,6 +3490,7 @@ class MainActivity : ComponentActivity() {
                     adminMessage.text = "오늘 자정까지 자동 반 전환을 껐습니다."
                 }
                 updateClassScheduleSummary()
+                requestAutomaticClassScheduleCheck()
             }
         }
         val trustClockButton = Button(this).apply {
@@ -3464,6 +3506,7 @@ class MainActivity : ComponentActivity() {
                     .onSuccess {
                         visibility = View.GONE
                         adminMessage.text = "현재 기기 날짜·시각을 자동 전환 기준으로 확인했습니다."
+                        requestAutomaticClassScheduleCheck()
                     }
                     .onFailure { adminMessage.text = it.message ?: "기기 시각을 확인하지 못했습니다." }
             }
@@ -3645,6 +3688,7 @@ class MainActivity : ComponentActivity() {
 
     private fun requireManualScheduleOverride(
         operation: String,
+        onCancelled: () -> Unit = {},
         onAllowed: () -> Unit,
     ) {
         val required = runCatching {
@@ -3657,6 +3701,7 @@ class MainActivity : ComponentActivity() {
             onAllowed()
             return
         }
+        var allowed = false
         AlertDialog.Builder(this)
             .setTitle("자동 반 전환이 켜져 있습니다")
             .setMessage(
@@ -3665,10 +3710,14 @@ class MainActivity : ComponentActivity() {
             )
             .setNegativeButton("수동 조작 취소", null)
             .setPositiveButton("오늘 자동 전환 끄기") { _, _ ->
+                allowed = true
                 automaticClassScheduleStore.disableForToday(LocalDate.now())
                 updateClassScheduleSummary()
                 adminMessage.text = "오늘 자정까지 자동 반 전환을 끄고 수동 조작을 허용했습니다."
                 onAllowed()
+            }
+            .setOnDismissListener {
+                if (!allowed) onCancelled()
             }
             .show()
     }
@@ -3704,7 +3753,236 @@ class MainActivity : ComponentActivity() {
         if (className.endsWith("1")) 14 * 60 else 18 * 60
 
     private fun requestAutomaticClassScheduleCheck() {
-        // Runtime reconciliation is installed separately from the settings UI.
+        if (destroyed || !::automaticClassScheduleStore.isInitialized ||
+            !::studentRepository.isInitialized
+        ) {
+            return
+        }
+        mainHandler.removeCallbacks(automaticClassScheduleRunnable)
+        mainHandler.post(automaticClassScheduleRunnable)
+    }
+
+    private fun reconcileAutomaticClassSchedule() {
+        if (destroyed || automaticScheduleCheckInFlight ||
+            !::automaticClassScheduleStore.isInitialized ||
+            !::studentRepository.isInitialized
+        ) {
+            return
+        }
+        automaticScheduleCheckInFlight = true
+        val administratorWorkVisible =
+            adminPanel.visibility == View.VISIBLE || authEnrollmentMode
+        val operationInProgress =
+            adminDataOperationGate.isActive || webRecoveryGate.isActive ||
+                studentLaunchGate.isActive || manualStudentSelectionFlowActive ||
+                sessionAdminActionFlowActive || pcPairingMode ||
+                pendingRecoveryAction != PendingRecoveryAction.None
+        ioExecutor.execute {
+            val evaluation = runCatching {
+                val now = ZonedDateTime.now()
+                val date = now.toLocalDate()
+                if (!automaticClassScheduleStore.isClockPlausible(now)) {
+                    return@runCatching AutomaticScheduleEvaluation.ClockInvalid
+                }
+                automaticClassScheduleStore.recordAcceptedClock(now)
+                if (automaticClassScheduleStore.isDisabledFor(date)) {
+                    return@runCatching AutomaticScheduleEvaluation.Disabled
+                }
+                val weekly = automaticClassScheduleStore.loadWeekly().enabledEntries()
+                val todayOverride = automaticClassScheduleStore.loadOverride(date)
+                val yesterdayOverride = automaticClassScheduleStore.loadOverride(
+                    date.minusDays(1),
+                )
+                if (weekly.isEmpty() && todayOverride == null && yesterdayOverride == null) {
+                    return@runCatching AutomaticScheduleEvaluation.NotConfigured
+                }
+                val session = studentRepository.currentSession()
+                val classEntities = studentRepository.listClasses()
+                val currentClassName = classEntities
+                    .firstOrNull { it.classId == session?.classId }
+                    ?.className
+                val state = automaticSessionState(session)
+                val target = AutomaticClassSchedulePolicy.targetAt(
+                    now = now,
+                    weeklyEntries = weekly,
+                    todayOverride = todayOverride,
+                    yesterdayOverride = yesterdayOverride,
+                )
+                val transition = AutomaticClassTransitionPolicy.decide(
+                    target = target,
+                    sessionState = state,
+                    currentClassName = currentClassName,
+                    administratorWorkVisible = administratorWorkVisible,
+                    operationInProgress = operationInProgress,
+                )
+                val targetClassName = when (transition) {
+                    is AutomaticClassTransition.Start -> transition.className
+                    is AutomaticClassTransition.Switch -> transition.className
+                    else -> null
+                }
+                val targetClassId = targetClassName?.let { name ->
+                    classEntities.firstOrNull { it.className == name }?.classId
+                }
+                val nextBoundary = AutomaticClassSchedulePolicy.nextBoundaryAfter(
+                    now = now,
+                    weeklyEntries = weekly,
+                    todayOverride = todayOverride,
+                    tomorrowOverride = automaticClassScheduleStore.loadOverride(
+                        date.plusDays(1),
+                    ),
+                )
+                AutomaticScheduleEvaluation.Ready(
+                    transition = transition,
+                    targetClassName = targetClassName,
+                    targetClassId = targetClassId,
+                    sessionState = state,
+                    nextCheckDelayMillis = nextBoundary
+                        ?.let { boundary ->
+                            boundary.toInstant().toEpochMilli() -
+                                now.toInstant().toEpochMilli() + 250L
+                        }
+                        ?.coerceIn(
+                            AUTOMATIC_SCHEDULE_MIN_CHECK_MS,
+                            AUTOMATIC_SCHEDULE_MAX_CHECK_MS,
+                        )
+                        ?: AUTOMATIC_SCHEDULE_MAX_CHECK_MS,
+                )
+            }
+            runOnUiThread {
+                automaticScheduleCheckInFlight = false
+                if (destroyed) return@runOnUiThread
+                evaluation.fold(
+                    onSuccess = ::applyAutomaticScheduleEvaluation,
+                    onFailure = { error ->
+                        diagnosticLog.record("AUTOMATIC_CLASS_SCHEDULE_FAILED")
+                        publishAutomaticScheduleProblem(
+                            error.message ?: "자동 반 시간표를 확인하지 못했습니다.",
+                        )
+                        scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun automaticSessionState(session: ActiveSessionEntity?): AutomaticSessionState {
+        if (session?.sessionId == null) return AutomaticSessionState.IDLE
+        if (session.state == KioskState.QR_READY.name && session.currentStudentId == null) {
+            return AutomaticSessionState.QR_READY
+        }
+        if (session.currentStudentId != null || session.state in STUDENT_BUSY_STATES) {
+            return AutomaticSessionState.STUDENT_BUSY
+        }
+        return AutomaticSessionState.RECOVERY_REQUIRED
+    }
+
+    private fun applyAutomaticScheduleEvaluation(evaluation: AutomaticScheduleEvaluation) {
+        when (evaluation) {
+            AutomaticScheduleEvaluation.ClockInvalid -> {
+                diagnosticLog.record("AUTOMATIC_CLASS_CLOCK_INVALID")
+                publishAutomaticScheduleProblem(
+                    "기기 날짜·시각이 올바르지 않아 자동 반 전환을 중지했습니다. " +
+                        "관리자 화면에서 시각을 확인하세요.",
+                )
+                scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+            }
+            AutomaticScheduleEvaluation.Disabled,
+            AutomaticScheduleEvaluation.NotConfigured,
+            -> scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+            is AutomaticScheduleEvaluation.Ready -> {
+                when (val transition = evaluation.transition) {
+                    AutomaticClassTransition.None -> Unit
+                    AutomaticClassTransition.Deferred -> {
+                        scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
+                        return
+                    }
+                    is AutomaticClassTransition.Start -> {
+                        val classId = evaluation.targetClassId
+                        if (classId == null) {
+                            publishAutomaticScheduleProblem(
+                                "${transition.className} 반이 없어 자동 수업을 시작하지 못했습니다.",
+                            )
+                        } else {
+                            runAutomaticSessionPreflight(
+                                PendingRecoveryAction.StartSession(
+                                    classId = classId,
+                                    temporaryStudentIds = emptySet(),
+                                    automaticSchedule = true,
+                                    className = transition.className,
+                                ),
+                            )
+                        }
+                    }
+                    is AutomaticClassTransition.Switch -> {
+                        val classId = evaluation.targetClassId
+                        if (classId == null) {
+                            publishAutomaticScheduleProblem(
+                                "${transition.className} 반이 없어 자동 변경하지 못했습니다.",
+                            )
+                        } else {
+                            performAutomaticClassSwitch(classId, transition.className)
+                        }
+                    }
+                    AutomaticClassTransition.End -> launchWebSessionRecovery(
+                        PendingRecoveryAction.EndSession(automaticSchedule = true),
+                    )
+                }
+                scheduleAutomaticClassCheck(evaluation.nextCheckDelayMillis)
+            }
+        }
+    }
+
+    private fun performAutomaticClassSwitch(targetClassId: String, className: String) {
+        val expectedSessionId = currentSession?.sessionId
+        if (expectedSessionId == null) {
+            scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
+            return
+        }
+        sessionAdminActionFlowActive = true
+        stopCamera()
+        scannerMessage.text = "$className 수업으로 자동 변경하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.switchSessionClass(expectedSessionId, targetClassId)
+            }
+            runOnUiThread {
+                sessionAdminActionFlowActive = false
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { replacement ->
+                        currentSession = replacement
+                        pendingTemporaryStudentIds = emptySet()
+                        showScanner()
+                        showTransientScannerMessage(
+                            "$className 수업으로 자동 변경했습니다\nQR 카드를 보여주세요",
+                        )
+                    },
+                    onFailure = { error ->
+                        publishAutomaticScheduleProblem(
+                            error.message ?: "$className 수업으로 자동 변경하지 못했습니다.",
+                        )
+                        if (scannerVisible) ensureCamera()
+                        scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+                    },
+                )
+                if (result.isSuccess) requestAutomaticClassScheduleCheck()
+            }
+        }
+    }
+
+    private fun publishAutomaticScheduleProblem(message: String) {
+        when {
+            adminPanel.visibility == View.VISIBLE -> adminMessage.text = message
+            authPanel.visibility == View.VISIBLE -> authError.text = message
+            scannerVisible -> showTransientScannerMessage(message)
+        }
+        reportPcStatus("자동 시간표 확인 필요", null, notify = true)
+    }
+
+    private fun scheduleAutomaticClassCheck(delayMillis: Long) {
+        if (destroyed) return
+        mainHandler.removeCallbacks(automaticClassScheduleRunnable)
+        mainHandler.postDelayed(automaticClassScheduleRunnable, delayMillis)
     }
 
     private fun toggleRemoteSupport() {
@@ -3864,7 +4142,7 @@ class MainActivity : ComponentActivity() {
             )
             .setNegativeButton("취소", null)
             .setPositiveButton("안전 복구") { _, _ ->
-                launchWebSessionRecovery(PendingRecoveryAction.EndSession)
+                launchWebSessionRecovery(PendingRecoveryAction.EndSession())
             }
             .show()
     }
@@ -3885,17 +4163,35 @@ class MainActivity : ComponentActivity() {
                         currentSession = it
                         pendingTemporaryStudentIds = emptySet()
                         showScanner()
+                        if (action.automaticSchedule) {
+                            showTransientScannerMessage(
+                                "${action.className ?: "예약된 반"} 수업을 자동으로 시작했습니다\n" +
+                                    "QR 카드를 보여주세요",
+                            )
+                        }
                     },
-                    onFailure = {
+                    onFailure = { error ->
                         updateSessionAdminControls(currentSession)
-                        adminMessage.text = it.message ?: "수업 시작 실패"
+                        val message = error.message ?: "수업 시작 실패"
+                        if (action.automaticSchedule) {
+                            showAuthentication(enrollment = false)
+                            authError.text = message
+                            reportPcStatus("자동 수업 시작 실패", null, notify = true)
+                        } else {
+                            adminMessage.text = message
+                        }
                     },
                 )
+                if (result.isSuccess) {
+                    requestAutomaticClassScheduleCheck()
+                } else if (action.automaticSchedule) {
+                    scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+                }
             }
         }
     }
 
-    private fun completeSessionEnd() {
+    private fun completeSessionEnd(action: PendingRecoveryAction.EndSession) {
         ioExecutor.execute {
             val result = runCatching { studentRepository.endSession() }
             runOnUiThread {
@@ -3908,13 +4204,32 @@ class MainActivity : ComponentActivity() {
                         updateStudentManagementControls()
                         updateClassRosterUi()
                         updateSessionAdminControls(currentSession)
-                        refreshAdminData("Web 로그인과 현재 수업을 안전하게 종료했습니다.")
+                        if (action.automaticSchedule) {
+                            showAuthentication(enrollment = false)
+                            authError.text =
+                                "예약된 수업 시간이 끝나 현재 수업을 자동으로 종료했습니다."
+                            reportPcStatus("자동 수업 종료", null, notify = true)
+                        } else {
+                            refreshAdminData("Web 로그인과 현재 수업을 안전하게 종료했습니다.")
+                        }
                     },
-                    onFailure = {
+                    onFailure = { error ->
                         updateSessionAdminControls(currentSession)
-                        adminMessage.text = it.message ?: "수업 종료 실패"
+                        val message = error.message ?: "수업 종료 실패"
+                        if (action.automaticSchedule) {
+                            showAuthentication(enrollment = false)
+                            authError.text = message
+                            reportPcStatus("자동 수업 종료 실패", null, notify = true)
+                        } else {
+                            adminMessage.text = message
+                        }
                     },
                 )
+                if (result.isSuccess) {
+                    requestAutomaticClassScheduleCheck()
+                } else if (action.automaticSchedule) {
+                    scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+                }
             }
         }
     }
@@ -4169,6 +4484,7 @@ class MainActivity : ComponentActivity() {
         } else {
             ensureCamera()
         }
+        requestAutomaticClassScheduleCheck()
     }
 
     private fun handleRemoteQrTest(tokenHash: ByteArray) {
@@ -4970,8 +5286,11 @@ class MainActivity : ComponentActivity() {
             ) { _, which ->
                 when (which) {
                     0 -> {
-                        requireManualScheduleOverride("현재 수업 반을 수동으로 변경") {
-                            sessionAdminActionFlowActive = true
+                        sessionAdminActionFlowActive = true
+                        requireManualScheduleOverride(
+                            operation = "현재 수업 반을 수동으로 변경",
+                            onCancelled = { finishSessionAdminActionFlow() },
+                        ) {
                             showQuickClassSwitchDialog()
                         }
                     }
@@ -5392,6 +5711,7 @@ class MainActivity : ComponentActivity() {
                 ::authPanel.isInitialized &&
                 authPanel.visibility == View.VISIBLE -> enterDedicatedMode()
         }
+        requestAutomaticClassScheduleCheck()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -5405,15 +5725,28 @@ class MainActivity : ComponentActivity() {
             is PendingRecoveryAction.StartSession -> {
                 outState.putString(KEY_PENDING_RECOVERY_ACTION, PENDING_RECOVERY_START)
                 outState.putString(KEY_PENDING_RECOVERY_CLASS_ID, action.classId)
+                outState.putBoolean(
+                    KEY_PENDING_RECOVERY_AUTOMATIC,
+                    action.automaticSchedule,
+                )
+                action.className?.let {
+                    outState.putString(KEY_PENDING_RECOVERY_CLASS_NAME, it)
+                }
                 outState.putStringArrayList(
                     KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS,
                     ArrayList(action.temporaryStudentIds),
                 )
             }
-            PendingRecoveryAction.EndSession -> outState.putString(
-                KEY_PENDING_RECOVERY_ACTION,
-                PENDING_RECOVERY_END,
-            )
+            is PendingRecoveryAction.EndSession -> {
+                outState.putBoolean(
+                    KEY_PENDING_RECOVERY_AUTOMATIC,
+                    action.automaticSchedule,
+                )
+                outState.putString(
+                    KEY_PENDING_RECOVERY_ACTION,
+                    PENDING_RECOVERY_END,
+                )
+            }
         }
     }
 
@@ -5427,10 +5760,20 @@ class MainActivity : ComponentActivity() {
                             .getStringArrayList(KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS)
                             ?.toSet()
                             .orEmpty(),
+                        automaticSchedule = savedState.getBoolean(
+                            KEY_PENDING_RECOVERY_AUTOMATIC,
+                            false,
+                        ),
+                        className = savedState.getString(KEY_PENDING_RECOVERY_CLASS_NAME),
                     )
                 }
                 ?: PendingRecoveryAction.None
-            PENDING_RECOVERY_END -> PendingRecoveryAction.EndSession
+            PENDING_RECOVERY_END -> PendingRecoveryAction.EndSession(
+                automaticSchedule = savedState.getBoolean(
+                    KEY_PENDING_RECOVERY_AUTOMATIC,
+                    false,
+                ),
+            )
             else -> PendingRecoveryAction.None
         }
 
@@ -5554,8 +5897,25 @@ class MainActivity : ComponentActivity() {
         data class StartSession(
             val classId: String,
             val temporaryStudentIds: Set<String>,
+            val automaticSchedule: Boolean = false,
+            val className: String? = null,
         ) : PendingRecoveryAction
-        data object EndSession : PendingRecoveryAction
+        data class EndSession(
+            val automaticSchedule: Boolean = false,
+        ) : PendingRecoveryAction
+    }
+
+    private sealed interface AutomaticScheduleEvaluation {
+        data object ClockInvalid : AutomaticScheduleEvaluation
+        data object Disabled : AutomaticScheduleEvaluation
+        data object NotConfigured : AutomaticScheduleEvaluation
+        data class Ready(
+            val transition: AutomaticClassTransition,
+            val targetClassName: String?,
+            val targetClassId: String?,
+            val sessionState: AutomaticSessionState,
+            val nextCheckDelayMillis: Long,
+        ) : AutomaticScheduleEvaluation
     }
 
     private sealed interface PendingAdminUndo {
@@ -5583,17 +5943,34 @@ class MainActivity : ComponentActivity() {
         private const val QR_GUIDANCE_STALE_MS = 900L
         private const val QR_ACCEPTED_DISPLAY_MS = 2_000L
         private const val SCANNER_NOTICE_DURATION_MS = 3_000L
+        private const val AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS = 2_000L
+        private const val AUTOMATIC_SCHEDULE_MIN_CHECK_MS = 1_000L
+        private const val AUTOMATIC_SCHEDULE_MAX_CHECK_MS = 30_000L
         private const val LOCK_TASK_EXIT_LIFECYCLE_GRACE_MS = 1_500L
         private const val LOCK_TASK_STATUS_REFRESH_MS = 250L
         private const val ADMIN_UNDO_WINDOW_MS = 30_000L
         private const val KEY_PENDING_RECOVERY_ACTION = "pending_recovery_action"
         private const val KEY_PENDING_WEB_SESSION_ID = "pending_web_session_id"
         private const val KEY_PENDING_RECOVERY_CLASS_ID = "pending_recovery_class_id"
+        private const val KEY_PENDING_RECOVERY_CLASS_NAME = "pending_recovery_class_name"
+        private const val KEY_PENDING_RECOVERY_AUTOMATIC = "pending_recovery_automatic"
         private const val KEY_PENDING_RECOVERY_TEMPORARY_STUDENT_IDS =
             "pending_recovery_temporary_student_ids"
         private const val PENDING_RECOVERY_NONE = "none"
         private const val PENDING_RECOVERY_START = "start"
         private const val PENDING_RECOVERY_END = "end"
+        private val STUDENT_BUSY_STATES = setOf(
+            KioskState.QR_VALIDATING.name,
+            KioskState.PRELOGIN_CHECK.name,
+            KioskState.LOGIN_FILL.name,
+            KioskState.LOGIN_SUBMIT.name,
+            KioskState.LOGIN_VERIFY.name,
+            KioskState.STUDENT_ACTIVE.name,
+            KioskState.INPUT_BLOCKED.name,
+            KioskState.LOGOUT_NAVIGATE.name,
+            KioskState.LOGOUT_SUBMIT.name,
+            KioskState.LOGOUT_VERIFY.name,
+        )
         private const val FEEDBACK_PREFERENCES = "operator_feedback"
         private const val KEY_VIBRATION_ENABLED = "vibration_enabled"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
