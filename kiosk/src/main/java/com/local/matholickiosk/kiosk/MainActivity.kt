@@ -20,6 +20,7 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.text.Editable
@@ -90,6 +91,8 @@ import com.local.matholickiosk.kiosk.domain.AutomaticClassSchedulePolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticClassTransition
 import com.local.matholickiosk.kiosk.domain.AutomaticClassTransitionPolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticSessionState
+import com.local.matholickiosk.kiosk.domain.AutomaticScheduleNotificationPolicy
+import com.local.matholickiosk.kiosk.domain.AutomaticScheduleProblemNotificationState
 import com.local.matholickiosk.kiosk.domain.DailyClassScheduleOverride
 import com.local.matholickiosk.kiosk.domain.ScheduledClassEntry
 import com.local.matholickiosk.kiosk.domain.ScheduledClassTarget
@@ -189,6 +192,8 @@ class MainActivity : ComponentActivity() {
         reconcileAutomaticClassSchedule()
     }
     private var automaticScheduleCheckInFlight = false
+    private var automaticScheduleProblemNotificationState:
+        AutomaticScheduleProblemNotificationState? = null
     private var automaticAuthenticationGeneration = 0
     private var scannerHelpPausedAnalyzer = false
     private val scannerDisplayListener = object : DisplayManager.DisplayListener {
@@ -433,7 +438,7 @@ class MainActivity : ComponentActivity() {
             if (requestedAction.isAutomaticScheduleAction()) {
                 showAuthentication(enrollment = false)
                 authError.text = message
-                reportPcStatus("자동 반 전환 실패", null, notify = true)
+                publishAutomaticScheduleProblem(message, "자동 반 전환 실패")
                 scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
             } else {
                 refreshAdminData(message)
@@ -3250,9 +3255,10 @@ class MainActivity : ComponentActivity() {
         if (!result.canStart) {
             exitDedicatedModeForAdministrator()
             showAuthentication(enrollment = false)
-            authError.text =
+            val message =
                 "자동 수업 시작을 차단했습니다 · ${result.blockingReasons.joinToString(" ")}"
-            reportPcStatus("자동 수업 시작 차단", null, notify = true)
+            authError.text = message
+            publishAutomaticScheduleProblem(message, "자동 수업 시작 차단")
             return
         }
         manualStudentSelectionOnly = result.manualStudentSelectionRequired
@@ -3883,7 +3889,10 @@ class MainActivity : ComponentActivity() {
             }
             AutomaticScheduleEvaluation.Disabled,
             AutomaticScheduleEvaluation.NotConfigured,
-            -> scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+            -> {
+                clearAutomaticScheduleProblem()
+                scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+            }
             is AutomaticScheduleEvaluation.Ready -> {
                 if (
                     AutomaticClassTransitionPolicy.shouldDeferBeforeApply(
@@ -3899,7 +3908,7 @@ class MainActivity : ComponentActivity() {
                     return
                 }
                 when (val transition = evaluation.transition) {
-                    AutomaticClassTransition.None -> Unit
+                    AutomaticClassTransition.None -> clearAutomaticScheduleProblem()
                     AutomaticClassTransition.Deferred -> {
                         scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
                         return
@@ -3969,6 +3978,7 @@ class MainActivity : ComponentActivity() {
                     onSuccess = { replacement ->
                         currentSession = replacement
                         pendingTemporaryStudentIds = emptySet()
+                        clearAutomaticScheduleProblem()
                         showScanner()
                         showTransientScannerMessage(
                             "$className 수업으로 자동 변경했습니다\nQR 카드를 보여주세요",
@@ -3987,13 +3997,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun publishAutomaticScheduleProblem(message: String) {
+    private fun publishAutomaticScheduleProblem(
+        message: String,
+        pcState: String = "자동 시간표 확인 필요",
+    ) {
         when {
             adminPanel.visibility == View.VISIBLE -> adminMessage.text = message
             authPanel.visibility == View.VISIBLE -> authError.text = message
             scannerVisible -> showTransientScannerMessage(message)
         }
-        reportPcStatus("자동 시간표 확인 필요", null, notify = true)
+        val decision = AutomaticScheduleNotificationPolicy.onProblem(
+            problemKey = "$pcState\n$message",
+            nowElapsedMs = SystemClock.elapsedRealtime(),
+            previous = automaticScheduleProblemNotificationState,
+        )
+        automaticScheduleProblemNotificationState = decision.state
+        reportPcStatus(pcState, null, notify = decision.notify)
+    }
+
+    private fun clearAutomaticScheduleProblem(notifyRecovery: Boolean = true) {
+        if (automaticScheduleProblemNotificationState == null) return
+        automaticScheduleProblemNotificationState = null
+        if (notifyRecovery) {
+            reportPcStatus("자동 시간표 정상화", null, notify = true)
+        }
     }
 
     private fun scheduleAutomaticClassCheck(delayMillis: Long) {
@@ -4181,6 +4208,7 @@ class MainActivity : ComponentActivity() {
                         pendingTemporaryStudentIds = emptySet()
                         showScanner()
                         if (action.automaticSchedule) {
+                            clearAutomaticScheduleProblem()
                             showTransientScannerMessage(
                                 "${action.className ?: "예약된 반"} 수업을 자동으로 시작했습니다\n" +
                                     "QR 카드를 보여주세요",
@@ -4193,7 +4221,7 @@ class MainActivity : ComponentActivity() {
                         if (action.automaticSchedule) {
                             showAuthentication(enrollment = false)
                             authError.text = message
-                            reportPcStatus("자동 수업 시작 실패", null, notify = true)
+                            publishAutomaticScheduleProblem(message, "자동 수업 시작 실패")
                         } else {
                             adminMessage.text = message
                         }
@@ -4222,6 +4250,7 @@ class MainActivity : ComponentActivity() {
                         updateClassRosterUi()
                         updateSessionAdminControls(currentSession)
                         if (action.automaticSchedule) {
+                            clearAutomaticScheduleProblem(notifyRecovery = false)
                             showAuthentication(enrollment = false)
                             authError.text =
                                 "예약된 수업 시간이 끝나 현재 수업을 자동으로 종료했습니다."
@@ -4236,7 +4265,7 @@ class MainActivity : ComponentActivity() {
                         if (action.automaticSchedule) {
                             showAuthentication(enrollment = false)
                             authError.text = message
-                            reportPcStatus("자동 수업 종료 실패", null, notify = true)
+                            publishAutomaticScheduleProblem(message, "자동 수업 종료 실패")
                         } else {
                             adminMessage.text = message
                         }
