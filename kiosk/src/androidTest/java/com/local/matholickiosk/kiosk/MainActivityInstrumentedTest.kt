@@ -30,6 +30,7 @@ import com.local.matholickiosk.kiosk.transfer.PcReceiverPairing
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertArrayEquals
@@ -42,6 +43,72 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MainActivityInstrumentedTest {
+    @Test
+    fun destroyedActivityDiscardsQueuedPcPairingAndWipesMutableSecrets() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        val pairingStore = PcPairingStore(context)
+        val receiverId = ByteArray(16) { index -> (index + 1).toByte() }
+        val secret = ByteArray(32) { index -> (index + 33).toByte() }
+        val pairing = PcReceiverPairing(
+            receiverId = receiverId,
+            secret = secret,
+            host = "192.168.1.42",
+            port = 48129,
+            displayName = "대기열 폐기 시험 PC",
+        )
+        val blockerStarted = CountDownLatch(1)
+        val blockerInterrupted = CountDownLatch(1)
+        var scenario: ActivityScenario<MainActivity>? = null
+
+        try {
+            database.clearAllTables()
+            pairingStore.clear()
+            val launched = ActivityScenario.launch(MainActivity::class.java)
+            scenario = launched
+            val executorField = MainActivity::class.java
+                .getDeclaredField("ioExecutor")
+                .apply { isAccessible = true }
+            val savePairingMethod = MainActivity::class.java
+                .getDeclaredMethod("savePcPairing", PcReceiverPairing::class.java)
+                .apply { isAccessible = true }
+
+            launched.onActivity { activity ->
+                val executor = executorField.get(activity) as ExecutorService
+                executor.execute {
+                    blockerStarted.countDown()
+                    try {
+                        CountDownLatch(1).await()
+                    } catch (_: InterruptedException) {
+                        blockerInterrupted.countDown()
+                        Thread.currentThread().interrupt()
+                    }
+                }
+            }
+            assertTrue(
+                "Synthetic blocker did not occupy the Activity executor",
+                blockerStarted.await(10, TimeUnit.SECONDS),
+            )
+            launched.onActivity { activity -> savePairingMethod.invoke(activity, pairing) }
+
+            launched.close()
+            scenario = null
+
+            assertTrue(
+                "Activity shutdown did not interrupt the running executor task",
+                blockerInterrupted.await(5, TimeUnit.SECONDS),
+            )
+            assertArrayEquals(ByteArray(receiverId.size), receiverId)
+            assertArrayEquals(ByteArray(secret.size), secret)
+            assertNull(pairingStore.load())
+        } finally {
+            scenario?.close()
+            pairing.clearSensitiveData()
+            pairingStore.clear()
+            database.clearAllTables()
+        }
+    }
+
     @Test
     fun failedLockTaskEntryIsRenderedAsPolicyError() {
         val context = ApplicationProvider.getApplicationContext<Context>()
