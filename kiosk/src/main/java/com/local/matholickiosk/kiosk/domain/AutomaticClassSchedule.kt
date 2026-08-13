@@ -215,6 +215,24 @@ object AutomaticClassTransitionPolicy {
             }
         }
     }
+
+    fun shouldDeferBeforeApply(
+        transition: AutomaticClassTransition,
+        evaluatedSessionState: AutomaticSessionState,
+        currentSessionState: AutomaticSessionState,
+        administratorWorkVisible: Boolean,
+        operationInProgress: Boolean,
+    ): Boolean {
+        if (
+            transition == AutomaticClassTransition.None ||
+            transition == AutomaticClassTransition.Deferred
+        ) {
+            return false
+        }
+        return administratorWorkVisible ||
+            operationInProgress ||
+            currentSessionState != evaluatedSessionState
+    }
 }
 
 object AutomaticClassClockPolicy {

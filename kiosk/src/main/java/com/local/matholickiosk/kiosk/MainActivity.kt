@@ -3770,13 +3770,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         automaticScheduleCheckInFlight = true
-        val administratorWorkVisible =
-            adminPanel.visibility == View.VISIBLE || authEnrollmentMode
-        val operationInProgress =
-            adminDataOperationGate.isActive || webRecoveryGate.isActive ||
-                studentLaunchGate.isActive || manualStudentSelectionFlowActive ||
-                sessionAdminActionFlowActive || pcPairingMode ||
-                pendingRecoveryAction != PendingRecoveryAction.None
+        val administratorWorkVisible = automaticScheduleAdministratorWorkVisible()
+        val operationInProgress = automaticScheduleOperationInProgress()
         ioExecutor.execute {
             val evaluation = runCatching {
                 val now = ZonedDateTime.now()
@@ -3890,6 +3885,19 @@ class MainActivity : ComponentActivity() {
             AutomaticScheduleEvaluation.NotConfigured,
             -> scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
             is AutomaticScheduleEvaluation.Ready -> {
+                if (
+                    AutomaticClassTransitionPolicy.shouldDeferBeforeApply(
+                        transition = evaluation.transition,
+                        evaluatedSessionState = evaluation.sessionState,
+                        currentSessionState = automaticSessionState(currentSession),
+                        administratorWorkVisible =
+                            automaticScheduleAdministratorWorkVisible(),
+                        operationInProgress = automaticScheduleOperationInProgress(),
+                    )
+                ) {
+                    scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
+                    return
+                }
                 when (val transition = evaluation.transition) {
                     AutomaticClassTransition.None -> Unit
                     AutomaticClassTransition.Deferred -> {
@@ -3931,6 +3939,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun automaticScheduleAdministratorWorkVisible(): Boolean =
+        adminPanel.visibility == View.VISIBLE || authEnrollmentMode
+
+    private fun automaticScheduleOperationInProgress(): Boolean =
+        adminDataOperationGate.isActive || webRecoveryGate.isActive ||
+            studentLaunchGate.isActive || manualStudentSelectionFlowActive ||
+            sessionAdminActionFlowActive || pcPairingMode ||
+            pendingRecoveryAction != PendingRecoveryAction.None
 
     private fun performAutomaticClassSwitch(targetClassId: String, className: String) {
         val expectedSessionId = currentSession?.sessionId

@@ -147,6 +147,47 @@ class AutomaticClassSchedulePolicyTest {
     }
 
     @Test
+    fun actionableTransitionIsDeferredWhenUiStateChangesBeforeApply() {
+        val transition = AutomaticClassTransition.Switch("월2")
+        assertTrue(
+            AutomaticClassTransitionPolicy.shouldDeferBeforeApply(
+                transition = transition,
+                evaluatedSessionState = AutomaticSessionState.QR_READY,
+                currentSessionState = AutomaticSessionState.QR_READY,
+                administratorWorkVisible = true,
+                operationInProgress = false,
+            ),
+        )
+        assertTrue(
+            AutomaticClassTransitionPolicy.shouldDeferBeforeApply(
+                transition = transition,
+                evaluatedSessionState = AutomaticSessionState.QR_READY,
+                currentSessionState = AutomaticSessionState.STUDENT_BUSY,
+                administratorWorkVisible = false,
+                operationInProgress = false,
+            ),
+        )
+        assertTrue(
+            AutomaticClassTransitionPolicy.shouldDeferBeforeApply(
+                transition = transition,
+                evaluatedSessionState = AutomaticSessionState.QR_READY,
+                currentSessionState = AutomaticSessionState.QR_READY,
+                administratorWorkVisible = false,
+                operationInProgress = true,
+            ),
+        )
+        assertFalse(
+            AutomaticClassTransitionPolicy.shouldDeferBeforeApply(
+                transition = transition,
+                evaluatedSessionState = AutomaticSessionState.QR_READY,
+                currentSessionState = AutomaticSessionState.QR_READY,
+                administratorWorkVisible = false,
+                operationInProgress = false,
+            ),
+        )
+    }
+
+    @Test
     fun implausibleOrRolledBackClockIsRejected() {
         val now = at(14, 0)
         assertTrue(AutomaticClassClockPolicy.isPlausible(now, null))
