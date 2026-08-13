@@ -19,5 +19,8 @@ class FixedClassSlotsTest {
         assertEquals(12, FixedClassSlots.names.distinct().size)
         assertTrue(FixedClassSlots.contains("월1"))
         assertFalse(FixedClassSlots.contains("테스트반"))
+        assertEquals(1, FixedClassSlots.isoDayOfWeek("월1"))
+        assertEquals(6, FixedClassSlots.isoDayOfWeek("토2"))
+        assertEquals(null, FixedClassSlots.isoDayOfWeek("테스트반"))
     }
 }
