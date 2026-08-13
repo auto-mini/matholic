@@ -2,12 +2,19 @@
 
 ## 2026-08-13 현재 운영 제한
 
-- 현재 A 설치본은 Kiosk RC91/Web RC138이다. RC91 보존 설치 뒤 UID·firstInstallTime,
-  Device Owner·전용 HOME·Lock Task를 유지했고, 업데이트 복구·Web 사전점검과 최종
-  QR 대기, 자동 시간표 설정 화면의 12개 반·오늘 임시/끄기 제어를 실물 확인했다.
-- 운영 자동 시간표는 아직 저장하지 않았다. 따라서 3시간 실제 경계에서 자동 시작,
-  학생 채점 종료 후 지연 전환, 다음 반 변경과 종료 뒤 관리자 인증 이동은 정책 unit과
-  release 검증까지만 완료됐으며 물리 A 현장검증은 남아 있다.
+- 현재 A 설치본은 Kiosk RC93/Web RC139이다. 보존 설치 뒤 Kiosk/Web UID와
+  firstInstallTime, Device Owner·전용 HOME·Lock Task를 유지했다. Kiosk RC93은
+  전체 계측 87/87과 signed release 검증을 통과했고, 설치 직후 재진입 뒤 Kiosk가
+  top resumed이며 Lock Task `LOCKED`임을 확인했다.
+- 운영 주간 시간표는 `월1~토1 10:00`, `월2~토2 13:00`, 각 3시간으로 저장돼 있다.
+  오늘 임시 시간표로 QR 대기 종료와 학생 채점 중 종료 보류·채점 종료 직후 관리자
+  인증 이동을 실제 A 시간 경계에서 확인한 뒤 임시 설정을 삭제해 주간 시간표로
+  복원했다. 이번 RC93의 적용 직전 재검증과 동일 오류 알림 10분 제한은 unit·전체
+  계측으로 확인했다. 실제 PC에서 같은 오류를 10분 동안 반복 발생시키지는 않았다.
+- Web RC139의 secure renderer 복구 재생성은 unit과 Android 13 에뮬레이터의 강제
+  renderer recycle 1/1을 통과했다. A에서는 운영 상태를 파괴할 수 있는 renderer
+  충돌·메모리 회수를 고의 주입하지 않았으므로 해당 fault의 A 현장 통과로 확대하지
+  않는다.
 - RC89은 지정 PC의 학생 CSV 요청·parse·미리보기·적용이 끝날 때까지 공통 관리자
   데이터 gate를 유지한다. 지연 loopback PC 계측에서 CSV 요청 중 수업 시작과 다른
   학생·반 작업이 차단되고 요청 종료 뒤 제어가 복구됨을 확인했다. 운영 PC에는 대기

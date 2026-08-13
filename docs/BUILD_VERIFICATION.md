@@ -1,5 +1,61 @@
 # 빌드·보안 검증 기록
 
+## 전 범위 정밀검수 교정·RC93/RC139 검증 — 2026-08-13
+
+### 독립 재검증과 교정
+
+- Web secure session의 renderer 복구가 Activity 재생성을 예약한 뒤 `onStop()`에서
+  백그라운드 이탈로 다시 잠기는 경로를 확인했다. 종료·구성 변경뿐 아니라 정확한
+  recovery recreate 예약 상태도 잠금에서 제외하고, 그 밖의 실제 백그라운드 이동은
+  계속 실패폐쇄한다. unit과 Android 13 에뮬레이터의 secure renderer recycle
+  계측 1/1을 통과했다. A에서는 renderer 충돌을 고의 주입하지 않았다.
+- 자동 시간표 판정과 실제 적용 사이에 관리자 화면·학생 채점·공통 operation gate·
+  active session이 바뀔 수 있었다. 적용 직전 이 상태를 다시 읽고 하나라도 달라지면
+  2초 뒤 재판정하도록 했다. 관리자 진입, 학생 busy 전환, operation gate 활성화와
+  정상 불변 상태를 unit으로 고정했다.
+- 시간표 오류가 2초 재판정마다 PC에 반복 알림될 수 있어, 동일 오류는 최초 즉시 후
+  10분 간격으로 제한하고 오류 종류가 바뀌면 즉시 알리며 정상화는 한 번 알리도록 했다.
+  정책 unit을 통과했다. 실제 PC에 같은 오류를 10분 동안 반복 발생시키지는 않았다.
+- 관리자 시간표 버튼에 `filterTouchesWhenObscured`가 빠진 것을 전체 계측에서 실제로
+  검출했다. 속성을 추가하고 관련 focused 계측 1/1 및 최종 Kiosk 전체 계측
+  87/87을 통과했다.
+- 위협 모델을 현재 Room·QR·Web bridge·PC PDF/CSV/알림·Device Owner·원격지원·
+  자동 시간표 범위에 맞췄다. Android 의존성 490 components/852 artifacts의 Gradle
+  verification metadata와 Windows x64 CPython 3.11 PC 수신기 hash lock을 추가했다.
+  수신기 격리 환경 설치, `pip check`, pytest 27/27, PyInstaller package와 smoke가
+  통과했다. 운영 설치본 0.1.8은 runtime source 변경이 없어 교체하지 않았다.
+
+### 전체 자동검증·signed release
+
+- `gradlew test lint assembleDebug`: 200 tasks, 성공.
+- Kiosk unit: 29 suites·109/109, failure/error/skip 0.
+- Web unit: 18 suites·73/73, failure/error/skip 0.
+- Kiosk Android 13 전체 계측: 87/87, `Time: 127.056`, failure 0.
+- `scripts/build-release.ps1`: 158 tasks 중 153개 실행,
+  `BUILD SUCCESSFUL in 2m 49s`. 양 앱 unit·release lint·signed assemble,
+  package/version/non-debuggable/권한·zipalign·동일 signer·checksum 재검증을 통과했다.
+- signer SHA-256:
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`.
+- Kiosk RC93/code 98: 36,836,169 bytes, SHA-256
+  `FBCD2CE00B26139697E69BFBA49298415FD37B447FB0312EFA308F6338209494`.
+- Web POC RC139/code 156: 3,396,754 bytes, SHA-256
+  `2967F5F2011E870B0C6429797055082118955B3D990CF411F751DC791497132E`.
+  RC92 이후 Web payload가 바뀌지 않아 기존 RC139 artifact를 그대로 보존했다.
+
+### 실제 A 보존 설치와 최종 상태
+
+- 승인 A `SM-P610`/`R54TB029FHZ`에 Kiosk RC93을 `adb install -r`로 설치했다.
+  UID 10288과 first install `2026-07-24 12:52:28`이 유지됐고 version은
+  RC92/code 97에서 RC93/code 98로 올라갔다. Web RC139/code 156은 이미 같은
+  검증 artifact로 설치돼 있어 다시 쓰지 않았다.
+- 설치 직후 앱 재시작 동안 Lock Task가 잠시 `NONE`으로 관찰됐으나 3초 뒤
+  `LOCKED`로 수렴했다. preferred HOME은 Kiosk MainActivity, Device Owner는
+  `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`, top resumed는
+  Kiosk MainActivity다. HOME key 뒤에도 `LOCKED`와 같은 top activity가 유지됐다.
+- 기존 학생·반·QR 데이터는 바꾸지 않았고 미추적 `outputs/`는 수정·stage·삭제하지
+  않았다. 소스 롤백은 이번 commit들을 역순 `git revert`하고, A 복구는 현재 code 98보다
+  높은 versionCode의 같은 signer forward-recovery APK를 사용한다.
+
 ## Kiosk RC91 자동 종료·채점 중 지연 실제 A 검증 — 2026-08-13
 
 ### 실제 시간 경계

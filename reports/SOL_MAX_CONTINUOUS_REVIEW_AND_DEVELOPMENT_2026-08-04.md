@@ -1,5 +1,60 @@
 # Sol Max 연속 리뷰·개발 누적 보고서
 
+## 전 범위 정밀검수·교정 완료 — 2026-08-13 17:25 +09:00
+
+### 최종 판정
+
+- 현재 source·시험·운영 문서·Git·릴리스·A 설치 상태를 다시 대조해 신규 P0/P1/P2는
+  발견하지 않았다. P3 4건과 P4 2건을 확인해 각각 별도 복구 가능한 commit으로
+  교정하고 push했다. 과거 finding은 현재 반대 근거와 이미 반영된 회귀를 재확인했으며
+  같은 문제를 중복 신규 finding으로 세지 않았다.
+- `SOL-0030` P3: secure renderer 복구 재생성 직전 `onStop()`이 정상 복구를
+  백그라운드 이탈로 오인할 수 있었다. 종료·구성 변경 예외와 secure failure close는
+  이미 있었지만 recovery recreate 상태만 빠졌다는 반대 근거를 반영해 P2가 아닌
+  P3로 판정했다. `e89e35c`에서 교정했고 unit 및 Android 13 강제 복구 1/1을 통과했다.
+- `SOL-0031` P3: 자동 시간표 판정 후 실제 적용 전 관리자·학생·operation gate·session
+  상태가 바뀌는 짧은 TOCTOU 구간이 있었다. 2초 주기 재평가와 각 mutation gate가
+  피해 범위를 줄인다는 반대 근거 때문에 P3로 판정했다. `296eaa7`에서 적용 직전
+  재검증을 추가하고 정책 unit으로 고정했다.
+- `SOL-0032` P3: 지속되는 시간표 오류가 2초마다 PC 알림을 만들 수 있었다. 알림
+  전송 실패가 수업 상태를 바꾸지 않고 PC pairing도 선택 사항이라는 반대 근거를
+  반영해 가용성 P3로 판정했다. `e4c2567`에서 동일 오류 10분 제한·변경 오류 즉시·
+  정상화 1회 정책을 적용했다.
+- `SOL-0033` P3: 시간표 버튼만 가려진 터치 거부 속성이 없었다. 관리자 인증 뒤
+  화면이고 다른 관리자 control은 공통 gate를 통과한다는 반대 근거 때문에 P3
+  hardening으로 판정했다. 전체 계측이 이 누락을 실제 검출했고 `f4df977`에서 수정,
+  focused 1/1과 최종 전체 87/87을 통과했다.
+- `SOL-0034` P4: 위협 모델이 현재 PC 알림·CSV·공유 PDF·원격지원·자동 시간표까지
+  충분히 반영하지 못했다. 코드 결함이 아니라 운영 판단 문서 불일치이므로 P4다.
+  `c55dfdc`에서 현재 신뢰 경계와 잔여위험으로 재작성했다.
+- `SOL-0035` P4: Android dependency checksum 검증과 PC 수신기 build dependency
+  hash lock이 없었다. 일반 repository pin·로컬 build는 있었고 즉시 침해 증거가
+  없으므로 공급망 재현성 P4로 판정했다. `3fac191`에서 Gradle verification metadata와
+  CPython 3.11 Windows x64 hash lock을 추가했다. strict Android build와 수신기
+  pytest 27/27·package·smoke를 통과했다.
+
+### 검증·배포 상태
+
+- 시험 수명주기와 달라진 기존 계측 7건은 제품 결함으로 과장하지 않고 fixture를
+  현재 PendingRecoveryAction·시간표 저장 수명주기에 맞췄다(`ade603f`). 실제 제품
+  결함이었던 시간표 버튼 1건을 고친 뒤 Kiosk Android 13 전체 계측은 87/87이다.
+- signed release는 158 tasks 중 153개 실행, 2분 49초에 성공했다. Kiosk unit
+  109/109, Web unit 73/73, release lint·APK 구조·권한·비디버그·동일 signer·checksum을
+  통과했다. Kiosk RC93 SHA-256은
+  `FBCD2CE00B26139697E69BFBA49298415FD37B447FB0312EFA308F6338209494`, Web RC139는
+  `2967F5F2011E870B0C6429797055082118955B3D990CF411F751DC791497132E`다.
+- A에는 Kiosk RC93/code 98을 보존 설치했다. UID 10288, firstInstallTime,
+  Device Owner와 preferred HOME이 유지됐고 3초 뒤 및 HOME key 뒤 Lock Task
+  `LOCKED`, Kiosk MainActivity top resumed를 확인했다. Web은 동일 payload의 기존
+  RC139/code 156 설치본을 유지했다.
+- 미검증을 완료로 확대하지 않는다. A에서 renderer 충돌을 고의 주입하지 않았고,
+  동일 시간표 오류를 실제 PC에 10분간 반복시키지 않았으며, 운영 학생·반·QR·CSV를
+  변형하지 않았다. PC 수신기 runtime source는 바뀌지 않아 운영 설치본 0.1.8을
+  같은 버전의 재빌드 binary로 교체하지 않았다.
+- 이 정밀검수에서 사용자 추가 판단이 필요한 열린 설계 선택은 없다. 현재 기본값은
+  기존 운영 계약과 사용자 결정을 유지하며, 신규 비용·데이터 삭제·보안 약화·공유
+  Git 이력 변경은 수행하지 않았다. 미추적 `outputs/`도 그대로 보존했다.
+
 ## RC91 자동 종료·채점 중 지연 현장검증 — 2026-08-13 15:47 +09:00
 
 - 오늘 임시 시간표로 실제 종료 경계를 두 번 만들었다. QR 대기 시험은 15:35에
