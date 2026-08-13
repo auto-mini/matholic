@@ -1,5 +1,33 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC94 수업 종료 뒤 자동대기 동선 — 2026-08-13
+
+- 실제 A를 직접 확인했을 때 목2 종료 뒤 `ADMIN_IDLE` 관리자 화면이 열린 채였고,
+  자동전환은 관리자 작업 중 계속 보류되지만 화면에는 다음 예약이나 관리자 화면을
+  닫는 방법이 없었다. 사용자가 그대로 두면 다음 예약 시각에도 자동 시작이 미뤄질
+  수 있는 실제 운영 동선 결함으로 판정했다.
+- 관리자 화면 상단에 `관리자 화면 잠그고 자동 대기`를 추가했다. idle에서는 PIN
+  대기와 Lock Task로 복귀하고, QR_READY 수업 중에는 `관리자 화면 닫고 QR 대기`로
+  돌아간다. 관리자 진입 때 왼쪽 panel을 항상 맨 위로 올리고 수업 시작·보강 동선을
+  학생 관리보다 위로 옮겼다.
+- 오늘 시간표, 다음 7일의 가장 가까운 자동 시작과 지금 수동 시작 순서를 한 카드에
+  표시한다. 다음 예약 계산은 오늘 override·오늘 자동 끄기와 토요일→월요일 주간
+  경계를 처리한다.
+- Kiosk unit 29 suites·111/111, debug lint·AndroidTest compile, focused 계측 3/3,
+  Android 13 전체 계측 87/87을 통과했다. signed release는 158 tasks 중 154개 실행,
+  `BUILD SUCCESSFUL in 2m 29s`였고 release lint·APK 구조·권한·비디버그·동일 signer·
+  checksum 재검증을 통과했다.
+- Kiosk RC94/code 99 APK는 36,836,357 bytes, SHA-256
+  `51F338D952981E02A2BE3AA4F919E587A263C505E1A326E4BF59906D5E065570`이다.
+  Web payload는 바뀌지 않아 RC139/code 156과 기존 artifact를 유지했다.
+- A `SM-P610`/`R54TB029FHZ`에 RC94를 보존 설치했다. UID 10288과 first install
+  `2026-07-24 12:52:28`, Device Owner·preferred HOME이 유지됐다. 저장된 PIN 전용
+  도구로 관리자 화면을 열어 `다음 자동 시작: 금1 · 내일 10:00`과 새 상단 버튼을
+  실물 확인했다. 버튼을 실제 누른 뒤 `관리자 화면을 잠갔습니다...` PIN 화면,
+  Kiosk top resumed와 Lock Task `LOCKED`를 확인하고 원격 점검을 종료했다.
+- 학생·반·QR·시간표는 변경하지 않았다. A 롤백은 낮은 code를 설치하지 않고,
+  되돌린 source에 99보다 높은 versionCode를 준 같은 signer forward recovery로 한다.
+
 ## 전 범위 정밀검수 교정·RC93/RC139 검증 — 2026-08-13
 
 ### 독립 재검증과 교정
