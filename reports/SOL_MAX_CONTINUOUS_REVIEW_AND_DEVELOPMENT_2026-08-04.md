@@ -2,14 +2,14 @@
 
 ## 현재 상태
 
-- `last_updated`: 2026-08-13 07:18:42 +09:00
+- `last_updated`: 2026-08-13 13:03:00 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`
 - 보고서 갱신 직전 branch tip / upstream:
-  `cb9385ca32405c6554e4aa54260eaef936f716b4` /
-  `cb9385ca32405c6554e4aa54260eaef936f716b4`; ahead/behind `0/0`.
+  `4753a0021fdcf8e5bcc2baf61e76dacd504c75f2` /
+  `4753a0021fdcf8e5bcc2baf61e76dacd504c75f2`; ahead/behind `0/0`.
 - 마지막 push 성공 commit:
-  `cb9385ca32405c6554e4aa54260eaef936f716b4`
-  (`fix(web): close failed upstream proxy sockets (SOL-0028)`). 이 상태기록 문서
+  `4753a0021fdcf8e5bcc2baf61e76dacd504c75f2`
+  (`test(kiosk): cover queued pairing cleanup (SOL-0029)`). 이 상태기록 문서
   commit은 위 스냅샷 다음에 생성·push하므로 최종 원격 tip은 Git tracking
   상태를 따른다.
 - 최초 보존 기준선: `master`의
@@ -17,7 +17,7 @@
   24 commits ahead.
 - 현재 보존 대상: Goal 시작 전부터 있던 미추적 `outputs/`. 수정·stage·삭제하지
   않는다.
-- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 07:14 +09:00.
+- 실제 A 마지막 package·전면·Lock Task 독립 확인: 2026-08-13 12:56 +09:00.
   승인 ADB device는 serial
   `R54TB029FHZ`, model `SM-P610` 한 대뿐이다.
   - Kiosk `0.6.0-rc90`/code 95, UID 10288, first install
@@ -37,9 +37,10 @@
     `com.local.matholickiosk.kiosk/.admin.KioskDeviceAdminReceiver`,
     `com.local.matholickiosk.kiosk/.MainActivity`로 유지됐다.
   - Kiosk가 top resumed·실행 중이고 Lock Task `LOCKED`, test package와 실제
-    ADB forward/reverse가 없다. 원격 지원과 device/local 임시 캡처는 모두
-    `INACTIVE`/부재이며 직접 파일형 `screencap`은 exit 1·0 bytes로 차단됐다. Web
-    crash buffer fatal은 없고 최신 exit-info는 설치 전 정상 `TRIM EMPTY`다.
+    ADB forward/reverse가 없다. 원격 지원은 `INACTIVE`이고 local/device 임시 캡처는
+    부재다. 종료 점검에서 이전 차단 확인의 0-byte device 임시 파일 하나를 발견해
+    정확한 경로만 삭제하고 부재를 다시 확인했다. Web crash buffer fatal은 없고 최신
+    exit-info는 설치 전 정상 `TRIM EMPTY`다.
   - 현재는 실제 학생이 포함된 공유 수업의 `QR_READY`가 유지된다. RC138 설치 뒤
     저장 PIN 전용 도구로 관리자 상태만 읽고 수업 종료·QR 제출·학생·반·QR 변경 없이
     QR 대기로 복귀했다. 비민감 화면의 도움말·안내·카메라 전환·관리자 버튼은 잘림·
@@ -51,16 +52,12 @@
   일치한다. 독립 smoke exit 0, background parent/child 2개,
   `0.0.0.0:48129` listener 1개, established 0개다. Startup shortcut,
   `Private`/TCP 48129 방화벽 rule과 기존 DPAPI config를 보존했다.
-- 현재 작업 중 finding: `SOL-0028` 증거 체크포인트. 과거 `LUNA-0029`의 무상한 Web
-  proxy tunnel·idle·listener health 전제는 `3410fd5`에서 이미 대부분 교정됐고,
-  현장 8-tunnel 부족은 `8c8cb24`에서 32로 보정됐다. 실제 listener 회귀를 추가하던 중
-  upstream connect 실패 socket이 GC 수명으로 남는 부분 잔존을 확인해 명시적 owner
-  cleanup으로 수정하고 unit/lint/release·API 33 120/120·RC138 A 보존 설치와 구현
-  commit·push를 완료했다.
-- 다음 우선 큐: 과거 `LUNA-0030`의 PC pairing secret immutable String·queue/lifecycle
-  후보를 현재 scanner callback, executor ownership, persistence encode/load와 Activity
-  종료 경계에서 독립 재검증한다. 과거 해결 표시는 현재 증거로 확인하기 전 결론으로
-  사용하지 않는다.
+- 현재 작업 중 finding: 없음. `SOL-0029`의 scanner callback, executor 대기열,
+  persistence byte encode/load와 Activity 종료 ownership 재검증·회귀 고정·commit·push를
+  완료했다. 사용자가 이 사이클만 완결한 뒤 중단하라고 명시했으므로 새 finding을
+  선택하지 않는다.
+- 다음 우선 큐: 사용자 중단 지시에 따라 미선정. 재개 지시가 오면 당시 current
+  source·Git·A 상태부터 다시 확인하고 새 고가치 대상을 선택한다.
 
 ### 열린 finding과 제약
 
@@ -76,7 +73,7 @@
   `SOL-0016`, `SOL-0018`, `SOL-0028`; 현장검증 완료 P3: `SOL-0023`.
 - 자동검증 완료 P4: `SOL-0007`, `SOL-0024`; 현장검증 완료 P4: `SOL-0025`;
   기각 `SOL-0002`; 이미 수정됨 `SOL-0004`, `SOL-0017`, `SOL-0019`, `SOL-0020`,
-  `SOL-0021`, `SOL-0022`, `SOL-0026`, `SOL-0027`.
+  `SOL-0021`, `SOL-0022`, `SOL-0026`, `SOL-0027`, `SOL-0029`.
 - 신규용 카드 실제 이름·ID·PW 입력, 배정, 회수, 일반 QR 전환은 실제 학생
   데이터를 바꾸므로 수행하지 않았다. RC84에서 메뉴 목록과 배정 폼 진입을 확인해
   입력 없이 취소했고, RC85에서는 무료 4장 메뉴까지 다시 확인했다.
@@ -182,6 +179,17 @@
   9/9, Web unit 72/72, API 33 전체 120/120, clean signed release 158 tasks와 RC138 A
   보존 설치를 통과했다. 정확한 Android upstream 연결 실패·60초 idle과 실제 Web
   로그인은 공유 `QR_READY` 수업 때문에 A에서 실행하지 않았다.
+- SOL-0029는 과거 `LUNA-0030`의 raw pairing String이 UI·executor·store에 캡처되고
+  recovery save/load가 새 immutable secret String을 만들던 전제가 `9e0dea5`에서 이미
+  교정됐음을 현재 source·blame·diff로 확인했다. 현재 production은 ML Kit가 제공한
+  `rawValue`를 즉시 mutable pairing으로 decode하고 대기 작업을 `SensitiveTask`로
+  소유하며, 저장·복구는 `ByteArray` encode/decode 후 `finally` zeroize를 사용한다.
+  신규 Activity 종료 fault-injection은 single-thread executor를 점유한 뒤 합성 pairing
+  저장을 대기시키고 `onDestroy()`를 실행해 작업 미실행, receiver ID·secret zeroize와
+  store null을 확인했다. focused 1/1, Kiosk unit 실제 재실행 99/99, lint/debug assemble
+  84 tasks, API 33 전체 85/85를 통과했다. ML Kit 원본 String의 ART heap/GC 수명과
+  provider 내부 copy는 직접 관찰하지 않았고 실제 A pairing·QR·운영 PC 설정은
+  사용하거나 바꾸지 않았다. test-only라 release·A 재설치는 수행하지 않았다.
 - 이번 RC90에서도 신규용 카드의 실제 프린터 출력·절단·코팅·부착과 카메라 광학
   왕복은 수행하지 않았다. 과거 RC61 일반 QR 실물 통과를 신규 카드 실물 통과로
   확대하지 않는다.
@@ -284,6 +292,66 @@
   실행한다. A는 이미 Web code 155이므로 같은 signer·code 156 이상의 forward rollback
   release를 `adb install -r`로 설치하고 APK 삭제·data clear·downgrade를 하지 않는다.
   설치 뒤 UID·firstInstallTime·Device Owner·HOME·Lock Task와 QR 대기를 재확인한다.
+- SOL-0029 시험 체크포인트를 되돌리려면
+  `git revert 4753a0021fdcf8e5bcc2baf61e76dacd504c75f2` 후 pairing focused,
+  Kiosk unit·lint·debug/AndroidTest assemble과 API 33 전체 계측을 다시 실행한다.
+  제품 source·version·release artifact·A 설치본을 바꾸지 않았으므로 기기 rollback은
+  필요 없다. 과거 제품 교정 `9e0dea551db047da9d69812c0ea8c1c6546d0500`은 이번
+  test-only rollback 대상이 아니다.
+
+## 2026-08-13 PC pairing secret String·queue/lifecycle 독립 재검증
+
+- `SOL-0029` — Kiosk PC pairing secret transient String·executor ownership, P3,
+  신뢰도 높음, 상태 `이미 수정됨`.
+- 과거 후보·영향: `LUNA-0030`은 ML Kit `Barcode.rawValue`가 UI runnable과 일반
+  `ioExecutor` lambda를 거쳐 `PcPairingStore.save(rawPairing)`까지 캡처되고,
+  endpoint recovery의 `encode()`와 저장소 `load()`도 secret을 포함한 immutable String을
+  새로 만든다고 지적했다. Activity 종료 시 일반 lambda의 raw String/parsed secret을
+  회수하는 전용 계약이 없어 승인 debug·heap 전제에서 수명이 늘 수 있다는 P3 후보였고,
+  실제 secret 노출이나 at-rest 암호화 실패는 확인하지 않았다.
+- 현재 정적·이력 판정:
+  - commit `9e0dea551db047da9d69812c0ea8c1c6546d0500`은 scanner callback에서 raw String을
+    즉시 `PcReceiverPairing`의 mutable 배열로 decode하고, UI에는 pairing object만 넘긴다.
+    pairing mode가 끝났거나 Activity가 destroyed면 UI callback이 즉시 배열을 지운다.
+  - 정상 저장은 `executeSensitive(cleanup = pairing::clearSensitiveData)`로 제출된다.
+    executor rejection은 제출 helper가 즉시 discard하고, Activity `onDestroy()`는
+    `shutdownNow()`가 반환한 모든 `DiscardableSensitiveTask`를 discard한다. 실행·폐기 중
+    먼저 claim한 경로만 cleanup을 정확히 한 번 수행한다.
+  - `PcPairingStore.save(pairing)`과 `load()`는 `encodeBytes()`/`decode(ByteArray)`를
+    사용한다. plaintext, payload, Base64 byte buffer, save ciphertext와 load
+    ciphertext/IV는 소유한 범위의 `finally`에서 지우며 endpoint recovery의
+    original/resolved pairing도 최종 정리한다.
+  - production call graph에는 `PcReceiverPairing.encode(): String` 호출이 없고
+    `PcPairingStore.save(String)`은 androidTest fixture에서만 사용된다. ML Kit가 최초로
+    제공하는 `Barcode.rawValue` immutable String 자체는 앱이 zeroize할 수 없지만, 현재
+    앱은 이를 UI/executor/persistence 경계로 추가 캡처하거나 새 plaintext String으로
+    복제하지 않는다.
+- 신규 동적 회귀: API 33 AVD에서 실제 `MainActivity`의 single-thread `ioExecutor`를 합성
+  blocker로 점유한 뒤 synthetic receiver ID·secret을 가진 pairing을 private 저장 진입점에
+  제출하고 Activity를 종료했다. pairing task는 실행되지 않았고 running blocker는
+  interrupt됐으며, `shutdownNow()` 반환 task의 discard 뒤 두 원본 배열은 전부 0이고
+  pairing store는 null이었다. 실제 QR 원문·운영 pairing·PC 수신기 config는 사용하지
+  않았다.
+- 자동검증:
+  - 신규 focused `MainActivityInstrumentedTest` 1/1, Gradle 51초 PASS.
+  - Kiosk unit은 `--rerun-tasks` 26 tasks·53초로 실제 재실행했고 27 suites·99/99,
+    failure/error/skip 0, XML 0.861초.
+  - `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+    :kiosk:assembleDebugAndroidTest` 84 tasks, 1분 45초 PASS. debug lint 0 error·기존
+    warning 176건이다.
+  - API 33 `matholic_rc03_api33` 전체 instrumentation 85/85,
+    failure/error/skip 0, XML 113.144초, Gradle 2분 8초 PASS. 신규 case는 전체 XML에서
+    0.44초다.
+- 제한·현장: ART heap dump·GC timing, ML Kit provider 내부 copy와 process kill은
+  관찰하지 않았다. 공유 실제 학생 `QR_READY` 상태를 바꾸지 않기 위해 A의 PC pairing
+  scanner·실제 QR·운영 PC endpoint를 실행하지 않았다. 제품 source와 version을 바꾸지
+  않은 test-only 회귀라 release build·APK·A 재설치는 불필요해 수행하지 않았다.
+- AVD는 시험 직후 종료했다. 최종 승인 ADB에는 `SM-P610`/`R54TB029FHZ` 한 대만 있고,
+  Kiosk RC90 top·Lock Task `LOCKED`·Device Owner/HOME 보존, 원격 지원 `INACTIVE`,
+  test package·ADB forward/reverse·local/device 임시 캡처 없음이다. 종료 점검에서 발견한
+  과거 0-byte device capture temp는 정확한 경로만 삭제하고 부재를 재확인했다.
+- 신규 시험·원격 복구점은 `4753a0021fdcf8e5bcc2baf61e76dacd504c75f2`, 전용
+  origin branch push 성공. rollback은 위 test-only 절차를 사용하며 기기 rollback은 없다.
 
 ## 2026-08-13 Web loopback proxy resource·실패 연결 cleanup 독립 재검증
 
@@ -2397,12 +2465,14 @@
   `daa315b10703927853688d7235bf0fe14b57ae9d`.
 - `SOL-0028` Web proxy 실패 upstream socket cleanup·실제 listener resource 회귀·RC138
   release metadata commit: `cb9385ca32405c6554e4aa54260eaef936f716b4`.
+- `SOL-0029` PC pairing 대기 작업 Activity 종료 cleanup 회귀 고정 test commit:
+  `4753a0021fdcf8e5bcc2baf61e76dacd504c75f2`.
 - 운영 PC·실제 A의 부하·입력·Wi-Fi·DHCP·다중 interface·AVD 확장 증거 commit:
   `2b766a176128700865afd8741a4f23fb3107fbda`.
 - 위 구현·증거 commit은 모두 전용 원격 branch push 성공. 과거 SOL-0008 뒤
   Goal 종료 기록은 당시 스냅샷이며, 사용자가 2026-08-12 연속 리뷰·개발을 다시
-  명시해 현재 Goal은 활성 상태다. 사용자가 명시적으로 중단할 때까지 완료로
-  처리하지 않는다.
+  시작했다. 2026-08-13에는 현재 진행 중이던 SOL-0029만 완결한 뒤 중단하라고
+  명시했으므로 이 사이클 뒤 새 finding을 시작하지 않는다.
 - 과거 Goal 종료 A 안전점검의 첫 wrapper는 `adb devices -l`의 model token
   `SM_P610`을 `SM-P610`으로 직접 비교해 승인 A 판정을 false로 냈고, 원격 임시
   파일 검사에는 Android shell 인용 오류가 있었다. 제품 실패나 상태 변경은

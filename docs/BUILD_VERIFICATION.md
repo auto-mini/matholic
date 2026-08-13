@@ -1,5 +1,60 @@
 # 빌드·보안 검증 기록
 
+## PC pairing secret String·queue/lifecycle 회귀 고정 — 2026-08-13
+
+### 현재 판정과 과거 교정
+
+- 과거 `LUNA-0030`은 ML Kit pairing QR의 immutable `rawValue`가 UI·일반 executor
+  lambda·store까지 캡처되고, endpoint recovery save/load도 secret을 포함한 새 String을
+  만든다는 P3 후보였다. 실제 secret 노출이나 저장 암호화 실패는 확인하지 않았다.
+- commit `9e0dea551db047da9d69812c0ea8c1c6546d0500`이 이 경계를 이미 교정했다. 현재
+  scanner callback은 raw String을 즉시 mutable `PcReceiverPairing`으로 decode하고,
+  pairing mode 종료/Activity destroy 전환에서는 배열을 즉시 지운다. 저장은
+  `SensitiveTask`로 제출돼 정상·예외·executor rejection·`shutdownNow()` 대기열 폐기에서
+  `clearSensitiveData()`가 실행된다.
+- persistence와 endpoint recovery는 `encodeBytes()`/`decode(ByteArray)`를 사용하고
+  plaintext·payload·Base64 byte buffer, save ciphertext, load ciphertext/IV와 pairing
+  object를 소유 범위의 `finally`에서 지운다. production에는 `encode(): String` 호출이
+  없고 String 기반 store overload는 androidTest fixture만 사용한다. 따라서
+  `SOL-0029`는 P3·신뢰도 높음·`이미 수정됨`으로 판정했으며 제품 source는 다시
+  바꾸지 않았다.
+
+### 신규 lifecycle 회귀와 전체 자동검증
+
+- 신규 API 33 계측은 실제 `MainActivity`의 single-thread `ioExecutor`를 synthetic
+  blocker로 점유하고 합성 receiver ID·secret pairing 저장을 대기시킨 뒤 Activity를
+  종료한다. pairing task가 실행되지 않은 상태에서 blocker interrupt,
+  `DiscardableSensitiveTask` 폐기, receiver ID·secret 전부 zeroize와 store null을
+  확인한다. 실제 QR·운영 pairing·PC receiver config는 사용하지 않았다.
+- 신규 focused `MainActivityInstrumentedTest` 1/1, Gradle 51초 PASS다.
+- Kiosk unit은 `--rerun-tasks`로 26 tasks를 실제 재실행해 53초 PASS했고, 27 suites·
+  99/99, failure/error/skip 0, XML 0.861초다.
+- `:kiosk:testDebugUnitTest :kiosk:lintDebug :kiosk:assembleDebug
+  :kiosk:assembleDebugAndroidTest`는 84 tasks, `BUILD SUCCESSFUL in 1m 45s`다. debug
+  lint는 error 0·기존 warning 176건이다.
+- API 33 `matholic_rc03_api33` AVD 전체 instrumentation은 85/85,
+  failure/error/skip 0, XML 113.144초, Gradle `BUILD SUCCESSFUL in 2m 8s`다. 신규
+  case는 전체 XML에서 0.44초다.
+
+### 제한·전달·롤백
+
+- ML Kit가 최초로 만든 immutable `Barcode.rawValue`, provider 내부 copy, ART heap/GC
+  timing과 process kill은 직접 관찰하지 않았다. 현재 앱이 그 String을 UI/executor/
+  persistence로 추가 캡처하거나 plaintext String을 새로 만드는 production 경로가
+  없다는 source·history·call-site 근거와 mutable owner 동적 시험으로 판정했다.
+- test-only 변경이라 Kiosk `0.6.0-rc90`/code 95, release artifact·signer와 물리 A
+  설치본은 바꾸지 않았고 release build·A 재설치는 수행하지 않았다. 공유 실제 학생
+  `QR_READY` 상태 때문에 A pairing scanner·실제 QR·운영 PC endpoint도 실행하지 않았다.
+- AVD는 즉시 종료했다. 최종 승인 ADB에는 `SM-P610`/`R54TB029FHZ` 한 대만 있고,
+  Kiosk top·Lock Task `LOCKED`·Device Owner/HOME, 원격 지원 `INACTIVE`, test package·
+  ADB forward/reverse와 local/device 임시 캡처 부재를 확인했다. 이전 차단 확인의
+  0-byte device temp 한 개는 정확한 경로만 삭제했다.
+- 신규 시험·원격 복구점은
+  `4753a0021fdcf8e5bcc2baf61e76dacd504c75f2`이며 전용 origin branch에 push했다.
+  rollback은 `git revert 4753a0021fdcf8e5bcc2baf61e76dacd504c75f2` 후 focused,
+  Kiosk unit·lint·debug/AndroidTest assemble과 전체 계측을 다시 실행한다. 제품·기기
+  rollback은 필요 없다.
+
 ## Web RC138 loopback proxy resource·실패 연결 cleanup — 2026-08-13
 
 ### 현재 판정과 부분 잔존
