@@ -1,51 +1,82 @@
 # 위협 모델
 
-## 범위와 자산
+기준일: 2026-08-13
 
-현재 범위는 Gate 0 저장소, Gate 1 접근성 Probe와 승인된 시험계정 단일 Web POC다. 보호 대상은 시험계정 자격정보, 학생 식별정보, 매쓰홀릭 세션, QR 원문, 조사 보고서와 태블릿의 다른 앱 데이터다. 실제 학생 DB, QR 처리, 외부 알림, Device Owner와 생산 자동화는 범위 밖이다.
+## 범위와 보호 자산
+
+현재 범위는 생산 Kiosk, Web POC, PC 수신기, Room 데이터, QR 카드, 자동 시간표,
+Device Owner/Lock Task, 제한 시간 원격 지원과 운영 스크립트다. 과거 Gate 0~4 Probe와
+접근성 POC는 역사적 검증 도구이며 생산 학생 흐름이 아니다.
+
+보호 대상은 다음과 같다.
+
+- 학생 표시명, 반 소속, 수업·보강 상태와 채점 결과
+- 매쓰홀릭 아이디·비밀번호와 Web 인증 세션
+- QR 원문, QR hash, 생성 PDF와 인쇄된 카드
+- 관리자 PIN verifier, release signer와 PC 페어링 비밀
+- PC로 오가는 PDF·CSV·상태 정보와 Windows 알림
+- Device Owner, Lock Task, 원격 지원과 자동 시간표의 운영 통제
 
 ## 신뢰 경계
 
-- Probe와 매쓰홀릭은 서로 다른 Android 앱/UID다.
-- Probe는 Android 접근성 서비스가 제공하는 `com.matholic.mathapp` 창만 읽는다.
-- redacted 보고서는 앱 private storage에 먼저 저장되며, 사용자가 Storage Access Framework로 선택한 위치에만 내보낸다.
-- PC/ADB는 설치, 비민감 기기 기준정보 확인과 구조화된 비공개 진단 로그
-  회수에 사용한다. 기본 상태에서는 계정, 화면 원문과 `uiautomator dump`를
-  수집하지 않는다. 사용자가 승인한 시간 제한 원격 점검 중에는 승인 ADB가
-  현재 화면 한 장을 PC 로컬 임시 경로로 캡처할 수 있다.
-  진단 로그는 `android.permission.DUMP`가 있는 ADB shell만 요청할 수 있고
-  학생 식별정보·자격정보·QR·답안·점수·문항 내용을 구조적으로 거부한다.
-- Web POC의 WebView는 별도 앱 UID 안에서 공식 웹에 접속한다. 상위 탐색은 승인된 세 host만 허용하고 다른 링크, TLS 오류와 Safe Browsing 경고는 실패 폐쇄한다.
-- 사용자 확인에 따르면 공급사에 자동화 사용 가능 여부를 문의해 허용 답변을 받았다. 답변 원본은 별도로 보관하는 것이 좋다.
+- Kiosk와 Web POC는 별도 Android UID다. 자격정보는 signature 권한, 신뢰 package와
+  signer 검사, 1회용 192비트 handle, 30초 TTL의 메모리 provider를 통해서만 전달한다.
+- Kiosk Room DB는 앱 private storage에 있고 backup·device transfer를 금지한다.
+  아이디·비밀번호는 Android Keystore AES-GCM으로 필드별 암호화하지만 표시명, 반 관계,
+  QR SHA-256 hash와 비민감 audit는 구조상 평문이다.
+- QR 원문은 PDF 생성·카메라 검증에 필요한 짧은 시간만 메모리에 존재한다. 저장 DB에는
+  hash만 남으며 QR 재발급·비활성화 후 과거 PDF와 실물 카드는 회수할 수 없다.
+- Web POC는 승인 HTTPS host만 상위 탐색하고 TLS 오류, Safe Browsing 경고, download,
+  file/content 접근과 변형된 로그인·학생 경로를 실패 폐쇄한다. 허용 사이트가 불러오는
+  제3자 하위 resource와 공급사 서버 자체는 앱의 통제 밖이다.
+- Kiosk와 PC 수신기는 같은 사설망에서 challenge-response로 페어링한다. PDF·CSV·상태
+  요청은 인증·무결성·timestamp/replay 제한과 전체 연결 제한을 적용한다. PC 파일 저장,
+  Windows 계정, 프린터·대기열과 출력물은 Android 밖의 신뢰 경계다.
+- Kiosk는 Device Owner와 Lock Task를 운영 경계로 사용한다. 관리자 PIN, release signer,
+  승인 ADB PC를 가진 주체는 운영 관리자다. PIN 분실이나 Device Owner 제거는 공장초기화가
+  필요하며 앱 DB·Keystore·기존 QR을 복구하지 않는다.
+- 기본 화면은 `FLAG_SECURE`다. 제한 시간 원격 지원 중에만 승인 PC가 비민감 화면을
+  확인할 수 있으며, 관리자 PIN·비밀번호 입력 화면에서는 지원을 시작하지 않는다.
+- 자동 시간표는 기기 wall clock, 저장된 주간/오늘 설정과 현재 Room 수업 상태를 신뢰한다.
+  학생 채점, 관리자 화면과 데이터 작업 중에는 전환을 보류하고 실행 직전 상태를 재검증한다.
 
-## 위협과 통제
+## 주요 위협과 현재 통제
 
-| 위협 | 현재 통제 | 잔여위험 |
+| 위협 | 현재 통제 | 잔여위험·운영 책임 |
 |---|---|---|
-| 자격정보가 소스·Git·로그에 남음 | 런타임 직접 입력, 비밀 파일 ignore, 로그 호출 금지, editable/password 즉시 마스킹 | 대화에 노출된 이전 시험 비밀번호는 변경해 무효화 완료. 향후 노출도 즉시 변경 필요 |
-| 다른 앱의 노드 수집 | 서비스 XML package 제한 + 런타임 exact package 검사 | OS/대상 앱 결함은 통제 밖 |
-| 학생명 등 접근성 text 유출 | 고정 UI 문구 allowlist 외 길이+세션 salt fingerprint로 즉시 치환 | 길이와 동일 세션 내 동일성은 진단 목적으로 남음 |
-| 보고서 외부 유출 | 앱 private storage, 명시적 내보내기, 인터넷 권한 없음 | 사용자가 내보낸 파일의 이후 취급은 별도 통제 필요 |
-| ADB 캡처 요청의 외부 악용 | 동적 receiver를 `RECEIVER_NOT_EXPORTED`로 등록하고 debug 앱 UID의 `run-as` 요청만 사용 | USB 디버깅이 허용된 신뢰 PC는 redacted 캡처를 유발할 수 있음 |
-| 비공개 운영 로그의 일반 앱 노출 | release receiver에 시스템 `android.permission.DUMP` 강제, 허용 필드·형식 검사, 파일별 최근 200줄 제한, 사용자 UI·공유 기능 없음 | USB 디버깅을 승인한 PC의 ADB shell은 구조화된 로그를 읽을 수 있으므로 승인 PC를 신뢰 경계로 관리해야 함 |
-| 원격 점검 화면의 민감정보 노출 | 기본 `FLAG_SECURE`, 관리자 경고, ADB receiver의 `android.permission.DUMP`, 같은 signer 앱 간 제어, 동일 부팅·최대 2시간 만료, 화면 상태 배지, 종료 시 PC 임시 캡처 삭제 | 점검 중 QR·학생 이름·학습 내용이 승인 PC와 Codex 화면에 보일 수 있으므로 관리자 PIN·비밀번호 입력 중에는 켜지 않고 승인 PC의 ADB 키를 신뢰 경계로 관리해야 함 |
-| 원격 QR 실기 입력의 학생 사칭 | `android.permission.DUMP`를 가진 승인 ADB, 활성 원격 점검, 현재 수업의 정확한 `QR_READY`를 모두 요구하고 QR 원문 대신 32바이트 해시 한 건만 기존 소속·활성 검증에 전달하며 값은 사용 뒤 삭제 | 승인 PC와 유효 QR PDF를 함께 통제해야 하며, 원격 점검 중 승인 ADB는 해당 카드 학생의 실기 세션을 시작할 수 있음 |
-| DHCP 주소 변경 뒤 지정 PC 오인 연결 | 저장 주소 실패 시 현재 Wi-Fi의 RFC1918 주소와 같은 `/24`의 최대 254개 후보만 조사하고, 기존 페어링 키의 challenge-response 인증에 성공한 수신기만 채택한다. 복구 상태에는 학생 이름을 넣지 않고 PC 알림도 만들지 않으며 새 주소는 기존 암호화 저장소에 갱신한다. | 현재 사설 `/24`의 TCP 48129 후보에는 연결 시도가 발생한다. 네트워크가 다른 `/24`로 바뀌었거나 PC·수신기 설정이 교체된 경우에는 자동 복구하지 못하므로 수동 재페어링이 필요하다. |
-| 스크린샷/최근 앱 미리보기 | 운영 앱은 기본 `FLAG_SECURE`; 원격 점검 중에만 일시 해제하고 최근 앱 제외는 유지 | 원격 점검을 시작한 승인 PC는 만료 전 현재 화면을 볼 수 있음 |
-| UI 변경으로 오계정/오동작 | version과 의미 기반 fingerprint를 함께 요구, 알 수 없는 상태는 중단 | 같은 버전의 서버 UI 변경 가능 |
-| 좌표 오작동 | bounds는 진단 전용, selector 좌표 사용 금지 | 의미 노드가 없으면 Gate 1 FAIL |
-| 세션 잔류 후 다음 학생 로그인 | 향후 상태 머신에서 로그아웃 및 빈 로그인 화면 검증 전 다음 로그인 금지 | Gate 1 Probe는 자동화를 수행하지 않음 |
-| 일반 앱 키오스크 우회 | K1 한계를 명시하고 생산판은 검증된 Device Owner/Lock Task 요구 | Gate 1/2는 완전한 키오스크가 아님 |
-| 외부 알림에 개인정보 전송 | 사용자 결정에 따라 외부 알림 기능을 현재 계획에서 제거 | 로컬 화면/소리/audit 설계는 이후 Gate 대상 |
-| Web 로그인 값·token 잔류 | 매 페이지 입력 정리, autofill/form/cache 저장 차단, 로그아웃 뒤 Cookie/WebStorage/form/cache 삭제와 재검증 | JVM/WebView 메모리의 일시적 문자열과 인증 중 token은 완전 제거를 증명할 수 없음 |
-| 공식 웹 구조 변경으로 오동작 | login/portal DOM fingerprint와 selector 개수 검사, 불일치 시 `MAINTENANCE_REQUIRED` | 서버가 같은 구조로 의미만 바꾸는 경우는 반복 실기 필요 |
-| 다른 학생으로 로그인 | 공식 웹 닉네임을 예상 표시명과 NFKC·공백 정규화 후 완전 일치, 불일치 시 즉시 로그아웃 후 잠금 | 동명이인은 매쓰홀릭 표시명 자체를 구분해야 함 |
-| Web POC 외부 탐색 | HTTPS host·port·userinfo allowlist, 외부 상위 탐색과 download 차단 | 허용 사이트의 제3자 하위 resource는 사이트 정상동작을 위해 로드될 수 있음 |
+| 자격정보가 source·Git·로그에 남음 | 런타임 입력, 비밀 파일 ignore, redacted 진단, `CharArray` 사용 후 덮어쓰기 | JVM/WebView 메모리의 일시적 사본을 완전 제거했다고 증명할 수 없음 |
+| 다른 앱이 자격정보 bridge 호출 | signature 권한, package·signer 검사, 1회 handle·TTL·read-once | release signer 또는 승인 기기가 침해되면 경계가 무너짐 |
+| Web가 다른 학생·변형 페이지에서 자동화 | 표시명 완전 일치, origin/path/DOM fingerprint, 알 수 없는 상태 실패 폐쇄 | 공급사가 같은 구조의 의미를 바꾸면 실기 재검증 필요 |
+| Web 세션이 다음 학생에게 남음 | 로그아웃과 빈 로그인 화면 확인 후 Cookie/WebStorage/form/cache 정리 | 서버 세션 폐기를 앱 밖에서 직접 증명할 수 없음 |
+| Web renderer·network 장애 중 민감 상태 재개 | 상태 machine 영속화, 재시작 복구, 사용할 수 없는 WebView 폐기, 배경 전환 잠금 | 실제 A에서 renderer crash를 반복 강제한 장시간 시험은 없음 |
+| QR 원문·과거 카드 재사용 | DB에는 hash만 저장, 재발급·비활성화 시 hash 원자 교체 | 배포된 종이·코팅 카드와 외부 PDF 복사본은 앱이 회수하지 못함 |
+| 학생·반·수업 동시 변경 | 공통 관리자 gate, 단일 IO executor, Room transaction, session ID·상태 재검증 | process 강제종료와 모든 빠른 연속 탭 조합은 별도 fault-injection 대상 |
+| 자동 시간표가 학생·관리자 작업을 침범 | 학생 busy·관리자 화면·공통 gate에서 보류, 적용 직전 UI/session 재검증 | 기기 시각을 바꿀 수 있는 관리자·승인 ADB는 시간표 결과도 바꿀 수 있음 |
+| 자동 시간표 오류가 운영자를 과도하게 알림 | 최초 즉시, 같은 오류 10분 cooldown, 오류 변경·정상화 즉시 알림 | PC가 꺼진 동안의 Windows 알림 전달은 보장하지 않음 |
+| LAN의 비지정 PC가 PDF·CSV·상태 요청 | 페어링 비밀 기반 인증, request ID·hash ACK, replay 제한, 사설 subnet 제한 | 승인 PC와 DPAPI 사용자 계정이 침해되면 저장 파일·알림이 노출될 수 있음 |
+| DHCP 변경 뒤 다른 PC로 연결 | 같은 사설 `/24` 후보만 조사하고 기존 pairing 인증 성공 대상만 채택 | 다른 subnet 또는 수신기 재설치 후에는 수동 재페어링 필요 |
+| PC 수신기 DoS·부분 연결 | 연결 수·payload·event queue 제한, connect/read/write/전체 deadline, 종료 시 socket 회수 | 같은 LAN의 반복 연결은 제한 안에서 PC 자원을 소비할 수 있음 |
+| Windows 알림에 학생 이름 노출 | 지정 PC의 로컬 알림에만 필요한 최소 상태 전송 | 잠금 화면 알림 공개 여부는 Windows 사용자 설정에 따름 |
+| CSV가 기존 학생·반을 잘못 변경 | 크기·행 수·형식 제한, 미리보기, 기존 반 검증, 적용 중 전역 data gate | 승인 PC에서 작성한 잘못된 CSV 내용은 관리자가 미리보기에서 확인해야 함 |
+| 직접 인쇄·프린터로 데이터 유출 | Android 직접 인쇄 제거, 지정 PC PDF 저장 ACK 뒤 PC에서 검토·인쇄 | PC 파일, 프린터 메모리·대기열과 폐기 출력물은 운영자가 관리함 |
+| 선택적 Android PDF 공유의 외부 복사 | private cache, 만료 예약, FileProvider의 제한 URI | 읽은 외부 앱 복사본과 process가 종료된 동안 남은 cache를 회수하지 못함 |
+| 스크린샷·최근 앱·키오스크 이탈 | `FLAG_SECURE`, 최근 앱 제외, Device Owner·Lock Task·전용 HOME | 공장초기화·물리 접근·OS 취약점과 승인 ADB는 별도 신뢰 경계 |
+| 원격 지원 중 민감 화면 노출 | 같은 signer/ADB 권한, 활성 시간 제한, 상태 배지, 종료 시 임시 캡처 정리 | 지원 중 화면은 승인 PC와 Codex 화면에 보일 수 있음 |
+| release 또는 의존성 공급망 변조 | 별도 signer, APK/EXE SHA-256, Gradle distribution checksum, 고정 런타임 버전 | build tool과 전이 의존성 검증 metadata를 계속 유지해야 함 |
 
 ## 실패 시 원칙
 
-package, version, 접근성 fingerprint 또는 로그인 상태가 예상과 다르면 진행하지 않는다. 전환 중 잔류 세션이나 알 수 없는 화면은 `LOCKED`, 시작 전 version/fingerprint 불일치는 `MAINTENANCE_REQUIRED`로 취급한다. 자동 재로그인은 하지 않는다.
+학생·반·세션 ID, package·signer, Web origin/path/DOM, PC 인증·ACK 또는 자동 시간표
+상태가 기대와 다르면 변경을 진행하지 않는다. 민감 중간 상태는 `RECOVERY_REQUIRED` 또는
+`LOCKED`, 시작 전 호환성 불일치는 `MAINTENANCE_REQUIRED`로 처리한다. 알 수 없는 학생으로
+자동 재로그인하거나 좌표만으로 Web 동작을 계속하지 않는다.
 
-## 대응
+## 사고 대응
 
-민감값이 파일에 남은 경우 공유를 중단하고 자격정보를 변경한다. 원문 보고서는 만들지 않으므로 삭제 대상은 내보낸 redacted 자료와 앱 private report다. 공유 Git 이력의 파괴적 재작성은 별도 승인 후 수행한다.
+- 자격정보·PIN·페어링 비밀이 노출되면 공유를 중단하고 해당 비밀을 교체한다.
+- release signer 노출이 의심되면 설치·배포를 중지하고 기기별 signer 상태와 배포 경로를
+  별도 확인한다.
+- QR 또는 PDF 유출은 QR 재발급으로 과거 카드를 무효화하고 외부 파일·출력물은 운영자가
+  회수·폐기한다.
+- 잘못된 학생·반·수업 변경은 audit와 transaction 결과를 보존한 채 안전한 복원 절차를
+  사용한다. 공유 Git 이력의 파괴적 재작성은 별도 승인 없이는 하지 않는다.
