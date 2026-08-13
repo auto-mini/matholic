@@ -191,6 +191,22 @@
                             android:layout_marginTop="8dp"
                             android:text="원격 점검 30분 시작" />
 
+                        <Button
+                            android:id="@+id/class_schedule_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="8dp"
+                            android:text="자동 반 시간표 설정" />
+
+                        <TextView
+                            android:id="@+id/class_schedule_summary"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="자동 반 시간표: 설정 안 됨"
+                            android:textColor="#486581"
+                            android:textSize="14sp" />
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

@@ -3,6 +3,7 @@ package com.local.matholickiosk.kiosk
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.TimePickerDialog
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
@@ -38,7 +39,9 @@ import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
+import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -82,6 +85,9 @@ import com.local.matholickiosk.kiosk.domain.StudentLoginPcNotificationPolicy
 import com.local.matholickiosk.kiosk.domain.StudentLoginPcStage
 import com.local.matholickiosk.kiosk.domain.ScannerCameraResumeAction
 import com.local.matholickiosk.kiosk.domain.ScannerCameraResumePolicy
+import com.local.matholickiosk.kiosk.domain.AutomaticClassSchedulePolicy
+import com.local.matholickiosk.kiosk.domain.DailyClassScheduleOverride
+import com.local.matholickiosk.kiosk.domain.ScheduledClassEntry
 import com.local.matholickiosk.kiosk.print.BatchQrCard
 import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -106,6 +112,8 @@ import java.io.File
 import java.net.Inet4Address
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZonedDateTime
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutorService
@@ -145,6 +153,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var feedbackSettingsButton: Button
     private lateinit var keypadLayoutButton: Button
     private lateinit var remoteSupportButton: Button
+    private lateinit var classScheduleButton: Button
+    private lateinit var classScheduleSummary: TextView
     private lateinit var recoverSessionButton: Button
     private lateinit var adminMessage: TextView
     private lateinit var undoAdminButton: Button
@@ -205,6 +215,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var diagnosticLog: PrivateDiagnosticLog
     private lateinit var remoteSupportStore: RemoteSupportStore
     private lateinit var remoteSupportWindowController: RemoteSupportWindowController
+    private lateinit var automaticClassScheduleStore: AutomaticClassScheduleStore
     private val pcPdfSender = PcPdfSender()
     private val pcControlClient = PcControlClient()
     private val pcEndpointResolver = PcEndpointResolver()
@@ -423,6 +434,7 @@ class MainActivity : ComponentActivity() {
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
         )
         remoteSupportStore = RemoteSupportStore(this)
+        automaticClassScheduleStore = AutomaticClassScheduleStore(this)
         remoteSupportWindowController = RemoteSupportWindowController(
             activity = this,
             handler = mainHandler,
@@ -501,6 +513,8 @@ class MainActivity : ComponentActivity() {
         feedbackSettingsButton = findViewById(R.id.feedback_settings_button)
         keypadLayoutButton = findViewById(R.id.keypad_layout_button)
         remoteSupportButton = findViewById(R.id.remote_support_button)
+        classScheduleButton = findViewById(R.id.class_schedule_button)
+        classScheduleSummary = findViewById(R.id.class_schedule_summary)
         recoverSessionButton = findViewById(R.id.recover_session_button)
         adminMessage = findViewById(R.id.admin_message)
         undoAdminButton = findViewById(R.id.undo_admin_button)
@@ -560,6 +574,7 @@ class MainActivity : ComponentActivity() {
             feedbackSettingsButton,
             keypadLayoutButton,
             remoteSupportButton,
+            classScheduleButton,
             recoverSessionButton,
             cancelQrLoginButton,
             switchCameraButton,
@@ -623,12 +638,17 @@ class MainActivity : ComponentActivity() {
         pairPcButton.setOnClickListener { startPcPairingScanner() }
         sendPcPdfButton.setOnClickListener { confirmPcPdfTransfer() }
         addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
-        startSessionButton.setOnClickListener { startOrEndSession() }
+        startSessionButton.setOnClickListener {
+            requireManualScheduleOverride("수업을 수동으로 시작하거나 종료") {
+                startOrEndSession()
+            }
+        }
         resumeSessionButton.setOnClickListener { showScanner() }
         selfTestButton.setOnClickListener { runOperationalSelfTest() }
         feedbackSettingsButton.setOnClickListener { showFeedbackSettings() }
         keypadLayoutButton.setOnClickListener { showKeypadLayoutSettings() }
         remoteSupportButton.setOnClickListener { toggleRemoteSupport() }
+        classScheduleButton.setOnClickListener { showClassScheduleSettings() }
         recoverSessionButton.setOnClickListener { confirmOneButtonRecovery() }
         cancelQrLoginButton.setOnClickListener { cancelPendingQrLogin() }
         switchCameraButton.setOnClickListener { switchCamera() }
@@ -662,6 +682,21 @@ class MainActivity : ComponentActivity() {
             ) {
                 if (!suppressClassSelectionCallback) {
                     val selectedClassId = classes.getOrNull(position)?.id
+                    val previousClassId = classRosterState.selectedClassId
+                    if (selectedClassId != null && selectedClassId != previousClassId) {
+                        val previousIndex = classes.indexOfFirst { it.id == previousClassId }
+                        if (automaticScheduleRequiresManualOverride()) {
+                            if (previousIndex >= 0) {
+                                suppressClassSelectionCallback = true
+                                classSpinner.setSelection(previousIndex)
+                                suppressClassSelectionCallback = false
+                            }
+                            requireManualScheduleOverride("선택 반을 수동으로 변경") {
+                                classSpinner.setSelection(position)
+                            }
+                            return
+                        }
+                    }
                     classRosterState.select(selectedClassId)?.let { request ->
                         pendingTemporaryStudentIds = emptySet()
                         updateClassRosterUi()
@@ -1182,6 +1217,7 @@ class MainActivity : ComponentActivity() {
         updateStudentManagementControls()
         updateClassRosterUi()
         updateQuickClassButtons()
+        updateClassScheduleSummary()
         adminMessage.text = message.orEmpty()
     }
 
@@ -1215,7 +1251,9 @@ class MainActivity : ComponentActivity() {
             refreshAdminData()
             return
         }
-        classSpinner.setSelection(index)
+        requireManualScheduleOverride("선택 반을 $className 반으로 변경") {
+            classSpinner.setSelection(index)
+        }
     }
 
     private fun updateQuickClassButtons() {
@@ -3326,6 +3364,349 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun showClassScheduleSettings() {
+        val schedule = runCatching { automaticClassScheduleStore.loadWeekly() }
+            .getOrElse {
+                adminMessage.text = it.message ?: "자동 반 시간표를 읽지 못했습니다."
+                return
+            }
+        val starts = schedule.startMinuteByClass.toMutableMap()
+        val enabled = schedule.enabledClassNames.toMutableSet()
+        val now = ZonedDateTime.now()
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(12))
+            addView(TextView(context).apply {
+                text = "각 반의 시작 시각만 정하면 3시간 뒤 자동 종료됩니다. " +
+                    "겹치는 시간은 저장할 수 없습니다."
+                textSize = 15f
+                setTextColor(android.graphics.Color.rgb(51, 78, 104))
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
+        FixedClassSlots.names.forEach { className ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val toggle = Switch(this).apply {
+                text = className
+                isChecked = className in enabled
+                textSize = 16f
+                filterTouchesWhenObscured = true
+                setOnCheckedChangeListener { _, checked ->
+                    if (checked) enabled += className else enabled -= className
+                }
+            }
+            val timeButton = Button(this).apply {
+                text = starts[className]?.let(::formatScheduleMinute) ?: "시작 시각"
+                filterTouchesWhenObscured = true
+                setOnClickListener {
+                    val initial = starts[className] ?: defaultScheduleMinute(className)
+                    TimePickerDialog(
+                        this@MainActivity,
+                        { _, hour, minute ->
+                            starts[className] = hour * 60 + minute
+                            text = formatScheduleMinute(hour * 60 + minute)
+                        },
+                        initial / 60,
+                        initial % 60,
+                        true,
+                    ).show()
+                }
+            }
+            row.addView(
+                toggle,
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+            )
+            row.addView(
+                timeButton,
+                LinearLayout.LayoutParams(dp(170), LinearLayout.LayoutParams.WRAP_CONTENT),
+            )
+            root.addView(row)
+        }
+        val todayOverrideButton = Button(this).apply {
+            text = "오늘만 시간·반 변경"
+            filterTouchesWhenObscured = true
+            setOnClickListener { showTodayScheduleOverrideSettings(LocalDate.now()) }
+        }
+        val todayToggleButton = Button(this).apply {
+            text = if (automaticClassScheduleStore.isDisabledFor(now.toLocalDate())) {
+                "오늘 자동 전환 다시 켜기"
+            } else {
+                "오늘 자동 전환 끄기"
+            }
+            filterTouchesWhenObscured = true
+            setOnClickListener {
+                val date = LocalDate.now()
+                if (automaticClassScheduleStore.isDisabledFor(date)) {
+                    automaticClassScheduleStore.enableForToday(date)
+                    text = "오늘 자동 전환 끄기"
+                    adminMessage.text = "오늘 자동 반 전환을 다시 켰습니다."
+                } else {
+                    automaticClassScheduleStore.disableForToday(date)
+                    text = "오늘 자동 전환 다시 켜기"
+                    adminMessage.text = "오늘 자정까지 자동 반 전환을 껐습니다."
+                }
+                updateClassScheduleSummary()
+            }
+        }
+        val trustClockButton = Button(this).apply {
+            text = "현재 기기 날짜·시각을 확인함"
+            visibility = if (automaticClassScheduleStore.isClockPlausible(now)) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+            filterTouchesWhenObscured = true
+            setOnClickListener {
+                runCatching { automaticClassScheduleStore.trustCurrentClock(ZonedDateTime.now()) }
+                    .onSuccess {
+                        visibility = View.GONE
+                        adminMessage.text = "현재 기기 날짜·시각을 자동 전환 기준으로 확인했습니다."
+                    }
+                    .onFailure { adminMessage.text = it.message ?: "기기 시각을 확인하지 못했습니다." }
+            }
+        }
+        root.addView(todayOverrideButton)
+        root.addView(todayToggleButton)
+        root.addView(trustClockButton)
+        val scroll = ScrollView(this).apply { addView(root) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("자동 반 시간표 · 반별 3시간")
+            .setView(scroll)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("주간 시간표 저장", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val missing = enabled.filterNot(starts::containsKey)
+                if (missing.isNotEmpty()) {
+                    adminMessage.text = "시작 시각을 먼저 설정하세요 · ${missing.joinToString()}"
+                    return@setOnClickListener
+                }
+                val updated = StoredClassSchedule(
+                    startMinuteByClass = starts,
+                    enabledClassNames = enabled,
+                )
+                runCatching {
+                    automaticClassScheduleStore.saveWeekly(updated)
+                    automaticClassScheduleStore.trustCurrentClock(ZonedDateTime.now())
+                }.fold(
+                    onSuccess = {
+                        dialog.dismiss()
+                        updateClassScheduleSummary()
+                        adminMessage.text = "자동 반 시간표를 저장했습니다. 각 수업은 3시간입니다."
+                        requestAutomaticClassScheduleCheck()
+                    },
+                    onFailure = { adminMessage.text = it.message ?: "시간표를 저장하지 못했습니다." },
+                )
+            }
+        }
+        dialog.show()
+    }
+
+    private fun showTodayScheduleOverrideSettings(date: LocalDate) {
+        val existing = runCatching { automaticClassScheduleStore.loadOverride(date) }
+            .getOrElse {
+                adminMessage.text = it.message ?: "오늘 임시 시간표를 읽지 못했습니다."
+                return
+            }
+        val weeklyToday = runCatching { automaticClassScheduleStore.loadWeekly() }
+            .getOrNull()
+            ?.enabledEntries()
+            ?.filter { it.isoDayOfWeek == date.dayOfWeek.value }
+            .orEmpty()
+        val initial = existing?.entries ?: weeklyToday
+        val active = BooleanArray(2) { initial.getOrNull(it) != null }
+        val selectedClasses = Array(2) { index ->
+            initial.getOrNull(index)?.className ?: FixedClassSlots.names[index]
+        }
+        val starts = arrayOfNulls<Int>(2).apply {
+            repeat(2) { index -> this[index] = initial.getOrNull(index)?.startMinuteOfDay }
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(12))
+            addView(TextView(context).apply {
+                text = "오늘만 적용됩니다. 반과 시작 시각을 바꿀 수 있으며 자정 뒤 주간 시간표로 돌아갑니다."
+                textSize = 15f
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
+        repeat(2) { index ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val toggle = Switch(this).apply {
+                text = "${index + 1}번째"
+                isChecked = active[index]
+                filterTouchesWhenObscured = true
+                setOnCheckedChangeListener { _, checked -> active[index] = checked }
+            }
+            val spinner = Spinner(this).apply {
+                adapter = ArrayAdapter(
+                    this@MainActivity,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    FixedClassSlots.names,
+                )
+                setSelection(FixedClassSlots.names.indexOf(selectedClasses[index]).coerceAtLeast(0))
+                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onItemSelected(
+                        parent: AdapterView<*>?,
+                        view: View?,
+                        position: Int,
+                        id: Long,
+                    ) {
+                        selectedClasses[index] = FixedClassSlots.names[position]
+                    }
+
+                    override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+                }
+            }
+            val timeButton = Button(this).apply {
+                text = starts[index]?.let(::formatScheduleMinute) ?: "시작 시각"
+                filterTouchesWhenObscured = true
+                setOnClickListener {
+                    val initialMinute = starts[index] ?: (14 + index * 4) * 60
+                    TimePickerDialog(
+                        this@MainActivity,
+                        { _, hour, minute ->
+                            starts[index] = hour * 60 + minute
+                            text = formatScheduleMinute(hour * 60 + minute)
+                        },
+                        initialMinute / 60,
+                        initialMinute % 60,
+                        true,
+                    ).show()
+                }
+            }
+            row.addView(toggle, LinearLayout.LayoutParams(dp(140), LinearLayout.LayoutParams.WRAP_CONTENT))
+            row.addView(spinner, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(timeButton, LinearLayout.LayoutParams(dp(170), LinearLayout.LayoutParams.WRAP_CONTENT))
+            root.addView(row)
+        }
+        val clearButton = Button(this).apply {
+            text = "오늘 임시 변경 삭제"
+            isEnabled = existing != null
+            filterTouchesWhenObscured = true
+        }
+        root.addView(clearButton)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("${date.monthValue}월 ${date.dayOfMonth}일만 변경")
+            .setView(root)
+            .setNegativeButton("취소", null)
+            .setPositiveButton("오늘만 저장", null)
+            .create()
+        clearButton.setOnClickListener {
+            automaticClassScheduleStore.clearOverride(date)
+            dialog.dismiss()
+            adminMessage.text = "오늘 임시 변경을 삭제하고 주간 시간표로 복원했습니다."
+            updateClassScheduleSummary()
+            requestAutomaticClassScheduleCheck()
+        }
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val missing = (0..1).filter { active[it] && starts[it] == null }
+                if (missing.isNotEmpty()) {
+                    adminMessage.text = "오늘 사용할 수업의 시작 시각을 설정하세요."
+                    return@setOnClickListener
+                }
+                val entries = (0..1).mapNotNull { index ->
+                    if (!active[index]) return@mapNotNull null
+                    ScheduledClassEntry(
+                        className = selectedClasses[index],
+                        isoDayOfWeek = date.dayOfWeek.value,
+                        startMinuteOfDay = requireNotNull(starts[index]),
+                    )
+                }
+                runCatching {
+                    automaticClassScheduleStore.saveOverride(
+                        DailyClassScheduleOverride(date, entries),
+                    )
+                }.fold(
+                    onSuccess = {
+                        dialog.dismiss()
+                        updateClassScheduleSummary()
+                        adminMessage.text = "오늘만 적용할 자동 반 시간표를 저장했습니다."
+                        requestAutomaticClassScheduleCheck()
+                    },
+                    onFailure = { adminMessage.text = it.message ?: "오늘 시간표를 저장하지 못했습니다." },
+                )
+            }
+        }
+        dialog.show()
+    }
+
+    private fun automaticScheduleRequiresManualOverride(): Boolean = runCatching {
+        automaticClassScheduleStore.requiresManualOverride(LocalDate.now())
+    }.getOrDefault(true)
+
+    private fun requireManualScheduleOverride(
+        operation: String,
+        onAllowed: () -> Unit,
+    ) {
+        val required = runCatching {
+            automaticClassScheduleStore.requiresManualOverride(LocalDate.now())
+        }.getOrElse {
+            adminMessage.text = it.message ?: "자동 반 시간표 상태를 확인하지 못했습니다."
+            return
+        }
+        if (!required) {
+            onAllowed()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("자동 반 전환이 켜져 있습니다")
+            .setMessage(
+                "${operation}하려면 오늘 자동 전환을 먼저 꺼야 합니다. " +
+                    "끄지 않으면 수동 조작은 실행되지 않습니다. 내일 자정부터 자동으로 다시 켜집니다.",
+            )
+            .setNegativeButton("수동 조작 취소", null)
+            .setPositiveButton("오늘 자동 전환 끄기") { _, _ ->
+                automaticClassScheduleStore.disableForToday(LocalDate.now())
+                updateClassScheduleSummary()
+                adminMessage.text = "오늘 자정까지 자동 반 전환을 끄고 수동 조작을 허용했습니다."
+                onAllowed()
+            }
+            .show()
+    }
+
+    private fun updateClassScheduleSummary() {
+        if (!::classScheduleSummary.isInitialized || !::automaticClassScheduleStore.isInitialized) return
+        val date = LocalDate.now()
+        classScheduleSummary.text = runCatching {
+            val weekly = automaticClassScheduleStore.loadWeekly()
+            val override = automaticClassScheduleStore.loadOverride(date)
+            val entries = override?.entries ?: weekly.enabledEntries()
+                .filter { it.isoDayOfWeek == date.dayOfWeek.value }
+            when {
+                weekly.enabledEntries().isEmpty() && override == null -> "자동 반 시간표: 설정 안 됨"
+                automaticClassScheduleStore.isDisabledFor(date) ->
+                    "자동 반 시간표: 오늘만 꺼짐 · 자정에 자동 복귀"
+                override != null -> "오늘 임시 시간표: ${formatScheduleEntries(entries)}"
+                entries.isEmpty() -> "자동 반 시간표: 오늘 수업 없음"
+                else -> "오늘 자동 시간표: ${formatScheduleEntries(entries)} · 각 3시간"
+            }
+        }.getOrElse { "자동 반 시간표: 저장 오류 · 설정을 확인하세요" }
+    }
+
+    private fun formatScheduleEntries(entries: List<ScheduledClassEntry>): String =
+        entries.sortedBy(ScheduledClassEntry::startMinuteOfDay).joinToString(" · ") {
+            "${it.className} ${formatScheduleMinute(it.startMinuteOfDay)}"
+        }.ifEmpty { "수업 없음" }
+
+    private fun formatScheduleMinute(minute: Int): String =
+        String.format(Locale.KOREA, "%02d:%02d", minute / 60, minute % 60)
+
+    private fun defaultScheduleMinute(className: String): Int =
+        if (className.endsWith("1")) 14 * 60 else 18 * 60
+
+    private fun requestAutomaticClassScheduleCheck() {
+        // Runtime reconciliation is installed separately from the settings UI.
+    }
+
     private fun toggleRemoteSupport() {
         if (remoteSupportStore.activeUntilEpochMillis() != null) {
             setRemoteSupportEnabled(enabled = false)
@@ -4589,8 +4970,10 @@ class MainActivity : ComponentActivity() {
             ) { _, which ->
                 when (which) {
                     0 -> {
-                        sessionAdminActionFlowActive = true
-                        showQuickClassSwitchDialog()
+                        requireManualScheduleOverride("현재 수업 반을 수동으로 변경") {
+                            sessionAdminActionFlowActive = true
+                            showQuickClassSwitchDialog()
+                        }
                     }
                     1 -> {
                         sessionAdminActionFlowActive = true
