@@ -370,7 +370,7 @@ class RecoveryInstrumentedTest {
     }
 
     @Test
-    fun recoveryRendererRecycleRecreatesActivityWithFreshWebView() {
+    fun secureRecoveryRendererRecycleRecreatesActivityWithoutBackgroundLock() {
         writeState(WebPocState.LOCKED)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             lateinit var discardedWebView: WebView
@@ -389,6 +389,10 @@ class RecoveryInstrumentedTest {
                 MainActivity::class.java.getDeclaredField(
                     "recoveryRendererRecyclePending",
                 ).apply {
+                    isAccessible = true
+                    setBoolean(activity, true)
+                }
+                MainActivity::class.java.getDeclaredField("secureKioskSession").apply {
                     isAccessible = true
                     setBoolean(activity, true)
                 }
@@ -415,6 +419,10 @@ class RecoveryInstrumentedTest {
                 if (!freshWebViewObserved) TimeUnit.MILLISECONDS.sleep(100)
             }
             assertTrue("recovery did not create a fresh WebView", freshWebViewObserved)
+            assertFalse(
+                "intentional secure-session recovery recreation was treated as backgrounding",
+                readState() == WebPocState.LOCKED,
+            )
         }
     }
 

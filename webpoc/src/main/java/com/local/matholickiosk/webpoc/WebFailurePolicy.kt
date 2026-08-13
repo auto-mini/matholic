@@ -51,4 +51,14 @@ object WebFailurePolicy {
         WebPocState.LOCKED,
         WebPocState.MAINTENANCE_REQUIRED,
     )
+
+    fun shouldLockSecureSessionOnStop(
+        secureKioskSession: Boolean,
+        isFinishing: Boolean,
+        isChangingConfigurations: Boolean,
+        recoveryRecreatePending: Boolean,
+    ): Boolean = secureKioskSession &&
+        !isFinishing &&
+        !isChangingConfigurations &&
+        !recoveryRecreatePending
 }

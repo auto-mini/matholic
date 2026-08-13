@@ -2772,7 +2772,12 @@ class MainActivity : Activity() {
                     !recoveryRecreatePending -> {
                     finishAdminRecoveryWithFailure("ADMIN_RECOVERY_BACKGROUND")
                 }
-                secureKioskSession && !isFinishing -> {
+                WebFailurePolicy.shouldLockSecureSessionOnStop(
+                    secureKioskSession = secureKioskSession,
+                    isFinishing = isFinishing,
+                    isChangingConfigurations = isChangingConfigurations,
+                    recoveryRecreatePending = recoveryRecreatePending,
+                ) -> {
                     showLocked("SECURE_SESSION_BACKGROUND")
                 }
                 activeGate3 != null -> {

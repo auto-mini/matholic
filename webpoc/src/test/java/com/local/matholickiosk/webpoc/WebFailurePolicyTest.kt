@@ -200,4 +200,40 @@ class WebFailurePolicyTest {
                 assertTrue(WebFailurePolicy.shouldLockForMainFrameFailure(true, state))
             }
     }
+
+    @Test
+    fun `secure session locks only for a real background transition`() {
+        assertTrue(
+            WebFailurePolicy.shouldLockSecureSessionOnStop(
+                secureKioskSession = true,
+                isFinishing = false,
+                isChangingConfigurations = false,
+                recoveryRecreatePending = false,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldLockSecureSessionOnStop(
+                secureKioskSession = true,
+                isFinishing = false,
+                isChangingConfigurations = false,
+                recoveryRecreatePending = true,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldLockSecureSessionOnStop(
+                secureKioskSession = true,
+                isFinishing = false,
+                isChangingConfigurations = true,
+                recoveryRecreatePending = false,
+            ),
+        )
+        assertFalse(
+            WebFailurePolicy.shouldLockSecureSessionOnStop(
+                secureKioskSession = false,
+                isFinishing = false,
+                isChangingConfigurations = false,
+                recoveryRecreatePending = false,
+            ),
+        )
+    }
 }
