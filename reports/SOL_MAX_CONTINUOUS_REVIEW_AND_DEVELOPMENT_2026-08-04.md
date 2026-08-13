@@ -1,6 +1,29 @@
 # Sol Max 연속 리뷰·개발 누적 보고서
 
-## 현재 상태
+## 최신 사용자 기능 반영 상태 — 2026-08-13 14:35 +09:00
+
+- 사용자 지정 시작 시각과 반별 3시간을 기준으로 자동 시작·반 변경·종료하는 Kiosk
+  시간표 기능을 구현했다. 오늘 임시 시간/반, 오늘만 자동 끄기, 겹침 차단, 수동 반·
+  수업 조작 차단과 학생 채점·관리자 작업 중 지연을 포함한다.
+- 제품·release 경로는 정책 `38a5a0d`, 설정·저장소 `591fb4f`, 런타임
+  `f355961`, RC91 `73a43d8`, 검증 경로 `cb27358`로 분리했다. 이 상태 기록 문서
+  commit은 뒤에 생성한다.
+- 공식 clean release는 158 tasks 중 152개 실행, 1분 50초 PASS했다. Kiosk unit은
+  28 suites·106/106이고 debug lint·AndroidTest compile도 통과했다. RC91/code 96
+  APK는 36,819,777 bytes, SHA-256
+  `4CCDB3D0300D6F938A88025237BC728CA4C335E9ABD55C568F3B5D0B32FD839A`, 기존 release
+  signer와 일치한다.
+- 승인 A `SM-P610`/`R54TB029FHZ`에 RC91을 보존 설치했다. UID 10288,
+  firstInstallTime, Device Owner, preferred HOME와 Lock Task `LOCKED`가 유지됐다.
+  업데이트 뒤 `RECOVERY_REQUIRED` 수업을 원버튼 안전 복구하고 기존 선택 반 `수2`를
+  다시 시작해 전면 QR 대기로 복원했다.
+- A에서 시간표 dialog의 12개 반, 시작 시각, 오늘 임시 변경, 오늘 자동 끄기와
+  저장/취소가 가로 화면 스크롤로 모두 접근됨을 확인하고 저장 없이 취소했다. 운영
+  시간표를 바꾸지 않았으므로 실제 3시간 경계 자동 시작·전환·종료와 채점 중 지연은
+  `자동검증 완료`이며 현장검증은 남아 있다.
+- 기존 미추적 `outputs/`는 수정·stage·삭제하지 않았다.
+
+## 직전 연속 리뷰 상태 — 2026-08-13 13:03 스냅샷
 
 - `last_updated`: 2026-08-13 13:03:00 +09:00
 - 현재 branch: `codex/sol-continuous-development-20260804`

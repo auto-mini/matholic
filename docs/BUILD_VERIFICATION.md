@@ -1,5 +1,61 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC91 자동 반 시간표·안전 전환 — 2026-08-13
+
+### 구현 계약
+
+- 관리자 화면에서 고정 반 `월1`~`토2`마다 시작 시각과 사용 여부만 정한다. 각 수업은
+  시작부터 정확히 3시간이며, 주간 시간표와 오늘 임시 시간표 모두 겹치는 수업을
+  저장하지 않는다. 오늘 임시는 최대 두 수업의 반·시각을 바꿀 수 있고, 오늘만
+  자동 전환을 끄면 다음 자정에 자동 복귀한다.
+- 로컬 기기 시각으로 현재 예약 반을 계산한다. 유효 수업이 시작되면 자동 시작,
+  QR 대기에서 다음 반 시간이 되면 자동 반 변경, 종료 시각에는 Web 상태를 안전하게
+  정리하고 수업을 종료한 뒤 관리자 인증 화면으로 이동한다. 앱 재진입·재시작 때도
+  즉시 재계산한다.
+- 학생 채점·QR 검증·Web 로그인/로그아웃, 복구 상태, 관리자 화면과 학생·반 작업 중에는
+  전환을 수행하지 않고 QR 대기 또는 작업 완료 뒤 다시 판정한다. 수동 수업 시작·종료,
+  관리자 반 선택과 QR 화면 빠른 반 변경은 오늘 자동 전환을 끄기 전에는 실행하지 않는다.
+- 기기 시각이 2025~2100년 밖이거나 마지막 확인 시각보다 5분 넘게 뒤로 가면 자동
+  전환을 중지하고 태블릿·지정 PC에 관리자 확인을 알린다. 관리자 화면에서 현재 시각을
+  확인한 뒤에만 기준을 다시 신뢰한다.
+
+### 자동검증·release
+
+- 자동 시간표 정책 unit은 3시간 경계, 반 전환·종료, 자정 통과, 겹침 거부,
+  학생 채점·관리자 작업 지연과 시각 rollback 차단을 검증한다. 저장소 계측 source는
+  주간/오늘 임시/오늘 끄기/시각 기준 round-trip과 새 관리자 UI ID를 검증하며
+  `compileDebugAndroidTestKotlin`을 통과했다.
+- Kiosk unit 전체는 28 suites·106/106, failure/error/skip 0이다. debug unit,
+  AndroidTest compile과 `lintDebug` 묶음은 통과했다.
+- 공식 `scripts/build-release.ps1` clean 검증은 158 tasks 중 152개 실행,
+  `BUILD SUCCESSFUL in 1m 50s`다. 양 앱 unit·release lint·signed assemble,
+  package/version/non-debuggable/동일 signer 검증을 통과했다.
+- Kiosk RC91/code 96 APK는 36,819,777 bytes, SHA-256
+  `4CCDB3D0300D6F938A88025237BC728CA4C335E9ABD55C568F3B5D0B32FD839A`,
+  v2 signer SHA-256
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`다.
+
+### 실제 A 보존 설치·현장 범위
+
+- 승인 `SM-P610`/`R54TB029FHZ` 한 대에 같은 signer RC91을 `adb install -r`로
+  설치했다. version 96/RC91, UID 10288, first install `2026-07-24 12:52:28`,
+  Device Owner, preferred HOME와 Lock Task `LOCKED`가 유지됐다.
+- 업데이트 재시작으로 기존 수업이 `RECOVERY_REQUIRED`가 된 뒤 저장 PIN으로 관리자
+  인증하고 원버튼 안전 복구를 실행했다. 학생·반·QR을 삭제하지 않고 기존 수업만
+  종료한 뒤 기존 선택 반 `수2`를 Web 사전점검으로 다시 시작해 전면 카메라 QR 대기와
+  Lock Task `LOCKED`로 복원했다.
+- 실제 A에서 `자동 반 시간표 설정`을 열어 12개 반, 반별 시작 시각, 오늘 임시 변경,
+  오늘 자동 전환 끄기와 저장/취소 제어가 가로 화면에서 스크롤로 접근되고 잘리지
+  않음을 확인했다. 운영 시간표는 저장하지 않고 취소했으므로 실제 3시간 경계의 자동
+  시작·반 변경·지연·종료는 아직 현장검증하지 않았다.
+
+### 체크포인트·롤백
+
+- 정책 `38a5a0d`, 설정·저장소 `591fb4f`, 런타임 `f355961`, RC91 준비
+  `73a43d8`, 릴리스 검증 경로 `cb27358`로 분리했다. source rollback은 해당 commit을
+  역순 `git revert`한다. A 롤백은 낮은 versionCode를 설치하지 않고, 되돌린 source에
+  96보다 높은 versionCode를 부여한 같은 signer 복구 release를 사용한다.
+
 ## PC pairing secret String·queue/lifecycle 회귀 고정 — 2026-08-13
 
 ### 현재 판정과 과거 교정

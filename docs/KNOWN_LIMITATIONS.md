@@ -2,10 +2,12 @@
 
 ## 2026-08-13 현재 운영 제한
 
-- 현재 A 설치본은 Kiosk RC89/Web RC137이다. 보존 설치 뒤 UID·firstInstallTime,
-  Device Owner·전용 HOME·Lock Task를 유지했고, RC89 전용 PDF provider 등록,
-  원버튼 안전 복구, 신규용 카드 무료 4장 유지, Web 사전점검과 최종 QR 대기를
-  실물 확인했다.
+- 현재 A 설치본은 Kiosk RC91/Web RC138이다. RC91 보존 설치 뒤 UID·firstInstallTime,
+  Device Owner·전용 HOME·Lock Task를 유지했고, 업데이트 복구·Web 사전점검과 최종
+  QR 대기, 자동 시간표 설정 화면의 12개 반·오늘 임시/끄기 제어를 실물 확인했다.
+- 운영 자동 시간표는 아직 저장하지 않았다. 따라서 3시간 실제 경계에서 자동 시작,
+  학생 채점 종료 후 지연 전환, 다음 반 변경과 종료 뒤 관리자 인증 이동은 정책 unit과
+  release 검증까지만 완료됐으며 물리 A 현장검증은 남아 있다.
 - RC89은 지정 PC의 학생 CSV 요청·parse·미리보기·적용이 끝날 때까지 공통 관리자
   데이터 gate를 유지한다. 지연 loopback PC 계측에서 CSV 요청 중 수업 시작과 다른
   학생·반 작업이 차단되고 요청 종료 뒤 제어가 복구됨을 확인했다. 운영 PC에는 대기
