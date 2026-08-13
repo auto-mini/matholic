@@ -55,6 +55,55 @@ class AutomaticClassSchedulePolicyTest {
     }
 
     @Test
+    fun nextWindowFindsTomorrowAndWrapsFromSaturdayToMonday() {
+        val everyWeek = listOf(
+            ScheduledClassEntry("월1", 1, 10 * 60),
+            ScheduledClassEntry("금1", 5, 10 * 60),
+        )
+        val thursdayAfterClass = LocalDate.of(2026, 8, 13)
+            .atTime(17, 30)
+            .atZone(zone)
+        val friday = requireNotNull(
+            AutomaticClassSchedulePolicy.nextWindowAfter(thursdayAfterClass, everyWeek),
+        )
+        assertEquals("금1", friday.className)
+        assertEquals(LocalDate.of(2026, 8, 14), friday.start.toLocalDate())
+
+        val saturday = LocalDate.of(2026, 8, 15).atTime(17, 30).atZone(zone)
+        val mondayWindow = requireNotNull(
+            AutomaticClassSchedulePolicy.nextWindowAfter(saturday, everyWeek),
+        )
+        assertEquals("월1", mondayWindow.className)
+        assertEquals(LocalDate.of(2026, 8, 17), mondayWindow.start.toLocalDate())
+    }
+
+    @Test
+    fun nextWindowHonorsTodayOverrideAndTodayDisable() {
+        val now = monday.atTime(9, 0).atZone(zone)
+        val override = DailyClassScheduleOverride(
+            monday,
+            listOf(ScheduledClassEntry("금1", 1, 11 * 60)),
+        )
+        assertEquals(
+            "금1",
+            AutomaticClassSchedulePolicy.nextWindowAfter(
+                now,
+                weekly,
+                todayOverride = override,
+            )?.className,
+        )
+        assertEquals(
+            "월1",
+            AutomaticClassSchedulePolicy.nextWindowAfter(
+                now,
+                weekly,
+                todayOverride = override,
+                todayDisabled = true,
+            )?.className,
+        )
+    }
+
+    @Test
     fun todayOverrideReplacesOnlyTodaysWeeklyStarts() {
         val override = DailyClassScheduleOverride(
             monday,

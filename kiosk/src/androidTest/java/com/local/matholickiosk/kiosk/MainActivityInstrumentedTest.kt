@@ -939,6 +939,19 @@ class MainActivityInstrumentedTest {
             scenario.onActivity { activity ->
                 assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.admin_panel).visibility)
                 assertEquals(View.GONE, activity.findViewById<View>(R.id.auth_panel).visibility)
+                activity.findViewById<View>(R.id.close_admin_button).performClick()
+            }
+            waitUntil(scenario) { activity ->
+                activity.findViewById<View>(R.id.auth_panel).visibility == View.VISIBLE &&
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.GONE
+            }
+            scenario.onActivity { activity ->
+                assertTrue(
+                    activity.findViewById<android.widget.TextView>(R.id.auth_description)
+                        .text
+                        .toString()
+                        .contains("예약 시각"),
+                )
             }
         }
         database.clearAllTables()

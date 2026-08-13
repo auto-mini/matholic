@@ -68,10 +68,13 @@ class AutomaticClassScheduleStoreInstrumentedTest {
         }
         val button = root.findViewById<Button>(R.id.class_schedule_button)
         val summary = root.findViewById<TextView>(R.id.class_schedule_summary)
+        val closeAdminButton = root.findViewById<Button>(R.id.close_admin_button)
 
         assertEquals("자동 반 시간표 설정", button.text.toString())
         assertTrue(summary.text.toString().contains("설정 안 됨"))
         assertTrue(button.filterTouchesWhenObscured)
+        assertEquals("관리자 화면 잠그고 자동 대기", closeAdminButton.text.toString())
+        assertTrue(closeAdminButton.filterTouchesWhenObscured)
     }
 
     private companion object {

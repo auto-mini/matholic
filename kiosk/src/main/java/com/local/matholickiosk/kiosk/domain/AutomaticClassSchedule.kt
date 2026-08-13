@@ -136,6 +136,28 @@ object AutomaticClassSchedulePolicy {
         return boundaries.filter { it.isAfter(now) }.minOrNull()
     }
 
+    fun nextWindowAfter(
+        now: ZonedDateTime,
+        weeklyEntries: List<ScheduledClassEntry>,
+        todayOverride: DailyClassScheduleOverride? = null,
+        todayDisabled: Boolean = false,
+    ): ScheduledClassWindow? = (0L..7L)
+        .flatMap { dayOffset ->
+            val date = now.toLocalDate().plusDays(dayOffset)
+            if (dayOffset == 0L && todayDisabled) {
+                emptyList()
+            } else {
+                windowsForDate(
+                    date = date,
+                    zoneId = now.zone,
+                    weeklyEntries = weeklyEntries,
+                    override = todayOverride?.takeIf { it.date == date },
+                )
+            }
+        }
+        .filter { it.start.isAfter(now) }
+        .minByOrNull(ScheduledClassWindow::start)
+
     private fun windowsForDate(
         date: LocalDate,
         zoneId: java.time.ZoneId,

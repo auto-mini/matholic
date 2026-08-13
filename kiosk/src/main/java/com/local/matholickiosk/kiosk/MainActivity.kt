@@ -96,6 +96,7 @@ import com.local.matholickiosk.kiosk.domain.AutomaticScheduleProblemNotification
 import com.local.matholickiosk.kiosk.domain.DailyClassScheduleOverride
 import com.local.matholickiosk.kiosk.domain.ScheduledClassEntry
 import com.local.matholickiosk.kiosk.domain.ScheduledClassTarget
+import com.local.matholickiosk.kiosk.domain.ScheduledClassWindow
 import com.local.matholickiosk.kiosk.print.BatchQrCard
 import com.local.matholickiosk.kiosk.print.BatchQrPdfExporter
 import com.local.matholickiosk.kiosk.print.QrPdfExporter
@@ -139,6 +140,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var authError: TextView
     private lateinit var authSubmit: Button
     private lateinit var adminPanel: LinearLayout
+    private lateinit var adminControlsScroll: ScrollView
+    private lateinit var closeAdminButton: Button
     private lateinit var classNameInput: EditText
     private lateinit var createClassButton: Button
     private lateinit var classSpinner: Spinner
@@ -512,6 +515,8 @@ class MainActivity : ComponentActivity() {
         authError = findViewById(R.id.auth_error)
         authSubmit = findViewById(R.id.auth_submit)
         adminPanel = findViewById(R.id.admin_panel)
+        adminControlsScroll = findViewById(R.id.admin_controls_scroll)
+        closeAdminButton = findViewById(R.id.close_admin_button)
         classNameInput = findViewById(R.id.class_name_input)
         createClassButton = findViewById(R.id.create_class_button)
         classSpinner = findViewById(R.id.class_spinner)
@@ -571,6 +576,7 @@ class MainActivity : ComponentActivity() {
         }
         listOf(
             authSubmit,
+            closeAdminButton,
             findViewById<Button>(R.id.create_class_button),
             registerStudentButton,
             importStudentCsvButton,
@@ -664,6 +670,7 @@ class MainActivity : ComponentActivity() {
                 startOrEndSession()
             }
         }
+        closeAdminButton.setOnClickListener { closeAdministratorScreen() }
         resumeSessionButton.setOnClickListener { showScanner() }
         selfTestButton.setOnClickListener { runOperationalSelfTest() }
         feedbackSettingsButton.setOnClickListener { showFeedbackSettings() }
@@ -1001,6 +1008,7 @@ class MainActivity : ComponentActivity() {
         scannerPanel.visibility = View.GONE
         adminPanel.visibility = View.VISIBLE
         scannerVisible = false
+        adminControlsScroll.post { adminControlsScroll.scrollTo(0, 0) }
         suppressNextAdminStopRelock = true
         exitDedicatedModeForAdministrator()
         mainHandler.postDelayed(
@@ -3411,6 +3419,18 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    private fun closeAdministratorScreen() {
+        val session = currentSession
+        if (session?.sessionId != null && session.state == KioskState.QR_READY.name) {
+            showScanner()
+            return
+        }
+        showAuthentication(enrollment = false)
+        authDescription.text =
+            "관리자 화면을 잠갔습니다. 예약 시각이 되면 해당 반 수업이 자동으로 시작됩니다."
+        requestAutomaticClassScheduleCheck()
+    }
+
     private fun showClassScheduleSettings() {
         val schedule = runCatching { automaticClassScheduleStore.loadWeekly() }
             .getOrElse {
@@ -3730,21 +3750,58 @@ class MainActivity : ComponentActivity() {
 
     private fun updateClassScheduleSummary() {
         if (!::classScheduleSummary.isInitialized || !::automaticClassScheduleStore.isInitialized) return
-        val date = LocalDate.now()
+        val now = ZonedDateTime.now()
+        val date = now.toLocalDate()
         classScheduleSummary.text = runCatching {
             val weekly = automaticClassScheduleStore.loadWeekly()
             val override = automaticClassScheduleStore.loadOverride(date)
+            val disabled = automaticClassScheduleStore.isDisabledFor(date)
             val entries = override?.entries ?: weekly.enabledEntries()
                 .filter { it.isoDayOfWeek == date.dayOfWeek.value }
-            when {
-                weekly.enabledEntries().isEmpty() && override == null -> "자동 반 시간표: 설정 안 됨"
-                automaticClassScheduleStore.isDisabledFor(date) ->
-                    "자동 반 시간표: 오늘만 꺼짐 · 자정에 자동 복귀"
+            if (weekly.enabledEntries().isEmpty() && override == null) {
+                return@runCatching "자동 반 시간표: 설정 안 됨\n" +
+                    "시간표를 설정하거나 원하는 반을 선택한 뒤 아래 수업 시작 버튼을 누르세요."
+            }
+            val todayLine = when {
+                disabled -> "오늘 자동 전환: 꺼짐 · 자정에 자동 복귀"
                 override != null -> "오늘 임시 시간표: ${formatScheduleEntries(entries)}"
-                entries.isEmpty() -> "자동 반 시간표: 오늘 수업 없음"
+                entries.isEmpty() -> "오늘 자동 시간표: 수업 없음"
                 else -> "오늘 자동 시간표: ${formatScheduleEntries(entries)} · 각 3시간"
             }
+            val nextWindow = AutomaticClassSchedulePolicy.nextWindowAfter(
+                now = now,
+                weeklyEntries = weekly.enabledEntries(),
+                todayOverride = override,
+                todayDisabled = disabled,
+            )
+            val nextLine = nextWindow?.let { window ->
+                "다음 자동 시작: ${formatNextScheduledClass(window, date)}"
+            } ?: "다음 7일 안에 자동 시작할 수업이 없습니다."
+            val actionLine = if (currentSession?.sessionId == null) {
+                if (disabled) {
+                    "지금 시작: 반 선택 → 아래 ‘선택한 반 수업 안전 시작’"
+                } else {
+                    "지금 시작: 반 선택 → 아래 ‘선택한 반 수업 안전 시작’ → ‘오늘 자동 전환 끄기’"
+                }
+            } else {
+                "관리자 작업을 마치면 위 ‘관리자 화면 닫고 QR 대기’로 돌아가세요."
+            }
+            listOf(todayLine, nextLine, actionLine).joinToString("\n")
         }.getOrElse { "자동 반 시간표: 저장 오류 · 설정을 확인하세요" }
+    }
+
+    private fun formatNextScheduledClass(
+        window: ScheduledClassWindow,
+        today: LocalDate,
+    ): String {
+        val date = window.start.toLocalDate()
+        val dayLabel = when (date) {
+            today -> "오늘"
+            today.plusDays(1) -> "내일"
+            else -> "${date.monthValue}월 ${date.dayOfMonth}일"
+        }
+        val minute = window.start.hour * 60 + window.start.minute
+        return "${window.className} · $dayLabel ${formatScheduleMinute(minute)}"
     }
 
     private fun formatScheduleEntries(entries: List<ScheduledClassEntry>): String =
@@ -4291,6 +4348,11 @@ class MainActivity : ComponentActivity() {
             "현재 수업 안전 종료"
         } else {
             "선택한 반 수업 안전 시작"
+        }
+        closeAdminButton.text = if (resumable) {
+            "관리자 화면 닫고 QR 대기"
+        } else {
+            "관리자 화면 잠그고 자동 대기"
         }
         val operationAvailable =
             !adminDataOperationGate.isActive && !webRecoveryGate.isActive
