@@ -871,6 +871,157 @@ class RepositoryInstrumentedTest {
     }
 
     @Test
+    fun temporaryReusableCardLoanUsesExistingIdentityAndBlocksOriginalUntilRelease() {
+        val prepared = repository.prepareReusableCardSlots()
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+        val slot = repository.listReusableCardSlots().first()
+        val slotPayload = prepared.first { it.studentId == slot.studentId }.issuedQr.payload
+        val student = repository.registerStudent(
+            "기존 학생",
+            "temporary-loan-user".toCharArray(),
+            "temporary-loan-password".toCharArray(),
+        )
+        repository.markCardPdfsSavedToPc(setOf(student.studentId))
+        val classId = repository.createClass("분실 임시카드 수업")
+        repository.replaceClassMemberships(classId, setOf(student.studentId))
+        val session = repository.startSession(classId)
+        val sessionId = requireNotNull(session.sessionId)
+
+        assertEquals(
+            student.studentId,
+            repository.validateForActiveSession(qrHash(student.issuedQr.payload))?.studentId,
+        )
+        val loan = repository.loanReusableCardToExistingStudent(
+            slotStudentId = slot.studentId,
+            borrowerStudentId = student.studentId,
+            expectedSessionId = sessionId,
+        )
+
+        assertEquals(slot.slotLabel, loan.slotLabel)
+        assertEquals(student.studentId, loan.borrowerStudentId)
+        assertTrue(repository.listTemporaryCardLoanCandidatesForActiveSession(sessionId).isEmpty())
+        val loanedSlot = repository.listReusableCardSlots()
+            .first { it.studentId == slot.studentId }
+        assertTrue(loanedSlot.isTemporarilyLoaned)
+        assertFalse(loanedSlot.isAvailable)
+        assertEquals("기존 학생", loanedSlot.temporaryBorrowerDisplayNameExact)
+        assertNull(repository.validateForActiveSession(qrHash(student.issuedQr.payload)))
+        assertEquals(
+            student.studentId,
+            repository.validateForActiveSession(qrHash(slotPayload))?.studentId,
+        )
+        repository.decryptCredentials(student.studentId).use {
+            assertArrayEquals("temporary-loan-user".toCharArray(), it.username)
+            assertArrayEquals("temporary-loan-password".toCharArray(), it.password)
+        }
+        repository.decryptCredentials(slot.studentId).use {
+            assertTrue(it.username.isEmpty())
+            assertTrue(it.password.isEmpty())
+        }
+        assertEquals(setOf(student.studentId), repository.membershipStudentIds(classId))
+        assertTrue(
+            runCatching {
+                repository.assignReusableCardSlot(
+                    slotStudentId = slot.studentId,
+                    displayNameExact = "중복 학생",
+                    username = "duplicate-user".toCharArray(),
+                    password = "duplicate-password".toCharArray(),
+                )
+            }.isFailure,
+        )
+        assertTrue(
+            runCatching {
+                repository.loanReusableCardToExistingStudent(
+                    slotStudentId = repository.listReusableCardSlots()[1].studentId,
+                    borrowerStudentId = student.studentId,
+                    expectedSessionId = sessionId,
+                )
+            }.isFailure,
+        )
+
+        repository.endSession()
+        assertEquals(1, repository.listTemporaryCardLoans().size)
+        val nextSession = repository.startSession(classId)
+        val nextSessionId = requireNotNull(nextSession.sessionId)
+        assertEquals(
+            student.studentId,
+            repository.validateForActiveSession(qrHash(slotPayload))?.studentId,
+        )
+        repository.releaseTemporaryCardLoan(slot.studentId, nextSessionId)
+        assertTrue(
+            repository.listReusableCardSlots()
+                .first { it.studentId == slot.studentId }
+                .isAvailable,
+        )
+        assertEquals(
+            student.studentId,
+            repository.validateForActiveSession(qrHash(student.issuedQr.payload))?.studentId,
+        )
+        assertNull(repository.validateForActiveSession(qrHash(slotPayload)))
+    }
+
+    @Test
+    fun reissuedOriginalQrStaysBlockedUntilTemporaryCardIsReturned() {
+        val prepared = repository.prepareReusableCardSlots()
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+        val slot = repository.listReusableCardSlots().first()
+        val student = repository.registerStudent(
+            "영구 분실 학생",
+            "permanent-loss-user".toCharArray(),
+            "permanent-loss-password".toCharArray(),
+        )
+        val originalPayload = student.issuedQr.payload
+        val classId = repository.createClass("영구 분실 수업")
+        repository.replaceClassMemberships(classId, setOf(student.studentId))
+        repository.loanReusableCardToExistingStudent(slot.studentId, student.studentId)
+        val replacementPayload = repository.reissueQr(student.studentId).payload
+        val session = repository.startSession(classId)
+        val sessionId = requireNotNull(session.sessionId)
+
+        assertNull(repository.validateForActiveSession(qrHash(originalPayload)))
+        assertNull(repository.validateForActiveSession(qrHash(replacementPayload)))
+        repository.releaseTemporaryCardLoan(slot.studentId, sessionId)
+        assertNull(repository.validateForActiveSession(qrHash(originalPayload)))
+        assertEquals(
+            student.studentId,
+            repository.validateForActiveSession(qrHash(replacementPayload))?.studentId,
+        )
+    }
+
+    @Test
+    fun temporaryCardLoanMutationRejectsSensitiveOrChangedSession() {
+        val prepared = repository.prepareReusableCardSlots()
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+        val slot = repository.listReusableCardSlots().first()
+        val student = repository.registerStudent(
+            "경합 학생",
+            "loan-race-user".toCharArray(),
+            "loan-race-password".toCharArray(),
+        )
+        val classId = repository.createClass("임시카드 경합 수업")
+        repository.replaceClassMemberships(classId, setOf(student.studentId))
+        val session = repository.startSession(classId)
+        val sessionId = requireNotNull(session.sessionId)
+        repository.transitionSession(
+            expectedState = KioskState.QR_READY,
+            state = KioskState.PRELOGIN_CHECK,
+            expectedSessionId = sessionId,
+            currentStudentId = student.studentId,
+        )
+
+        assertTrue(
+            runCatching {
+                repository.loanReusableCardToExistingStudent(
+                    slot.studentId,
+                    student.studentId,
+                    sessionId,
+                )
+            }.isFailure,
+        )
+        assertTrue(repository.listTemporaryCardLoans().isEmpty())
+    }
+
+    @Test
     fun ensureReusableCardSlotsRepairsInactiveLegacySlot() {
         val prepared = repository.prepareReusableCardSlots()
         repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })

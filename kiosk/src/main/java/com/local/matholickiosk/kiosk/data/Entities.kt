@@ -33,6 +33,30 @@ data class StudentEntity(
 )
 
 @Entity(
+    tableName = "reusable_card_loans",
+    foreignKeys = [
+        ForeignKey(
+            entity = StudentEntity::class,
+            parentColumns = ["studentId"],
+            childColumns = ["slotStudentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = StudentEntity::class,
+            parentColumns = ["studentId"],
+            childColumns = ["borrowerStudentId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["borrowerStudentId"], unique = true)],
+)
+data class ReusableCardLoanEntity(
+    @androidx.room.PrimaryKey val slotStudentId: String,
+    val borrowerStudentId: String,
+    val loanedAtEpochMs: Long,
+)
+
+@Entity(
     tableName = "qr_card_status",
     foreignKeys = [
         ForeignKey(

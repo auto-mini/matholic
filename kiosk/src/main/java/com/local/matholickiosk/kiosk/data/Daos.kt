@@ -139,6 +139,37 @@ interface StudentDao {
 }
 
 @Dao
+interface ReusableCardLoanDao {
+    @Insert
+    fun insert(loan: ReusableCardLoanEntity)
+
+    @Query("SELECT * FROM reusable_card_loans WHERE slotStudentId = :slotStudentId LIMIT 1")
+    fun findBySlot(slotStudentId: String): ReusableCardLoanEntity?
+
+    @Query("SELECT * FROM reusable_card_loans WHERE borrowerStudentId = :borrowerStudentId LIMIT 1")
+    fun findByBorrower(borrowerStudentId: String): ReusableCardLoanEntity?
+
+    @Query("SELECT * FROM reusable_card_loans ORDER BY loanedAtEpochMs, slotStudentId")
+    fun listAll(): List<ReusableCardLoanEntity>
+
+    @Query(
+        """
+        SELECT loan.* FROM reusable_card_loans loan
+        INNER JOIN students slot ON slot.studentId = loan.slotStudentId
+        WHERE slot.qrTokenHash = :hash
+          AND slot.isActive = 1
+          AND slot.reusableCardLabel IS NOT NULL
+          AND slot.reusableCardAssigned = 0
+        LIMIT 1
+        """,
+    )
+    fun findBySlotQrHash(hash: ByteArray): ReusableCardLoanEntity?
+
+    @Query("DELETE FROM reusable_card_loans WHERE slotStudentId = :slotStudentId")
+    fun deleteBySlot(slotStudentId: String): Int
+}
+
+@Dao
 interface QrCardStatusDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun upsert(status: QrCardStatusEntity)

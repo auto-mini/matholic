@@ -66,6 +66,7 @@ import com.local.matholickiosk.kiosk.data.StudentCsvParser
 import com.local.matholickiosk.kiosk.data.ParsedStudentCsv
 import com.local.matholickiosk.kiosk.data.ReusableCardSlotSummary
 import com.local.matholickiosk.kiosk.data.StudentCsvImportPreview
+import com.local.matholickiosk.kiosk.data.TemporaryCardLoanSummary
 import com.local.matholickiosk.kiosk.data.ValidatedStudent
 import com.local.matholickiosk.kiosk.domain.CameraFacing
 import com.local.matholickiosk.kiosk.domain.CameraFacingPolicy
@@ -1944,16 +1945,21 @@ class MainActivity : ComponentActivity() {
 
     private fun showReusableCardMenu() {
         val slots = reusableCardSlots
-        val available = slots.filterNot(ReusableCardSlotSummary::isAssigned)
+        val available = slots.filter(ReusableCardSlotSummary::isAvailable)
         val assigned = slots.filter(ReusableCardSlotSummary::isAssigned)
+        val temporarilyLoaned = slots.filter(ReusableCardSlotSummary::isTemporarilyLoaned)
         val pendingPrint = available.count(ReusableCardSlotSummary::needsCardPdf)
         var actionIndex = 0
         val assignIndex = actionIndex++
+        val temporaryLoanIndex = actionIndex++
+        val temporaryReleaseIndex = if (temporarilyLoaned.isNotEmpty()) actionIndex++ else -1
         val replacePendingIndex = if (pendingPrint > 0) actionIndex++ else -1
         val moveIndex = if (assigned.isNotEmpty()) actionIndex++ else -1
         val releaseIndex = if (assigned.isNotEmpty()) actionIndex++ else -1
         val actions = buildList {
-            add("무료 카드 학생에게 배정")
+            add("무료 카드 신규 학생에게 배정")
+            add("분실한 기존 학생에게 임시카드 대여")
+            if (temporarilyLoaned.isNotEmpty()) add("분실 임시카드 회수")
             if (pendingPrint > 0) add("저장 미확인 카드 QR 폐기·새 QR 전송")
             if (assigned.isNotEmpty()) add("실제 QR 카드로 전환·더미 초기화")
             if (assigned.isNotEmpty()) add("사용 중 카드 회수·초기화")
@@ -1961,11 +1967,14 @@ class MainActivity : ComponentActivity() {
         AlertDialog.Builder(this)
             .setTitle(
                 "신규용 QR 카드 · 전체 ${slots.size}장 · " +
-                    "무료 ${available.size}장 · 사용 중 ${assigned.size}장",
+                    "무료 ${available.size}장 · 신규학생 ${assigned.size}장 · " +
+                    "임시대여 ${temporarilyLoaned.size}장",
             )
             .setItems(actions.toTypedArray()) { _, which ->
                 when {
                     which == assignIndex -> showAssignReusableCardDialog()
+                    which == temporaryLoanIndex -> loadAdminTemporaryCardLoanChoices()
+                    which == temporaryReleaseIndex -> loadAdminTemporaryCardReleaseChoices()
                     which == replacePendingIndex -> confirmReplacePendingReusableCards(pendingPrint)
                     which == moveIndex -> showMoveReusableCardDialog()
                     which == releaseIndex -> showReleaseReusableCardDialog()
@@ -2104,11 +2113,11 @@ class MainActivity : ComponentActivity() {
 
     private fun showAssignReusableCardDialog() {
         val candidates = reusableCardSlots.filter {
-            !it.isAssigned && !it.needsCardPdf
+            it.isAvailable && !it.needsCardPdf
         }
         if (candidates.isEmpty()) {
             adminMessage.text = if (
-                reusableCardSlots.any { !it.isAssigned && it.needsCardPdf }
+                reusableCardSlots.any { it.isAvailable && it.needsCardPdf }
             ) {
                 "먼저 신규용 카드를 지정 PC에 저장하고 출력하세요."
             } else {
@@ -2267,6 +2276,244 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun loadAdminTemporaryCardLoanChoices() {
+        if (!beginAdminDataOperation("분실 임시카드 대여 대상을 확인하는 중")) return
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.listTemporaryCardLoanCandidates() to
+                    studentRepository.listReusableCardSlots()
+                        .filter { it.isAvailable && !it.needsCardPdf }
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                finishAdminDataOperation()
+                result.fold(
+                    onSuccess = { (candidates, slots) ->
+                        when {
+                            candidates.isEmpty() ->
+                                adminMessage.text = "임시카드를 대여할 기존 학생이 없습니다."
+                            slots.isEmpty() ->
+                                adminMessage.text =
+                                    "출력 확인된 무료 신규용 카드가 없습니다. 사용 중 카드를 먼저 회수하세요."
+                            else -> showTemporaryCardLoanStudentDialog(
+                                title = "분실한 기존 학생 선택",
+                                candidates = candidates,
+                                slots = slots,
+                                onLoan = ::confirmAdminTemporaryCardLoan,
+                            )
+                        }
+                    },
+                    onFailure = {
+                        adminMessage.text = it.message ?: "임시카드 대여 대상을 불러오지 못했습니다."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun confirmAdminTemporaryCardLoan(
+        student: ValidatedStudent,
+        slot: ReusableCardSlotSummary,
+    ) {
+        showTemporaryCardLoanConfirmation(
+            student = student,
+            slot = slot,
+            onConfirmed = { performAdminTemporaryCardLoan(student, slot) },
+        )
+    }
+
+    private fun performAdminTemporaryCardLoan(
+        student: ValidatedStudent,
+        slot: ReusableCardSlotSummary,
+    ) {
+        if (!beginAdminDataOperation("${slot.slotLabel} 임시 대여 중")) return
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.loanReusableCardToExistingStudent(
+                    slotStudentId = slot.studentId,
+                    borrowerStudentId = student.studentId,
+                )
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { loan ->
+                        refreshAdminData(
+                            message =
+                                "${loan.slotLabel}를 ${loan.borrowerDisplayNameExact} 학생에게 임시 대여했습니다. " +
+                                    "회수 전까지 기존 QR은 차단됩니다.",
+                            preferredStudentId = loan.borrowerStudentId,
+                            completeAdminDataOperationAfterLoad = true,
+                        )
+                    },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "임시카드를 대여하지 못했습니다."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun loadAdminTemporaryCardReleaseChoices() {
+        if (!beginAdminDataOperation("회수할 분실 임시카드를 확인하는 중")) return
+        ioExecutor.execute {
+            val result = runCatching(studentRepository::listTemporaryCardLoans)
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                finishAdminDataOperation()
+                result.fold(
+                    onSuccess = { loans ->
+                        if (loans.isEmpty()) {
+                            adminMessage.text = "임시 대여 중인 분실카드가 없습니다."
+                        } else {
+                            showTemporaryCardReleaseDialog(
+                                title = "회수할 분실 임시카드 선택",
+                                loans = loans,
+                                onRelease = ::performAdminTemporaryCardRelease,
+                            )
+                        }
+                    },
+                    onFailure = {
+                        adminMessage.text = it.message ?: "임시카드 대여 상태를 불러오지 못했습니다."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun performAdminTemporaryCardRelease(loan: TemporaryCardLoanSummary) {
+        if (!beginAdminDataOperation("${loan.slotLabel} 임시카드 회수 중")) return
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.releaseTemporaryCardLoan(
+                    slotStudentId = loan.slotStudentId,
+                )
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { released ->
+                        refreshAdminData(
+                            message =
+                                "${released.slotLabel}를 회수했습니다. " +
+                                    "${released.borrowerDisplayNameExact} 학생의 기존 QR을 다시 사용할 수 있습니다.",
+                            preferredStudentId = released.borrowerStudentId,
+                            completeAdminDataOperationAfterLoad = true,
+                        )
+                    },
+                    onFailure = {
+                        finishAdminDataOperation()
+                        adminMessage.text = it.message ?: "임시카드를 회수하지 못했습니다."
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showTemporaryCardLoanStudentDialog(
+        title: String,
+        candidates: List<ValidatedStudent>,
+        slots: List<ReusableCardSlotSummary>,
+        onLoan: (ValidatedStudent, ReusableCardSlotSummary) -> Unit,
+        onCancelled: () -> Unit = {},
+    ) {
+        var selected = false
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(candidates.map(ValidatedStudent::displayNameExact).toTypedArray()) { _, which ->
+                selected = true
+                showTemporaryCardLoanSlotDialog(
+                    student = candidates[which],
+                    slots = slots,
+                    onLoan = onLoan,
+                    onCancelled = onCancelled,
+                )
+            }
+            .setNegativeButton("취소", null)
+            .setOnDismissListener { if (!selected) onCancelled() }
+            .show()
+    }
+
+    private fun showTemporaryCardLoanSlotDialog(
+        student: ValidatedStudent,
+        slots: List<ReusableCardSlotSummary>,
+        onLoan: (ValidatedStudent, ReusableCardSlotSummary) -> Unit,
+        onCancelled: () -> Unit,
+    ) {
+        var selected = false
+        AlertDialog.Builder(this)
+            .setTitle("${student.displayNameExact} · 사용할 신규카드 선택")
+            .setItems(slots.map(ReusableCardSlotSummary::slotLabel).toTypedArray()) { _, which ->
+                selected = true
+                showTemporaryCardLoanConfirmation(
+                    student = student,
+                    slot = slots[which],
+                    onConfirmed = { onLoan(student, slots[which]) },
+                    onCancelled = onCancelled,
+                )
+            }
+            .setNegativeButton("취소", null)
+            .setOnDismissListener { if (!selected) onCancelled() }
+            .show()
+    }
+
+    private fun showTemporaryCardLoanConfirmation(
+        student: ValidatedStudent,
+        slot: ReusableCardSlotSummary,
+        onConfirmed: () -> Unit,
+        onCancelled: () -> Unit = {},
+    ) {
+        var submitted = false
+        AlertDialog.Builder(this)
+            .setTitle("${slot.slotLabel} 임시 대여")
+            .setMessage(
+                "${student.displayNameExact} 학생은 기존 계정·반·채점 이력을 그대로 사용합니다.\n\n" +
+                    "관리자가 이 카드를 회수할 때까지 대여가 유지되며, 분실한 기존 QR은 즉시 차단됩니다.",
+            )
+            .setNegativeButton("취소", null)
+            .setPositiveButton("기존 QR 차단·대여") { _, _ ->
+                submitted = true
+                onConfirmed()
+            }
+            .setOnDismissListener { if (!submitted) onCancelled() }
+            .show()
+    }
+
+    private fun showTemporaryCardReleaseDialog(
+        title: String,
+        loans: List<TemporaryCardLoanSummary>,
+        onRelease: (TemporaryCardLoanSummary) -> Unit,
+        onCancelled: () -> Unit = {},
+    ) {
+        var selected = false
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(
+                loans.map { "${it.slotLabel} · ${it.borrowerDisplayNameExact}" }.toTypedArray(),
+            ) { _, which ->
+                selected = true
+                val loan = loans[which]
+                var submitted = false
+                AlertDialog.Builder(this)
+                    .setTitle("${loan.slotLabel} 임시카드 회수")
+                    .setMessage(
+                        "회수하면 ${loan.borrowerDisplayNameExact} 학생의 기존 QR이 다시 활성화됩니다.\n\n" +
+                            "기존 카드를 영구 분실했다면 새 QR을 재발급한 뒤 회수하세요.",
+                    )
+                    .setNegativeButton("취소", null)
+                    .setPositiveButton("회수·기존 QR 활성화") { _, _ ->
+                        submitted = true
+                        onRelease(loan)
+                    }
+                    .setOnDismissListener { if (!submitted) onCancelled() }
+                    .show()
+            }
+            .setNegativeButton("취소", null)
+            .setOnDismissListener { if (!selected) onCancelled() }
+            .show()
     }
 
     private fun confirmMoveReusableCard(selected: StudentChoice) {
@@ -2518,7 +2765,7 @@ class MainActivity : ComponentActivity() {
         updateProfileButton.isEnabled = available && hasStudents
         updateCredentialsButton.isEnabled = available && hasStudents
         deactivateStudentButton.isEnabled = available && hasStudents
-        val reusableAvailableCount = reusableCardSlots.count { !it.isAssigned }
+        val reusableAvailableCount = reusableCardSlots.count(ReusableCardSlotSummary::isAvailable)
         reusableCardsButton.text = "신규용 카드 관리 · 무료 ${reusableAvailableCount}장"
         reusableCardsButton.isEnabled = available
         pendingCardsPdfButton.isEnabled =
@@ -5389,6 +5636,8 @@ class MainActivity : ComponentActivity() {
                     "다음 수업 반으로 바로 변경",
                     "현재 반에 보충 인원 추가 (이번 수업만)",
                     "학생 수동 선택",
+                    "분실한 기존 학생에게 임시카드 대여",
+                    "분실 임시카드 회수",
                     "관리자 화면 열기",
                 ),
             ) { _, which ->
@@ -5418,6 +5667,14 @@ class MainActivity : ComponentActivity() {
                                 expectedSessionId,
                             )
                         }
+                    }
+                    3 -> {
+                        sessionAdminActionFlowActive = true
+                        loadQuickTemporaryCardLoanChoices()
+                    }
+                    4 -> {
+                        sessionAdminActionFlowActive = true
+                        loadQuickTemporaryCardReleaseChoices()
                     }
                     else -> showAdmin()
                 }
@@ -5610,6 +5867,184 @@ class MainActivity : ComponentActivity() {
                     onFailure = {
                         scannerMessage.text =
                             it.message ?: "보충 학생을 추가하지 못했습니다"
+                    },
+                )
+                finishSessionAdminActionFlow()
+            }
+        }
+    }
+
+    private fun loadQuickTemporaryCardLoanChoices() {
+        val expectedSessionId = currentSession?.sessionId
+        if (expectedSessionId == null || !scannerVisible) {
+            scannerMessage.text = "현재 수업을 확인하지 못했습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+        scannerMessage.text = "분실 임시카드 대여 대상을 확인하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.listTemporaryCardLoanCandidatesForActiveSession(
+                    expectedSessionId,
+                ) to studentRepository.listReusableCardSlots()
+                    .filter { it.isAvailable && !it.needsCardPdf }
+            }
+            runOnUiThread {
+                if (
+                    destroyed || !scannerVisible ||
+                    currentSession?.sessionId != expectedSessionId
+                ) return@runOnUiThread
+                result.fold(
+                    onSuccess = { (candidates, slots) ->
+                        when {
+                            candidates.isEmpty() -> {
+                                scannerMessage.text =
+                                    "현재 수업에 임시카드를 대여할 기존 학생이 없습니다"
+                                finishSessionAdminActionFlow()
+                            }
+                            slots.isEmpty() -> {
+                                scannerMessage.text =
+                                    "출력 확인된 무료 신규용 카드가 없습니다"
+                                finishSessionAdminActionFlow()
+                            }
+                            else -> {
+                                scannerMessage.text = ""
+                                showTemporaryCardLoanStudentDialog(
+                                    title = "현재 수업 · 분실한 학생 선택",
+                                    candidates = candidates,
+                                    slots = slots,
+                                    onLoan = { student, slot ->
+                                        performQuickTemporaryCardLoan(
+                                            expectedSessionId,
+                                            student,
+                                            slot,
+                                        )
+                                    },
+                                    onCancelled = { finishSessionAdminActionFlow() },
+                                )
+                            }
+                        }
+                    },
+                    onFailure = {
+                        scannerMessage.text =
+                            it.message ?: "임시카드 대여 대상을 불러오지 못했습니다"
+                        finishSessionAdminActionFlow()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun performQuickTemporaryCardLoan(
+        expectedSessionId: String,
+        student: ValidatedStudent,
+        slot: ReusableCardSlotSummary,
+    ) {
+        if (currentSession?.sessionId != expectedSessionId || !scannerVisible) {
+            scannerMessage.text = "현재 수업이 변경되어 임시카드를 대여하지 않았습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+        scannerMessage.text = "${slot.slotLabel} 임시 대여 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.loanReusableCardToExistingStudent(
+                    slotStudentId = slot.studentId,
+                    borrowerStudentId = student.studentId,
+                    expectedSessionId = expectedSessionId,
+                )
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { loan ->
+                        showTransientScannerMessage(
+                            "${loan.slotLabel}를 ${loan.borrowerDisplayNameExact} 학생에게 대여했습니다\n" +
+                                "기존 QR은 회수 전까지 차단됩니다",
+                        )
+                    },
+                    onFailure = {
+                        scannerMessage.text = it.message ?: "임시카드를 대여하지 못했습니다"
+                    },
+                )
+                finishSessionAdminActionFlow()
+            }
+        }
+    }
+
+    private fun loadQuickTemporaryCardReleaseChoices() {
+        val expectedSessionId = currentSession?.sessionId
+        if (expectedSessionId == null || !scannerVisible) {
+            scannerMessage.text = "현재 수업을 확인하지 못했습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+        scannerMessage.text = "임시 대여 중인 카드를 확인하고 있습니다"
+        ioExecutor.execute {
+            val result = runCatching(studentRepository::listTemporaryCardLoans)
+            runOnUiThread {
+                if (
+                    destroyed || !scannerVisible ||
+                    currentSession?.sessionId != expectedSessionId
+                ) return@runOnUiThread
+                result.fold(
+                    onSuccess = { loans ->
+                        if (loans.isEmpty()) {
+                            scannerMessage.text = "임시 대여 중인 분실카드가 없습니다"
+                            finishSessionAdminActionFlow()
+                        } else {
+                            scannerMessage.text = ""
+                            showTemporaryCardReleaseDialog(
+                                title = "회수할 분실 임시카드 선택",
+                                loans = loans,
+                                onRelease = { loan ->
+                                    performQuickTemporaryCardRelease(
+                                        expectedSessionId,
+                                        loan,
+                                    )
+                                },
+                                onCancelled = { finishSessionAdminActionFlow() },
+                            )
+                        }
+                    },
+                    onFailure = {
+                        scannerMessage.text =
+                            it.message ?: "임시카드 대여 상태를 불러오지 못했습니다"
+                        finishSessionAdminActionFlow()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun performQuickTemporaryCardRelease(
+        expectedSessionId: String,
+        loan: TemporaryCardLoanSummary,
+    ) {
+        if (currentSession?.sessionId != expectedSessionId || !scannerVisible) {
+            scannerMessage.text = "현재 수업이 변경되어 임시카드를 회수하지 않았습니다"
+            finishSessionAdminActionFlow()
+            return
+        }
+        scannerMessage.text = "${loan.slotLabel} 임시카드 회수 중"
+        ioExecutor.execute {
+            val result = runCatching {
+                studentRepository.releaseTemporaryCardLoan(
+                    slotStudentId = loan.slotStudentId,
+                    expectedSessionId = expectedSessionId,
+                )
+            }
+            runOnUiThread {
+                if (destroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { released ->
+                        showTransientScannerMessage(
+                            "${released.slotLabel}를 회수했습니다\n" +
+                                "${released.borrowerDisplayNameExact} 학생의 기존 QR을 다시 사용할 수 있습니다",
+                        )
+                    },
+                    onFailure = {
+                        scannerMessage.text = it.message ?: "임시카드를 회수하지 못했습니다"
                     },
                 )
                 finishSessionAdminActionFlow()

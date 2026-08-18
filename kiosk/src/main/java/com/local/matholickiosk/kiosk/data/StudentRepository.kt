@@ -35,6 +35,22 @@ data class ReusableCardSlotSummary(
     val displayNameExact: String,
     val isAssigned: Boolean,
     val needsCardPdf: Boolean,
+    val temporaryBorrowerStudentId: String? = null,
+    val temporaryBorrowerDisplayNameExact: String? = null,
+) {
+    val isTemporarilyLoaned: Boolean
+        get() = temporaryBorrowerStudentId != null
+
+    val isAvailable: Boolean
+        get() = !isAssigned && !isTemporarilyLoaned
+}
+
+data class TemporaryCardLoanSummary(
+    val slotStudentId: String,
+    val slotLabel: String,
+    val borrowerStudentId: String,
+    val borrowerDisplayNameExact: String,
+    val loanedAtEpochMs: Long,
 )
 
 data class AssignedReusableCard(
@@ -137,15 +153,177 @@ class StudentRepository(
     fun listReusableCardSlots(): List<ReusableCardSlotSummary> {
         val statuses = database.qrCardStatusDao().listForReusableCardSlots()
             .associateBy(QrCardStatusEntity::studentId)
+        val loans = database.reusableCardLoanDao().listAll()
+            .associateBy(ReusableCardLoanEntity::slotStudentId)
+        val activeStudents = database.studentDao().listAllActive()
+            .associateBy(StudentEntity::studentId)
         return database.studentDao().listReusableCardSlots().map { student ->
+            val loan = loans[student.studentId]
             ReusableCardSlotSummary(
                 studentId = student.studentId,
                 slotLabel = requireNotNull(student.reusableCardLabel),
                 displayNameExact = student.displayNameExact,
                 isAssigned = student.reusableCardAssigned,
                 needsCardPdf = statuses[student.studentId]?.needsPrint ?: true,
+                temporaryBorrowerStudentId = loan?.borrowerStudentId,
+                temporaryBorrowerDisplayNameExact = loan?.borrowerStudentId
+                    ?.let(activeStudents::get)
+                    ?.displayNameExact,
             )
         }
+    }
+
+    fun listTemporaryCardLoans(): List<TemporaryCardLoanSummary> {
+        val students = database.studentDao().listAllActive()
+            .associateBy(StudentEntity::studentId)
+        val slots = database.studentDao().listReusableCardSlots()
+            .associateBy(StudentEntity::studentId)
+        return database.reusableCardLoanDao().listAll().mapNotNull { loan ->
+            val slot = slots[loan.slotStudentId] ?: return@mapNotNull null
+            val borrower = students[loan.borrowerStudentId] ?: return@mapNotNull null
+            TemporaryCardLoanSummary(
+                slotStudentId = slot.studentId,
+                slotLabel = requireNotNull(slot.reusableCardLabel),
+                borrowerStudentId = borrower.studentId,
+                borrowerDisplayNameExact = borrower.displayNameExact,
+                loanedAtEpochMs = loan.loanedAtEpochMs,
+            )
+        }
+    }
+
+    fun listTemporaryCardLoanCandidates(): List<ValidatedStudent> {
+        val existingBorrowers = database.reusableCardLoanDao().listAll()
+            .mapTo(mutableSetOf(), ReusableCardLoanEntity::borrowerStudentId)
+        return database.studentDao().listAllActive()
+            .filter { it.reusableCardLabel == null && it.studentId !in existingBorrowers }
+            .map { ValidatedStudent(it.studentId, it.displayNameExact) }
+    }
+
+    fun listTemporaryCardLoanCandidatesForActiveSession(
+        expectedSessionId: String,
+    ): List<ValidatedStudent> {
+        val session = database.sessionDao().get()
+        require(
+            session?.sessionId == expectedSessionId &&
+                session.classId != null &&
+                session.state == KioskState.QR_READY.name &&
+                session.currentStudentId == null
+        ) {
+            "분실 임시카드를 대여할 수 있는 수업 상태가 아닙니다."
+        }
+        val existingBorrowers = database.reusableCardLoanDao().listAll()
+            .mapTo(mutableSetOf(), ReusableCardLoanEntity::borrowerStudentId)
+        return database.studentDao().listEligibleForSession(
+            classId = session.classId,
+            sessionId = expectedSessionId,
+        ).filter {
+            it.reusableCardLabel == null && it.studentId !in existingBorrowers
+        }.map { ValidatedStudent(it.studentId, it.displayNameExact) }
+    }
+
+    fun loanReusableCardToExistingStudent(
+        slotStudentId: String,
+        borrowerStudentId: String,
+        expectedSessionId: String? = null,
+    ): TemporaryCardLoanSummary = database.runInTransaction<TemporaryCardLoanSummary> {
+        val session = requireTemporaryCardMutationState(expectedSessionId)
+        val slot = requireNotNull(database.studentDao().findById(slotStudentId)) {
+            "재사용 카드 슬롯을 찾지 못했습니다."
+        }
+        val slotLabel = requireNotNull(slot.reusableCardLabel) {
+            "선택한 카드는 신규용 카드 슬롯이 아닙니다."
+        }
+        require(slot.isActive && !slot.reusableCardAssigned) {
+            "선택한 신규용 카드는 신규 학생이 사용 중입니다."
+        }
+        require(database.reusableCardLoanDao().findBySlot(slotStudentId) == null) {
+            "선택한 신규용 카드는 이미 임시 대여 중입니다."
+        }
+        require(database.qrCardStatusDao().find(slotStudentId)?.needsPrint == false) {
+            "먼저 신규용 QR 카드를 지정 PC에 저장하고 출력하세요."
+        }
+        val borrower = requireNotNull(database.studentDao().findById(borrowerStudentId)) {
+            "대여할 학생을 찾지 못했습니다."
+        }
+        require(borrower.isActive && borrower.reusableCardLabel == null) {
+            "활성 상태인 기존 학생에게만 임시카드를 대여할 수 있습니다."
+        }
+        require(database.reusableCardLoanDao().findByBorrower(borrowerStudentId) == null) {
+            "선택한 학생은 이미 다른 임시카드를 사용 중입니다."
+        }
+        val loanedAt = nowEpochMs()
+        database.reusableCardLoanDao().insert(
+            ReusableCardLoanEntity(
+                slotStudentId = slotStudentId,
+                borrowerStudentId = borrowerStudentId,
+                loanedAtEpochMs = loanedAt,
+            ),
+        )
+        audit(
+            "REUSABLE_QR_CARD_TEMPORARILY_LOANED",
+            slotLabel,
+            borrowerStudentId,
+            session?.sessionId,
+        )
+        TemporaryCardLoanSummary(
+            slotStudentId = slotStudentId,
+            slotLabel = slotLabel,
+            borrowerStudentId = borrowerStudentId,
+            borrowerDisplayNameExact = borrower.displayNameExact,
+            loanedAtEpochMs = loanedAt,
+        )
+    }
+
+    fun releaseTemporaryCardLoan(
+        slotStudentId: String,
+        expectedSessionId: String? = null,
+    ): TemporaryCardLoanSummary =
+        database.runInTransaction<TemporaryCardLoanSummary> {
+            val session = requireTemporaryCardMutationState(expectedSessionId)
+            val loan = requireNotNull(database.reusableCardLoanDao().findBySlot(slotStudentId)) {
+                "선택한 신규용 카드는 임시 대여 중이 아닙니다."
+            }
+            val slot = requireNotNull(database.studentDao().findById(slotStudentId)) {
+                "재사용 카드 슬롯을 찾지 못했습니다."
+            }
+            val borrower = requireNotNull(database.studentDao().findById(loan.borrowerStudentId)) {
+                "임시카드 대여 학생을 찾지 못했습니다."
+            }
+            val slotLabel = requireNotNull(slot.reusableCardLabel) {
+                "선택한 카드는 신규용 카드 슬롯이 아닙니다."
+            }
+            check(database.reusableCardLoanDao().deleteBySlot(slotStudentId) == 1) {
+                "임시카드 대여 상태가 변경되어 회수하지 못했습니다."
+            }
+            audit(
+                "REUSABLE_QR_CARD_TEMPORARY_LOAN_RELEASED",
+                slotLabel,
+                borrower.studentId,
+                session?.sessionId,
+            )
+            TemporaryCardLoanSummary(
+                slotStudentId = slotStudentId,
+                slotLabel = slotLabel,
+                borrowerStudentId = borrower.studentId,
+                borrowerDisplayNameExact = borrower.displayNameExact,
+                loanedAtEpochMs = loan.loanedAtEpochMs,
+            )
+        }
+
+    private fun requireTemporaryCardMutationState(
+        expectedSessionId: String?,
+    ): ActiveSessionEntity? {
+        val session = database.sessionDao().get()
+        require(expectedSessionId == null || session?.sessionId == expectedSessionId) {
+            "수업이 변경되어 임시카드 작업을 중단했습니다."
+        }
+        require(
+            session?.sessionId == null ||
+                (session.state == KioskState.QR_READY.name && session.currentStudentId == null)
+        ) {
+            "학생 채점이 끝난 QR 대기 상태에서만 임시카드를 대여하거나 회수할 수 있습니다."
+        }
+        return session
     }
 
     fun listStudentsForClass(classId: String): List<StudentEntity> =
@@ -708,6 +886,9 @@ class StudentRepository(
         require(student.reusableCardLabel == null) {
             "신규용 카드는 학생 비활성화 대신 카드 회수·초기화를 사용하세요."
         }
+        require(database.reusableCardLoanDao().findByBorrower(studentId) == null) {
+            "분실 임시카드를 먼저 회수한 뒤 학생을 비활성화하세요."
+        }
         withIssuedHashOnly { revokedReplacementHash ->
             database.runInTransaction {
                 check(
@@ -848,7 +1029,11 @@ class StudentRepository(
                 }
                 val allSlots = database.studentDao().listAllReusableCardSlots()
                 val slots = allSlots.filter(StudentEntity::isActive)
-                val available = slots.filterNot(StudentEntity::reusableCardAssigned)
+                val loanedSlotIds = database.reusableCardLoanDao().listAll()
+                    .mapTo(mutableSetOf(), ReusableCardLoanEntity::slotStudentId)
+                val available = slots.filter {
+                    !it.reusableCardAssigned && it.studentId !in loanedSlotIds
+                }
                 val statuses = database.qrCardStatusDao().listForReusableCardSlots()
                     .associateBy(QrCardStatusEntity::studentId)
                 val pending = if (reissuePendingSlots) {
@@ -1042,6 +1227,9 @@ class StudentRepository(
                 }
                 require(student.isActive && !student.reusableCardAssigned) {
                     "선택한 신규용 카드가 이미 사용 중입니다."
+                }
+                require(database.reusableCardLoanDao().findBySlot(slotStudentId) == null) {
+                    "선택한 신규용 카드는 기존 학생에게 임시 대여 중입니다."
                 }
                 require(
                     database.qrCardStatusDao().find(slotStudentId)?.needsPrint == false,
@@ -1313,17 +1501,46 @@ class StudentRepository(
             audit("QR_REJECTED", "SESSION_NOT_READY", null, session?.sessionId)
             return null
         }
-        val student = database.studentDao().findEligibleByQrHash(
-            tokenHash,
-            session.classId,
-            session.sessionId,
-        )
-        if (student == null) {
-            val known = database.studentDao().findActiveByQrHash(tokenHash)
+        val directStudent = database.studentDao().findActiveByQrHash(tokenHash)
+        if (
+            directStudent != null &&
+            database.reusableCardLoanDao().findByBorrower(directStudent.studentId) != null
+        ) {
             audit(
                 "QR_REJECTED",
-                if (known == null) "UNKNOWN_OR_REVOKED" else "OUTSIDE_CURRENT_CLASS",
-                known?.studentId,
+                "ORIGINAL_QR_BLOCKED_DURING_TEMPORARY_LOAN",
+                directStudent.studentId,
+                session.sessionId,
+            )
+            return null
+        }
+        val temporaryLoan = if (directStudent == null) {
+            database.reusableCardLoanDao().findBySlotQrHash(tokenHash)
+        } else {
+            null
+        }
+        val student = when {
+            directStudent != null -> database.studentDao().findEligibleById(
+                studentId = directStudent.studentId,
+                classId = session.classId,
+                sessionId = session.sessionId,
+            )
+            temporaryLoan != null -> database.studentDao().findEligibleById(
+                studentId = temporaryLoan.borrowerStudentId,
+                classId = session.classId,
+                sessionId = session.sessionId,
+            )
+            else -> null
+        }
+        if (student == null) {
+            audit(
+                "QR_REJECTED",
+                if (directStudent == null && temporaryLoan == null) {
+                    "UNKNOWN_OR_REVOKED"
+                } else {
+                    "OUTSIDE_CURRENT_CLASS"
+                },
+                directStudent?.studentId ?: temporaryLoan?.borrowerStudentId,
                 session.sessionId,
             )
             return null
@@ -1340,9 +1557,24 @@ class StudentRepository(
             )
             return null
         }
-        audit("QR_ACCEPTED", null, student.studentId, session.sessionId)
+        audit(
+            "QR_ACCEPTED",
+            if (temporaryLoan == null) null else "TEMPORARY_REUSABLE_CARD",
+            student.studentId,
+            session.sessionId,
+        )
         check(database.qrCardStatusDao().markUsed(student.studentId, nowEpochMs()) == 1) {
             "QR card status not found"
+        }
+        if (temporaryLoan != null) {
+            check(
+                database.qrCardStatusDao().markUsed(
+                    temporaryLoan.slotStudentId,
+                    nowEpochMs(),
+                ) == 1,
+            ) {
+                "Temporary QR card status not found"
+            }
         }
         return ValidatedStudent(student.studentId, student.displayNameExact)
     }

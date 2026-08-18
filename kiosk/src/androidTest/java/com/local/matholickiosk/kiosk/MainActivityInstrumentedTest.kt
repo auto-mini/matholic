@@ -676,6 +676,68 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun reusableCardMenuRendersTemporaryLoanAndReleaseActions() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val prepared = repository.prepareReusableCardSlots()
+        repository.markCardPdfsSavedToPc(prepared.mapTo(mutableSetOf()) { it.studentId })
+        val student = repository.registerStudent(
+            "분실 학생",
+            "menu-loan-user".toCharArray(),
+            "menu-loan-password".toCharArray(),
+        )
+        repository.loanReusableCardToExistingStudent(
+            slotStudentId = prepared.first().studentId,
+            borrowerStudentId = student.studentId,
+        )
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitForAdminAuthentication(scenario)
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        activity.findViewById<android.widget.Button>(R.id.reusable_cards_button)
+                            .text.toString().contains("무료 3장")
+                }
+                scenario.onActivity { activity ->
+                    MainActivity::class.java
+                        .getDeclaredMethod("showReusableCardMenu")
+                        .apply { isAccessible = true }
+                        .invoke(activity)
+                    val dialogRoot = WindowInspector.getGlobalWindowViews().single {
+                        it !== activity.window.decorView
+                    }
+                    val text = allText(dialogRoot)
+                    val rendered = text.joinToString(" | ")
+                    assertTrue(rendered, text.any { it.contains("무료 3장") && it.contains("임시대여 1장") })
+                    val list = allViews(dialogRoot)
+                        .filterIsInstance<android.widget.ListView>()
+                        .single()
+                    val actions = (0 until list.adapter.count)
+                        .map { list.adapter.getItem(it).toString() }
+                    assertTrue(actions.contains("무료 카드 신규 학생에게 배정"))
+                    assertTrue(actions.contains("분실한 기존 학생에게 임시카드 대여"))
+                    assertTrue(actions.contains("분실 임시카드 회수"))
+                    dialogRoot.findViewById<View>(android.R.id.button2).performClick()
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun qrHelpFitsTheScannerViewportAndUsesTheBadgeSimulation() {
         val baseContext = ApplicationProvider.getApplicationContext<Context>()
         val deviceAContext = baseContext.createConfigurationContext(
@@ -1898,5 +1960,23 @@ class MainActivityInstrumentedTest {
                     button.bottom,
                 )
             }
+    }
+
+    private fun allText(root: View): List<String> = buildList {
+        if (root is android.widget.TextView) add(root.text.toString())
+        if (root is ViewGroup) {
+            (0 until root.childCount).forEach { index ->
+                addAll(allText(root.getChildAt(index)))
+            }
+        }
+    }
+
+    private fun allViews(root: View): List<View> = buildList {
+        add(root)
+        if (root is ViewGroup) {
+            (0 until root.childCount).forEach { index ->
+                addAll(allViews(root.getChildAt(index)))
+            }
+        }
     }
 }

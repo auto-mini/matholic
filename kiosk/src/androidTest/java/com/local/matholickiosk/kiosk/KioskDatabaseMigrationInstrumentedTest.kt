@@ -178,4 +178,49 @@ class KioskDatabaseMigrationInstrumentedTest {
             }
         }
     }
+
+    @Test
+    fun migration5To6PreservesStudentsAndStartsWithNoTemporaryCardLoans() {
+        helper.createDatabase(databaseName, 5).apply {
+            execSQL(
+                """
+                INSERT INTO students (
+                    studentId, displayNameExact, displayNameMasked,
+                    usernameCiphertext, usernameIv, usernameEncryptionVersion,
+                    passwordCiphertext, passwordIv, passwordEncryptionVersion,
+                    qrTokenHash, isActive, createdAtEpochMs, updatedAtEpochMs,
+                    reusableCardLabel, reusableCardAssigned
+                ) VALUES (
+                    'student-1', '기존학생', '기존학생',
+                    X'01', X'02', 1,
+                    X'03', X'04', 1,
+                    X'05', 1, 1000, 2000,
+                    NULL, 0
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(
+            databaseName,
+            6,
+            true,
+            KioskDatabase.MIGRATION_5_6,
+        ).use { database ->
+            database.query(
+                "SELECT displayNameExact, reusableCardLabel, reusableCardAssigned " +
+                    "FROM students WHERE studentId = 'student-1'",
+            ).use { cursor ->
+                cursor.moveToFirst()
+                assertEquals("기존학생", cursor.getString(0))
+                assertEquals(null, cursor.getString(1))
+                assertEquals(0, cursor.getInt(2))
+            }
+            database.query("SELECT COUNT(*) FROM reusable_card_loans").use { cursor ->
+                cursor.moveToFirst()
+                assertEquals(0, cursor.getInt(0))
+            }
+        }
+    }
 }

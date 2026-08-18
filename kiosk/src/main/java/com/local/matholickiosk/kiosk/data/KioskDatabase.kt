@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         StudentEntity::class,
+        ReusableCardLoanEntity::class,
         QrCardStatusEntity::class,
         ClassGroupEntity::class,
         ClassMembershipEntity::class,
@@ -18,11 +19,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AuditEventEntity::class,
         AdminCredentialEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class KioskDatabase : RoomDatabase() {
     abstract fun studentDao(): StudentDao
+    abstract fun reusableCardLoanDao(): ReusableCardLoanDao
     abstract fun qrCardStatusDao(): QrCardStatusDao
     abstract fun classDao(): ClassDao
     abstract fun sessionDao(): SessionDao
@@ -47,6 +49,7 @@ abstract class KioskDatabase : RoomDatabase() {
                         MIGRATION_2_3,
                         MIGRATION_3_4,
                         MIGRATION_4_5,
+                        MIGRATION_5_6,
                     )
                     .addCallback(SECURE_DELETE_CALLBACK)
                     .build()
@@ -124,6 +127,32 @@ abstract class KioskDatabase : RoomDatabase() {
                 )
                 db.execSQL(
                     "ALTER TABLE `students` ADD COLUMN `reusableCardAssigned` INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+        internal val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `reusable_card_loans` (
+                        `slotStudentId` TEXT NOT NULL,
+                        `borrowerStudentId` TEXT NOT NULL,
+                        `loanedAtEpochMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`slotStudentId`),
+                        FOREIGN KEY(`slotStudentId`) REFERENCES `students`(`studentId`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`borrowerStudentId`) REFERENCES `students`(`studentId`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS
+                        `index_reusable_card_loans_borrowerStudentId`
+                    ON `reusable_card_loans` (`borrowerStudentId`)
+                    """.trimIndent(),
                 )
             }
         }
