@@ -1,5 +1,38 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC95 분실 임시카드 대여·기존 QR 차단 — 2026-08-18
+
+- 출력 확인된 무료 `신규카드1`~`신규카드4`를 기존 학생에게 임시 대여하는 영속
+  매핑을 추가했다. 학생의 계정·반·채점 이력과 일반 QR hash는 바꾸지 않으며,
+  대여한 신규용 QR을 읽었을 때 기존 학생 신원으로 판정한다.
+- 대여는 수업 종료와 앱 재시작 뒤에도 관리자가 회수할 때까지 유지된다. 대여 중에는
+  기존 일반 QR과 대여 도중 재발급한 일반 QR을 모두 차단하고, 실제 임시카드 회수
+  처리 뒤에만 현재 일반 QR을 다시 허용한다. 신규 학생 카드 배정·실제 QR 전환·
+  무료 슬롯 보충은 임시 대여 중인 슬롯을 사용할 수 없다.
+- 관리자 화면과 수업 QR 대기의 인증된 관리자 작업 양쪽에 대여·회수 동선을 추가했다.
+  학생 채점 중에는 변경을 거부하고, QR 대기에서는 작업 시작 때의 session ID를
+  대여 확정 시 다시 검사한다. 학생 비활성화는 대여 카드를 먼저 회수해야 한다.
+- Android 13 에뮬레이터에서 저장소 26/26, DB migration 5/5, MainActivity UI
+  26/26을 각각 통과했고, 최종 Kiosk 전체 계측도 92/92를 통과했다. UI 대상 시험은
+  실제 AlertDialog 항목 어댑터와 대여·회수 항목 수를 확인한다. release build는
+  158 tasks 중 152개 실행, 6개 up-to-date로
+  `BUILD SUCCESSFUL in 1m 53s`였고 양 앱 unit·release lint·signed assemble,
+  package/version/non-debuggable/권한·zipalign·동일 signer·checksum 재검증을 통과했다.
+- Kiosk RC95/code 100 APK는 36,901,893 bytes, SHA-256
+  `8AC5B2EB96BCD9BBF0347ECB19F1ECBD57C94199F18F6295405EE1EDCDC88704`이다.
+  signer SHA-256은
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`이고,
+  Web payload는 바뀌지 않아 RC139/code 156과 기존 artifact를 유지했다.
+- A `SM-P610`/`R54TB029FHZ`가 관리자 PIN 대기·Lock Task `LOCKED`인 것을 확인한
+  뒤 RC95를 `adb install -r`로 보존 설치했다. UID 10288, first install
+  `2026-07-24 12:52:28`, Device Owner와 preferred HOME이 유지됐다. 실제 A의
+  신규용 카드 메뉴에서 `전체 4장 · 무료 4장 · 신규학생 0장 · 임시대여 0장`,
+  신규 학생 배정과 분실 임시카드 대여 항목을 확인하고, `분실한 기존 학생 선택`
+  화면까지 열었다가 취소했다. 학생·QR·대여 데이터는 변경하지 않았다.
+- 최종 A는 Kiosk RC95/code 100 top resumed, 관리자 PIN 대기, Lock Task `LOCKED`,
+  원격 지원 `INACTIVE`다. 소스 롤백은 관련 commit을 `git revert`하고, A 복구는
+  code 100보다 높은 versionCode의 같은 signer forward-recovery APK를 사용한다.
+
 ## Kiosk RC94 수업 종료 뒤 자동대기 동선 — 2026-08-13
 
 - 실제 A를 직접 확인했을 때 목2 종료 뒤 `ADMIN_IDLE` 관리자 화면이 열린 채였고,
