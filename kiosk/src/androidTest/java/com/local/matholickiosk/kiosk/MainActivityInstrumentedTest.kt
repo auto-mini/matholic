@@ -18,6 +18,8 @@ import com.local.matholickiosk.kiosk.data.ActiveSessionEntity
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.StudentRepository
 import com.local.matholickiosk.kiosk.domain.CameraFacing
+import com.local.matholickiosk.kiosk.domain.AutomaticClassTransition
+import com.local.matholickiosk.kiosk.domain.AutomaticSessionState
 import com.local.matholickiosk.kiosk.domain.SingleFlightGate
 import com.local.matholickiosk.kiosk.qr.QrFrameDecision
 import com.local.matholickiosk.kiosk.qr.QrFrameRejection
@@ -565,9 +567,12 @@ class MainActivityInstrumentedTest {
                     "${MainActivity::class.java.name}\$PendingRecoveryAction\$EndSession",
                 )
                 val endSession = endSessionType
-                    .getDeclaredConstructor(Boolean::class.javaPrimitiveType)
+                    .getDeclaredConstructor(
+                        Boolean::class.javaPrimitiveType,
+                        String::class.java,
+                    )
                     .apply { isAccessible = true }
-                    .newInstance(false)
+                    .newInstance(true, "토1")
 
                 scenario.onActivity { activity ->
                     pendingRecoveryField.set(activity, startSession)
@@ -589,8 +594,81 @@ class MainActivityInstrumentedTest {
 
                 scenario.recreate()
                 scenario.onActivity { activity ->
-                    assertEquals(endSessionType, pendingRecoveryField.get(activity).javaClass)
+                    val restored = pendingRecoveryField.get(activity)
+                    assertEquals(endSessionType, restored.javaClass)
+                    assertEquals(
+                        "토1",
+                        endSessionType.getMethod("getSkippedEmptyClassName").invoke(restored),
+                    )
                 }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
+    fun emptyScheduledClassEvaluationNeverStartsRecoveryOrSession() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        val repository = StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        )
+        val classId = repository.createClass("토1")
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitForAdminAuthentication(scenario)
+                val evaluationType = Class.forName(
+                    "${MainActivity::class.java.name}\$AutomaticScheduleEvaluation",
+                )
+                val readyType = Class.forName(
+                    "${MainActivity::class.java.name}\$AutomaticScheduleEvaluation\$Ready",
+                )
+                val evaluation = readyType.getDeclaredConstructor(
+                    AutomaticClassTransition::class.java,
+                    String::class.java,
+                    String::class.java,
+                    java.lang.Boolean::class.java,
+                    AutomaticSessionState::class.java,
+                    Long::class.javaPrimitiveType,
+                ).apply { isAccessible = true }.newInstance(
+                    AutomaticClassTransition.Start("토1"),
+                    "토1",
+                    classId,
+                    false,
+                    AutomaticSessionState.IDLE,
+                    60_000L,
+                )
+                val applyEvaluation = MainActivity::class.java.getDeclaredMethod(
+                    "applyAutomaticScheduleEvaluation",
+                    evaluationType,
+                ).apply { isAccessible = true }
+                val pendingRecoveryField = MainActivity::class.java
+                    .getDeclaredField("pendingRecoveryAction")
+                    .apply { isAccessible = true }
+                val webRecoveryGateField = MainActivity::class.java
+                    .getDeclaredField("webRecoveryGate")
+                    .apply { isAccessible = true }
+
+                repeat(3) {
+                    scenario.onActivity { activity -> applyEvaluation.invoke(activity, evaluation) }
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.TextView>(R.id.auth_error)
+                        .text.toString().contains("학생이 없어 이번 자동 수업을 건너뛰었습니다")
+                }
+                scenario.onActivity { activity ->
+                    assertEquals("None", pendingRecoveryField.get(activity).javaClass.simpleName)
+                    assertFalse(
+                        (webRecoveryGateField.get(activity) as SingleFlightGate).isActive,
+                    )
+                }
+                assertNull(repository.currentSession()?.sessionId)
             }
         } finally {
             database.clearAllTables()
@@ -1310,9 +1388,12 @@ class MainActivityInstrumentedTest {
                     "${MainActivity::class.java.name}\$PendingRecoveryAction\$EndSession",
                 )
                 val endSessionAction = endSessionType
-                    .getDeclaredConstructor(Boolean::class.javaPrimitiveType)
+                    .getDeclaredConstructor(
+                        Boolean::class.javaPrimitiveType,
+                        String::class.java,
+                    )
                     .apply { isAccessible = true }
-                    .newInstance(false)
+                    .newInstance(false, null)
                 val completeSessionEndMethod = MainActivity::class.java
                     .getDeclaredMethod("completeSessionEnd", endSessionType)
                     .apply { isAccessible = true }

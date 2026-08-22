@@ -59,6 +59,7 @@ import com.local.matholickiosk.kiosk.data.ActiveSessionEntity
 import com.local.matholickiosk.kiosk.data.AdminAuthRepository
 import com.local.matholickiosk.kiosk.data.AdminAuthResult
 import com.local.matholickiosk.kiosk.data.BatchIssuedQr
+import com.local.matholickiosk.kiosk.data.EmptyClassRosterException
 import com.local.matholickiosk.kiosk.data.KioskDatabase
 import com.local.matholickiosk.kiosk.data.MovedReusableCard
 import com.local.matholickiosk.kiosk.data.StudentRepository
@@ -91,6 +92,8 @@ import com.local.matholickiosk.kiosk.domain.ScannerCameraResumePolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticClassSchedulePolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticClassTransition
 import com.local.matholickiosk.kiosk.domain.AutomaticClassTransitionPolicy
+import com.local.matholickiosk.kiosk.domain.AutomaticEmptyClassAction
+import com.local.matholickiosk.kiosk.domain.AutomaticEmptyClassPolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticSessionState
 import com.local.matholickiosk.kiosk.domain.AutomaticScheduleNotificationPolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticScheduleProblemNotificationState
@@ -4128,6 +4131,9 @@ class MainActivity : ComponentActivity() {
                 val targetClassId = targetClassName?.let { name ->
                     classEntities.firstOrNull { it.className == name }?.classId
                 }
+                val targetHasActiveStudents = targetClassId?.let { classId ->
+                    studentRepository.listStudentsForClass(classId).isNotEmpty()
+                }
                 val nextBoundary = AutomaticClassSchedulePolicy.nextBoundaryAfter(
                     now = now,
                     weeklyEntries = weekly,
@@ -4140,6 +4146,7 @@ class MainActivity : ComponentActivity() {
                     transition = transition,
                     targetClassName = targetClassName,
                     targetClassId = targetClassId,
+                    targetHasActiveStudents = targetHasActiveStudents,
                     sessionState = state,
                     nextCheckDelayMillis = nextBoundary
                         ?.let { boundary ->
@@ -4211,42 +4218,65 @@ class MainActivity : ComponentActivity() {
                     scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
                     return
                 }
-                when (val transition = evaluation.transition) {
-                    AutomaticClassTransition.None -> clearAutomaticScheduleProblem()
-                    AutomaticClassTransition.Deferred -> {
-                        scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
-                        return
-                    }
-                    is AutomaticClassTransition.Start -> {
-                        val classId = evaluation.targetClassId
-                        if (classId == null) {
-                            publishAutomaticScheduleProblem(
-                                "${transition.className} 반이 없어 자동 수업을 시작하지 못했습니다.",
-                            )
-                        } else {
-                            runAutomaticSessionPreflight(
-                                PendingRecoveryAction.StartSession(
-                                    classId = classId,
-                                    temporaryStudentIds = emptySet(),
-                                    automaticSchedule = true,
-                                    className = transition.className,
-                                ),
-                            )
-                        }
-                    }
-                    is AutomaticClassTransition.Switch -> {
-                        val classId = evaluation.targetClassId
-                        if (classId == null) {
-                            publishAutomaticScheduleProblem(
-                                "${transition.className} 반이 없어 자동 변경하지 못했습니다.",
-                            )
-                        } else {
-                            performAutomaticClassSwitch(classId, transition.className)
-                        }
-                    }
-                    AutomaticClassTransition.End -> launchWebSessionRecovery(
-                        PendingRecoveryAction.EndSession(automaticSchedule = true),
+                when (
+                    AutomaticEmptyClassPolicy.decide(
+                        transition = evaluation.transition,
+                        targetHasActiveStudents = evaluation.targetHasActiveStudents,
                     )
+                ) {
+                    AutomaticEmptyClassAction.SKIP_START -> {
+                        val className = requireNotNull(evaluation.targetClassName)
+                        showAutomaticEmptyClassSkipped(className)
+                    }
+                    AutomaticEmptyClassAction.END_CURRENT_AND_SKIP -> {
+                        launchWebSessionRecovery(
+                            PendingRecoveryAction.EndSession(
+                                automaticSchedule = true,
+                                skippedEmptyClassName = requireNotNull(
+                                    evaluation.targetClassName,
+                                ),
+                            ),
+                        )
+                    }
+                    AutomaticEmptyClassAction.PROCEED -> when (
+                        val transition = evaluation.transition
+                    ) {
+                        AutomaticClassTransition.None -> clearAutomaticScheduleProblem()
+                        AutomaticClassTransition.Deferred -> {
+                            scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_DEFERRED_CHECK_MS)
+                            return
+                        }
+                        is AutomaticClassTransition.Start -> {
+                            val classId = evaluation.targetClassId
+                            if (classId == null) {
+                                publishAutomaticScheduleProblem(
+                                    "${transition.className} 반이 없어 자동 수업을 시작하지 못했습니다.",
+                                )
+                            } else {
+                                runAutomaticSessionPreflight(
+                                    PendingRecoveryAction.StartSession(
+                                        classId = classId,
+                                        temporaryStudentIds = emptySet(),
+                                        automaticSchedule = true,
+                                        className = transition.className,
+                                    ),
+                                )
+                            }
+                        }
+                        is AutomaticClassTransition.Switch -> {
+                            val classId = evaluation.targetClassId
+                            if (classId == null) {
+                                publishAutomaticScheduleProblem(
+                                    "${transition.className} 반이 없어 자동 변경하지 못했습니다.",
+                                )
+                            } else {
+                                performAutomaticClassSwitch(classId, transition.className)
+                            }
+                        }
+                        AutomaticClassTransition.End -> launchWebSessionRecovery(
+                            PendingRecoveryAction.EndSession(automaticSchedule = true),
+                        )
+                    }
                 }
                 scheduleAutomaticClassCheck(evaluation.nextCheckDelayMillis)
             }
@@ -4289,11 +4319,20 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     onFailure = { error ->
-                        publishAutomaticScheduleProblem(
-                            error.message ?: "$className 수업으로 자동 변경하지 못했습니다.",
-                        )
-                        if (scannerVisible) ensureCamera()
-                        scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+                        if (error is EmptyClassRosterException) {
+                            launchWebSessionRecovery(
+                                PendingRecoveryAction.EndSession(
+                                    automaticSchedule = true,
+                                    skippedEmptyClassName = className,
+                                ),
+                            )
+                        } else {
+                            publishAutomaticScheduleProblem(
+                                error.message ?: "$className 수업으로 자동 변경하지 못했습니다.",
+                            )
+                            if (scannerVisible) ensureCamera()
+                            scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
+                        }
                     },
                 )
                 if (result.isSuccess) requestAutomaticClassScheduleCheck()
@@ -4317,6 +4356,17 @@ class MainActivity : ComponentActivity() {
         )
         automaticScheduleProblemNotificationState = decision.state
         reportPcStatus(pcState, null, notify = decision.notify)
+    }
+
+    private fun showAutomaticEmptyClassSkipped(className: String) {
+        if (authPanel.visibility != View.VISIBLE) {
+            showAuthentication(enrollment = false)
+        }
+        val message =
+            "$className 반에 학생이 없어 이번 자동 수업을 건너뛰었습니다. " +
+                "학생을 추가하면 현재 수업 시간 안에는 자동 시작을 다시 확인합니다."
+        authError.text = message
+        publishAutomaticScheduleProblem(message, "빈 반 자동 수업 건너뜀")
     }
 
     private fun clearAutomaticScheduleProblem(notifyRecovery: Boolean = true) {
@@ -4523,9 +4573,15 @@ class MainActivity : ComponentActivity() {
                         updateSessionAdminControls(currentSession)
                         val message = error.message ?: "수업 시작 실패"
                         if (action.automaticSchedule) {
-                            showAuthentication(enrollment = false)
-                            authError.text = message
-                            publishAutomaticScheduleProblem(message, "자동 수업 시작 실패")
+                            if (error is EmptyClassRosterException) {
+                                showAutomaticEmptyClassSkipped(
+                                    action.className ?: "예약된",
+                                )
+                            } else {
+                                showAuthentication(enrollment = false)
+                                authError.text = message
+                                publishAutomaticScheduleProblem(message, "자동 수업 시작 실패")
+                            }
                         } else {
                             adminMessage.text = message
                         }
@@ -4533,7 +4589,10 @@ class MainActivity : ComponentActivity() {
                 )
                 if (result.isSuccess) {
                     requestAutomaticClassScheduleCheck()
-                } else if (action.automaticSchedule) {
+                } else if (
+                    action.automaticSchedule &&
+                    result.exceptionOrNull() !is EmptyClassRosterException
+                ) {
                     scheduleAutomaticClassCheck(AUTOMATIC_SCHEDULE_MAX_CHECK_MS)
                 }
             }
@@ -4554,11 +4613,16 @@ class MainActivity : ComponentActivity() {
                         updateClassRosterUi()
                         updateSessionAdminControls(currentSession)
                         if (action.automaticSchedule) {
-                            clearAutomaticScheduleProblem(notifyRecovery = false)
-                            showAuthentication(enrollment = false)
-                            authError.text =
-                                "예약된 수업 시간이 끝나 현재 수업을 자동으로 종료했습니다."
-                            reportPcStatus("자동 수업 종료", null, notify = true)
+                            val skippedClass = action.skippedEmptyClassName
+                            if (skippedClass == null) {
+                                clearAutomaticScheduleProblem(notifyRecovery = false)
+                                showAuthentication(enrollment = false)
+                                authError.text =
+                                    "예약된 수업 시간이 끝나 현재 수업을 자동으로 종료했습니다."
+                                reportPcStatus("자동 수업 종료", null, notify = true)
+                            } else {
+                                showAutomaticEmptyClassSkipped(skippedClass)
+                            }
                         } else {
                             refreshAdminData("Web 로그인과 현재 수업을 안전하게 종료했습니다.")
                         }
@@ -6285,6 +6349,9 @@ class MainActivity : ComponentActivity() {
                     KEY_PENDING_RECOVERY_AUTOMATIC,
                     action.automaticSchedule,
                 )
+                action.skippedEmptyClassName?.let {
+                    outState.putString(KEY_PENDING_RECOVERY_CLASS_NAME, it)
+                }
                 outState.putString(
                     KEY_PENDING_RECOVERY_ACTION,
                     PENDING_RECOVERY_END,
@@ -6315,6 +6382,9 @@ class MainActivity : ComponentActivity() {
                 automaticSchedule = savedState.getBoolean(
                     KEY_PENDING_RECOVERY_AUTOMATIC,
                     false,
+                ),
+                skippedEmptyClassName = savedState.getString(
+                    KEY_PENDING_RECOVERY_CLASS_NAME,
                 ),
             )
             else -> PendingRecoveryAction.None
@@ -6445,6 +6515,7 @@ class MainActivity : ComponentActivity() {
         ) : PendingRecoveryAction
         data class EndSession(
             val automaticSchedule: Boolean = false,
+            val skippedEmptyClassName: String? = null,
         ) : PendingRecoveryAction
     }
 
@@ -6456,6 +6527,7 @@ class MainActivity : ComponentActivity() {
             val transition: AutomaticClassTransition,
             val targetClassName: String?,
             val targetClassId: String?,
+            val targetHasActiveStudents: Boolean?,
             val sessionState: AutomaticSessionState,
             val nextCheckDelayMillis: Long,
         ) : AutomaticScheduleEvaluation

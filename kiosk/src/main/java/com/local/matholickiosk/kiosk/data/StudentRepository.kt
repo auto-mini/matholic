@@ -53,6 +53,8 @@ data class TemporaryCardLoanSummary(
     val loanedAtEpochMs: Long,
 )
 
+class EmptyClassRosterException(message: String) : IllegalStateException(message)
+
 data class AssignedReusableCard(
     val studentId: String,
     val slotLabel: String,
@@ -938,11 +940,13 @@ class StudentRepository(
             require(temporaryStudentIds.all(activeStudentIds::contains)) {
                 "Inactive or unknown temporary student selected"
             }
-            require(
-                database.studentDao().listActiveForClass(classId).isNotEmpty() ||
-                    temporaryStudentIds.isNotEmpty(),
+            if (
+                database.studentDao().listActiveForClass(classId).isEmpty() &&
+                temporaryStudentIds.isEmpty()
             ) {
-                "수업에는 반 학생 또는 보강 학생이 한 명 이상 필요합니다."
+                throw EmptyClassRosterException(
+                    "수업에는 반 학생 또는 보강 학생이 한 명 이상 필요합니다.",
+                )
             }
             require(database.sessionDao().get()?.sessionId == null) {
                 "이미 진행 중인 수업이 있습니다."
@@ -1463,8 +1467,10 @@ class StudentRepository(
         require(database.classDao().findActiveById(targetClassId) != null) {
             "Active class not found"
         }
-        require(database.studentDao().listActiveForClass(targetClassId).isNotEmpty()) {
-            "선택한 반에 활성 소속 학생이 없습니다. 먼저 관리자 화면에서 소속을 설정하세요."
+        if (database.studentDao().listActiveForClass(targetClassId).isEmpty()) {
+            throw EmptyClassRosterException(
+                "선택한 반에 활성 소속 학생이 없습니다. 먼저 관리자 화면에서 소속을 설정하세요.",
+            )
         }
 
         val now = nowEpochMs()

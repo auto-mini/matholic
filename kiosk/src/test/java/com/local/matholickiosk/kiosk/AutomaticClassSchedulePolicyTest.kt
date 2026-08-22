@@ -4,6 +4,8 @@ import com.local.matholickiosk.kiosk.domain.AutomaticClassClockPolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticClassSchedulePolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticClassTransition
 import com.local.matholickiosk.kiosk.domain.AutomaticClassTransitionPolicy
+import com.local.matholickiosk.kiosk.domain.AutomaticEmptyClassAction
+import com.local.matholickiosk.kiosk.domain.AutomaticEmptyClassPolicy
 import com.local.matholickiosk.kiosk.domain.AutomaticSessionState
 import com.local.matholickiosk.kiosk.domain.DailyClassScheduleOverride
 import com.local.matholickiosk.kiosk.domain.ScheduledClassEntry
@@ -232,6 +234,42 @@ class AutomaticClassSchedulePolicyTest {
                 currentSessionState = AutomaticSessionState.QR_READY,
                 administratorWorkVisible = false,
                 operationInProgress = false,
+            ),
+        )
+    }
+
+    @Test
+    fun emptyScheduledClassSkipsStartWithoutRetryingSessionCreation() {
+        assertEquals(
+            AutomaticEmptyClassAction.SKIP_START,
+            AutomaticEmptyClassPolicy.decide(
+                transition = AutomaticClassTransition.Start("토1"),
+                targetHasActiveStudents = false,
+            ),
+        )
+        assertEquals(
+            AutomaticEmptyClassAction.PROCEED,
+            AutomaticEmptyClassPolicy.decide(
+                transition = AutomaticClassTransition.Start("토1"),
+                targetHasActiveStudents = true,
+            ),
+        )
+    }
+
+    @Test
+    fun switchingToEmptyScheduledClassEndsCurrentSessionAndSkipsTarget() {
+        assertEquals(
+            AutomaticEmptyClassAction.END_CURRENT_AND_SKIP,
+            AutomaticEmptyClassPolicy.decide(
+                transition = AutomaticClassTransition.Switch("토2"),
+                targetHasActiveStudents = false,
+            ),
+        )
+        assertEquals(
+            AutomaticEmptyClassAction.PROCEED,
+            AutomaticEmptyClassPolicy.decide(
+                transition = AutomaticClassTransition.End,
+                targetHasActiveStudents = false,
             ),
         )
     }

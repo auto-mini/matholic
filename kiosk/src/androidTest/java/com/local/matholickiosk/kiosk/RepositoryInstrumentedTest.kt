@@ -255,7 +255,10 @@ class RepositoryInstrumentedTest {
         assertTrue(QrTokenCodec().parse(replacement.payload) is QrParseResult.Valid)
 
         repository.endSession()
-        assertTrue(runCatching { repository.startSession(classId) }.isFailure)
+        assertTrue(
+            runCatching { repository.startSession(classId) }
+                .exceptionOrNull() is com.local.matholickiosk.kiosk.data.EmptyClassRosterException,
+        )
         assertNull(repository.currentSession()?.sessionId)
     }
 

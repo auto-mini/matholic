@@ -40,6 +40,27 @@ sealed interface AutomaticClassTransition {
     data object Deferred : AutomaticClassTransition
 }
 
+enum class AutomaticEmptyClassAction {
+    PROCEED,
+    SKIP_START,
+    END_CURRENT_AND_SKIP,
+}
+
+object AutomaticEmptyClassPolicy {
+    fun decide(
+        transition: AutomaticClassTransition,
+        targetHasActiveStudents: Boolean?,
+    ): AutomaticEmptyClassAction {
+        if (targetHasActiveStudents != false) return AutomaticEmptyClassAction.PROCEED
+        return when (transition) {
+            is AutomaticClassTransition.Start -> AutomaticEmptyClassAction.SKIP_START
+            is AutomaticClassTransition.Switch ->
+                AutomaticEmptyClassAction.END_CURRENT_AND_SKIP
+            else -> AutomaticEmptyClassAction.PROCEED
+        }
+    }
+}
+
 object AutomaticClassSchedulePolicy {
     const val CLASS_DURATION_MINUTES = 180
     private const val MINUTES_PER_DAY = 24 * 60
