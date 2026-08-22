@@ -137,6 +137,16 @@ internal class AutomaticClassScheduleStore(context: Context) {
     fun requiresManualOverride(date: LocalDate): Boolean =
         hasAutomaticSchedule(date) && !isDisabledFor(date)
 
+    @Synchronized
+    fun consumeEmptyClassSkipNotification(windowKey: String): Boolean {
+        require(windowKey.isNotBlank()) { "Empty class window key is blank" }
+        if (preferences.getString(KEY_LAST_NOTIFIED_EMPTY_WINDOW, null) == windowKey) {
+            return false
+        }
+        preferences.edit().putString(KEY_LAST_NOTIFIED_EMPTY_WINDOW, windowKey).apply()
+        return true
+    }
+
     fun isClockPlausible(now: ZonedDateTime): Boolean = AutomaticClassClockPolicy.isPlausible(
         now = now,
         lastAcceptedEpochMillis = preferences
@@ -170,6 +180,7 @@ internal class AutomaticClassScheduleStore(context: Context) {
         private const val KEY_OVERRIDE_DATE = "override_epoch_day"
         private const val KEY_OVERRIDE_COUNT = "override_count"
         private const val KEY_LAST_ACCEPTED_CLOCK = "last_accepted_clock_epoch_ms"
+        private const val KEY_LAST_NOTIFIED_EMPTY_WINDOW = "last_notified_empty_window"
         private const val UNSET_MINUTE = -1
         private const val MINUTES_PER_DAY = 24 * 60
         private const val MAX_DAILY_CLASSES = 2

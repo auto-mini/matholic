@@ -4349,7 +4349,35 @@ class MainActivity : ComponentActivity() {
             "$className 반에 학생이 없어 이번 자동 수업을 건너뛰었습니다. " +
                 "학생을 추가하면 현재 수업 시간 안에는 자동 시작을 다시 확인합니다."
         authError.text = message
-        publishAutomaticScheduleProblem(message, "빈 반 자동 수업 건너뜀")
+        clearAutomaticScheduleProblem(notifyRecovery = false)
+        val notify = runCatching {
+            automaticClassScheduleStore.consumeEmptyClassSkipNotification(
+                currentAutomaticClassWindowKey(className),
+            )
+        }.getOrDefault(false)
+        reportPcStatus("빈 반 자동 수업 건너뜀", null, notify = notify)
+    }
+
+    private fun currentAutomaticClassWindowKey(className: String): String {
+        val now = ZonedDateTime.now()
+        return runCatching {
+            val date = now.toLocalDate()
+            val target = AutomaticClassSchedulePolicy.targetAt(
+                now = now,
+                weeklyEntries = automaticClassScheduleStore.loadWeekly().enabledEntries(),
+                todayOverride = automaticClassScheduleStore.loadOverride(date),
+                yesterdayOverride = automaticClassScheduleStore.loadOverride(date.minusDays(1)),
+            )
+            val window = (target as? ScheduledClassTarget.Active)?.window
+                ?.takeIf { it.className == className }
+            if (window == null) {
+                "$className:${date.toEpochDay()}"
+            } else {
+                "$className:${window.start.toInstant().toEpochMilli()}"
+            }
+        }.getOrElse {
+            "$className:${now.toLocalDate().toEpochDay()}"
+        }
     }
 
     private fun clearAutomaticScheduleProblem(notifyRecovery: Boolean = true) {

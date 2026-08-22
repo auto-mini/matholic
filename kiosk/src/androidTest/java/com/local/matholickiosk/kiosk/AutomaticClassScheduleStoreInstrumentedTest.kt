@@ -77,6 +77,23 @@ class AutomaticClassScheduleStoreInstrumentedTest {
         assertTrue(closeAdminButton.filterTouchesWhenObscured)
     }
 
+    @Test
+    fun emptyClassSkipNotificationIsConsumedOncePerScheduledWindowAcrossStoreInstances() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteSharedPreferences(PREFERENCES_NAME)
+        try {
+            val firstStore = AutomaticClassScheduleStore(context)
+            assertTrue(firstStore.consumeEmptyClassSkipNotification("토1:1787360400000"))
+            assertFalse(firstStore.consumeEmptyClassSkipNotification("토1:1787360400000"))
+
+            val recreatedStore = AutomaticClassScheduleStore(context)
+            assertFalse(recreatedStore.consumeEmptyClassSkipNotification("토1:1787360400000"))
+            assertTrue(recreatedStore.consumeEmptyClassSkipNotification("토2:1787371200000"))
+        } finally {
+            context.deleteSharedPreferences(PREFERENCES_NAME)
+        }
+    }
+
     private companion object {
         const val PREFERENCES_NAME = "automatic_class_schedule"
     }
