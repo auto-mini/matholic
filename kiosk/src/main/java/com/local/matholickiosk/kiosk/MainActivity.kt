@@ -670,8 +670,12 @@ class MainActivity : ComponentActivity() {
         sendPcPdfButton.setOnClickListener { confirmPcPdfTransfer() }
         addTemporaryButton.setOnClickListener { showTemporaryStudentDialog() }
         startSessionButton.setOnClickListener {
-            requireManualScheduleOverride("수업을 수동으로 시작하거나 종료") {
+            if (currentSession?.sessionId != null) {
                 startOrEndSession()
+            } else {
+                requireManualScheduleOverride("선택한 반 수업을 수동으로 시작") {
+                    startOrEndSession()
+                }
             }
         }
         closeAdminButton.setOnClickListener { closeAdministratorScreen() }
@@ -714,21 +718,6 @@ class MainActivity : ComponentActivity() {
             ) {
                 if (!suppressClassSelectionCallback) {
                     val selectedClassId = classes.getOrNull(position)?.id
-                    val previousClassId = classRosterState.selectedClassId
-                    if (selectedClassId != null && selectedClassId != previousClassId) {
-                        val previousIndex = classes.indexOfFirst { it.id == previousClassId }
-                        if (automaticScheduleRequiresManualOverride()) {
-                            if (previousIndex >= 0) {
-                                suppressClassSelectionCallback = true
-                                classSpinner.setSelection(previousIndex)
-                                suppressClassSelectionCallback = false
-                            }
-                            requireManualScheduleOverride("선택 반을 수동으로 변경") {
-                                classSpinner.setSelection(position)
-                            }
-                            return
-                        }
-                    }
                     classRosterState.select(selectedClassId)?.let { request ->
                         pendingTemporaryStudentIds = emptySet()
                         updateClassRosterUi()
@@ -1285,9 +1274,7 @@ class MainActivity : ComponentActivity() {
             refreshAdminData()
             return
         }
-        requireManualScheduleOverride("선택 반을 $className 반으로 변경") {
-            classSpinner.setSelection(index)
-        }
+        classSpinner.setSelection(index)
     }
 
     private fun updateQuickClassButtons() {
@@ -3957,10 +3944,6 @@ class MainActivity : ComponentActivity() {
         }
         dialog.show()
     }
-
-    private fun automaticScheduleRequiresManualOverride(): Boolean = runCatching {
-        automaticClassScheduleStore.requiresManualOverride(LocalDate.now())
-    }.getOrDefault(true)
 
     private fun requireManualScheduleOverride(
         operation: String,

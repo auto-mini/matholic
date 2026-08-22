@@ -1613,6 +1613,76 @@ class MainActivityInstrumentedTest {
     }
 
     @Test
+    fun automaticScheduleAllowsClassSelectionAndMembershipButStillBlocksManualStart() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = KioskDatabase.get(context)
+        database.clearAllTables()
+        AdminAuthRepository(database).enroll("654321".toCharArray())
+        StudentRepository(
+            database = database,
+            cipher = AndroidKeystoreCredentialCipher(),
+            appVersion = "instrumented-test",
+        ).registerStudent(
+            displayNameExact = "자동시간표-소속시험학생",
+            username = "automatic-roster-user".toCharArray(),
+            password = "automatic-roster-password".toCharArray(),
+        )
+        AutomaticClassScheduleStore(context).saveWeekly(
+            StoredClassSchedule(
+                startMinuteByClass = mapOf("월1" to 15 * 60 + 30),
+                enabledClassNames = setOf("월1"),
+            ),
+        )
+
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                waitForAdminAuthentication(scenario)
+                scenario.onActivity { activity ->
+                    activity.findViewById<android.widget.EditText>(R.id.pin_input)
+                        .setText("654321")
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<View>(R.id.admin_panel).visibility == View.VISIBLE &&
+                        quickClassButton(activity, "화1").isEnabled
+                }
+
+                scenario.onActivity { activity ->
+                    quickClassButton(activity, "화1").performClick()
+                }
+                waitUntil(scenario) { activity ->
+                    activity.findViewById<android.widget.Spinner>(R.id.class_spinner)
+                        .selectedItem
+                        ?.toString() == "화1" &&
+                        activity.findViewById<View>(R.id.manage_class_members_button).isEnabled
+                }
+                scenario.onActivity { activity ->
+                    activity.findViewById<View>(R.id.manage_class_members_button).performClick()
+                    val membershipDialog = WindowInspector.getGlobalWindowViews().first {
+                        it !== activity.window.decorView &&
+                            allText(it).contains("화1 학생 구성")
+                    }
+                    assertTrue(allText(membershipDialog).contains("화1 학생 구성"))
+                    allViews(membershipDialog)
+                        .filterIsInstance<android.widget.Button>()
+                        .first { it.text.toString() == "취소" }
+                        .performClick()
+
+                    activity.findViewById<View>(R.id.start_session_button).performClick()
+                    val overrideDialog = WindowInspector.getGlobalWindowViews().first {
+                        it !== activity.window.decorView &&
+                            allText(it).contains("자동 반 전환이 켜져 있습니다")
+                    }
+                    assertTrue(
+                        allText(overrideDialog).contains("자동 반 전환이 켜져 있습니다"),
+                    )
+                }
+            }
+        } finally {
+            database.clearAllTables()
+        }
+    }
+
+    @Test
     fun failedWebSessionResultPersistenceShowsClosedRecoveryUi() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val database = KioskDatabase.get(context)
