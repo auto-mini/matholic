@@ -1,5 +1,33 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC98 빈 반 건너뜀 PC 알림 1회 제한 — 2026-08-22
+
+- 빈 예약 반은 세션을 시작하지 않도록 교정됐지만 자동 시간표가 30초마다 상태를
+  재평가하면서, 일반 오류용 10분 재알림 정책을 통해 같은 `빈 반 자동 수업 건너뜀`
+  Windows 알림을 계속 보내던 원인을 확인했다.
+- 빈 반 건너뜀은 반복 오류가 아니라 한 수업 구간의 결정이므로 일반 오류 알림에서
+  분리했다. 반 이름과 예약 시작 epoch로 만든 수업 구간 키를 preferences에 저장해
+  같은 구간에서는 최초 1회만 `notify=true`를 보내고 이후 상태 갱신은
+  `notify=false`로 보낸다. Activity·process가 재생성돼도 제한이 유지되며 다음 예약
+  수업 구간으로 바뀌면 다시 1회 알릴 수 있다. 실제 시계·시간표·Web 실패 등 일반
+  오류의 기존 10분 재알림 정책은 유지한다.
+- 같은 키 최초/반복, 새 store instance 반복, 다음 수업 키를 검증한 focused 계측
+  1/1과 Android 13 전체 계측 95/95를 통과했다. Kiosk unit 29 suites·113/113도
+  통과했다. release build는 158 tasks 중 154개 실행, 4개 up-to-date로
+  `BUILD SUCCESSFUL in 2m 29s`였고 양 앱 unit·release lint·signed assemble,
+  package/version/non-debuggable/권한·zipalign·동일 signer·checksum 재검증을 통과했다.
+- Kiosk RC98/code 103 APK는 36,901,893 bytes, SHA-256
+  `A8E9A360D8BC5173362039E0D110375E0A8EE465C51B9939E74A0A9D06C3C61C`이다.
+  signer SHA-256은
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`이고,
+  Web payload는 바뀌지 않아 RC139/code 156과 기존 artifact를 유지했다.
+- A `SM-P610`/`R54TB029FHZ`에 RC98을 `adb install -r`로 보존 설치했다. UID 10288,
+  first install `2026-07-24 12:52:28`, Device Owner와 preferred HOME이 유지됐다.
+  빈 `토1` 구간에서 건너뜀 안내가 표시됐고 60초 동안 30초 재평가를 두 차례 넘겨도
+  Kiosk가 계속 top resumed, Lock Task `LOCKED`로 유지됐다. PC 수신기는 Windows
+  toast 이력을 별도 기록하지 않아 실기 알림 개수를 기계적으로 다시 읽지는 못했으며,
+  영속 1회 소비 계측과 이후 `notify=false` 코드 경로로 검증했다.
+
 ## Kiosk RC97 자동 시간표 중 반 학생 구성 허용 — 2026-08-22
 
 - 자동 반 전환이 켜진 상태에서 관리자 화면의 반 선택까지 수동 전환으로 오인해,
