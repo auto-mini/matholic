@@ -1,5 +1,35 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC97 자동 시간표 중 반 학생 구성 허용 — 2026-08-22
+
+- 자동 반 전환이 켜진 상태에서 관리자 화면의 반 선택까지 수동 전환으로 오인해,
+  다른 반의 학생 구성을 열기 전에 `오늘 자동 전환 끄기`를 요구하던 범위 오류를
+  교정했다.
+- 요일 반 빠른 선택과 반 선택 드롭다운은 자동 시간표 상태와 관계없이 학생·반
+  관리용으로 사용할 수 있다. `선택한 반 수업 안전 시작`은 실제 수업 상태를
+  변경하므로 기존처럼 오늘 자동 전환을 끄기 전에는 실행되지 않는다. 진행 중 수업의
+  안전 종료는 허용하고, 진행 중 수업을 다른 반으로 직접 바꾸는 작업은 실제 반
+  전환이므로 기존 보호를 유지한다.
+- 자동 전환 켜짐 상태에서 다른 반 선택 → 해당 반 `학생 구성` 열기 → 수업 시작만
+  차단되는 회귀 계측 1/1과 Android 13 전체 계측 94/94를 통과했다. Kiosk unit
+  29 suites·113/113도 통과했다. 계측 의존성 메타데이터 3개는 로컬 cache와 Maven
+  Central 원본 SHA-256이 일치함을 확인한 뒤 공급망 허용 목록에 추가했다.
+- release build는 158 tasks 중 154개 실행, 4개 up-to-date로
+  `BUILD SUCCESSFUL in 2m 36s`였고 양 앱 unit·release lint·signed assemble,
+  package/version/non-debuggable/권한·zipalign·동일 signer·checksum 재검증을 통과했다.
+- Kiosk RC97/code 102 APK는 36,901,893 bytes, SHA-256
+  `A5A94E086011E7DDC5FC2015307A96231B595DB38310F16CE8FCE0F3BE90C2F2`이다.
+  signer SHA-256은
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`이고,
+  Web payload는 바뀌지 않아 RC139/code 156과 기존 artifact를 유지했다.
+- A `SM-P610`/`R54TB029FHZ`에 RC97을 `adb install -r`로 보존 설치했다. UID 10288,
+  first install `2026-07-24 12:52:28`, Device Owner와 preferred HOME이 유지됐다.
+  실제 자동 시간표가 켜진 관리자 화면에서 `금1`에서 `화1`로 선택해도 해제 확인이
+  뜨지 않고 `화1 학생 구성`이 열리는 것을 확인했다. 저장하지 않고 취소했으며,
+  `선택한 반 수업 안전 시작`에서만 해제 확인이 뜨고 session은 `ADMIN_IDLE`인 것을
+  확인했다. 선택 반도 `금1`로 되돌린 뒤 관리자 PIN 대기와 Lock Task `LOCKED`로
+  복귀시켰다. 학생·반·시간표 데이터는 변경하지 않았다.
+
 ## Kiosk RC96 빈 예약 반 자동 시작 반복 방지 — 2026-08-22
 
 - 토요일 10:00 `토1`처럼 활성 학생이 한 명도 없는 예약 반에서 자동 시작이
