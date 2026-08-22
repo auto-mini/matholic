@@ -1,5 +1,37 @@
 # 빌드·보안 검증 기록
 
+## Kiosk RC96 빈 예약 반 자동 시작 반복 방지 — 2026-08-22
+
+- 토요일 10:00 `토1`처럼 활성 학생이 한 명도 없는 예약 반에서 자동 시작이
+  저장소 검증에 실패한 뒤 30초마다 다시 Web 사전정리를 실행하던 실제 A 동작을
+  재현했다. RC95에서는 관리자 PIN 화면의 `한 명 이상 필요합니다` 오류 뒤
+  Web POC가 다시 전면에 올라오는 것을 확인했다.
+- 자동 시간표 판정 단계에서 예약 반의 활성 소속 학생 수를 먼저 확인한다. 빈 반이면
+  Web 점검과 세션 생성을 시작하지 않고 해당 수업을 건너뛴다. 진행 중인 수업에서
+  다음 빈 반으로 넘어갈 때는 현재 수업만 안전 종료하고 빈 반은 시작하지 않는다.
+  판정 직후 학생 구성이 바뀌는 경쟁 조건도 전용 빈 반 예외로 구분해 30초 실패
+  재시도에 들어가지 않는다.
+- 정책 unit과 저장소 빈 반 예외 시험, Activity 반복 판정·상태복원 시험을 추가했다.
+  Kiosk unit 29 suites·113/113, Web unit 18 suites·73/73, Android 13 전체 계측
+  93/93을 통과했다. release build는 158 tasks 중 154개 실행, 4개 up-to-date로
+  `BUILD SUCCESSFUL in 2m 23s`였고 양 앱 unit·release lint·signed assemble,
+  package/version/non-debuggable/권한·zipalign·동일 signer·checksum 재검증을 통과했다.
+- Kiosk RC96/code 101 APK는 36,901,893 bytes, SHA-256
+  `061862C1C59F43D83A121A3F4D15B21427CC9294A7C47D6B91B43474F58A69B3`이다.
+  signer SHA-256은
+  `9d5bd7d9c328df2e5c54b67d1aa2d42caef2674eeace0614bfe2d37c7651f5b7`이고,
+  Web payload는 바뀌지 않아 RC139/code 156과 기존 artifact를 유지했다.
+- A `SM-P610`/`R54TB029FHZ`에 RC96을 `adb install -r`로 보존 설치했다.
+  UID 10288, first install `2026-07-24 12:52:28`, Device Owner와 preferred HOME이
+  유지됐다. 같은 빈 `토1` 시간대에 `학생이 없어 이번 자동 수업을 건너뛰었습니다`
+  안내가 표시됐고, 기존 30초 재시도 주기를 넘겨 1분 이상 관찰하는 동안 Kiosk가
+  계속 top resumed 상태이며 Web POC가 다시 열리지 않았다. 관리자 화면을 잠가
+  관리자 PIN 대기와 Lock Task `LOCKED`로 복귀시켰다. 학생·반·시간표 데이터는
+  변경하지 않았다.
+- 소스 롤백은 RC96 release commit과 빈 반 수정 commit을 차례로 `git revert`하고,
+  A 복구는 code 101보다 높은 versionCode의 같은 signer forward-recovery APK를
+  사용한다.
+
 ## Kiosk RC95 분실 임시카드 대여·기존 QR 차단 — 2026-08-18
 
 - 출력 확인된 무료 `신규카드1`~`신규카드4`를 기존 학생에게 임시 대여하는 영속
